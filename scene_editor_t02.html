@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Editor</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			body { font-family: Monospace; background-color: #303030; margin: 0px; overflow: hidden;  color:#EDE;}
+			a { color:#BCA; }
+			#info { display:block;position:absolute; top:10px; margin-left: 7px;}
+		</style>
+	</head>
+	<body>
+<div id=info>3D framework: <a href="http://github.com/mrdoob/three.js" target="_blank">three.js</a>
+<br>  USE:: click+ALT Cylinder to surface
+<br> click+CTRL (2 times on object): draw line
+<br>speed paint: key C, delete: key X
+<br>A - Rotate, S - Zoom, D - Pan
+</div>
+
+<script src="build/Three.js"></script>
+<script src="js/Stats.js"></script>
+<script src="EditableControls.js"></script>
+
+<script>
+	// based: http://aerotwist.com/tutorials/ten-things-i-learned/
+	document.onselectstart = function() {return false;};
+
+	var container, stats;
+	var camera, scene, projector, renderer;
+	var particleMaterial;
+	var controls
+	var mouseRec = {clientX:0,clientY:0}
+	var objects = [];
+	var isROT = true
+	var OPA = 0.5
+	var dumy
+	var p1 = false,p2 =false
+	var repeatDelay  = 0
+	init();
+	animate();
+
+	function init() {
+
+		container = document.createElement( 'div' );document.body.appendChild( container );
+		var FOW = 33;
+		camera = new THREE.CombinedCamera( window.innerWidth /2, window.innerHeight/2,FOW, 1, 30000, -30000, 30000, 30000 );				
+		camera.position.set( 0, 300, 2500 );
+		//camera.toOrthographic();
+		
+		scene = new THREE.Scene();
+		scene.add( camera );
+		
+		// build scene 
+		var geometry = new THREE.CubeGeometry( 100, 100, 100 );
+		for ( var i = 0; i < 12; i ++ ) {
+			var object = new THREE.Mesh( geometry, new THREE.MeshBasicMaterial( { color: Math.random() * 0xffffff, opacity: OPA  } ) ); 
+			object.position.x = Math.random() * 2000 - 1000;
+			object.position.y = Math.random() * 2000 - 1000;
+			object.position.z = Math.random() * 2000 - 1000;
+
+			object.scale.multiplyScalar(Math.random() * 2 + 1);
+
+			if(isROT){
+				object.rotation.x = ( Math.random() * 360 ) * Math.PI / 180;
+				object.rotation.y = ( Math.random() * 360 ) * Math.PI / 180;
+				object.rotation.z = ( Math.random() * 360 ) * Math.PI / 180;
+			}
+			
+			scene.add( object );
+			objects.push( object );
+		}
+
+		
+		var cygeo =new THREE.CylinderGeometry(0,30,200,5)
+		cygeo.applyMatrix( new THREE.Matrix4().setRotationFromEuler( new THREE.Vector3( Math.PI / 2, Math.PI, 0 ) ) ); // lol ez kell ahhoz, hogy rendes irányba álló CylinderGeometry -ed legyen. Gáz!
+
+		
+		dumy = new THREE.Mesh(
+			//new THREE.CylinderGeometry(0,30,200,5),  // ez eleve keresztbe áll !!!  -- megoldás fentebb
+			cygeo,
+			//new THREE.CubeGeometry(30,30,200), // igy iranyba marad lookAt-al a hosszabbik felével
+			new THREE.MeshBasicMaterial({wireframe:true,color:0x777777,opacity:0.7})
+		)
+		scene.add(dumy)
+		
+		projector = new THREE.Projector();
+		renderer = new THREE.CanvasRenderer();
+		renderer.setSize( window.innerWidth, window.innerHeight );
+		container.appendChild( renderer.domElement );
+
+		stats = new Stats();stats.domElement.style.position = 'absolute';stats.domElement.style.top = '0px';stats.domElement.style.right='0px';container.appendChild( stats.domElement );
+
+		controls = new THREE.EditableControls( camera, renderer.domElement );
+		document.addEventListener( 'mousemove',onDocMouseMove, false )
+		document.addEventListener('mousedown',onDocMouseDown,false ) 
+		window.addEventListener('keydown',onKeyDown, false)
+	}
+			
+	function onDocMouseDown( event ) {
+		//console.log(event)
+		//if(event.keyCode != 67) return;
+		if(event.altKey){
+			event.preventDefault();
+			event.stopPropagation();			
+			var isec = intersectSurface( event )
+			//console.log(isec.length)
+			if ( isec.length > 0 ) {
+				var ge3 = new THREE.CylinderGeometry( 0, 30, 200, 5 );
+				ge3.applyMatrix( new THREE.Matrix4().setRotationFromEuler( new THREE.Vector3( Math.PI / 2, Math.PI, 0 ) ) );
+				var cu = new THREE.Mesh(ge3, 
+						new THREE.MeshBasicMaterial( { color: Math.random() * 0xffffff,opacity: OPA} ) );
+				//ge3.applyMatrix(new THREE.Matrix4().setRotationFromEuler( isec[0].face.normal.clone() ));					
+				cu.position = isec[0].point
+				cu.lookAt(isec[0].object.position)
+				scene.add(cu)
+				objects.push(cu)
+				//cu.lookAt(point)
+			}			
+		}
+		
+		// delete object 
+		
+		if(event.ctrlKey){
+			var isec = intersectSurface( event )
+			if ( isec.length > 0 ) {
+				if(p1==false){p1 = isec[0].point} else 
+				if(p2==false){
+					p2 = isec[0].point
+					var mat = new THREE.MeshBasicMaterial({ color:0x888888, opacity:OPA})
+					var cyl = getCylinderBetweenPoints(p1,p2,mat)
+					//scene.add(cyl)
+					draw(p1,p2,mat)
+					p1 = p2 = false
+				}
+			}
+		}
+		
+	}
+	
+	function onDocMouseMove(event){
+		mouseRec = event
+		var isec = intersectSurface( event )
+		if(isec.length > 0){
+			dumy.position = isec[0].point
+			//dumy.lookAt(isec[0].face.normal.clone())
+			dumy.lookAt(isec[0].object.position)
+		}
+	}
+	
+	function onKeyDown(event){
+		repeatDelay --
+		if(event.keyCode == 67 && repeatDelay<0){ // C
+			var isec = intersectSurface( mouseRec )
+			if ( isec.length > 0 ) {
+				var ge3 = new THREE.CylinderGeometry( 0, 30, 200, 5 );
+				ge3.applyMatrix( new THREE.Matrix4().setRotationFromEuler( new THREE.Vector3( Math.PI / 2, Math.PI, 0 ) ) );
+				var cu = new THREE.Mesh(ge3, 
+						new THREE.MeshBasicMaterial( { color: Math.random() * 0xffffff,opacity: OPA} ) );
+				cu.position = isec[0].point
+				cu.lookAt(isec[0].object.position)
+				scene.add(cu)
+				objects.push(cu)
+				repeatDelay = 3
+			}						
+		}
+		if(event.keyCode == 88 && repeatDelay<0){ // X
+			var isec = intersectSurface( mouseRec )
+			if ( isec.length > 0 ) {
+				//isec[0].object.visible = !isec[0].object.visible 
+				var first = isec[0].object
+				scene.remove(first)
+				// also remove from intersect list 
+				for(var i in objects){  if(objects[i].id == first.id){ objects.splice(i,1);break }  }
+				repeatDelay = 0
+			}
+		}
+		//console.log(event.keyCode)
+	}
+			
+	function intersectSurface(event){
+		var vector = new THREE.Vector3( ( event.clientX / window.innerWidth ) * 2 - 1, - ( event.clientY / window.innerHeight ) * 2 + 1, 0.5 );
+		projector.unprojectVector( vector, camera );
+		var ray = new THREE.Ray( camera.position, vector.subSelf( camera.position ).normalize() );
+		return  ray.intersectObjects( objects );	
+	}
+
+	function getCylinderBetweenPoints(point1,point2,material){
+	    var HALF_PI = -Math.PI * .5;
+	    var diff = new THREE.Vector3().sub(point1,point2);//delta vector
+	    var halfLength = diff.length() * .5;
+	    var c = new THREE.CylinderGeometry(0, 10, halfLength * 2, 3 );
+	    var orientation = new THREE.Matrix4();//a new orientation matrix to offset pivot
+	    var offsetRotation = new THREE.Matrix4();//a matrix to fix pivot rotation
+	    var offsetPosition = new THREE.Matrix4();//a matrix to fix pivot position
+	    orientation.lookAt(point1,point2,new THREE.Vector3(0,1,0));//look at destination
+	    offsetRotation.setRotationX(HALF_PI);//rotate 90 degs on X
+	    //offsetPosition.setPosition(new THREE.Vector3(-point1.x,diff.length()*.5+point1.z,point1.y*.5));//move by pivot offset on Y
+	    offsetPosition.setPosition(new THREE.Vector3(-point1.x,diff.length()*.5+point1.z,point1.y*.5));//move by pivot offset on Y
+	    orientation.multiplySelf(offsetRotation);//combine orientation with rotation transformations
+	    orientation.multiplySelf(offsetPosition);//combine orientation with position transformations
+		
+	    c.applyMatrix(orientation);//apply the final matrix
+	    var m = new THREE.Mesh( c , material );
+	    
+	    return m;
+	}
+
+	// KIHAL a draw és a connect nagyon hasznos a 3D debugban!! 
+	// kihal legelább 2 pontot össze tudok kötni már ez is valami
+	function draw(p1,p2){
+		var mat = new THREE.LineBasicMaterial({color:0x884488,opacity:0.4})
+		var geo = new THREE.Geometry()
+		geo.vertices.push( new THREE.Vertex(p1) )
+		geo.vertices.push( new THREE.Vertex(p2) )
+		var line = new THREE.Line(geo)
+		scene.add(line)
+		return line
+	}
+	
+	// two object lookAt each other and draw line between
+	function connect(a,b){
+		a.lookAt(b.position)
+		b.lookAt(a.position)
+		draw(a.position,b.position)
+	}
+	
+	function move(po,dir,speed){
+		
+	}
+	
+
+	function animate() {
+		requestAnimationFrame( animate );
+		render();
+		stats.update();
+	}
+	
+	//  http://stackoverflow.com/questions/3809788/3d-rotation-with-axis-angle
+	// normalized means length is 1 
+	//object, normalized direction vector, rotation in radians
+function align(target, dir, rot) {
+    //Three.js uses a Y up coordinate system, so the cube inits with this vector
+    var up = new THREE.Vector3(0, 1, 0);
+
+    //euler angle between direction vector and up vector
+    var angle = Math.acos(up.dot(dir));
+
+    //cross product of the up vector and direction vector
+    var axis = new THREE.Vector3();
+    axis.cross(up, dir);
+    axis.normalize();
+
+    //rotation to aligns the target with the direction vector
+    var rotate = THREE.Matrix4.rotationAxisAngleMatrix(axis, angle);
+
+    //rotation around direction vector
+    var revolve = THREE.Matrix4.rotationAxisAngleMatrix(dir, rot);
+
+    //compose the rotations (order matters, can be done other ways)
+    revolve.multiplySelf(rotate);
+
+    //assign matrix (autoUpdateMatrix = false)
+    target.matrix = revolve;
+}
+
+
+	
+
+	var radius = 600;
+	var theta = 0;
+
+	function render() {
+			controls.update()
+			//for(var i in objects){ objects[i].lookAt(dumy.position) }
+			renderer.render( scene, camera );
+	}
+	
+		</script>
+
+	</body>
+</html>
