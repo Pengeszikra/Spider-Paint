@@ -6,7 +6,7 @@
 *
 */
 
-if(console || console.log) console.log("Spider Painter 0.010");
+if(console || console.log) console.log("Spider Painter 0.011");
 	
 	// based: http://aerotwist.com/tutorials/ten-things-i-learned/
 	document.onselectstart = function() {return false;};
@@ -283,7 +283,7 @@ if(console || console.log) console.log("Spider Painter 0.010");
 		if(event.keyCode == 69 && repeatDelay<0){ // E
 			var isec = intersectSurface( mouseRec )
 			if ( isec.length > 0 ) {
-				var icon = bush("http://fecni.com/3d/texture/levelek.png",200,200)
+				var icon = bush("asset/textures/levelek.png",200,200)
 				//console.log(icon)
 				//icon.applyMatrix( new THREE.Matrix4().setRotationFromEuler( new THREE.Vector3( Math.PI / 2, Math.PI, 0 ) ) );
 				icon.applyMatrix( new THREE.Matrix4().setRotationFromEuler( 
