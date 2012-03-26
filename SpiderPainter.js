@@ -6,11 +6,11 @@
 *
 */
 
-if(console || console.log) console.log("Spider Painter 0.011");
+if(console || console.log) console.log("Spider Painter 0.015");
 	
 	// based: http://aerotwist.com/tutorials/ten-things-i-learned/
 	document.onselectstart = function() {return false;};
-
+	
 	var container, stats;
 	var camera, scene, projector, renderer;
 	var particleMaterial;
@@ -24,8 +24,11 @@ if(console || console.log) console.log("Spider Painter 0.011");
 	var repeatDelay  = 0
 	var dd // for debug
 	var bushTextMemory,bushMaterial
+	var lastinn
+	
 	init();
-	animate();
+	animate();	
+
 
 	function init() {
 
@@ -41,7 +44,7 @@ if(console || console.log) console.log("Spider Painter 0.011");
 		projector = new THREE.Projector();
 		
 		// use WebGLRenderer for better user experience 
-		renderer = new THREE.WebGLRenderer( { antialias: true } );
+		renderer = new THREE.WebGLRenderer( { antialias: false } );
 		//renderer.sortObjects = false;
 		renderer.setSize( window.innerWidth, window.innerHeight );
 		renderer.shadowMapEnabled = true;
@@ -101,7 +104,12 @@ if(console || console.log) console.log("Spider Painter 0.011");
 			
 			addRandom(object,2000)
 			
+			
+			
+			
 		}
+		
+		addHero()
 		
 		var spmsh = new THREE.Mesh ( new THREE.SphereGeometry(300) ,  matRnd()  )
 		shadowed(spmsh)
@@ -114,16 +122,23 @@ if(console || console.log) console.log("Spider Painter 0.011");
 		dumy = new THREE.Mesh( cygeo, new THREE.MeshBasicMaterial({wireframe:true,color:0x777777,opacity:0.7}))
 		scene.add(dumy)
 		
-		
 	}
 	
 	function addHero(){
-		new THREE.JSONLoader().load( 'Pantheon.js', function ( geo ) {
+		new THREE.JSONLoader().load( 'asset/models/1head.js', function ( geo , mat ) {
 			geo.computeVertexNormals();		
-			var msh = new THREE.Mesh(geo, matRnd())
-			shadowed()
-			//msh.scale = new THREE.Vector3().addScalar(100)
+			//var msh = new THREE.Mesh(geo, matRnd())
+			var msh = new THREE.Mesh(geo, matRnd() )
+			msh.scale.multiplyScalar(100)
+			if(isROT){
+				msh.rotation.x = ( Math.random() * 360 ) * Math.PI / 180;
+				msh.rotation.y = ( Math.random() * 360 ) * Math.PI / 180;
+				msh.rotation.z = ( Math.random() * 360 ) * Math.PI / 180;
+			}		
+			msh.castShadow = true;
+			msh.receiveShadow = true;	
 			addRandom(msh,2000)
+			hero = msh
 		});	
 	}
 	
@@ -141,7 +156,6 @@ if(console || console.log) console.log("Spider Painter 0.011");
 	}
 	
 	
-			
 	function onDocMouseDown( event ) {
 		//console.log(event)
 		//if(event.keyCode != 67) return;
@@ -155,7 +169,7 @@ if(console || console.log) console.log("Spider Painter 0.011");
 		    // /////////////////////////////////////////////////////////  WestLangley
 
 		    //radiusTop, radiusBottom, height, segmentsRadius, segmentsHeight, openEnded 
-		    var ge3 = new THREE.CylinderGeometry( 0, 200, cheight , 7, 1 );
+		    var ge3 = new THREE.CylinderGeometry( 0, 200, 70 , 7, 1 );
 
 		    var cu = new THREE.Mesh( ge3 , 
 		        new THREE.MeshBasicMaterial( { color: Math.random() * 0xffffff, opacity: OPA } ) 
@@ -164,6 +178,7 @@ if(console || console.log) console.log("Spider Painter 0.011");
 			shadowed(cu)
 			
 			var inn = intersects[0]
+			
 
 		    // get the face normal in object space
 		    var vec = inn.face.normal.clone();
@@ -212,7 +227,6 @@ if(console || console.log) console.log("Spider Painter 0.011");
 			//scene.add(cu)
 			//cu.position = inn.point;scene.add(cu)
 			
-
 		    // /////////////////////////////////////////////////////////             
 
 		    objects.push(cu);
@@ -243,6 +257,7 @@ if(console || console.log) console.log("Spider Painter 0.011");
 		mouseRec = event
 		var isec = intersectSurface( event )
 		if(isec.length > 0){
+			lastinn = isec[0].object
 			dumy.position = isec[0].point
 			dumy.lookAt(isec[0].object.position)
 		}
@@ -296,13 +311,15 @@ if(console || console.log) console.log("Spider Painter 0.011");
 				scene.add(icon)
 			}
 		}
+
+		// save as png, but dont work
+		// if(event.keyCode == 83 && event.ctrlKey){  window.open( renderer.domElement.toDataURL('image/png'), 'mywindow' ) }
 			
 	}
 	
 	function onKeyUp( event ){
 		repeatDelay = -1
 	}
-
 			
 	function intersectSurface(event){
 		var vector = new THREE.Vector3( ( event.clientX / window.innerWidth ) * 2 - 1, - ( event.clientY / window.innerHeight ) * 2 + 1, 0.5 );
@@ -318,7 +335,7 @@ if(console || console.log) console.log("Spider Painter 0.011");
 
 		if(imgURL != bushTextMemory ){
 			var img = new THREE.ImageUtils.loadTexture(imgURL)
-			bushMaterial= new THREE.MeshLambertMaterial( { map: img, transparent: true } )
+			bushMaterial= new THREE.MeshLambertMaterial( { map: img, transparent: true, depthWrite: false } )
 			bushTextMemory = imgURL
 		} 
 		
