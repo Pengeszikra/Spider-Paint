@@ -6,7 +6,7 @@
 *
 */
 
-if(console || console.log) console.log("Spider Painter 0.015");
+if(console || console.log) console.log("Spider Painter 0.026");
 	
 	// based: http://aerotwist.com/tutorials/ten-things-i-learned/
 	document.onselectstart = function() {return false;};
@@ -25,6 +25,7 @@ if(console || console.log) console.log("Spider Painter 0.015");
 	var dd // for debug
 	var bushTextMemory,bushMaterial
 	var lastinn
+	var hero, movings = [], isMoving = true
 	
 	init();
 	animate();	
@@ -52,7 +53,8 @@ if(console || console.log) console.log("Spider Painter 0.015");
 		
 		// light set from: webgl_interactive_draggablecubes.html
 		scene.add( new THREE.AmbientLight( 0x505050 ) );
-
+		//scene.add( new THREE.DirectionalLight( 0x505050 ));
+		
 		var light = new THREE.SpotLight( 0xffffff, 1.5 );
 		light.position.set( 0, 500, 2000 );
 		light.castShadow = true;
@@ -67,6 +69,7 @@ if(console || console.log) console.log("Spider Painter 0.015");
 		light.shadowMapWidth = 1024;
 		light.shadowMapHeight = 1024;
 		scene.add( light );	
+
 		
 		// objektumoknal, talan ezt kell megadni:
 		//  object.material.ambient = object.material.color;
@@ -97,9 +100,7 @@ if(console || console.log) console.log("Spider Painter 0.015");
 			shadowed(object)
 
 			if(isROT){
-				object.rotation.x = ( Math.random() * 360 ) * Math.PI / 180;
-				object.rotation.y = ( Math.random() * 360 ) * Math.PI / 180;
-				object.rotation.z = ( Math.random() * 360 ) * Math.PI / 180;
+				object.rotation.set( rndArc(360), rndArc(360), rndArc(360) )
 			}
 			
 			addRandom(object,2000)
@@ -131,9 +132,7 @@ if(console || console.log) console.log("Spider Painter 0.015");
 			var msh = new THREE.Mesh(geo, matRnd() )
 			msh.scale.multiplyScalar(100)
 			if(isROT){
-				msh.rotation.x = ( Math.random() * 360 ) * Math.PI / 180;
-				msh.rotation.y = ( Math.random() * 360 ) * Math.PI / 180;
-				msh.rotation.z = ( Math.random() * 360 ) * Math.PI / 180;
+				msh.rotation.set( rndArc(360), rndArc(360), rndArc(360) )
 			}		
 			msh.castShadow = true;
 			msh.receiveShadow = true;	
@@ -210,10 +209,11 @@ if(console || console.log) console.log("Spider Painter 0.015");
 		    // cone height is 100, so offset the position by half of that
 		    
 			//cu.position = inn.face.centroid.clone().addSelf( inn.face.normal.clone().multiplyScalar(50) );
-			cu.position = inn.face.centroid.clone().addSelf( inn.face.normal.clone().multiplyScalar(cheight/2) );
+			//cu.position = inn.face.centroid.clone().addSelf( inn.face.normal.clone().multiplyScalar(cheight/2) );
 			
 			// alternatively, set the position of the cone in front of the intersection point in object space
-			cu.position = new THREE.Matrix4().getInverse( intersects[0].object.matrixWorld ).multiplyVector3( intersects[0].point.clone() ).addSelf( intersects[0].face.normal.clone().multiplyScalar(cheight/2) );
+			//cu.position = new THREE.Matrix4().getInverse( intersects[0].object.matrixWorld ).multiplyVector3( intersects[0].point.clone() ).addSelf( intersects[0].face.normal.clone().multiplyScalar(cheight/2) );
+			cu.position = new THREE.Matrix4().getInverse( intersects[0].object.matrixWorld ).multiplyVector3( intersects[0].point.clone() ).addSelf( intersects[0].face.normal.clone());
 			
 			//my try
 			dd =  {c:inn.face.centroid,p:inn.point,o:inn.object.position}
@@ -311,6 +311,32 @@ if(console || console.log) console.log("Spider Painter 0.015");
 				scene.add(icon)
 			}
 		}
+		// http://www.cambiaresearch.com/articles/15/javascript-char-codes-key-codes
+		// move camera forward -- bug with controls
+		if(event.keyCode == 87){ // W 
+			camera.translateZ(-100)
+			camera.updateMatrix()
+		}
+		
+		// send object to space!
+		if(event.keyCode == 86){ // V
+			var isec = intersectSurface( mouseRec )
+			if( isec.length > 0){
+				isec[0].object.speed = 2 + Math.random()*55
+				movings.push( isec[0].object  )
+			}
+			// movings.push( scene.children[~~(Math.random()*scene.children.length)])
+		}
+		
+		// reset animation
+		if(event.keyCode == 82 ){ // R
+			for(var i in movings){movings[i].position.set(0,0,0)}
+		}
+		
+		// tick animation
+		if(event.keyCode == 84){ // T
+			isMoving = !isMoving
+		}
 
 		// save as png, but dont work
 		// if(event.keyCode == 83 && event.ctrlKey){  window.open( renderer.domElement.toDataURL('image/png'), 'mywindow' ) }
@@ -376,9 +402,22 @@ if(console || console.log) console.log("Spider Painter 0.015");
 
 	function animate() {
 		requestAnimationFrame( animate );
+		
+		if(isMoving){
+			for(var i in movings){
+				movings[i].translateZ(movings[i].speed)
+				if(Math.random()>0.98)
+					
+					//movings[i].rotation.set( rndArc(360), rndArc(360), rndArc(360) )
+					movings[i].rotation.set( rndArc(20), rndArc(20), rndArc(20) )
+			}
+		}
+		
 		render();
 		stats.update();
 	}
+	
+	function rndArc(sector){return Math.random() * sector * Math.PI/(sector/2) }
 	
 	//  http://stackoverflow.com/questions/3809788/3d-rotation-with-axis-angle
 	// normalized means length is 1 
@@ -412,4 +451,23 @@ function render() {
 	controls.update()
 	renderer.render( scene, camera );
 }
+
+/*
+
+mindenki a kamera iranyaba nez:
+
+for(var i=3;i<scene.children.length;i++){scene.children[i].lookAt(camera.position)}
+
+
+a hero random targy fele mozog:
+
+hero.lookAt(scene.children[~~(Math.random()*scene.children.length)].position) // ~~ -- kerekítés lefelé
+var ani = setInterval(function(){hero.translateZ(10)},100)
+clearInterval(ani)  // stop
+
+
+
+
+
+*/
 	
