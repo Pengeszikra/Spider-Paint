@@ -1,5 +1,7 @@
 Spider Paint is light weight experimental webGL 3D scene builder program use Three.js engine.
 
+New version include basic Big Bumm like animation: V, R, T key. 
+
 [Spider Paint latest version](http://fecni.com/3d/Spider-Paint/SpiderPainter.html)
 
 Face of spider:
