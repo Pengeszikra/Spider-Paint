@@ -2,8 +2,6 @@ Spider Paint is light weight experimental webGL 3D scene builder program use Thr
 
 New version include basic Big Bumm like animation: V, R, T key. 
 
-[Spider Paint latest version](http://fecni.com/3d/Spider-Paint/SpiderPainter.html)
-
 Face of spider:
 ![Face of spider](https://lh3.googleusercontent.com/ghluXnfYO8-gmFMx0UoijHR6hB7lsoWoxy3PeO1PfDo0qYl6Q2nWJPf9wbkhJ7qnP73ZJsoKiZNc0SeQNrT_Pl4JsvNJwdqaVndiKgtI7htXyWFS74M)
 
