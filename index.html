@@ -110,6 +110,13 @@
     #stage.clean svg circle { display: none; }
     #stage, #stage:focus, #stage:focus-visible { outline: none; }
     #frame { position: relative; }
+    /* the small readout in the top left corner: what is under the cross, and the target state */
+    #stage { position: relative; }
+    #hud { position: absolute; left: 10px; top: 10px; z-index: 3; min-width: 150px; max-width: 46%; padding: 6px 9px; background: color-mix(in srgb, var(--panel) 82%, transparent); border: 1px solid var(--line); border-radius: 6px; font: 500 12px/1.45 var(--font-mono); color: var(--muted); pointer-events: none; }
+    #hud b { color: var(--fg, inherit); font-weight: 600; }
+    #hud .row { display: flex; justify-content: space-between; gap: 14px; }
+    #hud .lock { color: #4dabf7; }
+    #hud[hidden] { display: none; }
     #frame canvas { display: block; }
     #frame canvas[hidden] { display: none; }
     #layer { position: absolute; inset: 0; }
@@ -210,7 +217,7 @@
     <p class="build" id="build" title="Build, YY.MM.DD.NNN">–</p>
   </header>
 
-  <main id="stage" tabindex="0" role="img" aria-label="Empty space for prisms. G switches between the SVG and the WebGPU view, L turns the light, C switches the filmic look, N smooth shading, K the studio light. Drag, or use the arrow keys, to rotate the view. The cross follows the surface under the pointer. M puts a prism down there, or shoots one into empty space; Space stops the movement. O marks an object, a second O on another one asks for a boolean operation (union, A minus B, B minus A, intersect). V joins two surface points with a thin bar (P over empty space forgets a pending first point), X deletes the object under the cross, W A S D R F fly, / shows only the model under the cross (/ again: the whole scene), P shows the material palette (Shift+click paints a face, Shift+double click the whole model), T flies the camera to the object under the cross, H puts the move gizmo (helper) on the object under the cross with the world axes, the next H switches to the object's own axes, the third takes it off; drag an arrow to move the object; E toggles edges and points, U or Backspace takes the last one back."><div id="frame"><canvas id="gpu" hidden></canvas><div id="layer"></div></div></main>
+  <main id="stage" tabindex="0" role="img" aria-label="Empty space for prisms. G switches between the SVG and the WebGPU view, L turns the light, C switches the filmic look, N smooth shading, K the studio light. Drag, or use the arrow keys, to rotate the view. The cross follows the surface under the pointer. M puts a prism down there, or shoots one into empty space; Space stops the movement. O marks an object, a second O on another one asks for a boolean operation (union, A minus B, B minus A, intersect). V joins two surface points with a thin bar (P over empty space forgets a pending first point), X deletes the object under the cross, W A S D R F fly, / shows only the model under the cross (/ again: the whole scene), P shows the material palette (Shift+click paints a face, Shift+double click the whole model), T flies the camera to the object under the cross, H puts the move gizmo (helper) on the object under the cross with the world axes, the next H switches to the object's own axes, the third takes it off; drag an arrow to move the object; E toggles edges and points, U or Backspace takes the last one back."><div id="frame"><canvas id="gpu" hidden></canvas><div id="layer"></div></div><div id="hud" aria-hidden="true"></div></main>
 
   <div id="editbar" hidden><b id="editText"></b> <span>V: draw a line from point to point (snaps to points; two points on one face cut it; nothing moves while drawing) · 1 / 2 / 3: move points / lines / faces (drag, or the gizmo arrows) · Enter: close a loop into a face · B: turn the V bars into lines · X: remove lines · Esc: stop the line, then back to drawing, then leave · Tab: leave</span></div>
 
@@ -257,7 +264,7 @@
       <span class="surface" id="surface">surface <b>–</b></span>
     </p>
     <textarea id="gpuerr" readonly hidden rows="4" aria-label="WebGPU error text (select and copy)" style="width:100%;box-sizing:border-box;font:12px/1.4 var(--font-mono);background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:6px"></textarea>
-    <p class="hint" id="hint" hidden>drag: rotate · w a s d r f: fly (every press is a speed step) · /: isolate the model, again: whole scene · p: materials (i: pick the material under the cross, shift+click paints a face, shift+double click the whole object) · m: place · space: stop · o: boolean (mark two objects, then pick the operation) · v: spider bar (two points) · tab: edit mode (v draws lines on the model, enter closes a loop into a face, b turns the old v bars into lines, 1/2/3 move points/lines/faces) · x: delete the object (the Clear button removes everything) · t: travel (on nothing: out to the nearest object) · h: move gizmo (drag an arrow; 1st h world axes, 2nd h own axes, 3rd h off) · e: edges · g: svg/gpu · c: filmic look · n: smooth shading · k: studio light · l: light · u / backspace: undo</p>
+    <p class="hint" id="hint" hidden>drag: rotate · w a s d r f: fly (every press is a speed step) · /: isolate the model, again: whole scene · p: materials (i: pick the material under the cross, shift+click paints a face, shift+double click the whole object) · m: place · space: stop · o: boolean (mark two objects, then pick the operation) · v: spider bar (two points) · q: edit mode (v draws lines on the model, enter closes a loop into a face, b turns the old v bars into lines, 1/2/3 move points/lines/faces) · x: delete the object (the Clear button removes everything) · t: target the object under the cross (the camera keeps looking at it and moves on a sphere round it: a d r f swing, w s distance, drag too; tab: next target; space: speed zero; esc: let go) · h: move gizmo (drag an arrow; 1st h world axes, 2nd h own axes, 3rd h off) · e: edges · g: svg/gpu · c: filmic look · n: smooth shading · k: studio light · l: light · u / backspace: undo</p>
     <span class="actions">
       <button id="place" type="button">Place</button>
       <button id="delete" type="button">Delete</button>
@@ -280,7 +287,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@78a0245972ac88d61845b9f93e47abe8d5fbe6e6/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@a6417d3ad411409baf78c87bcca3997dedace472/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -288,6 +295,8 @@
     const canvas = document.getElementById('gpu');
     const layer = document.getElementById('layer');
     const modeEl = document.getElementById('mode');
+    const hudEl = document.getElementById('hud');
+    const hudText = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
     const liveEl = document.getElementById('live');
     const yawEl = document.getElementById('yaw');
     const speedEl = document.getElementById('speed');
@@ -471,13 +480,14 @@
       focused = true;
     };
     const speed = (axis, d) => {
-      enterFly();
+      if (!locked) enterFly();
       level[axis] += d;
       redraw();
     };
     const stepFly = (now) => {
       const dt = Math.min(0.05, (now - lastFrame) / 1000);
       lastFrame = now;
+      if (locked) return stepTarget(dt);
       if (!fly) return;
       const cy = Math.cos(yaw);
       const sy = Math.sin(yaw);
@@ -488,6 +498,43 @@
       const v = forward.map((c, i) => c * pace(level.f) + right[i] * pace(level.r) + (i === 1 ? pace(level.u) : 0));
       fit.center = fit.center.map((c, i) => c + v[i] * UNIT * dt);
       if (level.f || level.r || level.u) redraw();
+    };
+
+    // Target mode (T): the camera locks onto one object and moves on an imaginary sphere around it, always looking at
+    // the centre. A / D swing it sideways, R / F up and down (they are speed levels like everywhere else), W / S change
+    // the distance, and a mouse drag turns it over the same sphere. Only Space or Esc let go, and then the camera stays
+    // exactly where it is.
+    let locked = null; // the id of the targeted object
+    const lockedObject = () => (locked ? allObjects().find((o) => o.id === locked) ?? null : null);
+    const ballCache = new WeakMap();
+    const ballOf = (o) => {
+      let b = ballCache.get(o.mesh);
+      if (!b) ballCache.set(o.mesh, (b = bounds(o.mesh)));
+      return b;
+    };
+    const eyeNow = () => makeCamera(orbit({ yaw, pitch }), nothing, 100, fit).eye;
+    const STOP = 1.05; // the closest the camera comes: this many radii from the centre
+    const SWING = 0.35; // rad/s per speed unit round the target
+    const ZOOM = 0.18; // relative distance change per second per speed unit
+    const stepTarget = (dt) => {
+      const o = lockedObject();
+      if (!o || travel) return;
+      const { center, radius } = ballOf(o);
+      fit.center = [...center]; // the sphere follows the object when it moves
+      if (!level.f && !level.r && !level.u) return;
+      const near = radius * STOP;
+      fit.dist = Math.max(near, fit.dist ?? orbitDist(fit.radius));
+      fit.dist = Math.max(near, fit.dist * Math.exp(-pace(level.f) * ZOOM * dt));
+      if (fit.dist <= near && level.f > 0) level.f = 0; // reached the surface
+      yaw -= pace(level.r) * SWING * dt; // D: the camera goes to the right
+      pitch = Math.max(-LIMIT, Math.min(LIMIT, pitch + pace(level.u) * SWING * dt));
+      redraw();
+    };
+    const letGo = () => {
+      if (!locked) return false;
+      locked = null;
+      redraw();
+      return true;
     };
 
     // All faces connected to `face` through shared vertices: one object of the scene.
@@ -513,31 +560,55 @@
       return { center: b.center, radius: Math.max(b.radius * 1.05, 0.25) };
     };
 
-    // T: fly straight to the front of the object under the cross; T on nothing: out to the nearest object.
+    // T targets the object under the cross (the camera turns onto it and stays on a sphere round it; W flies there).
+    // T over empty space, or on the target, while targeting just brings the camera back onto the target; on another
+    // object it re-targets. Tab: the next object. Esc lets go. With no target, T over empty space targets the nearest.
+    const lookAt = (o) => {
+      // the camera stays where it is and turns to the object: from here on it moves on a sphere round it
+      const { center, radius } = ballOf(o);
+      const eye = eyeNow();
+      const d = center.map((c, i) => c - eye[i]);
+      const len = Math.hypot(...d) || 1;
+      focused = true;
+      goTo({
+        center,
+        radius: Math.max(radius * 1.15, 0.12),
+        dist: Math.max(len, radius * STOP),
+        yaw: Math.atan2(d[0], -d[2]),
+        pitch: Math.max(-LIMIT, Math.min(LIMIT, -Math.asin(d[1] / len))),
+      });
+    };
+    const nextTarget = (back) => {
+      const list = allObjects().filter((o) => o.mesh.positions.length && owners.some((w) => w.obj.id === o.id));
+      if (!list.length) return;
+      const at = list.findIndex((o) => o.id === locked);
+      const o = list[(at + (back ? -1 : 1) + list.length) % list.length];
+      locked = o.id;
+      lookAt(o);
+    };
     const travelTo = () => {
-      if (hit) {
-        const b = bounds(objectAround(scene, hit.face));
-        focused = true;
-        goTo({
-          center: b.center,
-          radius: Math.max(b.radius * 1.15, 0.12),
-          // no yaw/pitch: the view keeps its direction and the eye flies in a straight line
-        });
-      } else {
-        // Nothing under the cross (too close to a model, or inside one, where its faces are seen from behind):
-        // fly out to the object nearest to the eye and frame it from outside. Space is the stop key.
-        const eye = makeCamera(orbit({ yaw, pitch }), nothing, 100, fit).eye;
+      const under = hit ? owner(hit.face) : null;
+      const current = lockedObject();
+      if (current) {
+        if (under) locked = under.id; // another object: target that one instead
+        return lookAt(lockedObject() ?? current); // the same object or empty space: back onto the target
+      }
+      let o = under;
+      if (!o) {
+        // nothing under the cross (too close to a model, or inside one): target the nearest object
+        const eye = eyeNow();
         let best = null;
         for (const { obj } of owners) {
           if (!obj.mesh.positions.length) continue;
-          const b = bounds(obj.mesh);
-          const gap = Math.hypot(...b.center.map((c, i) => c - eye[i])) - b.radius; // < 0: the eye is inside its sphere
-          if (!best || gap < best.gap) best = { gap, b };
+          const b = ballOf(obj);
+          const gap = Math.hypot(...b.center.map((c, i) => c - eye[i])) - b.radius;
+          if (!best || gap < best.gap) best = { gap, obj };
         }
-        if (!best) return;
-        focused = true;
-        goTo({ center: best.b.center, radius: Math.max(best.b.radius * 1.15, 0.12) });
+        o = best?.obj;
       }
+      if (!o) return;
+      locked = o.id;
+      lookAt(o);
     };
 
     // The HEXAW kernel (WebAssembly written in HEXAW) does the picking once it has started;
@@ -599,6 +670,8 @@
         else if (hit && owner(hit.face) === editing) snapF = hit.face - owners.find((o) => o.obj === editing).start;
       }
       const handles = gizmoHandles();
+      const lockedObj = lockedObject();
+      if (locked && !lockedObj) locked = null; // the object is gone
       const marks = hit ? [{ name: 'cursor', lines: crosshair(scene, hit, fit.radius * 0.07) }] : [];
       for (const [o, color] of [[boolFrom, '#e8590c'], [boolPair?.b, '#2f9e44']]) {
         if (!o || !has(o)) continue;
@@ -635,6 +708,21 @@
         if (snapV >= 0 && snapV < P.length) marks.push({ name: 'snap', color: '#ffffff', width: 3, lines: cross(P[snapV], 2.6) });
         if (snapE) marks.push({ name: 'snap-edge', color: '#ffffff', width: 4, lines: [[P[snapE[0]], P[snapE[1]]]] });
         if (snapF >= 0 && editing.mesh.faces[snapF]) marks.push({ name: 'snap-face', color: '#ffffff', width: 3, lines: outline(editing.mesh.faces[snapF].v) });
+      }
+      if (lockedObj) {
+        const lo = [Infinity, Infinity, Infinity];
+        const hi = [-Infinity, -Infinity, -Infinity];
+        for (const q of lockedObj.mesh.positions) q.forEach((c, i) => ((lo[i] = Math.min(lo[i], c)), (hi[i] = Math.max(hi[i], c))));
+        const corner = (i, j, k) => [[lo, hi][i][0], [lo, hi][j][1], [lo, hi][k][2]];
+        const ticks = [];
+        const m = 0.16; // each edge keeps only its two ends: a bracket around the object
+        for (const [a, c] of [[0, 0], [0, 1], [1, 0], [1, 1]]) {
+          for (const [p, q] of [[corner(a, c, 0), corner(a, c, 1)], [corner(a, 0, c), corner(a, 1, c)], [corner(0, a, c), corner(1, a, c)]]) {
+            const at = (t) => p.map((v, i) => v + (q[i] - v) * t);
+            ticks.push([p, at(m)], [at(1 - m), q]);
+          }
+        }
+        marks.push({ name: 'target', color: '#4dabf7', width: 2.5, lines: ticks });
       }
       if (handles) {
         for (const h of handles) marks.push({ name: `gizmo-${'xyz'[h.axis]}`, color: h.color, width: h.axis === (gdrag?.axis ?? gHover) ? 6 : 3, lines: h.lines });
@@ -675,6 +763,23 @@
       yawEl.textContent = deg(yaw);
       pitchEl.textContent = deg(pitch);
       countEl.textContent = String(allObjects().length + placed.length);
+      {
+        // the HUD: what is under the cross (name, distance, size) and the target state
+        const under = hit ? owner(hit.face) : null;
+        const eye = eye0;
+        const rows = [];
+        if (under) {
+          const d = Math.hypot(...hit.point.map((c, i) => c - eye[i]));
+          const faces = under.mesh.faces.length;
+          rows.push(`<div class="row"><b>${hudText(under.name ?? under.id)}</b><b>${d.toFixed(2)}</b></div><div class="row"><span>${faces} faces</span><span>${under.id === locked ? 'target' : ''}</span></div>`);
+        } else rows.push('<div class="row"><span>–</span></div>');
+        if (lockedObj) {
+          const b = ballOf(lockedObj);
+          const gap = Math.max(0, Math.hypot(...b.center.map((c, i) => c - eye[i])) - b.radius);
+          rows.push(`<div class="row lock"><span>◎ ${hudText(lockedObj.name ?? lockedObj.id)}</span><span>${gap.toFixed(2)}</span></div><div class="row"><span>wasdrf orbit · Tab next · Esc free</span></div>`);
+        } else rows.push('<div class="row"><span>T target</span></div>');
+        hudEl.innerHTML = rows.join('');
+      }
       surfaceEl.innerHTML = hit
         ? `surface <b>face ${hit.face} · n ${hit.normal.map(signed).join(' ')}</b> · ${healthText(owner(hit.face))}`
         : 'surface <b>–</b>';
@@ -1367,7 +1472,7 @@
       history.push(() => has(obj) && change(obj, mesh0));
     };
 
-    // Edit mode (Tab): draw on the object under the cross. V puts points on its surface (or on a vertex that is already
+    // Edit mode (Q): draw on the object under the cross. V puts points on its surface (or on a vertex that is already
     // there: they snap) and joins them with lines; two points on one face cut it along the line, so the surface gets
     // detail where you draw. Points in the air extend the model: Enter closes a loop of lines into a face.
     // A vertex can be dragged (or moved with the gizmo arrows) and everything that uses it follows.
@@ -1649,6 +1754,16 @@
     document.addEventListener('keydown', (e) => {
       if (e.target instanceof HTMLTextAreaElement) return; // the error text can be selected and copied
       if (e.target instanceof HTMLButtonElement) return; // Space and Enter belong to a focused button
+      if (e.key === 'Tab') {
+        e.preventDefault(); // Tab is the target key: the next object (with no target yet: the one under the cross, like T)
+        if (!e.repeat) locked ? nextTarget(e.shiftKey) : travelTo();
+        return;
+      }
+      if (e.key === 'Escape' && locked && !editing && !picking) {
+        e.preventDefault();
+        stop();
+        return void letGo();
+      }
       const fk = !e.ctrlKey && !e.metaKey && !e.altKey && FLY_KEYS[e.key.toLowerCase()];
       if (fk) {
         e.preventDefault();
@@ -1656,7 +1771,7 @@
       } else if (e.key === ' ') {
         e.preventDefault();
         if (!e.repeat) {
-          stop(); // Space: stop moving
+          stop(); // Space: speed zero (the target stays)
           redraw();
         }
       } else if (e.key === 'm' || e.key === 'M') {
@@ -1672,7 +1787,7 @@
       } else if (e.key === 'o' || e.key === 'O') {
         e.preventDefault();
         if (!e.repeat) pickBool();
-      } else if (e.key === 'Tab') {
+      } else if (e.key === 'q' || e.key === 'Q') {
         e.preventDefault();
         if (!e.repeat) editing ? leaveEdit() : enterEdit();
       } else if (editing && e.key === 'Enter') {

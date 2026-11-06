@@ -32,7 +32,9 @@ npx serve .            # or: python3 -m http.server
 
 **Looking around.** Drag rotates, double click resets the view, the arrow keys rotate too. A cross follows the pointer and lies flat on the surface under it. On a phone the cross aims at the middle of the screen, and four round buttons cover travel, place, delete and the view mode.
 
-**Flying.** `w a s d r f` fly forward, left, back, right, up and down; every press is a speed step, the opposite key slows down, `Space` stops. `T` flies to the object under the cross (over nothing: out to the nearest object). `/` shows only the object under the cross; again: the whole scene, and the camera flies back.
+**Flying.** `w a s d r f` fly forward, left, back, right, up and down; every press is a speed step, the opposite key slows down, `Space` stops. `/` shows only the object under the cross; again: the whole scene, and the camera flies back.
+
+**Target mode.** `T` targets the object under the cross: the camera turns onto it and from then on moves on an imaginary sphere round it, always looking at its centre. `a d r f` swing it round the object, `w s` change the distance (`w` stops at the surface), and dragging the mouse moves it over the same sphere. `T` on another object re-targets, `T` on the target or over empty space brings the camera back onto it (with no target, over empty space: the nearest object). `Tab` (`Shift` + `Tab`) switches to the next (previous) object, `Space` only sets the speed to zero, and `Esc` lets go: the camera stays where it is. The small readout in the top left corner shows the object under the cross (name, distance, faces) and the target.
 
 **Placing and connecting.**
 
@@ -45,7 +47,7 @@ npx serve .            # or: python3 -m http.server
 
 **Booleans.** `O` marks an object, `O` on a second one asks for the operation: `1` union, `2` A − B, `3` B − A, `4` intersect. Only closed solids are calculated; the status line shows the health of the object under the cross.
 
-**Edit mode (`Tab`): drawing on a model.**
+**Edit mode (`Q`): drawing on a model.**
 
 - `V` draws lines on the surface. Points snap to vertices; two points on one face cut it, so the surface gets detail exactly where you drew. Points in the air extend the model.
 - `Enter` closes a loop into a face.
