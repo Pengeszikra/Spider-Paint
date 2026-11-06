@@ -66,3 +66,7 @@ Published as a Claude artifact, the scene and the palette live in a shared datab
 [3Draft](https://github.com/Pengeszikra/3Draft) is a minimalist, AI first 3D engine: a model is plain data that a human, a program and an LLM can all read and write. It has an SVG and a WebGPU renderer, surface picking (with a WebAssembly kernel written in HEXAW), solid booleans and mesh editing.
 
 The engine is not in this repo. The page imports it from jsDelivr, pinned to the 3Draft commit it was taken from. Development happens in the 3Draft repo, where this program is the viewer. From time to time the viewer becomes Spider Paint again: `node scripts/sync.mjs ../3Draft` copies the viewer, the bridge and the globe, and pins the engine to that commit.
+
+## Install on a phone (PWA)
+
+Open the hosted page in Chrome or Safari and choose "Add to Home screen" / "Install app". It has an app icon (`icons/`), a favicon, a manifest and a service worker (`sw.js`) that keeps the page, the models, the icons and the engine, so it also opens offline after the first visit. The service worker only runs over http(s), not from a file. When the shipped files change, raise `CACHE` in `sw.js`.

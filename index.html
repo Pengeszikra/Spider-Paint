@@ -4,7 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <title>Spider Paint</title>
-  <link rel="icon" href="data:,">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0b0b0a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Spider Paint">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600&family=DM+Mono:wght@400;500&display=swap">
   <style>
     /* Layout: one-screen instrument. Slim title bar, one square drawing stage, readout bar below. */
@@ -246,7 +254,10 @@
     input[type=range] { accent-color: var(--teal); }
     #hud, #palette, #boolq, #editbar { border: 1.5px solid var(--outline); border-radius: 14px; background: color-mix(in srgb, var(--panel) 92%, transparent); }
     #editbar { border-color: var(--red); }
-    #hud { max-width: min(46%, 280px); }
+    #hud { width: min(46%, 240px); max-width: none; box-sizing: border-box; }
+    #hud .row > :first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+    #hud .row > :last-child { flex: none; font-variant-numeric: tabular-nums; }
+    #hud .row + .row + .row { margin-top: 4px; }
     #palette { max-height: calc(100dvh - 90px); overflow-y: auto; }
     #palette .sw { box-shadow: none; padding: 0; border-radius: 6px; }
 
@@ -319,6 +330,17 @@
     body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
     #gpuerr, #gpuerr * { -webkit-user-select: text; user-select: text; }
     input[type=text], input[type=search], textarea { -webkit-user-select: text; user-select: text; }
+
+    /* no frame round the 3D view, and the target readout floats without a box */
+    #stage { border: 0; border-radius: 0; }
+    #hud { border: 0; background: none; padding: 0; text-shadow: 0 0 4px #000, 0 0 2px #000; }
+
+    #keyinfo { border: 0; padding-inline: 4px; }
+
+    /* the surface line sits on its own row above the other readouts */
+    .read .surface { order: -1; width: auto; min-height: 1.6em; flex: 0 0 100%; border: 0; padding: 0 4px; }
+
+        #pick { width: 7ch; } #mode { width: 12ch; }
   </style>
 </head>
 <body>
@@ -407,7 +429,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@64a5381ccd209a2021fc57b547c2d904a07e731d/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@dab580c601a5f7309132d15c9ec629d93f459ecf/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -472,6 +494,7 @@
     // objects are told apart by id: a db snapshot (also the echo of our own write) hands out new instances
     const live = (o) => allObjects().find((x) => x.id === o.id);
     const has = (o) => Boolean(live(o));
+    let sceneParts = []; // the meshes `scene` is the merge of, for the GPU cache
     let scene = nothing; // what is on screen and what picking sees: all objects (or the isolated one)
     let owners = []; // [{ obj, start, end }]: which object owns which faces of `scene`
     let cam = null; // camera of the last drawn frame
@@ -484,7 +507,8 @@
       if (solo) objs = objs.filter((o) => o.id === solo);
       let n = 0;
       owners = objs.map((o) => ({ obj: o, start: n, end: (n += o.mesh.faces.length) }));
-      scene = merge(nothing, ...objs.map((o) => o.mesh));
+      sceneParts = objs.map((o) => o.mesh);
+      scene = merge(nothing, ...sceneParts);
       placedVer++;
     };
     const shifted = (mesh, d) => ({ ...mesh, positions: mesh.positions.map((q) => [q[0] + d[0], q[1] + d[1], q[2] + d[2]]) });
@@ -582,7 +606,7 @@
     // The eye then sits (almost) on the orbit center and the center moves.
     let fly = false;
     const level = { f: 0, r: 0, u: 0 }; // forward, right, up
-    const UNIT = 0.5; // world units per second per level
+    const UNIT = 0.25; // world units per second per level
     const FLY_DIST = 0.05;
     // The speed grows faster than the level: 1, 2.7, 5.6, 9.9, 16, ... (times UNIT), forwards or backwards.
     const pace = (l) => Math.sign(l) * (1.7 ** Math.abs(l) - 1) / 0.7;
@@ -634,8 +658,8 @@
     };
     const eyeNow = () => makeCamera(orbit({ yaw, pitch }), nothing, 100, fit).eye;
     const STOP = 1.05; // the closest the camera comes: this many radii from the centre
-    const SWING = 0.35; // rad/s per speed unit round the target
-    const ZOOM = 0.18; // relative distance change per second per speed unit
+    const SWING = 0.175; // rad/s per speed unit round the target
+    const ZOOM = 0.09; // relative distance change per second per speed unit
     const stepTarget = (dt) => {
       const o = lockedObject();
       if (!o || travel) return;
@@ -793,7 +817,15 @@
       const handles = gizmoHandles();
       const lockedObj = lockedObject();
       if (locked && !lockedObj) locked = null; // the object is gone
-      const marks = hit ? [{ name: 'cursor', lines: crosshair(scene, hit, fit.radius * 0.07) }] : [];
+      // The cross is sized for the scene, but never bigger than a few percent of the way to the point it sits on, and never much
+      // bigger than the object under it: a thin bar close to the eye gets a tiny cross, not one the size of the screen.
+      const crossRadius = () => {
+        const away = Math.hypot(...hit.point.map((c, i) => c - eye0[i]));
+        const under = owner(hit.face);
+        const own = under ? ballOf(under).radius : Infinity;
+        return Math.min(fit.radius * 0.07, away * 0.03, Math.max(own * 0.5, away * 0.004));
+      };
+      const marks = hit ? [{ name: 'cursor', lines: crosshair(scene, hit, crossRadius()) }] : [];
       for (const [o, color] of [[boolFrom, '#e8590c'], [boolPair?.b, '#2f9e44']]) {
         if (!o || !has(o)) continue;
         const lo = [Infinity, Infinity, Infinity];
@@ -863,6 +895,7 @@
         renderGpu = (readback = false) =>
           gpu[readback ? 'pixels' : 'render'](scene, view, {
             palette: paletteMap,
+            parts: sceneParts,
             instances: { mesh: PROTO, data: instances(now, flights.length > 0) },
             size,
             fit: shown_fit,
@@ -888,17 +921,18 @@
         // the HUD: what is under the cross (name, distance, size) and the target state
         const under = hit ? owner(hit.face) : null;
         const eye = eye0;
+        // the steady part (the target) is on top; what is under the cross changes all the time and sits at the bottom
         const rows = [];
-        if (under) {
-          const d = Math.hypot(...hit.point.map((c, i) => c - eye[i]));
-          const faces = under.mesh.faces.length;
-          rows.push(`<div class="row"><b>${hudText(under.name ?? under.id)}</b><b>${d.toFixed(2)}</b></div><div class="row"><span>${faces} faces</span><span>${under.id === locked ? 'target' : ''}</span></div>`);
-        } else rows.push('<div class="row"><span>–</span></div>');
         if (lockedObj) {
           const b = ballOf(lockedObj);
           const gap = Math.max(0, Math.hypot(...b.center.map((c, i) => c - eye[i])) - b.radius);
           rows.push(`<div class="row lock"><span>◎ ${hudText(lockedObj.name ?? lockedObj.id)}</span><span>${gap.toFixed(2)}</span></div><div class="row"><span>wasdrf orbit · Tab next · Esc free</span></div>`);
-        } else rows.push('<div class="row"><span>T target</span></div>');
+        } else rows.push('<div class="row"><span>T target</span></div><div class="row"><span>&nbsp;</span></div>');
+        if (under) {
+          const d = Math.hypot(...hit.point.map((c, i) => c - eye[i]));
+          const faces = under.mesh.faces.length;
+          rows.push(`<div class="row"><b>${hudText(under.name ?? under.id)}</b><b>${d.toFixed(2)}</b></div><div class="row"><span>${faces} faces</span><span>${under.id === locked ? 'target' : ''}</span></div>`);
+        } else rows.push('<div class="row"><span>–</span></div><div class="row"><span>&nbsp;</span></div>');
         hudEl.innerHTML = rows.join('');
       }
       surfaceEl.innerHTML = hit
@@ -2218,9 +2252,32 @@
 
     // Live link: when served by the MCP server (`/events` exists), show what the AI builds.
     let framed = false;
+    // A cheap fingerprint of an object's content, to tell an echo of our own write (or an unchanged document) from a real change.
+    const sig = (o) => {
+      let h = 0;
+      for (const p of o.mesh.positions) h = (Math.imul(h, 31) + Math.round(p[0] * 1e5) * 7 + Math.round(p[1] * 1e5) * 13 + Math.round(p[2] * 1e5) * 17) | 0;
+      for (const f of o.mesh.faces) {
+        for (const i of f.v) h = (Math.imul(h, 31) + i) | 0;
+        h = (Math.imul(h, 31) + (f.mat ? f.mat.length : 0) + (f.color ? parseInt(f.color.slice(1), 16) || 0 : 0)) | 0;
+      }
+      return `${o.name}|${o.mesh.positions.length}|${o.mesh.faces.length}|${o.wire ? JSON.stringify(o.wire).length : 0}|${h}`;
+    };
     const applyScene = (data) => {
-      hostObjects = (data.objects ?? []).map((o, n) => ({ id: o.id ?? o.name ?? `o${n}`, name: o.name ?? `o${n}`, mesh: o.mesh, wire: o.wire, host: true }));
-      rebuild();
+      const next = (data.objects ?? []).map((o, n) => ({ id: o.id ?? o.name ?? `o${n}`, name: o.name ?? `o${n}`, mesh: o.mesh, wire: o.wire, host: true }));
+      // db snapshots hand out every document again (also the echo of our own write): an object whose content did not
+      // change stays the same instance, so its mesh and its GPU vertices are kept, and an unchanged scene is not rebuilt
+      let unchanged = data.rev === 'db' && next.length === hostObjects.length;
+      if (data.rev === 'db') {
+        const before = new Map(hostObjects.map((o) => [o.id, o]));
+        for (let i = 0; i < next.length; i++) {
+          const old = before.get(next[i].id);
+          if (old && sig(old) === sig(next[i])) next[i] = old;
+          else unchanged = false;
+          if (hostObjects[i]?.id !== next[i].id) unchanged = false;
+        }
+      }
+      hostObjects = next;
+      if (!unchanged) rebuild();
       // a snapshot (also the echo of our own write) makes new objects: whatever points at one follows it by id
       const same = (o) => (o ? allObjects().find((x) => x.id === o.id) ?? null : null);
       editing = same(editing);
@@ -2296,6 +2353,8 @@
 
     draw();
     if (!globalThis.claude?.use) addExample('bridge'); // the starting scene
+    // works offline once opened (not in an artifact, nor from a file)
+    if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !globalThis.claude?.use) navigator.serviceWorker.register('sw.js').catch(() => {});
   </script>
 </body>
 </html>

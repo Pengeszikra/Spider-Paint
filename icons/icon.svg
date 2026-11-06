@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#0b0b0a"/>
+  <rect x="14" y="14" width="484" height="484" rx="100" fill="none" stroke="#cfc9a0" stroke-width="6" opacity=".55"/>
+  <!-- a cube drawn as a model: cream faces, teal edge, one red point, and a spider thread -->
+  <g stroke-linejoin="round">
+    <path d="M256 104 392 180 392 332 256 408 120 332 120 180Z" fill="#d9d3a7"/>
+    <path d="M256 256 392 180 256 104 120 180Z" fill="#efe9c9"/>
+    <path d="M256 256 256 408 120 332 120 180Z" fill="#b8b287"/>
+    <path d="M256 256 256 408 392 332 392 180Z" fill="#8f8a66"/>
+    <path d="M120 180 256 256 392 180M256 256V408" fill="none" stroke="#0b0b0a" stroke-width="8"/>
+    <path d="M256 104 392 180 392 332 256 408 120 332 120 180Z" fill="none" stroke="#0b0b0a" stroke-width="8"/>
+    <path d="M256 256 392 332" stroke="#2fb8c0" stroke-width="12" stroke-linecap="round"/>
+  </g>
+  <circle cx="256" cy="256" r="22" fill="#f1481c" stroke="#0b0b0a" stroke-width="8"/>
+</svg>
