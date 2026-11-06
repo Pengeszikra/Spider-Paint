@@ -1,14 +1,16 @@
 # Spider Paint
 
+![Spider Paint 0.026 as it starts: the key help in the corner, the FPS meter, random objects in space](media/spider-paint-2015.png)
+
 ![digital spider web: objects scattered in space, cones on their surfaces, lines between them](media/spider-web.png)
 
 ![face of spider: the head model covered with cones](media/face-of-spider.png)
 
-*The digital spider web and the face of spider, as the 2015 version drew them.*
+*The 2015 version as it starts, with its key help and FPS meter; then the digital spider web and the face of spider, as it drew them.*
 
 **How these pictures came back.** The 2015 README showed two pictures: the digital spider web, which gave the program its name, and the face of spider. Both were hosted on Google (old Picasa / Google+ links), and both links now answer `403 Forbidden`: the pictures did not break, their hosting is gone. The Wayback Machine was tried next. It holds no capture of the face of spider, and for the spider web the archive was offline at the time of the search.
 
-So the pictures were made again, by the program that made them the first time. The unchanged 2015 code (the [`2015-sept-11`](../../tree/2015-sept-11) branch, with Three.js r48 from 2012) was served locally and opened in today's headless Chrome, with a software WebGL renderer, and it still runs. A small helper page loaded it with a fixed random seed and then called the program's own functions, just as the keys did: `C` puts cones on the surface under the cursor, `Ctrl` + two clicks draws a line between two surface points. For the spider web, cones were sprayed over the whole scene and lines strung between the objects. For the face, the camera was put beside the `1head.js` head model and the cones were sprayed onto it. Then the browser took the screenshots. They are not the lost files, but they are what those files showed: the same program, the same scene and the same look.
+So the pictures were made again, by the program that made them the first time. The unchanged 2015 code (the [`2015-sept-11`](../../tree/2015-sept-11) branch, with Three.js r48 from 2012) was served locally and opened in today's headless Chrome, with a software WebGL renderer, and it still runs: the first picture is its very first screen, untouched. A small helper page loaded it with a fixed random seed and then called the program's own functions, just as the keys did: `C` puts cones on the surface under the cursor, `Ctrl` + two clicks draws a line between two surface points. For the spider web, cones were sprayed over the whole scene and lines strung between the objects. For the face, the camera was put beside the `1head.js` head model and the cones were sprayed onto it. Then the browser took the screenshots. They are not the lost files, but they are what those files showed: the same program, the same scene and the same look.
 
 A first-person 3D world builder in the browser: you fly through the space, place, shoot and connect objects, and shape them right where they are.
 
