@@ -1,10 +1,14 @@
 # Spider Paint
 
-![digital spider web, the picture of the first version](https://lh3.googleusercontent.com/q5_s13DMklahZb6JKgz7mI5AyPKDxnSO3IqkuHZJi-BOWZZh0N-m4LwQScpewNW13lOiOSSLDEKsDhpJETORmkFF-tahvU0cciRLG3y9yk1q-WyPmk8)
+![digital spider web: objects scattered in space, cones on their surfaces, lines between them](media/spider-web.png)
 
 A first-person 3D world builder in the browser: you fly through the space, place, shoot and connect objects, and shape them right where they are.
 
-Spider Paint started in 2015 as a light experimental WebGL scene builder on Three.js, an experiment about objects scattered in space and the connections between them. The name came from the first version's picture, the digital spider web above. That version is kept, unchanged, in the [`2015-sept-11`](../../tree/2015-sept-11) branch.
+Spider Paint started in 2015 as a light experimental WebGL scene builder on Three.js, an experiment about objects scattered in space and the connections between them. The name came from the first version's picture, a digital spider web like the one above. That version is kept, unchanged, in the [`2015-sept-11`](../../tree/2015-sept-11) branch.
+
+![face of spider: the head model covered with cones](media/face-of-spider.png)
+
+Face of spider. Both pictures were rendered in 2026 from the unchanged 2015 code (the original images were lost with their old hosting).
 
 This version picks the same idea up again, now on the [3Draft](https://github.com/Pengeszikra/3Draft) engine.
 
