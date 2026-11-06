@@ -209,6 +209,116 @@
       .fab button:active, .fab button.on { background: color-mix(in srgb, var(--accent) 35%, transparent); }
       .fab svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     }
+
+    /* ===== Control-panel look: black ground, cream keycaps, red and teal accents, thin rounded outlines ===== */
+    :root:root:root {
+      --bg: #0b0b0a; --panel: #121210; --fg: #e4dfbc; --muted: #948f76; --line: #3a382d; --edge: #efe9df;
+      --point: #f1481c; --cursor: #2fb8c0; --accent: #f1481c;
+      --cream: #d9d3a7; --cream-2: #b8b287; --ink: #17150f; --red: #f1481c; --teal: #2fb8c0; --slate: #4b483f; --outline: #cfc9a0;
+      color-scheme: dark;
+    }
+    html, body { height: 100dvh; }
+    body { height: 100dvh; overflow: hidden; gap: 10px; padding-block: 10px; }
+    h1 { color: var(--cream); letter-spacing: 0.06em; }
+    h1 span { color: var(--muted); }
+    .build { padding: 3px 9px; border: 1px solid var(--line); border-radius: 9px; font-size: 11px; }
+    #stage { border: 1.5px solid var(--outline); border-radius: 22px; background: var(--panel); }
+    .read { gap: 6px 8px; }
+    .read > span { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 10px; border: 1px solid var(--outline); border-radius: 10px; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+    .read b { min-width: 0; font-size: 13px; letter-spacing: 0.02em; text-transform: none; color: var(--cream); }
+    .read .surface { min-width: 0; }
+    footer.bar { display: grid; gap: 8px; max-height: 44dvh; overflow-y: auto; align-items: start; }
+    .actions { flex-wrap: wrap; gap: 8px 8px; padding-bottom: 5px; }
+    button {
+      font: 600 12px/1 var(--font-mono); letter-spacing: 0.05em; color: var(--ink); background: var(--cream);
+      border: 0; border-radius: 9px; padding: 10px 13px; cursor: pointer;
+      box-shadow: 0 3px 0 #77735a, 0 6px 10px #0009; transition: transform 0.05s, box-shadow 0.05s, filter 0.1s;
+    }
+    button:hover { border: 0; filter: brightness(1.08); }
+    button:active, button.on, button.down { transform: translateY(2px); box-shadow: 0 1px 0 #77735a, 0 2px 4px #0009; }
+    button.on, .actions button.on { background: var(--teal); color: #04181a; box-shadow: 0 1px 0 #17707a, 0 2px 4px #0009; border: 0; }
+    button.red { background: var(--red); color: #1b0803; box-shadow: 0 3px 0 #8a2a0f, 0 6px 10px #0009; }
+    button.red:active { box-shadow: 0 1px 0 #8a2a0f; }
+    button.teal { background: var(--teal); color: #04181a; box-shadow: 0 3px 0 #17707a, 0 6px 10px #0009; }
+    button.slate { background: var(--slate); color: var(--cream); box-shadow: 0 3px 0 #2a2822, 0 6px 10px #0009; }
+    button.slate.on { background: var(--teal); color: #04181a; }
+    select { font: 600 12px/1 var(--font-mono); color: var(--cream); background: var(--panel); border: 1.5px solid var(--outline); border-radius: 9px; padding: 9px 10px; max-width: 100%; }
+    input[type=range] { accent-color: var(--teal); }
+    #hud, #palette, #boolq, #editbar { border: 1.5px solid var(--outline); border-radius: 14px; background: color-mix(in srgb, var(--panel) 92%, transparent); }
+    #editbar { border-color: var(--red); }
+    #hud { max-width: min(46%, 280px); }
+    #palette { max-height: calc(100dvh - 90px); overflow-y: auto; }
+    #palette .sw { box-shadow: none; padding: 0; border-radius: 6px; }
+
+    /* the key explainer: a keyboard you can read, hover, press and run */
+    #keypanel { position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 9; width: min(96vw, 880px); max-height: 86dvh; overflow-y: auto; box-sizing: border-box; padding: 12px 14px 14px; background: #0b0b0a; border: 1.5px solid var(--outline); border-radius: 20px; display: grid; gap: 10px; --u: clamp(19px, calc((min(96vw, 880px) - 56px) / 15.8), 46px); }
+    #keypanel[hidden] { display: none; }
+    #keypanel .head { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: space-between; }
+    #keypanel .head b { font: 600 14px/1 var(--font-display); letter-spacing: 0.14em; color: var(--cream); }
+    #keypanel .legend { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 10px; color: var(--muted); letter-spacing: 0.06em; }
+    #keypanel .legend i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+    #keypanel .ctx { font-size: 10px; letter-spacing: 0.08em; color: var(--muted); text-transform: uppercase; }
+    #keypanel .ctx b { font: 600 10px/1 var(--font-mono); color: var(--teal); }
+    .kb { display: grid; gap: calc(var(--u) * 0.14); justify-content: center; }
+    .kb .row { display: flex; gap: calc(var(--u) * 0.14); justify-content: center; }
+    .kb .gap { flex: none; }
+    .kb button { position: relative; flex: none; height: calc(var(--u) * 0.98); padding: 0; display: grid; place-items: center; align-content: center; gap: 0; border-radius: calc(var(--u) * 0.2); font-size: calc(var(--u) * 0.36); line-height: 1; box-shadow: 0 calc(var(--u) * 0.07) 0 #77735a, 0 calc(var(--u) * 0.12) calc(var(--u) * 0.2) #0009; }
+    .kb button small { display: block; font: 500 calc(var(--u) * 0.17)/1 var(--font-mono); letter-spacing: 0; opacity: 0.75; margin-top: calc(var(--u) * 0.06); max-width: 100%; overflow: hidden; white-space: nowrap; }
+    .kb button.cream { background: var(--cream); color: var(--ink); }
+    .kb button.teal { background: var(--teal); color: #04181a; box-shadow: 0 calc(var(--u) * 0.07) 0 #17707a, 0 calc(var(--u) * 0.12) calc(var(--u) * 0.2) #0009; }
+    .kb button.red { background: var(--red); color: #1b0803; box-shadow: 0 calc(var(--u) * 0.07) 0 #8a2a0f, 0 calc(var(--u) * 0.12) calc(var(--u) * 0.2) #0009; }
+    .kb button.slate { background: var(--slate); color: var(--cream); box-shadow: 0 calc(var(--u) * 0.07) 0 #2a2822, 0 calc(var(--u) * 0.12) calc(var(--u) * 0.2) #0009; }
+    .kb button.free { background: transparent; color: #5b584a; border: 1px dashed #3d3b30; box-shadow: none; }
+    .kb button.ctx-on { outline: 2px solid #fff; outline-offset: 2px; }
+    .kb button.sel { outline: 2px solid var(--teal); outline-offset: 2px; }
+    .kb button.down { transform: translateY(calc(var(--u) * 0.06)); filter: brightness(1.25); }
+    #keyinfo { min-height: 92px; padding: 10px 12px; border: 1px solid var(--outline); border-radius: 14px; display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+    #keyinfo .t { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+    #keyinfo .t b { font: 600 15px/1 var(--font-display); letter-spacing: 0.06em; color: var(--cream); }
+    #keyinfo .t em { font-style: normal; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 7px; border-radius: 6px; color: var(--ink); background: var(--cream); }
+    #keyinfo .t em.teal { background: var(--teal); } #keyinfo .t em.red { background: var(--red); } #keyinfo .t em.slate { background: var(--slate); color: var(--cream); }
+    #keyinfo p { margin: 0; line-height: 1.45; }
+    #keyinfo p span { color: var(--cream); font-weight: 600; }
+    #keyinfo p.on span { color: var(--teal); }
+    #keyinfo .run { justify-self: start; margin-top: 4px; }
+    #zenOff { position: fixed; right: 12px; bottom: 12px; z-index: 7; display: none; opacity: 0.28; padding: 8px 11px; }
+    #zenOff:hover, #zenOff:focus-visible { opacity: 1; }
+
+    /* Zen: only the stage, edge to edge */
+    body.zen { padding: 0; gap: 0; }
+    body.zen header.bar, body.zen footer.bar, body.zen #hud, body.zen #editbar, body.zen .fab { display: none; }
+    body.zen #stage { position: fixed; inset: 0; border: 0; border-radius: 0; z-index: 1; }
+    body.zen #zenOff { display: block; }
+
+    /* Phones, tablets and small windows: nothing leaves the screen */
+    @media (pointer: coarse), (max-width: 640px) {
+      #stage { border: 0; border-radius: 0; }
+      .fab { gap: 10px; flex-wrap: wrap; padding-inline: 10px; z-index: 4; }
+      .fab button { width: 48px; height: 48px; border-radius: 50%; border: 0; background: var(--cream); color: var(--ink); backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: 0 3px 0 #77735a, 0 6px 10px #0009; }
+      .fab button.red { background: var(--red); color: #1b0803; }
+      .fab button.teal, .fab button.on { background: var(--teal); color: #04181a; }
+      .fab button.slate { background: var(--slate); color: var(--cream); }
+      .fab button:active { background: var(--cream-2); transform: translateY(2px); }
+      #hud { top: max(8px, env(safe-area-inset-top, 0px)); left: 8px; font-size: 11px; max-width: 58%; }
+      .kb button small { display: none; }
+      #keypanel { bottom: 6px; max-height: 92dvh; }
+    }
+    @media (max-width: 420px) { .fab button { width: 42px; height: 42px; } .fab svg { width: 22px; height: 22px; } }
+    @media (max-height: 520px) and (min-width: 641px) { footer.bar { max-height: 38dvh; } .actions button { padding: 8px 10px; } }
+
+    /* fixed-width readouts and a fixed-height key description: nothing shifts while values or texts change */
+    .read b { display: inline-block; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+    #yaw, #pitch { width: 5.2ch; text-align: right; }
+    #speed { width: 7ch; text-align: right; }
+    #pick { width: 4ch; } #count { width: 4.5ch; text-align: right; } #mode { width: 4.5ch; } #live { width: 3.5ch; }
+    .read .surface { display: inline-flex; width: 26ch; max-width: 100%; } .read .surface b { width: auto; min-width: 0; flex: 1; }
+    #keyinfo { height: 136px; overflow-y: auto; align-content: start; box-sizing: border-box; }
+    @media (max-width: 640px) { #keyinfo { height: 150px; } }
+
+    /* labels are not selectable (the error box stays copyable) */
+    body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+    #gpuerr, #gpuerr * { -webkit-user-select: text; user-select: text; }
+    input[type=text], input[type=search], textarea { -webkit-user-select: text; user-select: text; }
   </style>
 </head>
 <body>
@@ -246,11 +356,20 @@
   </aside>
 
   <div class="fab" aria-label="Controls">
-    <button id="fabTravel" type="button" aria-label="Travel to the object under the cross (T)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
-    <button id="fabPlace" type="button" aria-label="Place or shoot a prism (M)"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12L4 7.5M12 12v9"/></svg></button>
-    <button id="fabDelete" type="button" aria-label="Delete the prism under the cross (X)"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
+    <button id="fabTravel" type="button" class="teal" aria-label="Target the object under the cross (T)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
+    <button id="fabPlace" type="button" class="red" aria-label="Place or shoot a prism (M)"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12L4 7.5M12 12v9"/></svg></button>
+    <button id="fabDelete" type="button" class="slate" aria-label="Delete the prism under the cross (X)"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
     <button id="fabMode" type="button" aria-label="Switch SVG / WebGPU view (G)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></button>
+    <button id="fabKeys" type="button" aria-label="Key explainer (?)"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/></svg></button>
+    <button id="fabZen" type="button" class="slate" aria-label="Zen: only the model (Z)"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
   </div>
+  <button id="zenOff" type="button" class="slate" aria-label="Leave zen mode (Z or Esc)" title="Leave zen (Z or Esc)">⤢ zen off</button>
+
+  <aside id="keypanel" hidden aria-label="Key explainer">
+    <div class="head"><b>KEYS</b><span class="ctx" id="keyctx"></span><span class="legend" id="keylegend"></span><button id="keyclose" type="button" class="slate" aria-label="Close the key explainer">✕</button></div>
+    <div class="kb" id="kb"></div>
+    <div id="keyinfo" aria-live="polite"></div>
+  </aside>
 
   <footer class="bar">
     <p class="read">
@@ -264,13 +383,12 @@
       <span class="surface" id="surface">surface <b>–</b></span>
     </p>
     <textarea id="gpuerr" readonly hidden rows="4" aria-label="WebGPU error text (select and copy)" style="width:100%;box-sizing:border-box;font:12px/1.4 var(--font-mono);background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:6px"></textarea>
-    <p class="hint" id="hint" hidden>drag: rotate · w a s d r f: fly (every press is a speed step) · /: isolate the model, again: whole scene · p: materials (i: pick the material under the cross, shift+click paints a face, shift+double click the whole object) · m: place · space: stop · o: boolean (mark two objects, then pick the operation) · v: spider bar (two points) · q: edit mode (v draws lines on the model, enter closes a loop into a face, b turns the old v bars into lines, 1/2/3 move points/lines/faces) · x: delete the object (the Clear button removes everything) · t: target the object under the cross (the camera keeps looking at it and moves on a sphere round it: a d r f swing, w s distance, drag too; tab: next target; space: speed zero; esc: let go) · h: move gizmo (drag an arrow; 1st h world axes, 2nd h own axes, 3rd h off) · e: edges · g: svg/gpu · c: filmic look · n: smooth shading · k: studio light · l: light · u / backspace: undo</p>
     <span class="actions">
-      <button id="place" type="button">Place</button>
-      <button id="delete" type="button">Delete</button>
-      <button id="travel" type="button">Travel</button>
+      <button id="place" type="button" class="red" title="Place a prism (M)">Place</button>
+      <button id="delete" type="button" class="slate" title="Delete the object under the cross (X)">Delete</button>
+      <button id="travel" type="button" class="teal" title="Target the object under the cross (T)">Target</button>
       <button id="lines" type="button">Edges</button>
-      <button id="keys" type="button" title="Show the shortcut hints (?)">Keys</button>
+      <button id="keys" type="button" class="teal" title="The key explainer (?)">Keys</button>
       <button id="gpuBtn" type="button">WebGPU</button>
       <button id="light" type="button">Light</button>
       <button id="filmic" type="button" title="Filmic look: HDR light, glowing emission, tone mapping (C)">Filmic</button>
@@ -280,14 +398,15 @@
         <option value="">+ Example…</option>
         <option value="bridge">Stone bridge</option>
       </select>
-      <button id="clear" type="button" title="Remove every object (U brings them back)">Clear</button>
-      <button id="undo" type="button">Undo</button>
-      <button id="reset" type="button">Reset view</button>
+      <button id="zen" type="button" class="slate" title="Zen: only the model (Z)">Zen</button>
+      <button id="clear" type="button" class="slate" title="Remove every object (U brings them back)">Clear</button>
+      <button id="undo" type="button" class="slate">Undo</button>
+      <button id="reset" type="button" class="slate">Reset view</button>
     </span>
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@a6417d3ad411409baf78c87bcca3997dedace472/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@64a5381ccd209a2021fc57b547c2d904a07e731d/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -563,7 +682,7 @@
     // T targets the object under the cross (the camera turns onto it and stays on a sphere round it; W flies there).
     // T over empty space, or on the target, while targeting just brings the camera back onto the target; on another
     // object it re-targets. Tab: the next object. Esc lets go. With no target, T over empty space targets the nearest.
-    const lookAt = (o) => {
+    const lookAt = (o, near = Infinity) => {
       // the camera stays where it is and turns to the object: from here on it moves on a sphere round it
       const { center, radius } = ballOf(o);
       const eye = eyeNow();
@@ -573,18 +692,19 @@
       goTo({
         center,
         radius: Math.max(radius * 1.15, 0.12),
-        dist: Math.max(len, radius * STOP),
+        dist: Math.max(Math.min(len, radius * near), radius * STOP), // `near`: come at least this close (in radii)
         yaw: Math.atan2(d[0], -d[2]),
         pitch: Math.max(-LIMIT, Math.min(LIMIT, -Math.asin(d[1] / len))),
       });
     };
+    const FRAME = 4; // Tab frames an object from at most this many radii away
     const nextTarget = (back) => {
       const list = allObjects().filter((o) => o.mesh.positions.length && owners.some((w) => w.obj.id === o.id));
       if (!list.length) return;
       const at = list.findIndex((o) => o.id === locked);
       const o = list[(at + (back ? -1 : 1) + list.length) % list.length];
       locked = o.id;
-      lookAt(o);
+      lookAt(o, FRAME); // Tab finds the object: it comes into view, however small or far it is
     };
     const travelTo = () => {
       const under = hit ? owner(hit.face) : null;
@@ -1000,15 +1120,31 @@
     // Every change goes the same way: the document (if a db is connected) and the local object.
     let col = null; // the db collection "objects", once connected
     const history = []; // one undo step per action made here, for Backspace
-    const writes = new Map(); // one write at a time per document
-    const save = (obj, op) => {
-      if (!col) return;
-      const next = (writes.get(obj.id) ?? Promise.resolve()).then(op).catch((err) => {
-        liveEl.textContent = 'db write failed';
-        liveEl.title = String(err?.message ?? err);
+    // Writes go one after the other through ONE queue, and a refused write is tried again a few times: a big scene (a globe is
+    // eight objects of hundreds of kilobytes) written in parallel gets rate limited, and the objects whose write was refused
+    // would vanish at the next snapshot.
+    const unsaved = new Set(); // objects that are not in the db yet: a snapshot must not drop them
+    let writeTail = Promise.resolve();
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const enqueue = (op, done) => {
+      writeTail = writeTail.then(async () => {
+        for (let k = 0; ; k++) {
+          try {
+            await op();
+            done?.();
+            return;
+          } catch (err) {
+            if (k >= 5) {
+              liveEl.textContent = 'db write failed';
+              liveEl.title = String(err?.message ?? err);
+              return;
+            }
+            await sleep(400 * 2 ** k);
+          }
+        }
       });
-      writes.set(obj.id, next);
     };
+    const save = (obj, op) => col && enqueue(op, () => unsaved.delete(obj.id));
     // the stored document of an object; the lines drawn on it ride along
     const docOf = (o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}) });
     const uid = (name) => `${name}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -1017,6 +1153,7 @@
       history.push(() => erase(obj));
       if (col) {
         hostObjects.push({ ...obj, host: true });
+        unsaved.add(obj.id);
         save(obj, () => col.doc(obj.id).set(docOf(obj)));
       } else mine.push(obj);
       rebuild();
@@ -1208,7 +1345,7 @@
     const swatchesEl = document.getElementById('swatches');
     const currentEl = document.getElementById('current');
     const PROPS = ['metal', 'rough', 'alpha', 'emit', 'soft'];
-    const saveMaterial = (m) => paletteCol && paletteCol.doc(m.name).set({ ...m, order: materials.indexOf(m) }).catch((err) => (liveEl.title = String(err?.message ?? err)));
+    const saveMaterial = (m) => paletteCol && enqueue(() => paletteCol.doc(m.name).set({ ...m, order: materials.indexOf(m) }));
     const showPalette = () => {
       swatchesEl.innerHTML = '';
       materials.forEach((m, i) => {
@@ -1764,6 +1901,11 @@
         stop();
         return void letGo();
       }
+      if (e.key === 'Escape' && !editing && !picking && !locked) {
+        // Esc closes what is open: the key explainer, then zen
+        if (!keyPanel.hidden) return void toggleKeys(false);
+        if (document.body.classList.contains('zen')) return void toggleZen(false);
+      }
       const fk = !e.ctrlKey && !e.metaKey && !e.altKey && FLY_KEYS[e.key.toLowerCase()];
       if (fk) {
         e.preventDefault();
@@ -1823,7 +1965,10 @@
         }
       } else if (e.key === '?') {
         e.preventDefault();
-        if (!e.repeat) toggleHint();
+        if (!e.repeat) toggleKeys();
+      } else if ((e.key === 'z' || e.key === 'Z') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        if (!e.repeat) toggleZen();
       } else if (e.key === '/') {
         e.preventDefault();
         if (!e.repeat) isolate();
@@ -1878,13 +2023,161 @@
     document.getElementById('fabDelete').addEventListener('click', remove);
     document.getElementById('fabMode').addEventListener('click', toggleMode);
     document.getElementById('lines').addEventListener('click', () => stage.classList.toggle('clean'));
-    // ?: the shortcut hints, hidden at the start
-    const hintEl = document.getElementById('hint');
-    const toggleHint = () => {
-      hintEl.hidden = !hintEl.hidden;
-      document.getElementById('keys').classList.toggle('on', !hintEl.hidden);
+    // ?: the key explainer, a keyboard drawn from data. Hover or tap a key to read it, press a real key to see it light up,
+    // "run" does what the key does. Colours: teal = target / look, red = editing and making, cream = flying and viewing, slate = system.
+    const KEYS = {
+      escape: { cap: 'Esc', sub: 'free', cat: 'slate', w: 1.5, title: 'Escape', text: 'Cancels: closes the boolean question, stops a pending spider bar, ends zen.', target: 'Lets go of the target. The camera stays exactly where it is.', edit: 'Stops the line, then leaves a move mode, then leaves edit mode (the target stays).' },
+      1: { cap: '1', sub: 'union', cat: 'red', text: 'Boolean question: union.', edit: 'Move points (drag a point, or the gizmo arrows).' },
+      2: { cap: '2', sub: 'A−B', cat: 'red', text: 'Boolean question: A minus B.', edit: 'Move lines (edges).' },
+      3: { cap: '3', sub: 'B−A', cat: 'red', text: 'Boolean question: B minus A.', edit: 'Move faces.' },
+      4: { cap: '4', sub: 'and', cat: 'red', text: 'Boolean question: intersect.' },
+      5: { cap: '5', sub: 'cancel', cat: 'red', text: 'Boolean question: cancel.' },
+      '/': { cap: '/', sub: 'solo', cat: 'cream', text: 'Isolate: shows only the model under the cross. Again: the whole scene. In isolated mode M shoots carving bullets.' },
+      '?': { cap: '?', sub: 'keys', cat: 'slate', text: 'This key explainer.' },
+      backspace: { cap: '⌫', sub: 'undo', cat: 'slate', w: 2.2, title: 'Backspace', text: 'Undo the last change (same as U).' },
+      tab: { cap: 'Tab', sub: 'next', cat: 'teal', w: 1.6, title: 'Tab', text: 'Targets the object under the cross (like T).', target: 'Next target; Shift+Tab: the previous one. The camera frames it, however small or far.' },
+      q: { cap: 'Q', sub: 'edit', cat: 'red', text: 'Edit mode on the object under the cross: draw lines and faces on the model. Again: leave.' },
+      w: { cap: 'W', sub: 'fwd', cat: 'cream', text: 'Fly forward. Every press is one speed step; S slows down and reverses.', target: 'Closer to the target (stops at its surface).' },
+      e: { cap: 'E', sub: 'edges', cat: 'cream', text: 'Edges and points on or off.' },
+      r: { cap: 'R', sub: 'up', cat: 'cream', text: 'Fly up (speed steps).', target: 'Swing up over the target.' },
+      t: { cap: 'T', sub: 'target', cat: 'teal', text: 'Target the object under the cross: the camera turns to it and keeps looking at it. Over empty space: the nearest object.', target: 'Another object re-targets; the target itself or empty space brings the camera back onto the target.' },
+      y: { cap: 'Y', sub: '', cat: 'free', text: 'Free: no function yet.' },
+      u: { cap: 'U', sub: 'undo', cat: 'slate', text: 'Undo the last change. Backspace does the same.' },
+      i: { cap: 'I', sub: 'pick', cat: 'red', text: 'Pick the material under the cross (then Shift+click paints with it).' },
+      o: { cap: 'O', sub: 'bool', cat: 'red', text: 'Boolean: mark an object, then a second one, then choose union, A−B, B−A or intersect (keys 1–5).' },
+      p: { cap: 'P', sub: 'paint', cat: 'red', text: 'The material palette. Shift+click paints a face, Shift+double click the whole object.' },
+      a: { cap: 'A', sub: 'left', cat: 'cream', text: 'Fly left (speed steps).', target: 'Swing left round the target.' },
+      s: { cap: 'S', sub: 'back', cat: 'cream', text: 'Fly back (speed steps).', target: 'Farther from the target.' },
+      d: { cap: 'D', sub: 'right', cat: 'cream', text: 'Fly right (speed steps).', target: 'Swing right round the target.' },
+      f: { cap: 'F', sub: 'down', cat: 'cream', text: 'Fly down (speed steps).', target: 'Swing down under the target.' },
+      g: { cap: 'G', sub: 'gpu', cat: 'teal', text: 'Switch between the SVG view and the WebGPU view.' },
+      h: { cap: 'H', sub: 'gizmo', cat: 'red', text: 'Move gizmo on the object under the cross: 1st H world axes, 2nd H its own axes, 3rd H off. Drag an arrow to move it.' },
+      j: { cap: 'J', sub: '', cat: 'free', text: 'Free: no function yet.' },
+      k: { cap: 'K', sub: 'studio', cat: 'teal', text: 'Studio light: key, fill and rim light that follow the camera.' },
+      l: { cap: 'L', sub: 'light', cat: 'teal', text: 'Turn the sun (the light direction) in steps.' },
+      enter: { cap: 'Enter', sub: 'face', cat: 'red', w: 2.2, title: 'Enter', text: '', edit: 'Closes the drawn loop into a face.' },
+      shift: { cap: 'Shift', sub: 'paint', cat: 'slate', w: 2.4, title: 'Shift', text: 'Shift+click paints a face with the current material, Shift+double click the whole object. Shift+Tab: previous target.', run: false },
+      z: { cap: 'Z', sub: 'zen', cat: 'slate', text: 'Zen: hide everything but the model. Z or Esc brings the panels back.' },
+      x: { cap: 'X', sub: 'del', cat: 'red', text: 'Delete the object under the cross (U brings it back).', edit: 'Remove the drawn lines.' },
+      c: { cap: 'C', sub: 'filmic', cat: 'teal', text: 'Filmic look: HDR light, glowing emission, tone mapping.' },
+      v: { cap: 'V', sub: 'bar', cat: 'red', text: 'Spider bar: joins two surface points with a thin bar.', edit: 'Draws a line from point to point (snaps to points; two points on one face cut it).' },
+      b: { cap: 'B', sub: 'bars', cat: 'red', text: '', edit: 'Turns the old V bars into lines.' },
+      n: { cap: 'N', sub: 'smooth', cat: 'teal', text: 'Smooth shading: faces that meet at a shallow angle share their normals.' },
+      m: { cap: 'M', sub: 'place', cat: 'red', text: 'Puts a prism down at the cross (or shoots one into empty space).', solo: 'In isolated mode the prism is a bullet: where it lands it carves A−B out of the surface; if it misses it disappears.' },
+      arrowleft: { cap: '←', sub: '', cat: 'cream', title: 'Arrow left', text: 'Rotate the view left, in steps.' },
+      arrowdown: { cap: '↓', sub: '', cat: 'cream', title: 'Arrow down', text: 'Rotate the view down, in steps.' },
+      arrowup: { cap: '↑', sub: '', cat: 'cream', title: 'Arrow up', text: 'Rotate the view up, in steps.' },
+      arrowright: { cap: '→', sub: '', cat: 'cream', title: 'Arrow right', text: 'Rotate the view right, in steps.' },
+      ' ': { cap: 'Space', sub: 'speed zero', cat: 'cream', w: 7.6, title: 'Space', text: 'Speed zero: stops the flying.', target: 'Speed zero; the target stays.' },
     };
-    document.getElementById('keys').addEventListener('click', toggleHint);
+    const KEY_ROWS = [
+      ['escape', '1', '2', '3', '4', '5', '/', '?', 'backspace'],
+      ['tab', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+      [1.9, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'enter'],
+      ['shift', 'z', 'x', 'c', 'v', 'b', 'n', 'm', 0.4, 'arrowleft', 'arrowdown', 'arrowup', 'arrowright'],
+      [' '],
+    ];
+    const CAT_NAME = { cream: 'fly · view', teal: 'target · look', red: 'edit · make', slate: 'system', free: 'free' };
+    const keyPanel = document.getElementById('keypanel');
+    const keyInfo = document.getElementById('keyinfo');
+    const keyboardEl = document.getElementById('kb');
+    const keyRef = {}; // key id -> its button
+    let keyShown = null;
+    const showKey = (id) => {
+      const k = KEYS[id];
+      if (!k) return;
+      keyShown = id;
+      for (const [n, b] of Object.entries(keyRef)) b.classList.toggle('sel', n === id);
+      const row = (cls, label, text, on) => (text ? `<p class="${on ? 'on' : ''}"><span>${label}</span> ${hudText(text)}</p>` : '');
+      keyInfo.innerHTML =
+        `<div class="t"><b>${hudText(k.title ?? k.cap)}</b><em class="${k.cat}">${CAT_NAME[k.cat]}</em></div>` +
+        row('', 'Always', k.text, false) +
+        row('', 'Target mode', k.target, Boolean(locked)) +
+        row('', 'Isolated', k.solo, false) +
+        row('', 'Edit mode', k.edit, editing) +
+        '';
+    };
+    const EVENT_KEY = { escape: 'Escape', backspace: 'Backspace', tab: 'Tab', enter: 'Enter', arrowleft: 'ArrowLeft', arrowdown: 'ArrowDown', arrowup: 'ArrowUp', arrowright: 'ArrowRight' };
+    const pressKey = (id) => {
+      const key = EVENT_KEY[id] ?? id;
+      document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+      document.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true, cancelable: true }));
+      refreshKeyContext();
+    };
+    const refreshKeyContext = () => {
+      document.getElementById('keyctx').innerHTML = `${locked ? '<b>target on</b> · ' : ''}${editing ? '<b>edit on</b> · ' : ''}${solo ? '<b>isolated</b> · ' : ''}`;
+      for (const [n, b] of Object.entries(keyRef)) b.classList.toggle('ctx-on', Boolean((locked && KEYS[n].target) || (editing && KEYS[n].edit) || (solo && KEYS[n].solo)));
+      if (keyShown) showKey(keyShown);
+    };
+    {
+      const legend = document.getElementById('keylegend');
+      const swatch = { cream: 'var(--cream)', teal: 'var(--teal)', red: 'var(--red)', slate: 'var(--slate)' };
+      legend.innerHTML = ['cream', 'teal', 'red', 'slate'].map((c) => `<span><i style="background:${swatch[c]}"></i>${CAT_NAME[c]}</span>`).join('') + '<span><i style="border:1px dashed #5b584a"></i>free</span>';
+      for (const r of KEY_ROWS) {
+        const rowEl = document.createElement('div');
+        rowEl.className = 'row';
+        for (const id of r) {
+          if (typeof id === 'number') {
+            const g = document.createElement('span');
+            g.className = 'gap';
+            g.style.width = `calc(var(--u) * ${id})`;
+            rowEl.append(g);
+            continue;
+          }
+          const k = KEYS[id];
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = k.cat;
+          b.style.width = `calc(var(--u) * ${k.w ?? 1})`;
+          b.innerHTML = `${hudText(k.cap)}${k.sub ? `<small>${hudText(k.sub)}</small>` : ''}`;
+          b.setAttribute('aria-label', `${k.title ?? k.cap}: ${k.text || k.edit || ''}`);
+          b.addEventListener('mouseenter', () => showKey(id));
+          b.addEventListener('focus', () => showKey(id));
+          b.addEventListener('click', () => { showKey(id); if (k.run !== false && id !== '?') pressKey(id); });
+          keyRef[id] = b;
+          rowEl.append(b);
+        }
+        keyboardEl.append(rowEl);
+      }
+    }
+    const toggleKeys = (force) => {
+      const open = force ?? keyPanel.hidden;
+      keyPanel.hidden = !open;
+      document.getElementById('keys').classList.toggle('on', open);
+      document.getElementById('fabKeys').classList.toggle('on', open);
+      if (open) {
+        refreshKeyContext();
+        showKey(keyShown ?? 't');
+      }
+    };
+    // real keys light their on-screen twin while the panel is open
+    const keyId = (e) => (e.key === ' ' ? ' ' : e.key.toLowerCase());
+    window.addEventListener('keydown', (e) => {
+      if (keyPanel.hidden) return;
+      const id = keyId(e);
+      if (!keyRef[id]) return;
+      keyRef[id].classList.add('down');
+      showKey(id);
+    }, true);
+    window.addEventListener('keyup', (e) => {
+      if (keyPanel.hidden) return;
+      keyRef[keyId(e)]?.classList.remove('down');
+      setTimeout(refreshKeyContext, 30);
+    }, true);
+    document.getElementById('keys').addEventListener('click', () => toggleKeys());
+    document.getElementById('fabKeys').addEventListener('click', () => toggleKeys());
+    document.getElementById('keyclose').addEventListener('click', () => toggleKeys(false));
+    // Z: zen, only the model
+    const toggleZen = (force) => {
+      const on = force ?? !document.body.classList.contains('zen');
+      document.body.classList.toggle('zen', on);
+      if (on) toggleKeys(false);
+      document.getElementById('zen').classList.toggle('on', on);
+      redraw();
+    };
+    document.getElementById('zen').addEventListener('click', () => toggleZen());
+    document.getElementById('fabZen').addEventListener('click', () => toggleZen());
+    document.getElementById('zenOff').addEventListener('click', () => toggleZen(false));
     document.getElementById('gpuBtn').addEventListener('click', toggleMode);
     document.getElementById('light').addEventListener('click', turnLight);
     document.getElementById('filmic').addEventListener('click', toggleFilmic);
@@ -1970,6 +2263,8 @@
         col.onSnapshot(
           (snap) => {
             const objects = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((o) => o?.mesh?.positions);
+            // objects still waiting for their write stay on screen
+            for (const o of hostObjects) if (unsaved.has(o.id) && !objects.some((x) => x.id === o.id)) objects.push({ id: o.id, name: o.name, mesh: o.mesh, ...(o.wire ? { wire: o.wire } : {}) });
             applyScene({ objects, rev: 'db' });
           },
           (err) => {
@@ -1992,6 +2287,7 @@
         // what was made here before the db answered goes into it now
         for (const o of mine.splice(0)) {
           hostObjects.push({ ...o, host: true });
+          unsaved.add(o.id);
           save(o, () => col.doc(o.id).set(docOf(o)));
         }
       });
