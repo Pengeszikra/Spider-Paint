@@ -1,8 +1,10 @@
 # Spider Paint
 
+![digital spider web, the picture of the first version](https://lh3.googleusercontent.com/q5_s13DMklahZb6JKgz7mI5AyPKDxnSO3IqkuHZJi-BOWZZh0N-m4LwQScpewNW13lOiOSSLDEKsDhpJETORmkFF-tahvU0cciRLG3y9yk1q-WyPmk8)
+
 A first-person 3D world builder in the browser: you fly through the space, place, shoot and connect objects, and shape them right where they are.
 
-Spider Paint started in 2015 as a light experimental WebGL scene builder on Three.js, an experiment about objects scattered in space and the connections between them. The name came from the first version's picture, a digital spider web. That version is kept, unchanged, in the [`2015-sept-11`](../../tree/2015-sept-11) branch.
+Spider Paint started in 2015 as a light experimental WebGL scene builder on Three.js, an experiment about objects scattered in space and the connections between them. The name came from the first version's picture, the digital spider web above. That version is kept, unchanged, in the [`2015-sept-11`](../../tree/2015-sept-11) branch.
 
 This version picks the same idea up again, now on the [3Draft](https://github.com/Pengeszikra/3Draft) engine.
 
@@ -14,7 +16,7 @@ It is one page, `index.html`, and one model, `models/bridge.scene.json`. Serve t
 npx serve .            # or: python3 -m http.server
 ```
 
-(A static server is needed because the page loads the model with `fetch`; GitHub Pages works too.) The view starts in WebGPU and falls back to SVG by itself when WebGPU is not there.
+(A static server is needed because the page loads the model with `fetch`; GitHub Pages works too.) The scene starts with the stone bridge (one `U` removes it). The view starts in WebGPU and falls back to SVG by itself when WebGPU is not there.
 
 ## What it can do
 
@@ -27,7 +29,7 @@ npx serve .            # or: python3 -m http.server
 - `M` places a prism on the surface under the cross, or shoots one into empty space. In isolated mode (`/`) it fires a bullet: if it hits the object it sinks in and carves its shape out of it.
 - `V` is the spider bar: the first `V` remembers a surface point, the second joins the two points with a thin prism.
 - `X` deletes the object under the cross, `Clear` removes everything, `U` (or `Backspace`) undoes, one step at a time.
-- `+ Example…` adds the stone bridge to the scene.
+- `+ Example…` adds another stone bridge beside what is there.
 
 **Moving.** `H` puts a move gizmo on the object (first `H`: world axes, second: the object's own axes, third: off). Drag an arrow to slide the object along it.
 
