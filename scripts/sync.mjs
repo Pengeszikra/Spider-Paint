@@ -24,8 +24,8 @@ const steps = [
   ['table import', "import { LEG, table } from '../examples/table-model.js';", 'const LEG = { base: 0.15 }; // the base of a placed prism'],
   ['table scene', "      if (name === 'table') return { objects: [{ name: 'table', mesh: table }] };\n", ''],
   ['example path', 'fetch(`../examples/${name}.scene.json`)', 'fetch(`./models/${name}.scene.json`)'],
-  // only the bridge is shipped
-  ['example list', /(<option value="">\+ Example…<\/option>\n)[\s\S]*?(\s*<\/select>)/, (_, head, tail) => `${head}        <option value="bridge">Stone bridge</option>${tail}`],
+  // the bridge and the globe are shipped (the scene still starts with the bridge)
+  ['example list', /(<option value="">\+ Example…<\/option>\n)[\s\S]*?(\s*<\/select>)/, (_, head, tail) => `${head}        <option value="bridge">Stone bridge</option>\n        <option value="globe">Globe</option>${tail}`],
   // no MCP server here: the live link is opt-in (?live), so a static server is not polled for /events
   ['live link', "if (['localhost', '127.0.0.1'].includes(location.hostname) && typeof EventSource", "if (new URLSearchParams(location.search).has('live') && typeof EventSource"],
   // the scene starts with the bridge; not in an artifact, where the shared database holds the scene
@@ -44,4 +44,10 @@ if (html.includes('../dist/') || html.includes('../examples/')) throw new Error(
 writeFileSync(join(here, 'index.html'), html);
 mkdirSync(join(here, 'models'), { recursive: true });
 writeFileSync(join(here, 'models/bridge.scene.json'), readFileSync(join(src, 'examples/bridge.scene.json')));
+// the globe: the ocean is the half-transparent teal material, so the far side of the earth shows through
+const globe = JSON.parse(readFileSync(join(src, 'examples/globe.scene.json'), 'utf8'));
+const seaMaterial = { color: '#4fb5a5', alpha: 0.55 };
+Object.assign(globe.palette.find((m) => m.name === 'ocean'), seaMaterial);
+for (const f of globe.objects.find((o) => o.name === 'Ocean').mesh.faces) f.color = seaMaterial.color;
+writeFileSync(join(here, 'models/globe.scene.json'), JSON.stringify(globe));
 console.log(`Spider Paint <- 3Draft ${commit}`);

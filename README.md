@@ -20,7 +20,7 @@ This version picks the same idea up again, now on the [3Draft](https://github.co
 
 ## Run it
 
-It is one page, `index.html`, and one model, `models/bridge.scene.json`. Serve the folder with any static server and open it:
+It is one page, `index.html`, and two example models, `models/bridge.scene.json` and `models/globe.scene.json`. Serve the folder with any static server and open it:
 
 ```sh
 npx serve .            # or: python3 -m http.server
@@ -41,7 +41,7 @@ npx serve .            # or: python3 -m http.server
 - `M` places a prism on the surface under the cross, or shoots one into empty space. In isolated mode (`/`) it fires a bullet: if it hits the object it sinks in and carves its shape out of it.
 - `V` is the spider bar: the first `V` remembers a surface point, the second joins the two points with a thin prism.
 - `X` deletes the object under the cross, `Clear` removes everything, `U` (or `Backspace`) undoes, one step at a time.
-- `+ Example…` adds another stone bridge beside what is there.
+- `+ Example…` adds the stone bridge or the globe (seven continents, each its own mesh, in a half-transparent ocean) beside what is there.
 
 **Moving.** `H` puts a move gizmo on the object (first `H`: world axes, second: the object's own axes, third: off). Drag an arrow to slide the object along it.
 
@@ -65,4 +65,4 @@ Published as a Claude artifact, the scene and the palette live in a shared datab
 
 [3Draft](https://github.com/Pengeszikra/3Draft) is a minimalist, AI first 3D engine: a model is plain data that a human, a program and an LLM can all read and write. It has an SVG and a WebGPU renderer, surface picking (with a WebAssembly kernel written in HEXAW), solid booleans and mesh editing.
 
-The engine is not in this repo. The page imports it from jsDelivr, pinned to the 3Draft commit it was taken from. Development happens in the 3Draft repo, where this program is the viewer. From time to time the viewer becomes Spider Paint again: `node scripts/sync.mjs ../3Draft` copies the viewer and the bridge, and pins the engine to that commit.
+The engine is not in this repo. The page imports it from jsDelivr, pinned to the 3Draft commit it was taken from. Development happens in the 3Draft repo, where this program is the viewer. From time to time the viewer becomes Spider Paint again: `node scripts/sync.mjs ../3Draft` copies the viewer, the bridge and the globe, and pins the engine to that commit.
