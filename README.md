@@ -2,13 +2,17 @@
 
 ![digital spider web: objects scattered in space, cones on their surfaces, lines between them](media/spider-web.png)
 
-A first-person 3D world builder in the browser: you fly through the space, place, shoot and connect objects, and shape them right where they are.
-
-Spider Paint started in 2015 as a light experimental WebGL scene builder on Three.js, an experiment about objects scattered in space and the connections between them. The name came from the first version's picture, a digital spider web like the one above. That version is kept, unchanged, in the [`2015-sept-11`](../../tree/2015-sept-11) branch.
-
 ![face of spider: the head model covered with cones](media/face-of-spider.png)
 
-Face of spider. Both pictures were rendered in 2026 from the unchanged 2015 code (the original images were lost with their old hosting).
+*The digital spider web and the face of spider, as the 2015 version drew them.*
+
+**How these pictures came back.** The 2015 README showed two pictures: the digital spider web, which gave the program its name, and the face of spider. Both were hosted on Google (old Picasa / Google+ links), and both links now answer `403 Forbidden`: the pictures did not break, their hosting is gone. The Wayback Machine was tried next. It holds no capture of the face of spider, and for the spider web the archive was offline at the time of the search.
+
+So the pictures were made again, by the program that made them the first time. The unchanged 2015 code (the [`2015-sept-11`](../../tree/2015-sept-11) branch, with Three.js r48 from 2012) was served locally and opened in today's headless Chrome, with a software WebGL renderer, and it still runs. A small helper page loaded it with a fixed random seed and then called the program's own functions, just as the keys did: `C` puts cones on the surface under the cursor, `Ctrl` + two clicks draws a line between two surface points. For the spider web, cones were sprayed over the whole scene and lines strung between the objects. For the face, the camera was put beside the `1head.js` head model and the cones were sprayed onto it. Then the browser took the screenshots. They are not the lost files, but they are what those files showed: the same program, the same scene and the same look.
+
+A first-person 3D world builder in the browser: you fly through the space, place, shoot and connect objects, and shape them right where they are.
+
+Spider Paint started in 2015 as a light experimental WebGL scene builder on Three.js, an experiment about objects scattered in space and the connections between them. That version is kept, unchanged, in the [`2015-sept-11`](../../tree/2015-sept-11) branch.
 
 This version picks the same idea up again, now on the [3Draft](https://github.com/Pengeszikra/3Draft) engine.
 
