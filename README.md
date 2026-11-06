@@ -26,7 +26,7 @@ It is one page, `index.html`, and two example models, `models/bridge.scene.json`
 npx serve .            # or: python3 -m http.server
 ```
 
-(A static server is needed because the page loads the model with `fetch`; GitHub Pages works too.) The scene starts with the stone bridge (one `U` removes it). The view starts in WebGPU and falls back to SVG by itself when WebGPU is not there.
+(A static server is needed because the page loads the model with `fetch`; GitHub Pages works too.) The scene starts with the globe (one `U` removes it). The view starts in WebGPU and falls back to SVG by itself when WebGPU is not there.
 
 ## What it can do
 
@@ -70,3 +70,5 @@ The engine is not in this repo. The page imports it from jsDelivr, pinned to the
 ## Install on a phone (PWA)
 
 Open the hosted page in Chrome or Safari and choose "Add to Home screen" / "Install app". It has an app icon (`icons/`), a favicon, a manifest and a service worker (`sw.js`) that keeps the page, the models, the icons and the engine, so it also opens offline after the first visit. The service worker only runs over http(s), not from a file. When the shipped files change, raise `CACHE` in `sw.js`.
+
+In the installed app there is no keyboard: a touch pad shows the keys as buttons: W A S D, Space, Tab (Shift+Tab with the sticky Shift button), Esc, Shift (paint: Shift+tap a face, Shift+double tap the model), M, V, X, P and the GPU/SVG switch. `?pwa` shows the same pad in a normal browser tab.
