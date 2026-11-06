@@ -1,0 +1,1888 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>Spider Paint</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600&family=DM+Mono:wght@400;500&display=swap">
+  <style>
+    /* Layout: one-screen instrument. Slim title bar, one square drawing stage, readout bar below. */
+    :root {
+      --bg: #f3f4f1;
+      --panel: #fbfbf9;
+      --fg: #1c1f1d;
+      --muted: #656b66;
+      --line: #d3d7d0;
+      --edge: #1d1d1f;
+      --point: #d6336c;
+      --cursor: #0b7285;
+      --accent: #c2255c;
+      --font-display: 'Barlow Semi Condensed', 'Arial Narrow', system-ui, sans-serif;
+      --font-mono: 'DM Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #141614;
+        --panel: #1b1e1b;
+        --fg: #e8eae5;
+        --muted: #9aa19a;
+        --line: #2f342f;
+        --edge: #efe9df;
+        --point: #ff6b9a;
+        --cursor: #3bc9db;
+        --accent: #ff7aa6;
+        color-scheme: dark;
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg: #141614;
+      --panel: #1b1e1b;
+      --fg: #e8eae5;
+      --muted: #9aa19a;
+      --line: #2f342f;
+      --edge: #efe9df;
+      --point: #ff6b9a;
+      --cursor: #3bc9db;
+      --accent: #ff7aa6;
+      color-scheme: dark;
+    }
+
+    html, body { height: 100%; }
+    body {
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin: 0;
+      padding-block: 12px;
+      padding-left: max(16px, env(safe-area-inset-left, 0px));
+      padding-right: max(16px, env(safe-area-inset-right, 0px));
+      background: var(--bg);
+      color: var(--fg);
+      font: 14px/1.4 var(--font-mono);
+    }
+
+    .bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 6px 20px;
+    }
+    h1 {
+      margin: 0;
+      font: 600 22px/1 var(--font-display);
+      letter-spacing: 0.02em;
+    }
+    h1 span {
+      margin-left: 8px;
+      font: 400 12px/1 var(--font-mono);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .build, .hint, .read { margin: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .read { display: flex; flex-wrap: wrap; gap: 6px 20px; }
+    .read b { display: inline-block; min-width: 4ch; font-weight: 500; color: var(--fg); }
+    .read .surface { min-width: 34ch; }
+    .read .surface b { min-width: 0; }
+    .read .surface b.ok { color: #2f9e44; }
+    .read .surface b.warn { color: #e67700; }
+    .read .surface b.bad { color: #e03131; }
+    .actions { display: flex; gap: 8px; }
+
+    #stage {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+      place-items: unsafe center;
+      overflow: hidden;
+      cursor: crosshair;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    /* H: faces only, no edges and no points */
+    #stage.clean svg polygon { stroke: none; }
+    #stage.clean svg circle { display: none; }
+    #stage, #stage:focus, #stage:focus-visible { outline: none; }
+    #frame { position: relative; }
+    #frame canvas { display: block; }
+    #frame canvas[hidden] { display: none; }
+    #layer { position: absolute; inset: 0; }
+    #layer:not(.over) { position: static; }
+    #stage svg { display: block; max-width: 100%; }
+    /* WebGPU mode: the SVG is only the cross on top of the canvas */
+    #stage.gpu #layer { pointer-events: none; }
+    #stage.gpu svg rect, #stage.gpu svg text { display: none; }
+    /* the renderer writes light-theme colors as attributes; the tokens win in either theme */
+    #stage svg rect { fill: var(--panel); stroke: var(--line); }
+    #stage svg text { fill: var(--muted); font-family: var(--font-mono); }
+    #stage svg polygon { stroke: var(--edge); }
+    #stage svg circle { fill: var(--point); }
+    #stage svg polyline[data-mark="cursor"] { stroke: var(--cursor); }
+
+    /* P: the material palette. Data first: every entry is a plain object, the swatches are drawn from the list. */
+    #palette { position: fixed; right: 16px; top: 64px; z-index: 5; width: 188px; padding: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; display: grid; gap: 8px; font: 500 12px/1.2 var(--font-mono); color: var(--muted); }
+    #palette[hidden] { display: none; }
+    #boolq { position: fixed; left: 50%; bottom: 72px; transform: translateX(-50%); z-index: 6; max-width: min(92vw, 520px); padding: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; display: grid; gap: 8px; font: 500 12px/1.3 var(--font-mono); color: var(--muted); }
+    #boolq[hidden] { display: none; }
+    #editbar { position: fixed; left: 50%; top: 70px; transform: translateX(-50%); z-index: 6; max-width: min(94vw, 760px); padding: 6px 10px; background: var(--panel); border: 1px solid #ff4d3d; border-radius: 6px; font: 500 12px/1.4 var(--font-mono); color: var(--muted); text-align: center; pointer-events: none; }
+    #editbar b { color: #ff4d3d; display: block; }
+    #editbar[hidden] { display: none; }
+    #boolq .row { display: flex; flex-wrap: wrap; gap: 6px; }
+    #boolq i { color: #e8590c; font-style: normal; }
+    #palette .grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+    #palette .sw { aspect-ratio: 1; padding: 0; border-radius: 3px; border: 1px solid var(--line); }
+    #palette .sw.on { outline: 2px solid var(--cursor); outline-offset: 1px; }
+    #palette label { display: grid; grid-template-columns: 52px 1fr 30px; gap: 6px; align-items: center; }
+    #palette input[type=range] { width: 100%; margin: 0; }
+    #palette .row { display: flex; gap: 6px; align-items: center; }
+    #palette input[type=color] { width: 34px; height: 26px; padding: 0; border: 1px solid var(--line); background: none; }
+    #palette b { color: var(--fg); font-weight: 500; }
+    button {
+      font: 500 13px/1 var(--font-mono);
+      color: var(--fg);
+      background: transparent;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 8px 14px;
+      cursor: pointer;
+    }
+    button:hover { border-color: var(--muted); }
+    select {
+      font: 500 13px/1 var(--font-mono);
+      color: var(--fg);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 8px 10px;
+      cursor: pointer;
+    }
+    select:hover { border-color: var(--muted); }
+    .actions button.on { border-color: var(--cursor); }
+    button:focus, button:focus-visible { outline: none; }
+
+    /* Phones and tablets: the stage fills the screen, no text, four round translucent buttons. */
+    .fab { display: none; }
+    @media (pointer: coarse), (max-width: 640px) {
+      body { padding: 0; gap: 0; overflow: hidden; }
+      header.bar, footer.bar { display: none; }
+      #stage { position: fixed; inset: 0; background: var(--panel); }
+      #stage svg rect, #stage svg text { display: none; }
+      .fab {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: max(18px, env(safe-area-inset-bottom, 0px));
+        display: flex;
+        justify-content: center;
+        gap: 16px;
+        pointer-events: none;
+      }
+      .fab button {
+        pointer-events: auto;
+        width: 56px;
+        height: 56px;
+        padding: 0;
+        border: 1px solid color-mix(in srgb, var(--fg) 22%, transparent);
+        border-radius: 50%;
+        background: color-mix(in srgb, var(--panel) 55%, transparent);
+        -webkit-backdrop-filter: blur(6px);
+        backdrop-filter: blur(6px);
+        color: var(--fg);
+        display: grid;
+        place-items: center;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .fab button:active, .fab button.on { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+      .fab svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    }
+  </style>
+</head>
+<body>
+  <header class="bar">
+    <h1>Spider Paint<span>3Draft</span></h1>
+    <p class="build" id="build" title="Build, YY.MM.DD.NNN">–</p>
+  </header>
+
+  <main id="stage" tabindex="0" role="img" aria-label="Empty space for prisms. G switches between the SVG and the WebGPU view, L turns the light, C switches the filmic look, N smooth shading, K the studio light. Drag, or use the arrow keys, to rotate the view. The cross follows the surface under the pointer. M puts a prism down there, or shoots one into empty space; Space stops the movement. O marks an object, a second O on another one asks for a boolean operation (union, A minus B, B minus A, intersect). V joins two surface points with a thin bar (P over empty space forgets a pending first point), X deletes the object under the cross, W A S D R F fly, / shows only the model under the cross (/ again: the whole scene), P shows the material palette (Shift+click paints a face, Shift+double click the whole model), T flies the camera to the object under the cross, H puts the move gizmo (helper) on the object under the cross with the world axes, the next H switches to the object's own axes, the third takes it off; drag an arrow to move the object; E toggles edges and points, U or Backspace takes the last one back."><div id="frame"><canvas id="gpu" hidden></canvas><div id="layer"></div></div></main>
+
+  <div id="editbar" hidden><b id="editText"></b> <span>V: draw a line from point to point (snaps to points; two points on one face cut it; nothing moves while drawing) · 1 / 2 / 3: move points / lines / faces (drag, or the gizmo arrows) · Enter: close a loop into a face · B: turn the V bars into lines · X: remove lines · Esc: stop the line, then back to drawing, then leave · Tab: leave</span></div>
+
+  <aside id="boolq" hidden aria-label="Boolean operation">
+    <span id="boolText"></span>
+    <div class="row">
+      <button type="button" data-op="union">1 union</button>
+      <button type="button" data-op="subtract">2 A − B</button>
+      <button type="button" data-op="subtract" data-swap="1">3 B − A</button>
+      <button type="button" data-op="intersect">4 intersect</button>
+      <button type="button" data-op="cancel">5 cancel</button>
+    </div>
+    <i id="boolNote"></i>
+  </aside>
+
+  <aside id="palette" hidden aria-label="Material palette">
+    <span>materials · shift+click: paint a face · shift+double click: the whole object · i: pick the material under the cross</span>
+    <div class="grid" id="swatches"></div>
+    <b id="current">–</b>
+    <label>metal <input type="range" id="p-metal" min="0" max="1" step="0.05" /><span id="v-metal"></span></label>
+    <label>rough <input type="range" id="p-rough" min="0" max="1" step="0.05" /><span id="v-rough"></span></label>
+    <label>alpha <input type="range" id="p-alpha" min="0" max="1" step="0.05" /><span id="v-alpha"></span></label>
+    <label>emit <input type="range" id="p-emit" min="0" max="5" step="0.1" /><span id="v-emit"></span></label>
+    <label title="Soft, skin-like light: it wraps round the form, with a warm scattered band at the shade edge">soft <input type="range" id="p-soft" min="0" max="1" step="0.05" /><span id="v-soft"></span></label>
+    <div class="row"><input type="color" id="custom" value="#c0392b" aria-label="Colour of the material" /><button id="addColor" type="button">+ new</button><button id="pickMat" type="button" title="Take the material of a surface (I: from under the cross; the button: then click a surface)">pick</button></div>
+  </aside>
+
+  <div class="fab" aria-label="Controls">
+    <button id="fabTravel" type="button" aria-label="Travel to the object under the cross (T)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
+    <button id="fabPlace" type="button" aria-label="Place or shoot a prism (M)"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12L4 7.5M12 12v9"/></svg></button>
+    <button id="fabDelete" type="button" aria-label="Delete the prism under the cross (X)"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
+    <button id="fabMode" type="button" aria-label="Switch SVG / WebGPU view (G)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></button>
+  </div>
+
+  <footer class="bar">
+    <p class="read">
+      <span>yaw <b id="yaw">–</b></span>
+      <span>pitch <b id="pitch">–</b></span>
+      <span>speed <b id="speed">0·0·0</b></span>
+      <span>pick <b id="pick" title="who answers picking: js or the HEXAW kernel">js</b></span>
+      <span>objects <b id="count">0</b></span>
+      <span>view <b id="mode">svg</b></span>
+      <span>live <b id="live" title="MCP link">off</b></span>
+      <span class="surface" id="surface">surface <b>–</b></span>
+    </p>
+    <textarea id="gpuerr" readonly hidden rows="4" aria-label="WebGPU error text (select and copy)" style="width:100%;box-sizing:border-box;font:12px/1.4 var(--font-mono);background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:6px"></textarea>
+    <p class="hint" id="hint" hidden>drag: rotate · w a s d r f: fly (every press is a speed step) · /: isolate the model, again: whole scene · p: materials (i: pick the material under the cross, shift+click paints a face, shift+double click the whole object) · m: place · space: stop · o: boolean (mark two objects, then pick the operation) · v: spider bar (two points) · tab: edit mode (v draws lines on the model, enter closes a loop into a face, b turns the old v bars into lines, 1/2/3 move points/lines/faces) · x: delete the object (the Clear button removes everything) · t: travel (on nothing: out to the nearest object) · h: move gizmo (drag an arrow; 1st h world axes, 2nd h own axes, 3rd h off) · e: edges · g: svg/gpu · c: filmic look · n: smooth shading · k: studio light · l: light · u / backspace: undo</p>
+    <span class="actions">
+      <button id="place" type="button">Place</button>
+      <button id="delete" type="button">Delete</button>
+      <button id="travel" type="button">Travel</button>
+      <button id="lines" type="button">Edges</button>
+      <button id="keys" type="button" title="Show the shortcut hints (?)">Keys</button>
+      <button id="gpuBtn" type="button">WebGPU</button>
+      <button id="light" type="button">Light</button>
+      <button id="filmic" type="button" title="Filmic look: HDR light, glowing emission, tone mapping (C)">Filmic</button>
+      <button id="smooth" type="button" title="Smooth shading: faces that meet at a shallow angle share their normals (N)">Smooth</button>
+      <button id="studio" type="button" title="Studio light: key, fill and rim light that follow the camera (K)">Studio</button>
+      <select id="examples" aria-label="Add an example model to the scene" title="Add an example model to the scene">
+        <option value="">+ Example…</option>
+        <option value="bridge">Stone bridge</option>
+      </select>
+      <button id="clear" type="button" title="Remove every object (U brings them back)">Clear</button>
+      <button id="undo" type="button">Undo</button>
+      <button id="reset" type="button">Reset view</button>
+    </span>
+  </footer>
+
+  <script type="module">
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@78a0245972ac88d61845b9f93e47abe8d5fbe6e6/dist/index.js';
+    const LEG = { base: 0.15 }; // the base of a placed prism
+
+    const stage = document.getElementById('stage');
+    const frame = document.getElementById('frame');
+    const canvas = document.getElementById('gpu');
+    const layer = document.getElementById('layer');
+    const modeEl = document.getElementById('mode');
+    const liveEl = document.getElementById('live');
+    const yawEl = document.getElementById('yaw');
+    const speedEl = document.getElementById('speed');
+    const pickEl = document.getElementById('pick');
+    const pitchEl = document.getElementById('pitch');
+    const countEl = document.getElementById('count');
+    const surfaceEl = document.getElementById('surface');
+    document.getElementById('build').textContent = displayVersion(version);
+
+    const HOME = { center: [0, 0.5, 0], radius: 1.6 }; // framing of an empty scene
+    const fit = { ...HOME }; // follows the scene the MCP server sends
+    const nothing = { positions: [], faces: [] };
+    const START = { yaw: -0.6, pitch: 0.45 };
+    const LIMIT = Math.PI / 2;
+    const STEP = 0.12;
+
+    let yaw = START.yaw;
+    let pitch = START.pitch;
+    let pointer = null; // last pointer position, client pixels
+    let hit = null; // the surface under the pointer in the last drawn frame
+    let queued = false;
+
+    // Prisms still flying: { mesh, inst, from, start }; once landed they become ordinary objects.
+    // (was: Prisms put down so far) `inst` is the prism as an instance
+    // ({ at, axes, color } of the shared prototype) for the GPU. `from` is the start offset of a
+    // flight that ends at its own position; null once it has landed.
+    const placed = [];
+    let placedVer = 0; // bumped on every change of the set of prisms
+    const PROTO = box({ size: [LEG.base, 3 * LEG.base, LEG.base], color: '#ffffff' }); // one prism around the origin
+    const FLIGHT_MS = 650;
+    const SHOT_MAX = 6.4; // farthest shot, in eye-to-center distances
+    const UP = [0, 1, 0];
+
+    // A random wood brown, as #rrggbb.
+    const brown = (dark = false) => {
+      const h = 18 + Math.random() * 16;
+      const sat = (30 + Math.random() * 25) / 100;
+      const l = (dark ? 14 + Math.random() * 14 : 24 + Math.random() * 24) / 100;
+      const a = sat * Math.min(l, 1 - l);
+      const f = (n) => {
+        const k = (n + h / 30) % 12;
+        const c = l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+        return Math.round(c * 255).toString(16).padStart(2, '0');
+      };
+      return `#${f(0)}${f(8)}${f(4)}`;
+    };
+    // ONE scene model. Every object, whoever made it (a person here, Claude through the db or the MCP server),
+    // is the same thing: { id, name, mesh }. `host` objects come from outside (db / MCP), `mine` are made here
+    // while no db is connected; with a db every object is a document, so the AI sees what a person makes.
+    let hostObjects = [];
+    let mine = [];
+    const allObjects = () => [...hostObjects, ...mine];
+    // objects are told apart by id: a db snapshot (also the echo of our own write) hands out new instances
+    const live = (o) => allObjects().find((x) => x.id === o.id);
+    const has = (o) => Boolean(live(o));
+    let scene = nothing; // what is on screen and what picking sees: all objects (or the isolated one)
+    let owners = []; // [{ obj, start, end }]: which object owns which faces of `scene`
+    let cam = null; // camera of the last drawn frame
+    let gcam = null; // the camera of every frame (cam only exists while the pointer is over the view)
+    let drawing = { left: 0, top: 0 }; // where the square drawing starts, in client pixels
+    let solo = null; // `/` isolates one object: its id, null shows everything
+    const rebuild = () => {
+      let objs = allObjects();
+      if (solo && !objs.some((o) => o.id === solo)) solo = null;
+      if (solo) objs = objs.filter((o) => o.id === solo);
+      let n = 0;
+      owners = objs.map((o) => ({ obj: o, start: n, end: (n += o.mesh.faces.length) }));
+      scene = merge(nothing, ...objs.map((o) => o.mesh));
+      placedVer++;
+    };
+    const shifted = (mesh, d) => ({ ...mesh, positions: mesh.positions.map((q) => [q[0] + d[0], q[1] + d[1], q[2] + d[2]]) });
+    // how far a flying prism still is from where it lands, as a fraction of its flight
+    const remaining = (p, now) => {
+      const t = Math.min(1, (now - p.start) / (p.dur ?? FLIGHT_MS));
+      return t >= 1 ? 0 : p.shot ? 1 - t : (1 - t) ** 3; // ease out: fast at the start, settles softly (a shot flies at a steady speed)
+    };
+    // lands the flights that are over: a landed prism is an ordinary object like any other
+    const land = (now) => {
+      let any = false;
+      for (const p of [...placed]) {
+        if (now - p.start < (p.dur ?? FLIGHT_MS)) continue;
+        placed.splice(placed.indexOf(p), 1);
+        placedVer++; // the GPU instances are rebuilt without it (a bullet that missed would hang where it was last drawn)
+        if (p.shot) carve(p); // a shot that hit carves, one that missed just vanishes
+        else create('prism', p.mesh);
+        any = true;
+      }
+      return any;
+    };
+    // instances for the GPU: landed prisms as they are, flying ones shifted back along their flight
+    let instCache = { ver: -1, data: null };
+    const instances = (now, flying) => {
+      if (flying || instCache.ver !== placedVer) {
+        instCache = {
+          ver: placedVer,
+          data: buildInstances(
+            placed.map((p) => {
+              const k = remaining(p, now);
+              return { ...p.inst, at: p.inst.at.map((c, i) => c + p.from[i] * k) };
+            }),
+          ),
+        };
+      }
+      return instCache.data;
+    };
+
+    // The health check of the object under the cross: which of its parts are closed solids (booleans and bullets only
+    // calculate with those; open parts, such as a surface or a box without a bottom, are ignored).
+    const healthCache = new WeakMap();
+    const healthText = (o) => {
+      if (!o) return '';
+      let h = healthCache.get(o.mesh);
+      if (!h) healthCache.set(o.mesh, (h = health(o.mesh)));
+      const closed = h.parts.filter((p) => p.closed && !p.insideOut).length;
+      if (h.allSolid) return `<b class="ok" title="every part is a closed solid">${closed === 1 ? 'solid' : `${closed} solids`}</b>`;
+      if (!h.hasSolid) return `<b class="bad" title="no closed part: a boolean or a bullet cannot work with it">no closed part · ${h.skippedFaces} faces open</b>`;
+      return `<b class="warn" title="booleans and bullets work with the closed parts only">${closed} of ${h.parts.length} parts closed · ${h.skippedFaces} faces open</b>`;
+    };
+    const deg = (r) => `${Math.round((r * 180) / Math.PI)}°`;
+    const signed = (n) => {
+      const v = Math.round(n * 100) / 100 + 0;
+      return `${v < 0 ? '−' : '+'}${Math.abs(v).toFixed(2)}`;
+    };
+
+    // Travel: the camera glides to a target (what to look at, how close, from which side).
+    // The view is an orbit around fit.center, so travelling means easing center, radius, yaw and pitch.
+    // The eye-to-center distance a normal (orbit) framing of this radius has.
+    const orbitDist = (radius) => Math.hypot(...makeCamera(orbit({}), nothing, 100, { center: [0, 0, 0], radius }).eye);
+    let travel = null;
+    let focused = false; // true while the camera sits on one object; scene updates then leave it alone
+    const TRAVEL_MS = 900;
+    const ease = (t) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
+    const turnBy = (a, b) => a + ((((b - a) % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI)) - Math.PI; // a -> b the short way round
+    const goTo = (to) => {
+      travel = {
+        start: performance.now(),
+        from: { center: [...fit.center], radius: fit.radius, dist: fit.dist ?? orbitDist(fit.radius), yaw, pitch },
+        to: { ...to, dist: to.dist ?? orbitDist(to.radius), keepDist: to.dist !== undefined, yaw: turnBy(yaw, to.yaw ?? yaw), pitch: to.pitch ?? pitch },
+      };
+      fly = false;
+      stop();
+      redraw();
+    };
+    const stepTravel = (now) => {
+      if (!travel) return;
+      const t = Math.min(1, (now - travel.start) / TRAVEL_MS);
+      const k = ease(t);
+      const { from, to } = travel;
+      const mix = (a, b) => a + (b - a) * k;
+      fit.center = from.center.map((c, i) => mix(c, to.center[i]));
+      fit.radius = mix(from.radius, to.radius);
+      fit.dist = mix(from.dist, to.dist);
+      yaw = mix(from.yaw, to.yaw);
+      pitch = mix(from.pitch, to.pitch);
+      if (t >= 1) {
+        travel = null;
+        if (!to.keepDist) delete fit.dist; // back to the normal orbit framing (a flown pose keeps its own)
+      } else redraw();
+    };
+
+    // Flying around. W/S, D/A and R/F are speed vectors, not moves: every press changes the speed
+    // along that axis by one level, so w w w is 3 forward, and s s s slows down again to a stop.
+    // The eye then sits (almost) on the orbit center and the center moves.
+    let fly = false;
+    const level = { f: 0, r: 0, u: 0 }; // forward, right, up
+    const UNIT = 0.5; // world units per second per level
+    const FLY_DIST = 0.05;
+    // The speed grows faster than the level: 1, 2.7, 5.6, 9.9, 16, ... (times UNIT), forwards or backwards.
+    const pace = (l) => Math.sign(l) * (1.7 ** Math.abs(l) - 1) / 0.7;
+    let lastFrame = performance.now();
+    const stop = () => (level.f = level.r = level.u = 0);
+    const enterFly = () => {
+      if (fly && !travel) return;
+      travel = null;
+      const c = makeCamera(orbit({ yaw, pitch }), nothing, 100, fit); // where the eye is now
+      const away = c.eye.map((e, i) => e - fit.center[i]);
+      const len = Math.hypot(...away) || 1;
+      fit.center = c.eye.map((e, i) => e - (away[i] / len) * FLY_DIST); // the eye stays, the pivot comes to it
+      fit.dist = FLY_DIST;
+      fly = true;
+      focused = true;
+    };
+    const speed = (axis, d) => {
+      enterFly();
+      level[axis] += d;
+      redraw();
+    };
+    const stepFly = (now) => {
+      const dt = Math.min(0.05, (now - lastFrame) / 1000);
+      lastFrame = now;
+      if (!fly) return;
+      const cy = Math.cos(yaw);
+      const sy = Math.sin(yaw);
+      const cp = Math.cos(pitch);
+      const sp = Math.sin(pitch);
+      const forward = [sy * cp, -sp, -cy * cp];
+      const right = [cy, 0, sy];
+      const v = forward.map((c, i) => c * pace(level.f) + right[i] * pace(level.r) + (i === 1 ? pace(level.u) : 0));
+      fit.center = fit.center.map((c, i) => c + v[i] * UNIT * dt);
+      if (level.f || level.r || level.u) redraw();
+    };
+
+    // All faces connected to `face` through shared vertices: one object of the scene.
+    const objectAround = (mesh, face) => {
+      const at = new Map();
+      mesh.faces.forEach((f, i) => f.v.forEach((v) => (at.get(v) ?? at.set(v, []).get(v)).push(i)));
+      const seen = new Set([face]);
+      const todo = [face];
+      while (todo.length) {
+        for (const v of mesh.faces[todo.pop()].v) {
+          for (const j of at.get(v)) if (!seen.has(j)) (seen.add(j), todo.push(j));
+        }
+      }
+      const used = new Set();
+      for (const i of seen) mesh.faces[i].v.forEach((v) => used.add(v));
+      return { positions: [...used].map((v) => mesh.positions[v]), faces: [] };
+    };
+
+    // The framing that shows the whole remote scene (or the empty-scene home).
+    const overview = () => {
+      if (!scene.positions.length) return { ...HOME, center: [...HOME.center] };
+      const b = bounds(scene);
+      return { center: b.center, radius: Math.max(b.radius * 1.05, 0.25) };
+    };
+
+    // T: fly straight to the front of the object under the cross; T on nothing: out to the nearest object.
+    const travelTo = () => {
+      if (hit) {
+        const b = bounds(objectAround(scene, hit.face));
+        focused = true;
+        goTo({
+          center: b.center,
+          radius: Math.max(b.radius * 1.15, 0.12),
+          // no yaw/pitch: the view keeps its direction and the eye flies in a straight line
+        });
+      } else {
+        // Nothing under the cross (too close to a model, or inside one, where its faces are seen from behind):
+        // fly out to the object nearest to the eye and frame it from outside. Space is the stop key.
+        const eye = makeCamera(orbit({ yaw, pitch }), nothing, 100, fit).eye;
+        let best = null;
+        for (const { obj } of owners) {
+          if (!obj.mesh.positions.length) continue;
+          const b = bounds(obj.mesh);
+          const gap = Math.hypot(...b.center.map((c, i) => c - eye[i])) - b.radius; // < 0: the eye is inside its sphere
+          if (!best || gap < best.gap) best = { gap, b };
+        }
+        if (!best) return;
+        focused = true;
+        goTo({ center: best.b.center, radius: Math.max(best.b.radius * 1.15, 0.12) });
+      }
+    };
+
+    // The HEXAW kernel (WebAssembly written in HEXAW) does the picking once it has started;
+    // until then, and without WebAssembly, the plain JavaScript pick() answers.
+    let kernel = null;
+    initKernel().then(
+      (k) => {
+        kernel = k;
+        pickEl.textContent = 'hexaw';
+        redraw();
+      },
+      () => (pickEl.textContent = 'js'),
+    );
+
+    const fabMode = document.getElementById('fabMode');
+    const draw = () => {
+      queued = false;
+      stepTravel(performance.now());
+      stepFly(performance.now());
+      const r = stage.getBoundingClientRect();
+      const touchy = matchMedia('(pointer: coarse), (max-width: 640px)').matches;
+      // on a phone the drawing is a little larger than the short side and the rest of the screen is panel color
+      // on a desktop the drawing covers the whole stage (the square's long side), the eye backs off to keep the framing
+      const cover = touchy ? 1.12 : Math.max(r.width, r.height) / Math.max(1, Math.min(r.width, r.height));
+      const size = Math.max(160, Math.min(1800, Math.floor(Math.min(r.width, r.height) * cover)));
+      if (!pointer && touchy) pointer = { x: r.left + r.width / 2, y: r.top + r.height / 2 }; // no mouse: aim at the middle
+      const view = orbit({ yaw, pitch }); // the camera orbits, the scene stays in object space
+      const base = Math.max(160, Math.min(900, Math.floor(Math.min(r.width, r.height) * (touchy ? 1.12 : 1))));
+      const eye0 = makeCamera(view, nothing, 100, fit).eye;
+      const dist = Math.hypot(...eye0.map((e, i) => e - fit.center[i]));
+      const shown_fit = size > base ? { ...fit, dist: dist * (size / base) } : fit;
+
+      const now = performance.now();
+      land(now);
+      const flights = placed;
+      if (flights.length) redraw();
+      // SVG draws everything as one mesh: the landed scene plus the prisms still in the air
+      const shown = flights.length ? merge(scene, ...flights.map((p) => shifted(p.mesh, p.from.map((c) => c * remaining(p, now))))) : scene;
+
+      hit = null;
+      if (pointer) {
+        // the square panel is centered in the stage
+        const x = pointer.x - r.left - (r.width - size) / 2;
+        const y = pointer.y - r.top - (r.height - size) / 2;
+        cam = makeCamera(view, scene, size, shown_fit);
+        hit = kernel ? kernel.pick(scene, cam, x, y) : pick(scene, cam, x, y);
+        cam.at = { x, y };
+        panelPointer = { x, y };
+      } else panelPointer = null;
+      gcam = makeCamera(view, scene, size, shown_fit);
+      drawing = { left: r.left + (r.width - size) / 2, top: r.top + (r.height - size) / 2 };
+      gcam = makeCamera(view, scene, size, shown_fit);
+      snapV = -1;
+      snapE = null;
+      snapF = -1;
+      if (editing && !vdrag) {
+        if (emode === 'draw' || emode === 'vertex') snapV = findSnap();
+        else if (emode === 'edge') snapE = findEdge();
+        else if (hit && owner(hit.face) === editing) snapF = hit.face - owners.find((o) => o.obj === editing).start;
+      }
+      const handles = gizmoHandles();
+      const marks = hit ? [{ name: 'cursor', lines: crosshair(scene, hit, fit.radius * 0.07) }] : [];
+      for (const [o, color] of [[boolFrom, '#e8590c'], [boolPair?.b, '#2f9e44']]) {
+        if (!o || !has(o)) continue;
+        const lo = [Infinity, Infinity, Infinity];
+        const hi = [-Infinity, -Infinity, -Infinity];
+        for (const p of o.mesh.positions) p.forEach((c, i) => ((lo[i] = Math.min(lo[i], c)), (hi[i] = Math.max(hi[i], c))));
+        const c = (i, j, k) => [[lo, hi][i][0], [lo, hi][j][1], [lo, hi][k][2]];
+        const edges = [];
+        for (const [a, b] of [[0, 0], [0, 1], [1, 0], [1, 1]]) {
+          edges.push([c(a, b, 0), c(a, b, 1)], [c(a, 0, b), c(a, 1, b)], [c(0, a, b), c(1, a, b)]);
+        }
+        marks.push({ name: 'bool', color, width: 3, lines: edges });
+      }
+      if (editing && has(editing)) {
+        const P = editing.mesh.positions;
+        const e = fit.radius * 0.012;
+        const cross = (q, k = 1) => [[[q[0] - e * k, q[1], q[2]], [q[0] + e * k, q[1], q[2]]], [[q[0], q[1] - e * k, q[2]], [q[0], q[1] + e * k, q[2]]], [[q[0], q[1], q[2] - e * k], [q[0], q[1], q[2] + e * k]]];
+        const wire = (editing.wire ?? []).filter(([a, b]) => a < P.length && b < P.length);
+        if (P.length <= 600) marks.push({ name: 'verts', color: '#9aa0a6', width: 1.5, lines: P.flatMap((q) => cross(q)) });
+        if (wire.length) marks.push({ name: 'wire', color: '#ff4d3d', width: 3, lines: wire.map(([a, b]) => [P[a], P[b]]) });
+        const ends = [...new Set(wire.flat())];
+        if (ends.length) marks.push({ name: 'wire-ends', color: '#ff4d3d', width: 2.5, lines: ends.flatMap((i) => cross(P[i], 1.6)) });
+        if (wireFrom !== null && wireFrom < P.length) {
+          // the line being drawn: from the last point to where V would put the next one
+          const to = snapV >= 0 ? P[snapV] : hit && owner(hit.face) === editing ? hit.point : planePoint(P[wireFrom]);
+          marks.push({ name: 'start', color: '#2f9e44', width: 3, lines: cross(P[wireFrom], 2.2) });
+          if (to) marks.push({ name: 'rubber', color: '#ff4d3d', width: 1.5, lines: [[P[wireFrom], to]] });
+        }
+        const outline = (ids) => ids.map((v, k) => [P[v], P[ids[(k + 1) % ids.length]]]);
+        if (sel && sel.ids.every((i) => i < P.length)) {
+          const lines = sel.face !== undefined ? outline(editing.mesh.faces[sel.face]?.v ?? sel.ids) : sel.edge ? [[P[sel.edge[0]], P[sel.edge[1]]]] : cross(P[sel.ids[0]], 2.4);
+          marks.push({ name: 'selected', color: '#e8590c', width: 4, lines });
+        }
+        if (snapV >= 0 && snapV < P.length) marks.push({ name: 'snap', color: '#ffffff', width: 3, lines: cross(P[snapV], 2.6) });
+        if (snapE) marks.push({ name: 'snap-edge', color: '#ffffff', width: 4, lines: [[P[snapE[0]], P[snapE[1]]]] });
+        if (snapF >= 0 && editing.mesh.faces[snapF]) marks.push({ name: 'snap-face', color: '#ffffff', width: 3, lines: outline(editing.mesh.faces[snapF].v) });
+      }
+      if (handles) {
+        for (const h of handles) marks.push({ name: `gizmo-${'xyz'[h.axis]}`, color: h.color, width: h.axis === (gdrag?.axis ?? gHover) ? 6 : 3, lines: h.lines });
+      }
+      if (spiderFrom) {
+        const [x, y, z] = spiderFrom;
+        const e = fit.radius * 0.05;
+        marks.push({ name: 'spider', color: '#e8590c', width: 3, lines: [[[x - e, y, z], [x + e, y, z]], [[x, y - e, z], [x, y + e, z]], [[x, y, z - e], [x, y, z + e]]] });
+      }
+
+      frame.style.width = frame.style.height = `${size}px`;
+      if (mode === 'gpu' && gpu) {
+        canvas.style.width = canvas.style.height = `${size}px`;
+        const bg = getComputedStyle(document.documentElement).getPropertyValue('--panel').trim();
+        const rgb = /^#[0-9a-f]{6}$/i.test(bg) ? [1, 3, 5].map((i) => parseInt(bg.slice(i, i + 2), 16) / 255) : undefined;
+        const a = lightAngle;
+        renderGpu = (readback = false) =>
+          gpu[readback ? 'pixels' : 'render'](scene, view, {
+            palette: paletteMap,
+            instances: { mesh: PROTO, data: instances(now, flights.length > 0) },
+            size,
+            fit: shown_fit,
+            background: rgb,
+            tonemap: filmic,
+            smooth: smooth ? 40 : 0,
+            studio,
+            light: { direction: [Math.sin(a) * 0.6, 0.8, Math.cos(a) * 0.6] },
+          });
+        renderGpu();
+        layer.className = 'over';
+        layer.innerHTML = renderView(nothing, view, { size, fit: shown_fit, marks });
+      } else {
+        layer.className = '';
+        layer.innerHTML = renderView(shown, view, { size, fit: shown_fit, marks, occlude: true, palette: paletteMap });
+      }
+      fabMode.classList.toggle('on', mode === 'gpu' && Boolean(gpu));
+      speedEl.textContent = `${level.f}·${level.r}·${level.u}`;
+      yawEl.textContent = deg(yaw);
+      pitchEl.textContent = deg(pitch);
+      countEl.textContent = String(allObjects().length + placed.length);
+      surfaceEl.innerHTML = hit
+        ? `surface <b>face ${hit.face} · n ${hit.normal.map(signed).join(' ')}</b> · ${healthText(owner(hit.face))}`
+        : 'surface <b>–</b>';
+    };
+    // WebGPU is the starting view (set up right after the first frame); it falls back to SVG if it is unavailable or lost.
+    let mode = 'svg';
+    let gpu = null;
+    let lightAngle = 0.8;
+    let smooth = true; // N: smooth shading on the WebGPU view (faces within 40 degrees share normals)
+    let studio = true; // K: studio light (key, fill, rim) that follows the camera
+    let filmic = true; // C: filmic look on the WebGPU view (linear light, tone mapping, glowing emission)
+    let renderGpu = null;
+    const gpuErrors = [];
+    const setMode = async (next) => {
+      if (next === 'gpu' && !gpu) {
+        try {
+          const g = await createGpu(canvas, {
+            // a shader or pipeline error leaves the canvas black: say so where the view is named
+            // the FIRST error is the cause; the later ones ("invalid due to a previous error") are only its echo
+            onError: (message) => {
+              gpuErrors.push(message);
+              modeEl.textContent = `gpu error: ${gpuErrors[0].slice(0, 180)}`;
+              modeEl.title = gpuErrors.join('\n\n');
+              const box = document.getElementById('gpuerr');
+              box.hidden = false;
+              box.value = gpuErrors.join('\n\n');
+              console.error('WebGPU first error:', gpuErrors[0]);
+            },
+          });
+          gpu = g;
+          // a lost device (driver reset, GPU process crash) drops back to the SVG view
+          g.device.lost.then((info) => {
+            if (gpu !== g) return;
+            gpu = null;
+            mode = 'svg';
+            canvas.hidden = true;
+            stage.classList.remove('gpu');
+            modeEl.textContent = 'svg (webgpu lost)';
+            modeEl.title = String(info.message ?? info.reason);
+            redraw();
+          });
+        } catch (err) {
+          modeEl.textContent = 'svg (webgpu unavailable)';
+          modeEl.title = String(err.message ?? err);
+          return;
+        }
+      }
+      mode = next;
+      canvas.hidden = mode !== 'gpu';
+      stage.classList.toggle('gpu', mode === 'gpu');
+      modeEl.textContent = mode === 'gpu' ? 'webgpu' : 'svg';
+      modeEl.title = '';
+      redraw();
+    };
+    const toggleMode = () => setMode(mode === 'gpu' ? 'svg' : 'gpu');
+    const toggleFilmic = () => {
+      filmic = !filmic;
+      document.getElementById('filmic').classList.toggle('on', filmic);
+      redraw();
+    };
+    const toggleSmooth = () => {
+      smooth = !smooth;
+      document.getElementById('smooth').classList.toggle('on', smooth);
+      redraw();
+    };
+    const toggleStudio = () => {
+      studio = !studio;
+      document.getElementById('studio').classList.toggle('on', studio);
+      redraw();
+    };
+    const turnLight = () => {
+      lightAngle += Math.PI / 4;
+      redraw();
+    };
+    const redraw = () => {
+      if (!queued) {
+        queued = true;
+        requestAnimationFrame(draw);
+      }
+    };
+    const turn = (dYaw, dPitch) => {
+      travel = null; // the hand takes over from the glide
+      yaw += dYaw;
+      pitch = Math.max(-LIMIT, Math.min(LIMIT, pitch + dPitch));
+      redraw();
+    };
+    const reset = () => {
+      focused = false;
+      goTo({ ...overview(), yaw: START.yaw, pitch: START.pitch });
+    };
+
+    // Isolated mode (`/`): M fires a bullet (the same prism, lying along the cursor ray). When it hits the isolated object it
+    // sinks in a fixed depth and carves that part out of the surface (object A minus the bullet B), made of the selected
+    // material on the cut; when it misses, it flies on and vanishes.
+    const SHOT_MS = 380;
+    const SHOT_DEPTH = 1.5 * LEG.base; // how deep it sinks: half of its length
+    const carve = (p) => {
+      const target = allObjects().find((o) => o.id === p.shot.id);
+      if (!target) return;
+      let mesh;
+      try {
+        mesh = boolean(target.mesh, p.mesh, 'subtract', { strict: false }); // only its closed parts are carved; open parts stay as they are
+      } catch (err) {
+        // the bullet only carves closed parts; say so for a moment
+        // a failed carve never touches the model: it stays exactly as it was
+        const was = liveEl.textContent;
+        const note = /no closed part/.test(String(err?.message)) ? 'shot: no closed part' : 'shot: left as it was (numerical trouble)';
+        liveEl.textContent = note;
+        liveEl.title = String(err?.message ?? err);
+        setTimeout(() => (liveEl.textContent === note ? (liveEl.textContent = was) : 0), 2500);
+        return;
+      }
+      if (!mesh.faces.length) return;
+      const before = target.mesh;
+      change(target, mesh);
+      history.push(() => {
+        const now = allObjects().find((o) => o.id === p.shot.id);
+        if (now) change(now, before);
+        redraw();
+      });
+    };
+    const shoot = () => {
+      if (!pointer || !cam?.at) return;
+      // The bullet starts at the camera point and flies along the ray through the cursor, toward a target behind the model:
+      // the ray always runs along its long axis, so on screen it never turns and we always look straight at its back.
+      const { origin, dir } = ray(cam, cam.at.x, cam.at.y);
+      const L = 3 * LEG.base;
+      const target = hit && owner(hit.face);
+      const { center } = bounds(scene); // the isolated object
+      const toCentre = Math.hypot(...center.map((c, i) => c - origin[i]));
+      // a miss flies on to 4 times the camera-to-model distance, far behind the model, and vanishes there
+      const reach = 4 * toCentre;
+      const end = target
+        ? hit.point.map((c, i) => c + dir[i] * (L / 2 - SHOT_DEPTH)) // its tip SHOT_DEPTH below the surface
+        : origin.map((c, i) => c + dir[i] * reach);
+      const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+      const along = cam.u.reduce((t, c, i) => t + c * dir[i], 0);
+      const ex = cam.u.map((c, i) => c - dir[i] * along);
+      const exLen = Math.hypot(...ex) || 1;
+      const axes = [ex.map((c) => c / exLen), dir, cross(ex.map((c) => c / exLen), dir)];
+      const m = materials[current];
+      let mesh = box({ size: [LEG.base, L, LEG.base], at: end, axes, color: m.color });
+      mesh = { ...mesh, faces: mesh.faces.map((f) => ({ ...f, mat: m.name })) };
+      const back = Math.hypot(...end.map((c, i) => c - origin[i])); // it starts at the camera point
+      const D = orbitDist(fit.radius);
+      const dur = Math.max(200, Math.min(900, (back / (10 * D)) * 1000));
+      placed.push({ mesh, inst: { at: end, axes, color: m.color }, from: dir.map((c) => -c * back), start: performance.now(), dur, shot: target ? { id: target.id } : {} });
+      redraw();
+    };
+    // A prism like the old table leg (same base), three times as tall as it is wide,
+    // standing on the surface under the cross.
+    const place = () => {
+      if (solo) return shoot();
+      if (hit) {
+        const color = brown();
+        const mesh = standOn(scene, hit, { base: LEG.base, color });
+        create('prism', mesh);
+        return redraw();
+      }
+      if (!pointer || !cam?.at) return;
+      // Empty space under the cursor: shoot the prism out along the cursor ray,
+      // to a random distance, and let it fly there.
+      const { origin, dir } = ray(cam, cam.at.x, cam.at.y);
+      const D = orbitDist(fit.radius); // the eye-to-center distance the framing would have, also when flying
+      const reach = (k) => origin.map((c, i) => c + dir[i] * D * k);
+      const k = 0.6 + Math.random() * (SHOT_MAX - 0.6);
+      const end = reach(k); // lands under the cursor, on the cursor ray
+      // Flies exactly along the camera axis, so on screen it stays under the cursor and only grows or shrinks.
+      const f = cam.f;
+      const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+      // Lying like a bullet: the long axis is the camera axis.
+      const color = brown();
+      const frame = { size: [LEG.base, 3 * LEG.base, LEG.base], at: end, axes: [cam.u, f, cross(cam.u, f)] };
+      const mesh = box({ ...frame, color });
+      const back = (k - 0.2) * D * (dir[0] * f[0] + dir[1] * f[1] + dir[2] * f[2]); // distance along the axis to the start depth
+      placed.push({ mesh, inst: { at: end, axes: frame.axes, color }, from: f.map((c) => -c * back), start: performance.now() });
+      redraw();
+    };
+    // V: the Spider bar. The first V remembers the surface point under the cross, the second one
+    // joins the two points with a thin prism (a quarter of the base of a shot prism) made of the selected material.
+    // V over empty space forgets a pending first point.
+    let spiderFrom = null;
+    const spider = () => {
+      if (!hit) {
+        spiderFrom = null;
+        return redraw();
+      }
+      if (!spiderFrom) {
+        spiderFrom = [...hit.point];
+        return redraw();
+      }
+      const a = spiderFrom;
+      const b = hit.point;
+      const d = b.map((c, i) => c - a[i]);
+      const length = Math.hypot(...d);
+      if (length < 1e-3) return; // the same point twice: keep waiting for another one
+      spiderFrom = null;
+      const ey = d.map((c) => c / length);
+      const side = Math.abs(ey[1]) > 0.95 ? [1, 0, 0] : UP; // anything not parallel to the bar
+      const ez0 = [ey[1] * side[2] - ey[2] * side[1], ey[2] * side[0] - ey[0] * side[2], ey[0] * side[1] - ey[1] * side[0]];
+      const zl = Math.hypot(...ez0);
+      const ez = ez0.map((c) => c / zl);
+      const ex = [ey[1] * ez[2] - ey[2] * ez[1], ey[2] * ez[0] - ey[0] * ez[2], ey[0] * ez[1] - ey[1] * ez[0]];
+      const base = LEG.base / 4;
+      const at = a.map((c, i) => c + d[i] / 2);
+      const m = materials[current];
+      const solid = box({ size: [base, length, base], at, axes: [ex, ey, ez], color: m.color });
+      const mesh = { ...solid, faces: solid.faces.map((f) => ({ ...f, mat: m.name })) };
+      // the shared prototype is base x 3*base x base: scaled axes turn it into this bar
+      const sx = base / LEG.base;
+      const sy = length / (3 * LEG.base);
+      const scaled = [ex.map((c) => c * sx), ey.map((c) => c * sy), ez.map((c) => c * sx)];
+      create('bar', mesh);
+      redraw();
+    };
+    // The object that owns a face of the scene.
+    const owner = (face) => owners.find((o) => face >= o.start && face < o.end)?.obj ?? null;
+    // Every change goes the same way: the document (if a db is connected) and the local object.
+    let col = null; // the db collection "objects", once connected
+    const history = []; // one undo step per action made here, for Backspace
+    const writes = new Map(); // one write at a time per document
+    const save = (obj, op) => {
+      if (!col) return;
+      const next = (writes.get(obj.id) ?? Promise.resolve()).then(op).catch((err) => {
+        liveEl.textContent = 'db write failed';
+        liveEl.title = String(err?.message ?? err);
+      });
+      writes.set(obj.id, next);
+    };
+    // the stored document of an object; the lines drawn on it ride along
+    const docOf = (o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}) });
+    const uid = (name) => `${name}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    const create = (name, mesh) => {
+      const obj = { id: uid(name), name, mesh };
+      history.push(() => erase(obj));
+      if (col) {
+        hostObjects.push({ ...obj, host: true });
+        save(obj, () => col.doc(obj.id).set(docOf(obj)));
+      } else mine.push(obj);
+      rebuild();
+      return obj;
+    };
+    const change = (stale, mesh, wire = stale.wire) => {
+      const obj = live(stale) ?? stale;
+      obj.mesh = mesh;
+      obj.wire = wire;
+      if (obj.host) save(obj, () => col.doc(obj.id).set(docOf(obj)));
+      rebuild();
+    };
+    const remove = () => {
+      const o = hit && owner(hit.face);
+      if (!o) return;
+      erase(o);
+      history.push(() => has(o) || restore(o));
+      redraw();
+    };
+    const erase = (stale) => {
+      const o = live(stale) ?? stale;
+      hostObjects = hostObjects.filter((x) => x.id !== o.id);
+      mine = mine.filter((x) => x.id !== o.id);
+      if (o.host) save(o, () => col.doc(o.id).delete());
+      rebuild();
+    };
+    // One undo step for a whole batch (a clear, an added example): the steps recorded while `run` works are folded into one.
+    const asOneStep = (run) => {
+      const from = history.length;
+      const result = run();
+      const steps = history.splice(from);
+      if (steps.length) history.push(() => steps.reverse().forEach((step) => step()));
+      return result;
+    };
+    // Clear: every object goes; one U brings them all back.
+    const clearScene = () => {
+      const all = allObjects().slice();
+      if (!all.length) return;
+      boolFrom = null;
+      closeBool();
+      gizmo = null;
+      asOneStep(() =>
+        all.forEach((o) => {
+          erase(o);
+          history.push(() => has(o) || restore(o));
+        }),
+      );
+      reset();
+    };
+    // Example models: added next to what is already there (to its +x side), as one undo step.
+    const sceneOf = async (name) => {
+      return globalThis.__EXAMPLES?.[name] ?? (await fetch(`./models/${name}.scene.json`)).json();
+    };
+    const spanOf = (meshes) => {
+      const lo = [Infinity, Infinity, Infinity];
+      const hi = [-Infinity, -Infinity, -Infinity];
+      for (const m of meshes) for (const q of m.positions) q.forEach((c, i) => ((lo[i] = Math.min(lo[i], c)), (hi[i] = Math.max(hi[i], c))));
+      return { lo, hi };
+    };
+    const addExample = async (name) => {
+      const { objects, palette: extra } = await sceneOf(name);
+      // a scene may bring its own materials; the ones the palette lacks are added (and saved with a db)
+      for (const m of extra ?? []) {
+        if (materials.some((x) => x.name === m.name)) continue;
+        materials.push({ ...m });
+        saveMaterial(materials[materials.length - 1]);
+      }
+      if (extra?.length) syncPalette();
+      const gap = 0.5;
+      let dx = 0;
+      const have = allObjects();
+      if (have.length) {
+        const a = spanOf(have.map((o) => o.mesh));
+        const b = spanOf(objects.map((o) => o.mesh));
+        dx = a.hi[0] + gap - b.lo[0];
+      }
+      asOneStep(() =>
+        objects.forEach((o) => {
+          const mesh = dx ? { ...o.mesh, positions: o.mesh.positions.map(([x, y, z]) => [x + dx, y, z]) } : o.mesh;
+          create(o.name, mesh);
+        }),
+      );
+      reset();
+    };
+    const undo = () => {
+      history.pop()?.();
+      redraw();
+    };
+    // O: object boolean. The first O marks the object under the cross, the second one (on another object) asks which
+    // operation to run. The math is the engine's `boolean`; this is only the two picks and the question.
+    let boolFrom = null;
+    let boolPair = null; // { a, b } while the question is open
+    const boolEl = document.getElementById('boolq');
+    const boolText = document.getElementById('boolText');
+    const boolNote = document.getElementById('boolNote');
+    const restore = (o) => {
+      if (o.host) {
+        hostObjects.push(o);
+        save(o, () => col.doc(o.id).set(docOf(o)));
+      } else mine.push(o);
+      rebuild();
+    };
+    const closeBool = () => {
+      boolPair = null;
+      boolEl.hidden = true;
+      boolNote.textContent = '';
+    };
+    const pickBool = () => {
+      const o = hit && owner(hit.face);
+      if (boolPair) return closeBool(), redraw();
+      if (!o) {
+        boolFrom = null;
+        return redraw();
+      }
+      if (!boolFrom || !has(boolFrom) || boolFrom === o) {
+        boolFrom = o;
+        return redraw();
+      }
+      boolPair = { a: boolFrom, b: o };
+      boolText.textContent = `A = ${boolFrom.name} (orange), B = ${o.name} (green): which operation?`;
+      boolEl.hidden = false;
+      redraw();
+    };
+    const runBool = (op, swap = false) => {
+      if (!boolPair) return;
+      const [a, b] = swap ? [boolPair.b, boolPair.a] : [boolPair.a, boolPair.b];
+      let mesh;
+      try {
+        mesh = boolean(a.mesh, b.mesh, op, { strict: false }); // open parts are left out of the calculation
+      } catch (err) {
+        boolNote.textContent = String(err?.message ?? err);
+        return;
+      }
+      if (!mesh.faces.length) {
+        boolNote.textContent = 'the result is empty (the solids do not touch?)';
+        return;
+      }
+      const { a: first, b: second } = boolPair;
+      const sign = { union: '+', subtract: '-', intersect: '&' }[op];
+      erase(first);
+      erase(second);
+      const result = create(`${a.name}${sign}${b.name}`, mesh);
+      history.pop(); // create() pushed a plain erase; a boolean undo also brings both operands back
+      history.push(() => {
+        erase(result);
+        restore(first);
+        restore(second);
+      });
+      boolFrom = null;
+      closeBool();
+      liveEl.title = '';
+      redraw();
+    };
+    boolEl.addEventListener('click', (e) => {
+      const b = e.target instanceof HTMLElement && e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.op === 'cancel') return closeBool(), redraw();
+      runBool(b.dataset.op, b.dataset.swap === '1');
+    });
+
+    // The material palette is data: { name, color, metal, rough, alpha, emit } per entry. A face points at an entry by
+    // name (`face.mat`), so editing an entry changes every face made of it. With a db the palette is the collection
+    // "palette" (one document per material), so Claude can read and write it the same way.
+    const MATERIALS = [
+      { name: 'plaster', color: '#e9e4d8', metal: 0, rough: 0.9, alpha: 1, emit: 0 },
+      { name: 'sand', color: '#c9b79a', metal: 0, rough: 0.95, alpha: 1, emit: 0 },
+      { name: 'wood', color: '#8a5a36', metal: 0, rough: 0.8, alpha: 1, emit: 0 },
+      { name: 'dark-wood', color: '#5a3d2b', metal: 0, rough: 0.7, alpha: 1, emit: 0 },
+      { name: 'concrete', color: '#8c8c88', metal: 0, rough: 1, alpha: 1, emit: 0 },
+      { name: 'slate', color: '#4f5358', metal: 0, rough: 0.6, alpha: 1, emit: 0 },
+      { name: 'grass', color: '#7d9b4e', metal: 0, rough: 1, alpha: 1, emit: 0 },
+      { name: 'brick', color: '#b5473a', metal: 0, rough: 0.85, alpha: 1, emit: 0 },
+      { name: 'steel', color: '#9aa7b4', metal: 1, rough: 0.3, alpha: 1, emit: 0 },
+      { name: 'gold', color: '#d9b04a', metal: 1, rough: 0.25, alpha: 1, emit: 0 },
+      { name: 'glass', color: '#a9d3e8', metal: 0.2, rough: 0.05, alpha: 0.3, emit: 0 },
+      { name: 'lamp', color: '#ffd36b', metal: 0, rough: 0.5, alpha: 1, emit: 1 },
+    ];
+    let materials = MATERIALS.map((m) => ({ ...m }));
+    const toMap = () => Object.fromEntries(materials.map(({ name, ...m }) => [name, m]));
+    let paletteMap = toMap(); // what the renderers get: a NEW object on every change, so they rebuild
+    const syncPalette = () => {
+      paletteMap = toMap();
+      rebuild();
+      redraw();
+    };
+    let current = 0;
+    let paletteCol = null; // db collection "palette"
+    const paletteEl = document.getElementById('palette');
+    const swatchesEl = document.getElementById('swatches');
+    const currentEl = document.getElementById('current');
+    const PROPS = ['metal', 'rough', 'alpha', 'emit', 'soft'];
+    const saveMaterial = (m) => paletteCol && paletteCol.doc(m.name).set({ ...m, order: materials.indexOf(m) }).catch((err) => (liveEl.title = String(err?.message ?? err)));
+    const showPalette = () => {
+      swatchesEl.innerHTML = '';
+      materials.forEach((m, i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = `sw${i === current ? ' on' : ''}`;
+        // a see-through material shows its color over a checker
+        b.style.background = m.alpha < 1 ? `linear-gradient(${m.color}${Math.round(m.alpha * 255).toString(16).padStart(2, '0')}, ${m.color}${Math.round(m.alpha * 255).toString(16).padStart(2, '0')}), repeating-conic-gradient(#888 0 25%, #ccc 0 50%) 0 0 / 8px 8px` : m.color;
+        if (m.metal > 0.5) b.style.boxShadow = 'inset 0 0 0 2px #ffffff55, inset 0 -6px 8px #00000044';
+        b.title = `${m.name}: metal ${m.metal} rough ${m.rough} alpha ${m.alpha} emit ${m.emit}${m.soft ? ` soft ${m.soft}` : ''}`;
+        b.addEventListener('click', () => ((current = i), showPalette()));
+        swatchesEl.append(b);
+      });
+      const m = materials[current];
+      currentEl.textContent = m.name;
+      document.getElementById('custom').value = m.color;
+      for (const k of PROPS) {
+        document.getElementById(`p-${k}`).value = m[k] ?? 0;
+        document.getElementById(`v-${k}`).textContent = (m[k] ?? 0).toFixed(2);
+      }
+    };
+    for (const k of PROPS) {
+      document.getElementById(`p-${k}`).addEventListener('input', (e) => {
+        const m = materials[current];
+        m[k] = Number(e.target.value);
+        document.getElementById(`v-${k}`).textContent = m[k].toFixed(2);
+        syncPalette();
+      });
+      document.getElementById(`p-${k}`).addEventListener('change', () => saveMaterial(materials[current]));
+    }
+    document.getElementById('custom').addEventListener('input', (e) => {
+      materials[current].color = e.target.value;
+      showPalette();
+      syncPalette();
+    });
+    document.getElementById('custom').addEventListener('change', () => saveMaterial(materials[current]));
+    const togglePalette = () => {
+      paletteEl.hidden = !paletteEl.hidden;
+      if (!paletteEl.hidden) showPalette();
+    };
+    document.getElementById('addColor').addEventListener('click', () => {
+      // a new material starts as a copy of the selected one
+      let n = materials.length;
+      while (materials.some((m) => m.name === `m${n}`)) n++;
+      const m = { ...materials[current], name: `m${n}`, color: document.getElementById('custom').value };
+      materials.push(m);
+      current = materials.length - 1;
+      saveMaterial(m);
+      showPalette();
+      syncPalette();
+    });
+    // Pick material (the eyedropper): the material of the face under the cross becomes the selected one. A face that only
+    // has a colour selects the entry with that colour, or starts a new entry from it.
+    let picking = false;
+    const pickBtn = document.getElementById('pickMat');
+    const armPick = (on) => {
+      picking = on;
+      pickBtn.classList.toggle('on', on);
+      stage.style.cursor = on ? 'copy' : '';
+    };
+    const pickMaterial = () => {
+      const face = hit && scene.faces[hit.face];
+      if (!face) return false;
+      let i = face.mat !== undefined ? materials.findIndex((m) => m.name === face.mat) : -1;
+      if (i < 0 && face.color) i = materials.findIndex((m) => m.color.toLowerCase() === face.color.toLowerCase());
+      if (i < 0) {
+        let n = materials.length;
+        while (materials.some((m) => m.name === `m${n}`)) n++;
+        const m = { ...materials[current], name: `m${n}`, color: face.color ?? '#c8c8c8' };
+        materials.push(m);
+        saveMaterial(m);
+        i = materials.length - 1;
+        syncPalette();
+      }
+      current = i;
+      if (paletteEl.hidden) paletteEl.hidden = false;
+      showPalette();
+      return true;
+    };
+    pickBtn.addEventListener('click', () => armPick(!picking));
+    const paintFaces = (obj, faces) => {
+      const m = materials[current];
+      const base = owners.find((o) => o.obj === obj).start;
+      const before = obj.mesh;
+      history.push(() => has(obj) && change(obj, before));
+      change(obj, { ...obj.mesh, faces: obj.mesh.faces.map((f, i) => (!faces || faces.has(i + base) ? { ...f, color: m.color, mat: m.name } : f)) });
+      redraw();
+    };
+    // /: only the model under the cross stays in the picture; / again brings the whole scene back.
+    // The camera pose from before the isolation is remembered; leaving it flies back exactly there.
+    let beforeSolo = null;
+    const isolate = () => {
+      if (solo) {
+        solo = null;
+        rebuild();
+        const v = beforeSolo;
+        beforeSolo = null;
+        if (v) {
+          focused = v.focused;
+          goTo({ center: v.center, radius: v.radius, dist: v.dist, yaw: v.yaw, pitch: v.pitch });
+          fly = v.fly; // goTo leaves the fly mode; a flown pose goes back to it
+        } else {
+          focused = false;
+          goTo({ ...overview(), yaw, pitch });
+        }
+        return;
+      }
+      if (!(hit && owner(hit.face))) return;
+      beforeSolo = { center: [...fit.center], radius: fit.radius, dist: fit.dist, yaw, pitch, fly, focused };
+      solo = owner(hit.face).id;
+      rebuild();
+      focused = false;
+      goTo({ ...overview(), yaw, pitch }); // frame the isolated object, keep the viewing direction
+    };
+    // Shift+press: the face under the cross (the palette must be on). Shift+double click: its whole model.
+    const paintFace = () => {
+      if (paletteEl.hidden || !hit) return;
+      paintFaces(owner(hit.face), new Set([hit.face]));
+    };
+    const paintModel = () => {
+      if (paletteEl.hidden || !hit) return;
+      paintFaces(owner(hit.face), null); // the whole object
+    };
+
+    // H: the move gizmo (the helper). H puts it on the object under the cross (world axes), the next H turns it to the
+    // object's own axes, the third takes it off; there is only one.
+    // Drag one of its three arrows to slide the object along that axis.
+    let gizmo = null; // the object that carries it
+    let gLocal = false; // false: the world axes, true: the object's own axes
+    let gTurn = { mesh: null, angle: 0 }; // cached: the object's own turn around y
+    let gHover = null; // the axis under the pointer
+    let gdrag = null; // { obj, axis, from, mesh0, dir, unit, d }
+    const AXES = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    const GCOLORS = ['#e03131', '#2f9e44', '#1c7ed6'];
+    const gizmoFrame = () => {
+      if (editing) {
+        // while editing the gizmo belongs to the selected vertex
+        if (!sel || !has(editing) || sel.ids.some((i) => i >= editing.mesh.positions.length)) return (sel = null);
+        const at = sel.ids.reduce((t, i) => t.map((c, k) => c + editing.mesh.positions[i][k] / sel.ids.length), [0, 0, 0]);
+        return { c: at, L: fit.radius * 0.08, axes: AXES };
+      }
+      if (!gizmo || !has(gizmo)) return (gizmo = null);
+      const lo = [Infinity, Infinity, Infinity];
+      const hi = [-Infinity, -Infinity, -Infinity];
+      for (const q of gizmo.mesh.positions) q.forEach((c, i) => ((lo[i] = Math.min(lo[i], c)), (hi[i] = Math.max(hi[i], c))));
+      const c = lo.map((v, i) => (v + hi[i]) / 2);
+      const L = Math.max(...hi.map((v, i) => v - lo[i]), fit.radius * 0.1) * 0.6;
+      let axes = AXES;
+      if (gLocal) {
+        // objects carry no transform, so "own" axes are found from the shape: y stays up, x and z follow the turn
+        // around y that gives the smallest footprint box
+        if (gTurn.mesh !== gizmo.mesh) {
+          let best = Infinity;
+          let angle = 0;
+          for (let deg = 0; deg < 90; deg++) {
+            const a = (deg * Math.PI) / 180;
+            const co = Math.cos(a);
+            const si = Math.sin(a);
+            let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+            for (const q of gizmo.mesh.positions) {
+              const u = q[0] * co + q[2] * si;
+              const w = -q[0] * si + q[2] * co;
+              if (u < x0) x0 = u;
+              if (u > x1) x1 = u;
+              if (w < z0) z0 = w;
+              if (w > z1) z1 = w;
+            }
+            const area = (x1 - x0) * (z1 - z0);
+            if (area < best - 1e-9) ((best = area), (angle = a));
+          }
+          gTurn = { mesh: gizmo.mesh, angle };
+        }
+        const co = Math.cos(gTurn.angle);
+        const si = Math.sin(gTurn.angle);
+        axes = [[co, 0, si], [0, 1, 0], [-si, 0, co]];
+      }
+      return { c, L, axes };
+    };
+    const gizmoHandles = () => {
+      const g = gizmoFrame();
+      if (!g) return null;
+      return g.axes.map((a, axis) => {
+        const tip = g.c.map((v, i) => v + a[i] * g.L);
+        const side = g.axes[(axis + 1) % 3];
+        const up = g.axes[(axis + 2) % 3];
+        const h = g.L * 0.12;
+        const back = tip.map((v, i) => v - a[i] * h * 2);
+        const lines = [[g.c, tip]];
+        for (const [u, sgn] of [[side, 1], [side, -1], [up, 1], [up, -1]]) lines.push([tip, back.map((v, i) => v + u[i] * h * sgn)]);
+        return { axis, color: GCOLORS[axis], lines, from: g.c, to: tip, L: g.L, dir: a };
+      });
+    };
+    const grab0 = (e) => nearAxis(e); // a gizmo arrow wins over a vertex
+    const toPanel = (e) => ({ x: e.clientX - drawing.left, y: e.clientY - drawing.top });
+    const nearAxis = (e) => {
+      const hs = gizmoHandles();
+      if (!hs || !gcam) return null;
+      const q = toPanel(e);
+      let best = null;
+      for (const h of hs) {
+        const a = project(gcam, h.from);
+        const b = project(gcam, h.to);
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const len2 = dx * dx + dy * dy || 1;
+        const t = Math.max(0, Math.min(1, ((q.x - a.x) * dx + (q.y - a.y) * dy) / len2));
+        const d = Math.hypot(q.x - (a.x + dx * t), q.y - (a.y + dy * t));
+        if (d < 12 && (!best || d < best.d)) best = { h, d, a, b };
+      }
+      return best;
+    };
+    const toggleGizmo = () => {
+      // H cycles: world axes -> the object's own axes -> off
+      if (gizmo && !gLocal) gLocal = true;
+      else if (gizmo) gizmo = null;
+      else if (hit && owner(hit.face)) ((gizmo = owner(hit.face)), (gLocal = false));
+      gHover = null;
+      redraw();
+    };
+    const dragGizmo = (e) => {
+      const g = gdrag;
+      const q = toPanel(e);
+      const s = ((q.x - g.from.x) * g.unit.x + (q.y - g.from.y) * g.unit.y) / g.perUnit;
+      g.d = s;
+      g.obj.mesh = g.verts === null ? shifted(g.mesh0, g.dir.map((c) => c * s)) : { ...g.mesh0, positions: g.mesh0.positions.map((q, k) => (g.verts.includes(k) ? q.map((c, i) => c + g.dir[i] * s) : q)) };
+      rebuild();
+      redraw();
+    };
+    // dragging a vertex itself moves it in the plane that faces the camera
+    const dragVertex = () => {
+      panelPointer = toPanelXY();
+      const q = planePoint(vdrag.p0);
+      if (!q) return;
+      const dist = Math.hypot(pointer.x - vdrag.at.x, pointer.y - vdrag.at.y);
+      if (!vdrag.moved && dist < 4) return;
+      vdrag.moved = true;
+      vdrag.delta = q.map((c, i) => c - vdrag.p0[i]);
+      const d = vdrag;
+      editing.mesh = { ...d.mesh0, positions: d.mesh0.positions.map((p, k) => (d.ids.includes(k) ? p.map((c, i) => c + d.delta[i]) : p)) };
+      rebuild();
+      redraw();
+    };
+    const toPanelXY = () => ({ x: pointer.x - drawing.left, y: pointer.y - drawing.top });
+    const dropVertex = () => {
+      const d = vdrag;
+      vdrag = null;
+      if (!d || !d.moved) return;
+      const obj = editing;
+      obj.mesh = d.mesh0;
+      commit(moveVertexSet(d.mesh0, d.ids.map((i, k) => [i, d.from[k].map((c, j) => c + d.delta[j])])), obj.wire);
+    };
+    const dropGizmo = () => {
+      const g = gdrag;
+      gdrag = null;
+      if (!g || Math.abs(g.d) < 1e-9) return;
+      const { obj, mesh0 } = g;
+      // a moved vertex turns the polygons it touches into triangles, so every face stays planar
+      const mesh = g.verts === null ? obj.mesh : moveVertexSet(mesh0, g.verts.map((i) => [i, obj.mesh.positions[i]]));
+      obj.mesh = mesh0;
+      change(obj, mesh); // one write for the whole drag
+      history.push(() => has(obj) && change(obj, mesh0));
+    };
+
+    // Edit mode (Tab): draw on the object under the cross. V puts points on its surface (or on a vertex that is already
+    // there: they snap) and joins them with lines; two points on one face cut it along the line, so the surface gets
+    // detail where you draw. Points in the air extend the model: Enter closes a loop of lines into a face.
+    // A vertex can be dragged (or moved with the gizmo arrows) and everything that uses it follows.
+    let editing = null; // the object being edited
+    let wireFrom = null; // the vertex the next V continues from
+    // What the mouse does in edit mode, as in Blender: V draws lines (nothing can be moved while drawing); 1 moves points,
+    // 2 moves lines (edges), 3 moves faces.
+    let emode = 'draw'; // 'draw' | 'vertex' | 'edge' | 'face'
+    let sel = null; // the selection: { ids: [vertex indices], edge?: [a, b], face?: n }
+    let snapV = -1; // the vertex the pointer snaps to (drawing, moving points)
+    let snapE = null; // the edge under the pointer (moving lines)
+    let snapF = -1; // the face under the pointer (moving faces)
+    let vdrag = null; // { ids, from: [positions], p0, mesh0, moved, at, delta }
+    const MODES = { draw: 'draw lines (V)', vertex: 'move points (1)', edge: 'move lines (2)', face: 'move faces (3)' };
+    let panelPointer = null; // the pointer in panel pixels, as of the last frame
+    const bar = document.getElementById('editbar');
+    const barText = document.getElementById('editText');
+    let barNote = '';
+    const noteEdit = (text) => {
+      barNote = text;
+      showBar();
+    };
+    const showBar = () => {
+      bar.hidden = !editing;
+      if (editing) barText.textContent = `edit ${editing.name} · ${MODES[emode]}${barNote ? ` · ${barNote}` : ''}`;
+    };
+    const vsub = (a, b) => a.map((c, i) => c - b[i]);
+    const vdot = (a, b) => a.reduce((t, c, i) => t + c * b[i], 0);
+    // where the pointer ray meets the plane through p0 that faces the camera: free drawing in the air, vertex dragging
+    const planePoint = (p0) => {
+      if (!gcam || !panelPointer) return null;
+      const r = ray(gcam, panelPointer.x, panelPointer.y);
+      const den = vdot(r.dir, gcam.f);
+      if (Math.abs(den) < 1e-6) return null;
+      const t = vdot(vsub(p0, r.origin), gcam.f) / den;
+      return r.origin.map((c, i) => c + r.dir[i] * t);
+    };
+    // the vertex of the edited object near the pointer (the visible ones: not far behind the surface under it)
+    const findSnap = () => {
+      if (!editing || !gcam || !panelPointer) return -1;
+      const limit = hit ? project(gcam, hit.point).depth + fit.radius * 0.03 : Infinity;
+      let best = -1;
+      let bestD = 12;
+      editing.mesh.positions.forEach((q, i) => {
+        const a = project(gcam, q);
+        if (a.depth <= 0 || a.depth > limit) return;
+        const d = Math.hypot(a.x - panelPointer.x, a.y - panelPointer.y);
+        if (d < bestD) ((bestD = d), (best = i));
+      });
+      return best;
+    };
+    // the edge (a mesh edge or a line) of the edited object near the pointer
+    const findEdge = () => {
+      if (!editing || !gcam || !panelPointer) return null;
+      const P = editing.mesh.positions;
+      const seen = new Set();
+      const edges = [];
+      const add = (a, b) => {
+        const key = a < b ? `${a},${b}` : `${b},${a}`;
+        if (a !== b && !seen.has(key)) (seen.add(key), edges.push([a, b]));
+      };
+      for (const f of editing.mesh.faces) f.v.forEach((v, k) => add(v, f.v[(k + 1) % f.v.length]));
+      for (const [a, b] of editing.wire ?? []) if (a < P.length && b < P.length) add(a, b);
+      const limit = hit ? project(gcam, hit.point).depth + fit.radius * 0.03 : Infinity;
+      let best = null;
+      let bestD = 10;
+      for (const [a, b] of edges) {
+        const pa = project(gcam, P[a]);
+        const pb = project(gcam, P[b]);
+        if (pa.depth <= 0 || pb.depth <= 0 || Math.min(pa.depth, pb.depth) > limit) continue;
+        const dx = pb.x - pa.x;
+        const dy = pb.y - pa.y;
+        const t = Math.max(0, Math.min(1, ((panelPointer.x - pa.x) * dx + (panelPointer.y - pa.y) * dy) / (dx * dx + dy * dy || 1)));
+        const d = Math.hypot(panelPointer.x - (pa.x + dx * t), panelPointer.y - (pa.y + dy * t));
+        if (d < bestD) ((bestD = d), (best = [a, b]));
+      }
+      return best;
+    };
+    const enterEdit = () => {
+      const o = hit && owner(hit.face);
+      if (!o) return noteEdit('') || redraw();
+      editing = o;
+      gizmo = null;
+      wireFrom = sel = null;
+      emode = 'draw';
+      barNote = '';
+      showBar();
+      redraw();
+    };
+    const leaveEdit = () => {
+      editing = null;
+      wireFrom = sel = vdrag = null;
+      emode = 'draw';
+      showBar();
+      redraw();
+    };
+    // one undo step for whatever a single key press changed
+    const commit = (mesh, wire) => {
+      const obj = editing;
+      const before = { mesh: obj.mesh, wire: obj.wire ?? [] }; // (undefined would mean "keep the lines")
+      change(obj, mesh, wire);
+      history.push(() => has(obj) && change(obj, before.mesh, before.wire));
+    };
+    // the vertex a V press means: the one snapped to, a new one on the surface, or one in the air
+    const vertexHere = (mesh) => {
+      if (snapV >= 0) return { mesh, index: snapV };
+      if (hit && owner(hit.face) === editing) return insertVertex(mesh, hit.face - owners.find((o) => o.obj === editing).start, hit.point);
+      const from = wireFrom !== null ? mesh.positions[wireFrom] : null;
+      const q = from && planePoint(from);
+      if (q) return { mesh: { ...mesh, positions: [...mesh.positions, q] }, index: mesh.positions.length };
+      return null;
+    };
+    const drawLine = () => {
+      let mesh = editing.mesh;
+      let wire = editing.wire ?? [];
+      const here = vertexHere(mesh);
+      if (!here) {
+        wireFrom = null;
+        return redraw();
+      }
+      mesh = here.mesh;
+      const b = here.index;
+      if (wireFrom === null) {
+        if (mesh !== editing.mesh) commit(mesh, wire);
+        wireFrom = b;
+        return redraw();
+      }
+      if (b === wireFrom) return;
+      wire = addLine(wire, wireFrom, b);
+      mesh = cutFace(mesh, wireFrom, b).mesh; // two points on one face: the line cuts it
+      commit(mesh, wire);
+      wireFrom = b; // the chain goes on from here
+      redraw();
+    };
+    // Enter: the shortest closed loop of lines through the last line becomes a face (the selected material)
+    const fillFace = () => {
+      const wire = editing.wire ?? [];
+      const last = wire.at(-1);
+      const loop = last && findLoop(wire, last);
+      if (!loop) return noteEdit('no closed loop of up to 8 lines through the last line');
+      const key = [...loop].sort((a, b) => a - b).join();
+      if (editing.mesh.faces.some((f) => f.v.length === loop.length && [...f.v].sort((a, b) => a - b).join() === key)) return noteEdit('that loop is already a face');
+      const m = materials[current];
+      commit(fillLoop(editing.mesh, loop, { color: m.color, mat: m.name }), wire);
+      wireFrom = null;
+      noteEdit(`face made from ${loop.length} lines`);
+      redraw();
+    };
+    // B: the Spider bars made in object mode (V) become lines on the edited object, so a plan drawn as prisms can be
+    // worked on as a wire: the ends snap to vertices, or are put on the surface, or stay in the air.
+    const barEnds = (o) => {
+      // a bar is a box: its ends are the middles of the two faces farthest apart
+      const { positions: P, faces: F } = o.mesh;
+      const mid = F.map((f) => f.v.reduce((t, i) => t.map((c, k) => c + P[i][k] / f.v.length), [0, 0, 0]));
+      let far = 0;
+      let pair = null;
+      for (let i = 0; i < F.length; i++) for (let j = i + 1; j < F.length; j++) {
+        const d = Math.hypot(...mid[i].map((c, k) => c - mid[j][k]));
+        if (d > far) ((far = d), (pair = [mid[i], mid[j]]));
+      }
+      return pair;
+    };
+    const barsToLines = () => {
+      const bars = allObjects().filter((o) => o.id !== editing.id && o.name === 'bar');
+      if (!bars.length) return noteEdit('no bars to turn into lines (V in object mode makes them)');
+      const r = wireFromSegments(editing.mesh, editing.wire ?? [], bars.map(barEnds), 0.03 * bounds(editing.mesh).radius);
+      asOneStep(() => {
+        commit(r.mesh, r.wire);
+        for (const b of bars) {
+          erase(b);
+          history.push(() => has(b) || restore(b));
+        }
+      });
+      wireFrom = null;
+      noteEdit(`${bars.length} bar${bars.length === 1 ? '' : 's'} became lines`);
+      redraw();
+    };
+    // X: the lines at the selected vertex (or the last line) go; the points stay
+    const eraseLines = () => {
+      const wire = editing.wire ?? [];
+      const ids = sel?.ids;
+      const keep = !ids
+        ? wire.slice(0, -1)
+        : ids.length === 1
+          ? wire.filter(([a, b]) => a !== ids[0] && b !== ids[0])
+          : wire.filter(([a, b]) => !(ids.includes(a) && ids.includes(b)));
+      if (keep.length === wire.length) return;
+      commit(editing.mesh, keep);
+      wireFrom = null;
+      redraw();
+    };
+
+    let last = null; // drag origin
+    stage.addEventListener('pointerdown', (e) => {
+      if (e.shiftKey) {
+        pointer = { x: e.clientX, y: e.clientY };
+        return paintFace(); // Shift+press paints, it never starts a rotation
+      }
+      pointer = { x: e.clientX, y: e.clientY };
+      if (editing && !grab0(e)) {
+        if (emode !== 'draw') {
+          const P = editing.mesh.positions;
+          let grab = null;
+          if (emode === 'vertex' && snapV >= 0) grab = { sel: { ids: [snapV] }, p0: P[snapV] };
+          else if (emode === 'edge' && snapE) grab = { sel: { ids: [...snapE], edge: snapE }, p0: P[snapE[0]].map((c, i) => (c + P[snapE[1]][i]) / 2) };
+          else if (emode === 'face' && snapF >= 0 && hit) grab = { sel: { ids: [...editing.mesh.faces[snapF].v], face: snapF }, p0: hit.point };
+          if (grab) {
+            sel = grab.sel;
+            vdrag = { ids: sel.ids, from: sel.ids.map((i) => P[i]), p0: grab.p0, mesh0: editing.mesh, moved: false, delta: [0, 0, 0], at: { x: e.clientX, y: e.clientY } };
+            stage.setPointerCapture(e.pointerId);
+            redraw();
+            return;
+          }
+          sel = null; // a click on nothing lets go
+        }
+      }
+      if (picking) {
+        pickMaterial();
+        armPick(false);
+        return;
+      }
+      const grab = nearAxis(e);
+      if (grab) {
+        const dx = grab.b.x - grab.a.x;
+        const dy = grab.b.y - grab.a.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const q = toPanel(e);
+        // the pointer may sit anywhere along the arrow: measure from where it was grabbed
+        const t0 = ((q.x - grab.a.x) * dx + (q.y - grab.a.y) * dy) / (len * len);
+        const target = editing ?? gizmo;
+        gdrag = { obj: target, verts: editing ? sel.ids : null, axis: grab.h.axis, from: { x: grab.a.x + dx * t0, y: grab.a.y + dy * t0 }, mesh0: target.mesh, dir: grab.h.dir, unit: { x: dx / len, y: dy / len }, perUnit: len / grab.h.L, d: 0 };
+        stage.setPointerCapture(e.pointerId);
+        return;
+      }
+      last = { x: e.clientX, y: e.clientY };
+      stage.setPointerCapture(e.pointerId);
+      stage.classList.add('drag');
+      redraw();
+    });
+    stage.addEventListener('pointermove', (e) => {
+      pointer = { x: e.clientX, y: e.clientY };
+      if (gdrag) return dragGizmo(e);
+      if (vdrag) return dragVertex();
+      if (!last) {
+        const g = nearAxis(e);
+        gHover = g ? g.h.axis : null;
+        stage.style.cursor = g ? 'grab' : '';
+        return redraw();
+      }
+      turn((e.clientX - last.x) * 0.008, (e.clientY - last.y) * 0.008);
+      last = { x: e.clientX, y: e.clientY };
+    });
+    const release = () => {
+      dropVertex();
+      dropGizmo();
+      last = null;
+      stage.classList.remove('drag');
+    };
+    stage.addEventListener('pointerup', release);
+    stage.addEventListener('pointercancel', release);
+    stage.addEventListener('pointerleave', (e) => {
+      if (last || e.pointerType === 'touch') return; // a finger leaves the screen: the cross stays where it was
+      pointer = null;
+      redraw();
+    });
+    stage.addEventListener('dblclick', (e) => (e.shiftKey ? paintModel() : reset()));
+
+    const moves = {
+      ArrowLeft: [-STEP, 0],
+      ArrowRight: [STEP, 0],
+      ArrowUp: [0, -STEP],
+      ArrowDown: [0, STEP],
+    };
+    const FLY_KEYS = { w: ['f', 1], s: ['f', -1], d: ['r', 1], a: ['r', -1], r: ['u', 1], f: ['u', -1] };
+    // a click on a button hands the keyboard back to the view (a keyboard activation keeps the focus)
+    document.addEventListener('click', (e) => {
+      if (e.detail > 0 && e.target instanceof HTMLButtonElement) e.target.blur();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.target instanceof HTMLTextAreaElement) return; // the error text can be selected and copied
+      if (e.target instanceof HTMLButtonElement) return; // Space and Enter belong to a focused button
+      const fk = !e.ctrlKey && !e.metaKey && !e.altKey && FLY_KEYS[e.key.toLowerCase()];
+      if (fk) {
+        e.preventDefault();
+        if (!e.repeat) speed(...fk);
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        if (!e.repeat) {
+          stop(); // Space: stop moving
+          redraw();
+        }
+      } else if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        if (!e.repeat) place();
+      } else if (boolPair && /^[1-5]$/.test(e.key)) {
+        e.preventDefault();
+        if (e.key === '5') closeBool(), redraw();
+        else runBool(['union', 'subtract', 'subtract', 'intersect'][e.key - 1], e.key === '3');
+      } else if (boolPair && e.key === 'Escape') {
+        closeBool();
+        redraw();
+      } else if (e.key === 'o' || e.key === 'O') {
+        e.preventDefault();
+        if (!e.repeat) pickBool();
+      } else if (e.key === 'Tab') {
+        e.preventDefault();
+        if (!e.repeat) editing ? leaveEdit() : enterEdit();
+      } else if (editing && e.key === 'Enter') {
+        e.preventDefault();
+        fillFace();
+      } else if (editing && /^[123]$/.test(e.key)) {
+        e.preventDefault();
+        emode = ['vertex', 'edge', 'face'][e.key - 1];
+        wireFrom = sel = null;
+        barNote = '';
+        showBar();
+        redraw();
+      } else if (editing && e.key === 'Escape') {
+        if (wireFrom !== null) ((wireFrom = null), redraw());
+        else if (emode !== 'draw') ((emode = 'draw'), (sel = null), showBar(), redraw());
+        else leaveEdit();
+      } else if (editing && (e.key === 'b' || e.key === 'B')) {
+        e.preventDefault();
+        barsToLines();
+      } else if (editing && (e.key === 'x' || e.key === 'X' || e.key === 'Delete')) {
+        e.preventDefault();
+        eraseLines();
+      } else if (editing && (e.key === 'h' || e.key === 'H' || e.key === 'o' || e.key === 'O')) {
+        e.preventDefault(); // the object tools wait outside edit mode
+      } else if (e.key === 'v' || e.key === 'V') {
+        e.preventDefault();
+        if (!e.repeat) {
+          if (editing) {
+            // drawing: nothing is selected and nothing moves
+            if (emode !== 'draw') ((emode = 'draw'), (sel = null), showBar());
+            drawLine();
+          } else spider();
+        }
+      } else if (e.key === '?') {
+        e.preventDefault();
+        if (!e.repeat) toggleHint();
+      } else if (e.key === '/') {
+        e.preventDefault();
+        if (!e.repeat) isolate();
+      } else if (e.key === 'p' || e.key === 'P') {
+        e.preventDefault();
+        if (!e.repeat) togglePalette();
+      } else if (e.key === 'x' || e.key === 'X' || e.key === 'Delete') {
+        e.preventDefault();
+        remove();
+      } else if (e.key === 'g' || e.key === 'G') {
+        e.preventDefault();
+        toggleMode();
+      } else if (e.key === 'i' || e.key === 'I') {
+        e.preventDefault();
+        if (!e.repeat) pickMaterial();
+      } else if (picking && e.key === 'Escape') {
+        armPick(false);
+      } else if (e.key === 'c' || e.key === 'C') {
+        e.preventDefault();
+        if (!e.repeat) toggleFilmic();
+      } else if (e.key === 'n' || e.key === 'N') {
+        e.preventDefault();
+        if (!e.repeat) toggleSmooth();
+      } else if (e.key === 'k' || e.key === 'K') {
+        e.preventDefault();
+        if (!e.repeat) toggleStudio();
+      } else if (e.key === 'l' || e.key === 'L') {
+        e.preventDefault();
+        turnLight();
+      } else if (e.key === 't' || e.key === 'T') {
+        e.preventDefault();
+        if (!e.repeat) travelTo();
+      } else if (e.key === 'h' || e.key === 'H') {
+        e.preventDefault();
+        if (!e.repeat) toggleGizmo();
+      } else if (e.key === 'e' || e.key === 'E') {
+        e.preventDefault();
+        stage.classList.toggle('clean');
+      } else if (e.key === 'Backspace' || e.key === 'u' || e.key === 'U') {
+        e.preventDefault();
+        undo();
+      } else if (moves[e.key]) {
+        e.preventDefault();
+        turn(...moves[e.key]);
+      }
+    });
+    document.getElementById('place').addEventListener('click', place);
+    document.getElementById('delete').addEventListener('click', remove);
+    document.getElementById('travel').addEventListener('click', travelTo);
+    document.getElementById('fabTravel').addEventListener('click', travelTo);
+    document.getElementById('fabPlace').addEventListener('click', place);
+    document.getElementById('fabDelete').addEventListener('click', remove);
+    document.getElementById('fabMode').addEventListener('click', toggleMode);
+    document.getElementById('lines').addEventListener('click', () => stage.classList.toggle('clean'));
+    // ?: the shortcut hints, hidden at the start
+    const hintEl = document.getElementById('hint');
+    const toggleHint = () => {
+      hintEl.hidden = !hintEl.hidden;
+      document.getElementById('keys').classList.toggle('on', !hintEl.hidden);
+    };
+    document.getElementById('keys').addEventListener('click', toggleHint);
+    document.getElementById('gpuBtn').addEventListener('click', toggleMode);
+    document.getElementById('light').addEventListener('click', turnLight);
+    document.getElementById('filmic').addEventListener('click', toggleFilmic);
+    document.getElementById('filmic').classList.add('on');
+    document.getElementById('smooth').addEventListener('click', toggleSmooth);
+    document.getElementById('smooth').classList.add('on');
+    document.getElementById('studio').addEventListener('click', toggleStudio);
+    document.getElementById('studio').classList.add('on');
+    document.getElementById('clear').addEventListener('click', clearScene);
+    const exampleEl = document.getElementById('examples');
+    exampleEl.addEventListener('change', async () => {
+      const name = exampleEl.value;
+      exampleEl.value = '';
+      exampleEl.blur(); // so the shortcuts (U, ...) work right away
+      if (name) await addExample(name);
+    });
+    document.getElementById('undo').addEventListener('click', undo);
+    document.getElementById('reset').addEventListener('click', reset);
+    new ResizeObserver(redraw).observe(stage);
+    setMode('gpu'); // the starting view; falls back to SVG on its own
+
+    // ?debug: read the WebGPU frame back through an offscreen texture (a headless browser shows no canvas)
+    if (new URLSearchParams(location.search).has('debug')) {
+      globalThis.__3draft = {
+        load: (data) => applyScene(data),
+        state: () => ({ solo: solo ? 1 : 0, faces: scene.faces.length, objects: allObjects().length, db: Boolean(col), palette: !paletteEl.hidden, cursor: getComputedStyle(stage).cursor, center: fit.center, dist: fit.dist, radius: fit.radius, level: { ...level }, yaw, pitch, fly, placed: placed.length }),
+        grab: async () => {
+          const r = await renderGpu(true);
+          const o = document.createElement('canvas');
+          o.width = r.width;
+          o.height = r.height;
+          o.getContext('2d').putImageData(new ImageData(r.data, r.width, r.height), 0, 0);
+          return o.toDataURL('image/png');
+        },
+      };
+    }
+
+    // Live link: when served by the MCP server (`/events` exists), show what the AI builds.
+    let framed = false;
+    const applyScene = (data) => {
+      hostObjects = (data.objects ?? []).map((o, n) => ({ id: o.id ?? o.name ?? `o${n}`, name: o.name ?? `o${n}`, mesh: o.mesh, wire: o.wire, host: true }));
+      rebuild();
+      // a snapshot (also the echo of our own write) makes new objects: whatever points at one follows it by id
+      const same = (o) => (o ? allObjects().find((x) => x.id === o.id) ?? null : null);
+      editing = same(editing);
+      if (!editing) wireFrom = sel = vdrag = null;
+      showBar();
+      gizmo = same(gizmo);
+      boolFrom = same(boolFrom);
+      if (boolPair) {
+        const pair = { a: same(boolPair.a), b: same(boolPair.b) };
+        if (pair.a && pair.b) boolPair = pair;
+        else closeBool();
+      }
+      // the camera frames the scene once for a db (its snapshots also echo our own edits), at every push for MCP
+      if (!focused && (!framed || data.rev !== 'db')) Object.assign(fit, overview());
+      if (scene.faces.length) framed = true;
+      liveEl.textContent = `${hostObjects.length + mine.length} object${hostObjects.length + mine.length === 1 ? '' : 's'} · ${data.rev}`;
+      redraw();
+    };
+    if (new URLSearchParams(location.search).has('live') && typeof EventSource !== 'undefined') {
+      const events = new EventSource('/events');
+      events.addEventListener('scene', (e) => {
+        try {
+          applyScene(JSON.parse(e.data));
+        } catch (err) {
+          liveEl.textContent = 'bad scene';
+          liveEl.title = String(err.message ?? err);
+        }
+      });
+      events.onerror = () => {
+        liveEl.textContent = events.readyState === EventSource.CLOSED ? 'off' : 'reconnecting…';
+      };
+    }
+
+    // Published as a Claude artifact with the `db` capability: the objects live in the shared
+    // collection "objects" (one document per object: { name, mesh }). Claude writes them with
+    // its own tools and every open view shows them at once. Outside an artifact `claude` does not exist.
+    if (globalThis.claude?.use) {
+      globalThis.claude.use('db').then((db) => {
+        if (!db) return;
+        col = db.collection('objects');
+        col.onSnapshot(
+          (snap) => {
+            const objects = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((o) => o?.mesh?.positions);
+            applyScene({ objects, rev: 'db' });
+          },
+          (err) => {
+            liveEl.textContent = 'db error';
+            liveEl.title = String(err?.message ?? err);
+          },
+        );
+        paletteCol = db.collection('palette');
+        paletteCol.onSnapshot(
+          (snap) => {
+            const docs = snap.docs.map((d) => ({ name: d.id, ...d.data() })).filter((m) => typeof m.color === 'string');
+            if (!docs.length) return; // nothing stored yet: the built-in materials stay
+            materials = docs.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map(({ order, ...m }) => ({ metal: 0, rough: 0.7, alpha: 1, emit: 0, soft: 0, ...m }));
+            current = Math.min(current, materials.length - 1);
+            if (!paletteEl.hidden) showPalette();
+            syncPalette();
+          },
+          () => {},
+        );
+        // what was made here before the db answered goes into it now
+        for (const o of mine.splice(0)) {
+          hostObjects.push({ ...o, host: true });
+          save(o, () => col.doc(o.id).set(docOf(o)));
+        }
+      });
+    }
+
+    draw();
+  </script>
+</body>
+</html>
