@@ -349,8 +349,9 @@
     body.pwa #stage { position: fixed; inset: 0; border-radius: 0; }
     body.pwa #stage svg rect, body.pwa #stage svg text { display: none; }
     body.pwa #hud { top: max(8px, env(safe-area-inset-top, 0px)); left: max(8px, env(safe-area-inset-left, 0px)); font-size: 11px; width: min(58%, 240px); }
-    body.pwa #pad { --k: clamp(40px, min(12vw, 11dvh), 58px); display: flex; justify-content: space-between; align-items: flex-end; position: fixed; left: max(8px, env(safe-area-inset-left, 0px)); right: max(8px, env(safe-area-inset-right, 0px)); bottom: max(8px, env(safe-area-inset-bottom, 0px)); z-index: 5; pointer-events: none; }
-    #pad .grp { display: grid; grid-template-columns: repeat(3, var(--k)); grid-auto-rows: var(--k); gap: 7px; }
+    body.pwa #pad { --k: clamp(34px, min(10.5vw, 9.5dvh), 48px); display: flex; justify-content: space-between; align-items: flex-end; position: fixed; left: max(8px, env(safe-area-inset-left, 0px)); right: max(8px, env(safe-area-inset-right, 0px)); bottom: max(8px, env(safe-area-inset-bottom, 0px)); z-index: 5; pointer-events: none; }
+    #pad .grp { display: grid; grid-template-columns: repeat(3, var(--k)); grid-auto-rows: var(--k); gap: 6px; }
+    body.pwa #hud, body.pwa #pad { pointer-events: none; background: none; }
     #pad button { pointer-events: auto; width: auto; height: auto; padding: 0; border-radius: 12px; font-size: calc(var(--k) * 0.3); touch-action: manipulation; -webkit-tap-highlight-color: transparent; opacity: 0.92; }
     #pad button.wide2 { grid-column: span 2; } #pad button.wide3 { grid-column: span 3; }
     #pad button.gap { visibility: hidden; pointer-events: none; }
@@ -380,7 +381,7 @@
   </aside>
 
   <aside id="palette" hidden aria-label="Material palette">
-    <span>materials · shift+click: paint a face · shift+double click: the whole object · i: pick the material under the cross</span>
+    <span id="palHint">materials · shift+click: paint a face · shift+double click: the whole object · i: pick the material under the cross</span>
     <div class="grid" id="swatches"></div>
     <b id="current">–</b>
     <label>metal <input type="range" id="p-metal" min="0" max="1" step="0.05" /><span id="v-metal"></span></label>
@@ -445,7 +446,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@ec407fc079e57696fc5f296922c6ef731cab487d/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@0aba3e004e4567e59a73edb8708da90babcfae3a/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -930,12 +931,6 @@
         layer.innerHTML = renderView(shown, view, { size, fit: shown_fit, marks, occlude: true, palette: paletteMap });
       }
       fabMode.classList.toggle('on', mode === 'gpu' && Boolean(gpu));
-      const padGpu = document.getElementById('padGpu');
-      if (padGpu) {
-        padGpu.textContent = mode === 'gpu' && gpu ? 'GPU' : 'SVG';
-        padGpu.classList.toggle('teal', mode === 'gpu' && Boolean(gpu));
-        padGpu.classList.toggle('slate', !(mode === 'gpu' && gpu));
-      }
       speedEl.textContent = `${level.f}·${level.r}·${level.u}`;
       yawEl.textContent = deg(yaw);
       pitchEl.textContent = deg(pitch);
@@ -1012,7 +1007,10 @@
       modeEl.title = '';
       redraw();
     };
-    const toggleMode = () => setMode(mode === 'gpu' ? 'svg' : 'gpu');
+    const toggleMode = () => {
+      if (document.body.classList.contains('pwa')) return; // the installed app stays in the GPU view
+      setMode(mode === 'gpu' ? 'svg' : 'gpu');
+    };
     const toggleFilmic = () => {
       filmic = !filmic;
       document.getElementById('filmic').classList.toggle('on', filmic);
@@ -2081,6 +2079,7 @@
     const isApp = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true || /[?&]pwa\b/.test(location.search);
     if (isApp) {
       document.body.classList.add('pwa');
+      document.getElementById('palHint').textContent = 'materials · Paint on, then tap a face · double tap: the whole object · pick: the material under the cross';
       stage.classList.add('clean'); // no E button on the pad: start without the edge and point clutter
       const padEl = document.getElementById('pad');
       const press = (key, extra = {}) => {
@@ -2096,33 +2095,27 @@
           b.className = cls ?? 'cream';
           if (!key) b.classList.add('gap');
           if (label) b.innerHTML = sub ? `${label}<small>${sub}</small>` : label;
-          if (key === 'Shift') {
-            b.id = 'padShift';
+          if (key === 'paint') {
+            b.id = 'padPaint';
             b.addEventListener('pointerdown', (e) => {
               e.preventDefault();
               shiftOn = !shiftOn;
               b.classList.toggle('on', shiftOn);
             });
-          } else if (key === 'g') {
-            b.id = 'padGpu';
-            b.addEventListener('pointerdown', (e) => {
-              e.preventDefault();
-              toggleMode();
-            });
           } else if (key) {
             b.addEventListener('pointerdown', (e) => {
               e.preventDefault();
-              press(key, { shiftKey: key === 'Tab' && shiftOn });
+              press(key);
             });
           }
           g.append(b);
         }
         return g;
       };
-      // left: fly (W A S D), Space; right: Esc Tab Shift / M V X / P and the view switch
+      // left: fly (R W F / A S D), Space; right: Esc Tab Paint / M V X / P Target
       padEl.append(
-        group([['', '', ''], ['W', 'w'], ['', '', ''], ['A', 'a'], ['S', 's'], ['D', 'd'], ['Space', ' ', 'cream wide3', 'speed 0']]),
-        group([['Esc', 'Escape', 'slate'], ['Tab', 'Tab', 'teal', 'next'], ['Shift', 'Shift', 'slate', 'paint'], ['M', 'm', 'red', 'place'], ['V', 'v', 'red', 'bar'], ['X', 'x', 'red', 'del'], ['P', 'p', 'red', 'paint'], ['GPU', 'g', 'teal wide2']]),
+        group([['R', 'r'], ['W', 'w'], ['F', 'f'], ['A', 'a'], ['S', 's'], ['D', 'd'], ['Space', ' ', 'cream wide3', 'speed 0']]),
+        group([['Esc', 'Escape', 'slate'], ['Tab', 'Tab', 'teal', 'next'], ['Paint', 'paint', 'slate', 'face'], ['M', 'm', 'red', 'place'], ['V', 'v', 'red', 'bar'], ['X', 'x', 'red', 'del'], ['P', 'p', 'red', 'palette'], ['Target', 't', 'teal wide2']]),
       );
     }
     document.getElementById('fabTravel').addEventListener('click', travelTo);
