@@ -359,7 +359,7 @@
     #pad button small { display: block; font-size: 0.62em; opacity: 0.7; font-weight: 500; margin-top: 2px; }
 
     #vec { display: none; }
-    body.pwa #vec { display: block; position: fixed; left: 50%; top: 50%; width: 140px; height: 140px; margin: -70px 0 0 -70px; z-index: 2; pointer-events: none; opacity: 0.9; }
+    body.pwa #vec { display: block; flex: 1 1 0; min-width: 0; max-width: 140px; height: auto; aspect-ratio: 1; margin: 0 4px; align-self: flex-end; pointer-events: none; opacity: 0.9; }
   </style>
 </head>
 <body>
@@ -459,7 +459,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@c86f0a35917422fa5d7a96e593a43b860835bf4f/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@4dffde06eb4b9022117bf1d1b9c9d6d14b7c0a8c/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2152,8 +2152,9 @@
       //   Space F     X Paint P
       const gap = ['', '', ''];
       padEl.append(
-        group([gap, ['W', 'w'], ['R', 'r'], ['A', 'a'], ['S', 's'], ['D', 'd'], ['Space', ' ', 'slate wide2', 'speed 0'], ['F', 'f']], 3),
-        group([['Esc', 'Escape', 'slate'], ['Tab', 'Tab', 'teal', 'next'], ['Target', 't', 'teal long'], ['U', 'u', 'slate', 'undo'], ['M', 'm', 'red', 'place'], ['V', 'v', 'red', 'bar'], ['X', 'x', 'red', 'del'], ['Paint', 'paint', 'red long'], ['P', 'p', 'red', 'palette']]),
+        group([gap, ['W', 'w'], ['R', 'r', 'teal'], ['A', 'a'], ['S', 's'], ['D', 'd'], ['Space', ' ', 'slate wide2', 'speed 0'], ['F', 'f', 'teal']], 3),
+        document.getElementById('vec'), // the speed vector sits between the two groups
+        group([['Esc', 'Escape', 'slate'], ['Tab', 'Tab', 'teal', 'next'], ['Target', 't', 'teal long'], ['U', 'u', 'slate', 'undo'], ['M', 'm', 'cream', 'place'], ['V', 'v', 'cream', 'bar'], ['X', 'x', 'red', 'del'], ['Paint', 'paint', 'red long'], ['P', 'p', 'red', 'palette']]),
       );
     }
     document.getElementById('fabTravel').addEventListener('click', travelTo);
