@@ -446,7 +446,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@3ceb8ae5c8ccf46ff64ad4597a70f2542d287f77/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@7a43fe63865ecce900e240d1b1758cc9c0577366/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -795,11 +795,12 @@
       const touchy = matchMedia('(pointer: coarse), (max-width: 640px)').matches || document.body.classList.contains('pwa');
       // on a phone the drawing is a little larger than the short side and the rest of the screen is panel color
       // on a desktop the drawing covers the whole stage (the square's long side), the eye backs off to keep the framing
-      const cover = touchy ? 1.12 : Math.max(r.width, r.height) / Math.max(1, Math.min(r.width, r.height));
+      const inApp = document.body.classList.contains('pwa');
+      const cover = touchy && !inApp ? 1.12 : Math.max(r.width, r.height) / Math.max(1, Math.min(r.width, r.height));
       const size = Math.max(160, Math.min(1800, Math.floor(Math.min(r.width, r.height) * cover)));
       if (!pointer && touchy) pointer = { x: r.left + r.width / 2, y: r.top + r.height / 2 }; // no mouse: aim at the middle
       const view = orbit({ yaw, pitch }); // the camera orbits, the scene stays in object space
-      const base = Math.max(160, Math.min(900, Math.floor(Math.min(r.width, r.height) * (touchy ? 1.12 : 1))));
+      const base = Math.max(160, Math.min(900, Math.floor(Math.min(r.width, r.height) * (touchy && !inApp ? 1.12 : 1))));
       const eye0 = makeCamera(view, nothing, 100, fit).eye;
       const dist = Math.hypot(...eye0.map((e, i) => e - fit.center[i]));
       const shown_fit = size > base ? { ...fit, dist: dist * (size / base) } : fit;
@@ -963,7 +964,9 @@
     let lightAngle = 0.8;
     let smooth = true; // N: smooth shading on the WebGPU view (faces within 40 degrees share normals)
     let studio = true; // K: studio light (key, fill, rim) that follows the camera
-    let filmic = true; // C: filmic look on the WebGPU view (linear light, tone mapping, glowing emission)
+    // the installed app (or ?pwa) has no keyboard and is meant for small screens: no filmic look there
+    const isApp = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true || /[?&]pwa\b/.test(location.search);
+    let filmic = !isApp; // C: filmic look on the WebGPU view (linear light, tone mapping, glowing emission)
     let renderGpu = null;
     const gpuErrors = [];
     const setMode = async (next) => {
@@ -2076,7 +2079,6 @@
     document.getElementById('travel').addEventListener('click', travelTo);
 
     // The touch pad of the installed app: every button does what its key does.
-    const isApp = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true || /[?&]pwa\b/.test(location.search);
     if (isApp) {
       document.body.classList.add('pwa');
       document.getElementById('palHint').textContent = 'materials · aim the cross, choose a material, press Paint: the face under the cross · press twice: the whole object · pick: the material under the cross';
@@ -2286,7 +2288,7 @@
     document.getElementById('gpuBtn').addEventListener('click', toggleMode);
     document.getElementById('light').addEventListener('click', turnLight);
     document.getElementById('filmic').addEventListener('click', toggleFilmic);
-    document.getElementById('filmic').classList.add('on');
+    document.getElementById('filmic').classList.toggle('on', filmic);
     document.getElementById('smooth').addEventListener('click', toggleSmooth);
     document.getElementById('smooth').classList.add('on');
     document.getElementById('studio').addEventListener('click', toggleStudio);
