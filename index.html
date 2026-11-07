@@ -356,6 +356,11 @@
     #pad button.wide2 { grid-column: span 2; } #pad button.wide3 { grid-column: span 3; } #pad button.wide4 { grid-column: span 4; }
     #pad button.long { font-size: calc(var(--k) * 0.23); }
     #pad button.gap { visibility: hidden; pointer-events: none; }
+    #exaMenu { display: none; position: fixed; inset: 0; z-index: 7; align-items: center; justify-content: center; background: #0008; }
+    #exaMenu.open { display: flex; }
+    #exaMenu .box { display: flex; flex-direction: column; gap: 10px; padding: 16px; min-width: 200px; background: #151515; border-radius: 16px; box-shadow: 0 10px 40px #000a; }
+    #exaMenu .box b { color: var(--cream); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.7; }
+    #exaMenu button { width: auto; height: auto; padding: 14px 18px; font-size: 18px; }
     #pad button small { display: block; font-size: 0.62em; opacity: 0.7; font-weight: 500; margin-top: 2px; }
 
     #vec { display: none; }
@@ -450,6 +455,7 @@
         <option value="">+ Example…</option>
         <option value="bridge">Stone bridge</option>
         <option value="globe">Globe</option>
+        <option value="stars">Stars (500 nearest)</option>
       </select>
       <button id="zen" type="button" class="slate" title="Zen: only the model (Z)">Zen</button>
       <button id="clear" type="button" class="slate" title="Remove every object (U brings them back)">Clear</button>
@@ -459,7 +465,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@4dffde06eb4b9022117bf1d1b9c9d6d14b7c0a8c/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@1f2f09ad16e6216a568244471477d10010cd2c7a/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2136,6 +2142,11 @@
               else paintFace(true);
               lastPaint = t;
             });
+          } else if (key === 'exa') {
+            b.addEventListener('pointerdown', (e) => {
+              e.preventDefault();
+              document.getElementById('exaMenu').classList.add('open');
+            });
           } else if (key) {
             b.addEventListener('pointerdown', (e) => {
               e.preventDefault();
@@ -2146,13 +2157,34 @@
         }
         return g;
       };
+      // Exa: a menu in the middle with the starting scenes; a choice clears the scene and puts the chosen one in
+      const exaMenu = document.createElement('div');
+      exaMenu.id = 'exaMenu';
+      const box = document.createElement('div');
+      box.className = 'box';
+      box.innerHTML = '<b>Scene</b>';
+      for (const name of ['empty', 'globe', 'stars']) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'cream';
+        b.textContent = name;
+        b.addEventListener('click', async () => {
+          exaMenu.classList.remove('open');
+          clearScene();
+          if (name !== 'empty') await addExample(name);
+        });
+        box.append(b);
+      }
+      exaMenu.append(box);
+      exaMenu.addEventListener('click', (e) => e.target === exaMenu && exaMenu.classList.remove('open'));
+      document.body.append(exaMenu);
       // left: W R / A S D F / Space; right: Esc Tab Target / U M V / X Paint P
       //   . W R      Esc Tab Target
       //   A S D       U  M   V
       //   Space F     X Paint P
       const gap = ['', '', ''];
       padEl.append(
-        group([gap, ['W', 'w'], ['R', 'r', 'teal'], ['A', 'a'], ['S', 's'], ['D', 'd'], ['Space', ' ', 'slate wide2', 'speed 0'], ['F', 'f', 'teal']], 3),
+        group([['Exa', 'exa', 'red long'], ['W', 'w'], ['R', 'r', 'teal'], ['A', 'a'], ['S', 's'], ['D', 'd'], ['Space', ' ', 'slate wide2', 'speed 0'], ['F', 'f', 'teal']], 3),
         document.getElementById('vec'), // the speed vector sits between the two groups
         group([['Esc', 'Escape', 'slate'], ['Tab', 'Tab', 'teal', 'next'], ['Target', 't', 'teal long'], ['U', 'u', 'slate', 'undo'], ['M', 'm', 'cream', 'place'], ['V', 'v', 'cream', 'bar'], ['X', 'x', 'red', 'del'], ['Paint', 'paint', 'red long'], ['P', 'p', 'red', 'palette']]),
       );
