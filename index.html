@@ -459,7 +459,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@fd2ac5ac01dc3c4c6d0f2ec00d8c88c799813b1f/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@c86f0a35917422fa5d7a96e593a43b860835bf4f/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2147,12 +2147,12 @@
         return g;
       };
       // left: W R / A S D F / Space; right: Esc Tab Target / U M V / X Paint P
-      //  w r    Esc Tab Target
-      //  a s d f  U  M   V
-      //  Space    X Paint P
+      //   . W R      Esc Tab Target
+      //   A S D       U  M   V
+      //   Space F     X Paint P
       const gap = ['', '', ''];
       padEl.append(
-        group([['W', 'w'], gap, ['R', 'r'], gap, ['A', 'a'], ['S', 's'], ['D', 'd'], ['F', 'f'], ['Space', ' ', 'cream wide4', 'speed 0']], 4),
+        group([gap, ['W', 'w'], ['R', 'r'], ['A', 'a'], ['S', 's'], ['D', 'd'], ['Space', ' ', 'slate wide2', 'speed 0'], ['F', 'f']], 3),
         group([['Esc', 'Escape', 'slate'], ['Tab', 'Tab', 'teal', 'next'], ['Target', 't', 'teal long'], ['U', 'u', 'slate', 'undo'], ['M', 'm', 'red', 'place'], ['V', 'v', 'red', 'bar'], ['X', 'x', 'red', 'del'], ['Paint', 'paint', 'red long'], ['P', 'p', 'red', 'palette']]),
       );
     }
