@@ -446,7 +446,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@0aba3e004e4567e59a73edb8708da90babcfae3a/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@3ceb8ae5c8ccf46ff64ad4597a70f2542d287f77/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1517,12 +1517,12 @@
       goTo({ ...overview(), yaw, pitch }); // frame the isolated object, keep the viewing direction
     };
     // Shift+press: the face under the cross (the palette must be on). Shift+double click: its whole model.
-    const paintFace = () => {
-      if (paletteEl.hidden || !hit) return;
+    const paintFace = (force = false) => {
+      if ((paletteEl.hidden && !force) || !hit) return;
       paintFaces(owner(hit.face), new Set([hit.face]));
     };
-    const paintModel = () => {
-      if (paletteEl.hidden || !hit) return;
+    const paintModel = (force = false) => {
+      if ((paletteEl.hidden && !force) || !hit) return;
       paintFaces(owner(hit.face), null); // the whole object
     };
 
@@ -2079,7 +2079,7 @@
     const isApp = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true || /[?&]pwa\b/.test(location.search);
     if (isApp) {
       document.body.classList.add('pwa');
-      document.getElementById('palHint').textContent = 'materials · Paint on, then tap a face · double tap: the whole object · pick: the material under the cross';
+      document.getElementById('palHint').textContent = 'materials · aim the cross, choose a material, press Paint: the face under the cross · press twice: the whole object · pick: the material under the cross';
       stage.classList.add('clean'); // no E button on the pad: start without the edge and point clutter
       const padEl = document.getElementById('pad');
       const press = (key, extra = {}) => {
@@ -2096,11 +2096,16 @@
           if (!key) b.classList.add('gap');
           if (label) b.innerHTML = sub ? `${label}<small>${sub}</small>` : label;
           if (key === 'paint') {
+            // Paint: the cross already marks the target; pressing it paints that face with the selected material,
+            // pressing it twice quickly paints the whole object
             b.id = 'padPaint';
+            let lastPaint = 0;
             b.addEventListener('pointerdown', (e) => {
               e.preventDefault();
-              shiftOn = !shiftOn;
-              b.classList.toggle('on', shiftOn);
+              const t = performance.now();
+              if (t - lastPaint < 400) paintModel(true);
+              else paintFace(true);
+              lastPaint = t;
             });
           } else if (key) {
             b.addEventListener('pointerdown', (e) => {
@@ -2115,7 +2120,7 @@
       // left: fly (R W F / A S D), Space; right: Esc Tab Paint / M V X / P Target
       padEl.append(
         group([['R', 'r'], ['W', 'w'], ['F', 'f'], ['A', 'a'], ['S', 's'], ['D', 'd'], ['Space', ' ', 'cream wide3', 'speed 0']]),
-        group([['Esc', 'Escape', 'slate'], ['Tab', 'Tab', 'teal', 'next'], ['Paint', 'paint', 'slate', 'face'], ['M', 'm', 'red', 'place'], ['V', 'v', 'red', 'bar'], ['X', 'x', 'red', 'del'], ['P', 'p', 'red', 'palette'], ['Target', 't', 'teal wide2']]),
+        group([['Esc', 'Escape', 'slate'], ['Tab', 'Tab', 'teal', 'next'], ['Paint', 'paint', 'red', 'face'], ['M', 'm', 'red', 'place'], ['V', 'v', 'red', 'bar'], ['X', 'x', 'red', 'del'], ['P', 'p', 'red', 'palette'], ['Target', 't', 'teal wide2']]),
       );
     }
     document.getElementById('fabTravel').addEventListener('click', travelTo);
