@@ -350,12 +350,16 @@
     body.pwa #stage svg rect, body.pwa #stage svg text { display: none; }
     body.pwa #hud { top: max(8px, env(safe-area-inset-top, 0px)); left: max(8px, env(safe-area-inset-left, 0px)); font-size: 11px; width: min(58%, 240px); }
     body.pwa #pad { --k: clamp(34px, min(10.5vw, 9.5dvh), 48px); display: flex; justify-content: space-between; align-items: flex-end; position: fixed; left: max(8px, env(safe-area-inset-left, 0px)); right: max(8px, env(safe-area-inset-right, 0px)); bottom: max(8px, env(safe-area-inset-bottom, 0px)); z-index: 5; pointer-events: none; }
-    #pad .grp { display: grid; grid-template-columns: repeat(3, var(--k)); grid-auto-rows: var(--k); gap: 6px; }
+    #pad .grp { display: grid; grid-template-columns: repeat(var(--cols, 3), var(--k)); grid-auto-rows: var(--k); gap: 6px; }
     body.pwa #hud, body.pwa #pad { pointer-events: none; background: none; }
     #pad button { pointer-events: auto; width: auto; height: auto; padding: 0; border-radius: 12px; font-size: calc(var(--k) * 0.3); touch-action: manipulation; -webkit-tap-highlight-color: transparent; opacity: 0.92; }
-    #pad button.wide2 { grid-column: span 2; } #pad button.wide3 { grid-column: span 3; }
+    #pad button.wide2 { grid-column: span 2; } #pad button.wide3 { grid-column: span 3; } #pad button.wide4 { grid-column: span 4; }
+    #pad button.long { font-size: calc(var(--k) * 0.23); }
     #pad button.gap { visibility: hidden; pointer-events: none; }
     #pad button small { display: block; font-size: 0.62em; opacity: 0.7; font-weight: 500; margin-top: 2px; }
+
+    #vec { display: none; }
+    body.pwa #vec { display: block; position: fixed; left: 50%; top: 50%; width: 140px; height: 140px; margin: -70px 0 0 -70px; z-index: 2; pointer-events: none; opacity: 0.9; }
   </style>
 </head>
 <body>
@@ -402,6 +406,15 @@
   </div>
   <button id="zenOff" type="button" class="slate" aria-label="Leave zen mode (Z or Esc)" title="Leave zen (Z or Esc)">⤢ zen off</button>
 
+  <svg id="vec" viewBox="-70 -70 140 140" aria-hidden="true">
+    <defs><marker id="vecHead" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 8 4 0 8z" fill="#2fb8c0"/></marker></defs>
+    <g stroke="#cfc9a0" stroke-opacity=".35" stroke-width="1" fill="none">
+      <path d="M-46 0H46M0 -46V46M-27 24 27 -24"/>
+    </g>
+    <g id="vecDrop" stroke="#2fb8c0" stroke-opacity=".55" stroke-width="1" stroke-dasharray="3 3" fill="none"></g>
+    <line id="vecMain" x1="0" y1="0" x2="0" y2="0" stroke="#2fb8c0" stroke-width="2.5" stroke-linecap="round" marker-end="url(#vecHead)"/>
+    <circle r="2.5" fill="#d9d3a7"/>
+  </svg>
   <div id="pad" aria-label="Keys"></div>
 
   <aside id="keypanel" hidden aria-label="Key explainer">
@@ -446,7 +459,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@7a43fe63865ecce900e240d1b1758cc9c0577366/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@fd2ac5ac01dc3c4c6d0f2ec00d8c88c799813b1f/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -933,6 +946,19 @@
       }
       fabMode.classList.toggle('on', mode === 'gpu' && Boolean(gpu));
       speedEl.textContent = `${level.f}·${level.r}·${level.u}`;
+      // the 3D speed vector in the middle (the installed app): right, up and forward as a cabinet projection, stairs dashed
+      if (inApp) {
+        const len = (l) => Math.sign(l) * Math.sqrt(Math.abs(pace(l))) * 9;
+        const [r3, u3, f3] = [len(level.r), len(level.u), len(level.f)];
+        const fx = 0.6, fy = -0.45; // forward leans up and to the right, as if going into the screen
+        const px = Math.max(-62, Math.min(62, r3 + f3 * fx));
+        const py = Math.max(-62, Math.min(62, -u3 + f3 * fy));
+        const main = document.getElementById('vecMain');
+        main.setAttribute('x2', px);
+        main.setAttribute('y2', py);
+        main.style.display = level.f || level.r || level.u ? '' : 'none';
+        document.getElementById('vecDrop').innerHTML = `<path d="M0 0 H${r3} V${-u3} L${px} ${py}"/>`;
+      }
       yawEl.textContent = deg(yaw);
       pitchEl.textContent = deg(pitch);
       countEl.textContent = String(allObjects().length + placed.length);
@@ -2081,16 +2107,17 @@
     // The touch pad of the installed app: every button does what its key does.
     if (isApp) {
       document.body.classList.add('pwa');
-      document.getElementById('palHint').textContent = 'materials · aim the cross, choose a material, press Paint: the face under the cross · press twice: the whole object · pick: the material under the cross';
+      document.getElementById('palHint').hidden = true; // no help text on the palette in the app
       stage.classList.add('clean'); // no E button on the pad: start without the edge and point clutter
       const padEl = document.getElementById('pad');
       const press = (key, extra = {}) => {
         document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...extra }));
         document.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true, cancelable: true, ...extra }));
       };
-      const group = (cells) => {
+      const group = (cells, cols = 3) => {
         const g = document.createElement('div');
         g.className = 'grp';
+        g.style.setProperty('--cols', cols);
         for (const [label, key, cls, sub] of cells) {
           const b = document.createElement('button');
           b.type = 'button';
@@ -2119,10 +2146,14 @@
         }
         return g;
       };
-      // left: fly (R W F / A S D), Space; right: Esc Tab Paint / M V X / P Target
+      // left: W R / A S D F / Space; right: Esc Tab Target / U M V / X Paint P
+      //  w r    Esc Tab Target
+      //  a s d f  U  M   V
+      //  Space    X Paint P
+      const gap = ['', '', ''];
       padEl.append(
-        group([['R', 'r'], ['W', 'w'], ['F', 'f'], ['A', 'a'], ['S', 's'], ['D', 'd'], ['Space', ' ', 'cream wide3', 'speed 0']]),
-        group([['Esc', 'Escape', 'slate'], ['Tab', 'Tab', 'teal', 'next'], ['Paint', 'paint', 'red', 'face'], ['M', 'm', 'red', 'place'], ['V', 'v', 'red', 'bar'], ['X', 'x', 'red', 'del'], ['P', 'p', 'red', 'palette'], ['Target', 't', 'teal wide2']]),
+        group([['W', 'w'], gap, ['R', 'r'], gap, ['A', 'a'], ['S', 's'], ['D', 'd'], ['F', 'f'], ['Space', ' ', 'cream wide4', 'speed 0']], 4),
+        group([['Esc', 'Escape', 'slate'], ['Tab', 'Tab', 'teal', 'next'], ['Target', 't', 'teal long'], ['U', 'u', 'slate', 'undo'], ['M', 'm', 'red', 'place'], ['V', 'v', 'red', 'bar'], ['X', 'x', 'red', 'del'], ['Paint', 'paint', 'red long'], ['P', 'p', 'red', 'palette']]),
       );
     }
     document.getElementById('fabTravel').addEventListener('click', travelTo);
