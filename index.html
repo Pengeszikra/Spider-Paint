@@ -491,7 +491,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@6a6e97fe2032f43471ddddd80e4200ac93e694d0/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@2e23892387c4c5f51cf0614e680d15b165b83e9e/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -806,6 +806,9 @@
     // the distance, and a mouse drag turns it over the same sphere. Only Space or Esc let go, and then the camera stays
     // exactly where it is.
     let locked = null; // the id of the targeted object
+    let lockedSeen = null; // the target the fade below was last started for
+    let fadeTimer = 0;
+    let targetSince = 0; // when it was seen first (performance.now())
     const lockedObject = () => (locked ? allObjects().find((o) => o.id === locked) ?? null : null);
     const ballCache = new WeakMap();
     const ballOf = (o) => {
@@ -976,6 +979,7 @@
       const handles = gizmoHandles();
       const lockedObj = lockedObject();
       if (locked && !lockedObj) locked = null; // the object is gone
+      if (locked !== lockedSeen) ((lockedSeen = locked), (targetSince = now));
       // The cross is sized for the scene, but never bigger than a few percent of the way to the point it sits on, and never much
       // bigger than the object under it: a thin bar close to the eye gets a tiny cross, not one the size of the screen.
       const crossRadius = () => {
@@ -1034,7 +1038,11 @@
             ticks.push([p, at(m)], [at(1 - m), q]);
           }
         }
-        marks.push({ name: 'target', color: '#4dabf7', width: 2.5, lines: ticks });
+        // the bracket fades to 10% after 10 s (over one more second), so it does not sit in the way once you have found your target
+        const age = now - targetSince;
+        const fade = age < 10000 ? 1 : Math.max(0.1, 1 - (0.9 * (age - 10000)) / 1000);
+        if (fade > 0.1 && !fadeTimer) fadeTimer = setTimeout(() => ((fadeTimer = 0), redraw()), age < 10000 ? 10000 - age + 20 : 40);
+        marks.push({ name: 'target', color: '#4dabf7', width: 2.5, opacity: fade, lines: ticks });
       }
       if (handles) {
         for (const h of handles) marks.push({ name: `gizmo-${'xyz'[h.axis]}`, color: h.color, width: h.axis === (gdrag?.axis ?? gHover) ? 6 : 3, lines: h.lines });
