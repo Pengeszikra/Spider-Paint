@@ -482,6 +482,7 @@
         <option value="bridge">Stone bridge</option>
         <option value="globe">Globe</option>
         <option value="stars">Stars (500 nearest)</option>
+        <option value="milkyway">Milky Way (30 000 super-stars)</option>
         <option value="stars-plain">Stars (300) + 100 galaxies (point glow)</option>
         <option value="ex27">EX-27 expedition module</option>
       </select>
@@ -493,7 +494,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@692f1650f138fc2ade4f7ac8bed1589d8a6f1bc5/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@46aaf75f4de4ef3938985396bef4c9d0e60113c9/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1172,6 +1173,7 @@
           flightEl.innerHTML = `<div><b>${speedText}</b></div><div class="lock">${gapTo === null ? '' : star ? `${gapTo.toFixed(2)} ly` : gapTo.toFixed(2)}</div>`;
         }
       }
+      drawCloud(size);
       drawGlow(size);
       surfaceEl.innerHTML = hit
         ? `surface <b>face ${hit.face} · n ${hit.normal.map(signed).join(' ')}</b> · ${healthText(owner(hit.face))}`
@@ -1293,6 +1295,105 @@
     };
     // Glow without a mesh: stars whose instance has a `glow` radius (world units) get a soft additive sprite on a 2D canvas over the
     // 3D view, a few pixels wide even when the star itself is far below one pixel. It works the same on every backend.
+    // The point cloud of a scene (`cloud`: the Milky Way's tens of thousands of super-stars): one WebGL2 point layer of its own,
+    // soft round sprites added together (screen blend) on top of the picture, whichever renderer draws the scene.
+    // A point is smaller than a pixel far away: it keeps a minimum size and dims with its area; close up a big sprite
+    // dims with its area too, so the light of a point stays the same.
+    let cloud = null; // { n, data: Float32Array(n * 8): x y z radius r g b brightness }
+    const cloudCanvas = Object.assign(document.createElement('canvas'), { id: 'cloud' });
+    cloudCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;mix-blend-mode:screen';
+    cloudCanvas.hidden = true;
+    frame.append(cloudCanvas);
+    let cloudGl = null;
+    const cloudInit = () => {
+      if (cloudGl) return cloudGl;
+      const gl = cloudCanvas.getContext('webgl2', { alpha: false, antialias: false, premultipliedAlpha: false });
+      if (!gl) return (cloudGl = { failed: true });
+      const sh = (type, src) => {
+        const x = gl.createShader(type);
+        gl.shaderSource(x, src);
+        gl.compileShader(x);
+        return x;
+      };
+      const prog = gl.createProgram();
+      gl.attachShader(prog, sh(gl.VERTEX_SHADER, `#version 300 es
+        in vec3 aPos; in float aRad; in vec3 aCol; in float aLum;
+        uniform vec3 uEye, uF, uR, uU; uniform float uK, uHalf, uDpr;
+        out vec3 vCol; out float vA;
+        void main() {
+          vec3 d = aPos - uEye;
+          float depth = dot(d, uF);
+          if (depth < 1e-3) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; vA = 0.0; vCol = vec3(0.0); return; }
+          gl_Position = vec4(dot(d, uR) / depth * uK / uHalf, dot(d, uU) / depth * uK / uHalf, 0.0, 1.0);
+          float nat = aRad * uK / depth;                    // radius in pixels
+          float px = clamp(nat, 1.3, 90.0);
+          gl_PointSize = px * 2.0 * uDpr;
+          float a = aLum * (nat < 1.3 ? (nat / 1.3) * (nat / 1.3) : 1.0);
+          a *= nat > 5.0 ? (5.0 / min(nat, 90.0)) * (5.0 / min(nat, 90.0)) : 1.0;
+          a *= 1.0 - smoothstep(6.0, 30.0, nat);              // close ones fade out: the real neighbourhood stars stand there
+          vA = a; vCol = aCol;
+        }`));
+      gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, `#version 300 es
+        precision mediump float;
+        in vec3 vCol; in float vA; out vec4 o;
+        void main() {
+          float r = length(gl_PointCoord * 2.0 - 1.0);
+          if (r > 1.0) discard;
+          o = vec4(vCol * vA * exp(-r * r * 3.5) * 0.3, 1.0);
+        }`));
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return (cloudGl = { failed: true });
+      const buf = gl.createBuffer();
+      const loc = (n) => gl.getAttribLocation(prog, n);
+      const vao = gl.createVertexArray();
+      gl.bindVertexArray(vao);
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      [['aPos', 3, 0], ['aRad', 1, 3], ['aCol', 3, 4], ['aLum', 1, 7]].forEach(([n, c, o]) => {
+        gl.enableVertexAttribArray(loc(n));
+        gl.vertexAttribPointer(loc(n), c, gl.FLOAT, false, 32, o * 4);
+      });
+      const u = Object.fromEntries(['uEye', 'uF', 'uR', 'uU', 'uK', 'uHalf', 'uDpr'].map((n) => [n, gl.getUniformLocation(prog, n)]));
+      return (cloudGl = { gl, prog, buf, vao, u, loaded: null });
+    };
+    const setCloud = (c, dx = 0) => {
+      if (!c) return void (cloud = null);
+      const data = new Float32Array(c.n * 8);
+      for (let i = 0; i < c.n; i++) {
+        const col = c.c[i];
+        data.set([c.p[3 * i] * c.unit + dx, c.p[3 * i + 1] * c.unit, c.p[3 * i + 2] * c.unit, c.r[i], ((col >> 16) & 255) / 255, ((col >> 8) & 255) / 255, (col & 255) / 255, c.l[i] / 100], i * 8);
+      }
+      cloud = { n: c.n, data };
+    };
+    const drawCloud = (size) => {
+      const g = cloud && gcam && !gcam.ortho ? cloudInit() : null;
+      cloudCanvas.hidden = !g || g.failed;
+      if (cloudCanvas.hidden) return;
+      const { gl } = g;
+      const dpr = Math.min(2, globalThis.devicePixelRatio || 1);
+      const px = Math.round(size * dpr);
+      if (cloudCanvas.width !== px) cloudCanvas.width = cloudCanvas.height = px;
+      gl.viewport(0, 0, px, px);
+      if (g.loaded !== cloud) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, g.buf);
+        gl.bufferData(gl.ARRAY_BUFFER, cloud.data, gl.STATIC_DRAW);
+        g.loaded = cloud;
+      }
+      gl.clearColor(0, 0, 0, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_COLOR); // soft saturation: a dense core stays bright, not clipped white
+      gl.useProgram(g.prog);
+      gl.bindVertexArray(g.vao);
+      const { eye, f, r, u, k } = gcam;
+      gl.uniform3fv(g.u.uEye, eye);
+      gl.uniform3fv(g.u.uF, f);
+      gl.uniform3fv(g.u.uR, r);
+      gl.uniform3fv(g.u.uU, u);
+      gl.uniform1f(g.u.uK, k);
+      gl.uniform1f(g.u.uHalf, size / 2);
+      gl.uniform1f(g.u.uDpr, dpr);
+      gl.drawArrays(gl.POINTS, 0, cloud.n);
+    };
     const glowCanvas = Object.assign(document.createElement('canvas'), { id: 'glow' });
     glowCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none';
     frame.append(glowCanvas);
@@ -1593,6 +1694,8 @@
     };
     // Clear: every object goes; one U brings them all back.
     const clearScene = () => {
+      setCloud(null);
+      redraw();
       const all = allObjects().slice();
       if (!all.length) return;
       boolFrom = null;
@@ -1645,7 +1748,7 @@
       if (changed) rebuild();
     };
     const addExample = async (name) => {
-      const { objects: raw, palette: extra, prototypes, start } = await sceneOf(name);
+      const { objects: raw, palette: extra, prototypes, start, cloud: points } = await sceneOf(name);
       const objects = raw.map((o) => (o.proto ? { name: o.name, inst: { ...o, proto: prototypes[o.proto] }, mesh: instantiate(prototypes[o.proto].lods.at(-1), placement(o)) } : o));
       // a scene may bring its own materials; the ones the palette lacks are added (and saved with a db)
       for (const m of extra ?? []) {
@@ -1662,6 +1765,7 @@
         const b = spanOf(objects.map((o) => o.mesh));
         dx = a.hi[0] + gap - b.lo[0];
       }
+      setCloud(points, dx);
       asOneStep(() =>
         objects.forEach((o) => {
           const mesh = dx ? { ...o.mesh, positions: o.mesh.positions.map(([x, y, z]) => [x + dx, y, z]) } : o.mesh;
@@ -2518,7 +2622,7 @@
       const box = document.createElement('div');
       box.className = 'box';
       box.innerHTML = '<b>Scene</b>';
-      for (const name of ['empty', 'globe', 'stars', 'stars-plain', 'ex27']) {
+      for (const name of ['empty', 'globe', 'stars', 'stars-plain', 'milkyway', 'ex27']) {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'cream';
