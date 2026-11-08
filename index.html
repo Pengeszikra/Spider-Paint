@@ -493,7 +493,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@8ec4e3ca4bee8d7f9d5c5cb480d3954cf55a39f4/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e50af6167cc6afc3ed723623d0a08ad97b2085c9/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -649,6 +649,7 @@
       travel = {
         start: performance.now(),
         from: { center: [...fit.center], radius: fit.radius, dist: fit.dist ?? orbitDist(fit.radius), yaw, pitch },
+        pin: to.pin ? [...to.pin] : null, // the eye stays here for the whole turn (T / Tab: the camera only turns)
         to: { ...to, dist: to.dist ?? orbitDist(to.radius), keepDist: to.dist !== undefined, yaw: turnBy(yaw, to.yaw ?? yaw), pitch: to.pitch ?? pitch },
       };
       fly = false;
@@ -666,6 +667,11 @@
       fit.dist = mix(from.dist, to.dist);
       yaw = mix(from.yaw, to.yaw);
       pitch = mix(from.pitch, to.pitch);
+      if (travel.pin) {
+        // keep the eye on the spot: the orbit centre is placed so that this yaw/pitch/dist puts the eye there
+        const off = makeCamera(orbit({ yaw, pitch }), nothing, 100, { ...fit, center: [0, 0, 0] }).eye;
+        fit.center = travel.pin.map((e, i) => e - off[i]);
+      }
       if (t >= 1) {
         travel = null;
         if (!to.keepDist) delete fit.dist; // back to the normal orbit framing (a flown pose keeps its own)
@@ -881,6 +887,7 @@
       const len = Math.hypot(...d) || 1;
       focused = true;
       goTo({
+        pin: eye,
         center,
         radius: Math.max(radius * 1.15, 0.12),
         dist: Math.max(Math.min(len, radius * near), radius * STOP), // `near`: come at least this close (in radii)
@@ -888,14 +895,13 @@
         pitch: Math.max(-LIMIT, Math.min(LIMIT, -Math.asin(d[1] / len))),
       });
     };
-    const FRAME = 4; // Tab frames an object from at most this many radii away
     const nextTarget = (back) => {
       const list = allObjects().filter((o) => o.mesh.positions.length && owners.some((w) => w.obj.id === o.id));
       if (!list.length) return;
       const at = list.findIndex((o) => o.id === locked);
       const o = list[(at + (back ? -1 : 1) + list.length) % list.length];
       locked = o.id;
-      lookAt(o, FRAME); // Tab finds the object: it comes into view, however small or far it is
+      lookAt(o); // Tab turns the camera onto the object; it does not move (W flies there)
     };
     const travelTo = () => {
       const under = hit ? owner(hit.face) : null;
@@ -1292,11 +1298,13 @@
         s = document.createElement('canvas');
         s.width = s.height = 32;
         const g = s.getContext('2d');
-        const rgb = [1, 3, 5].map((i) => parseInt(key[(i - 1) / 2] + key[(i - 1) / 2], 16));
+        const base = [0, 1, 2].map((i) => parseInt(key[i] + key[i], 16));
+        const lum = (base[0] + base[1] + base[2]) / 3;
+        const rgb = base.map((v) => Math.max(0, Math.min(255, Math.round(lum + (v - lum) * 2.6)))); // the star tints are pale: push the hue so the glow reads as the star's colour
         const grad = g.createRadialGradient(16, 16, 0, 16, 16, 16);
-        grad.addColorStop(0, `rgba(255,255,255,1)`);
-        grad.addColorStop(0.18, `rgba(${rgb},0.85)`);
-        grad.addColorStop(0.5, `rgba(${rgb},0.25)`);
+        grad.addColorStop(0, `rgba(${rgb.map((v) => Math.round(v + (255 - v) * 0.35))},1)`);
+        grad.addColorStop(0.15, `rgba(${rgb},0.95)`);
+        grad.addColorStop(0.5, `rgba(${rgb},0.3)`);
         grad.addColorStop(1, `rgba(${rgb},0)`);
         g.fillStyle = grad;
         g.fillRect(0, 0, 32, 32);
@@ -2754,7 +2762,7 @@
         load: (data) => applyScene(data),
         // put the eye at a point of the scene (fly view), looking along yaw / pitch (degrees)
         eye: (x, y, z, yawDeg, pitchDeg) => lookFrom([x, y, z], yawDeg, pitchDeg),
-        state: () => ({ solo: solo ? 1 : 0, faces: scene.faces.length, objects: allObjects().length, db: Boolean(col), palette: !paletteEl.hidden, cursor: getComputedStyle(stage).cursor, center: fit.center, dist: fit.dist, radius: fit.radius, level: { ...level }, yaw, pitch, fly, placed: placed.length }),
+        state: () => ({ solo: solo ? 1 : 0, faces: scene.faces.length, objects: allObjects().length, db: Boolean(col), palette: !paletteEl.hidden, cursor: getComputedStyle(stage).cursor, center: fit.center, dist: fit.dist, radius: fit.radius, level: { ...level }, yaw, pitch, eye: eyeNow(), fly, placed: placed.length }),
         grab: async () => {
           const r = await renderGpu(true);
           const o = document.createElement('canvas');
