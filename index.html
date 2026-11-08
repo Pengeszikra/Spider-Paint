@@ -362,6 +362,14 @@
     #flight div { min-height: 1.45em; }
     body.zen #flight { display: none; }
     body.pwa #flight { top: calc(max(8px, env(safe-area-inset-top, 0px)) + clamp(34px, min(10.5vw, 9.5dvh), 48px) * 0.8 + 8px); right: max(10px, env(safe-area-inset-right, 0px)); font-size: 12px; }
+    #vrBtn { display: none; }
+    body.pwa #vrBtn { display: block; position: fixed; z-index: 6; top: max(8px, env(safe-area-inset-top, 0px)); right: calc(max(8px, env(safe-area-inset-right, 0px)) + clamp(34px, min(10.5vw, 9.5dvh), 48px) * 0.9 + 6px); width: calc(clamp(34px, min(10.5vw, 9.5dvh), 48px) * 0.9); height: calc(clamp(34px, min(10.5vw, 9.5dvh), 48px) * 0.8); padding: 0; border-radius: 12px; font-size: 12px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; opacity: 0.92; }
+    #vr { display: none; position: fixed; inset: 0; z-index: 30; background: #000; touch-action: none; user-select: none; -webkit-user-select: none; }
+    #vr.on { display: flex; }
+    #vr .eye { position: relative; flex: 1 1 50%; height: 100%; overflow: hidden; }
+    #vr canvas { display: block; width: 100%; height: 100%; }
+    #vr .eye::after { content: ''; position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: #4aa3ff; box-shadow: 0 0 0 1px #000a; }
+    #vr .eye b { position: absolute; left: 0; right: 0; bottom: 8%; text-align: center; font: 600 13px var(--font-mono); color: #cfe3ff; text-shadow: 0 0 4px #000; }
     #exaBtn { display: none; }
     body.pwa #exaBtn { display: block; position: fixed; z-index: 6; top: max(8px, env(safe-area-inset-top, 0px)); right: max(8px, env(safe-area-inset-right, 0px)); width: calc(var(--k, 44px) * 0.9); height: calc(var(--k, 44px) * 0.8); padding: 0; border-radius: 12px; font-size: 12px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; opacity: 0.92; }
     #stage.frozen::after { content: ''; position: absolute; inset: 5px; border: 3px dashed #4aa3ff; border-radius: 0; pointer-events: none; z-index: 4; }
@@ -435,6 +443,7 @@
     <line id="vecMain" x1="0" y1="0" x2="0" y2="0" stroke="#2fb8c0" stroke-width="2.5" stroke-linecap="round" marker-end="url(#vecHead)"/>
     <circle r="2.5" fill="#d9d3a7"/>
   </svg>
+  <div id="vr" aria-hidden="true"><div class="eye"><canvas></canvas><b></b></div><div class="eye"><canvas></canvas><b></b></div></div>
   <div id="flight" aria-hidden="true"></div>
   <div id="pad" aria-label="Keys"></div>
 
@@ -482,7 +491,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@2073c3dba63bfa455d4d77534e298f4cb18dec82/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@6a6e97fe2032f43471ddddd80e4200ac93e694d0/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -671,6 +680,84 @@
     // Freeze (touch pad): everything that moves stands still, so the cursor can work. The speed vector is kept as it was
     // and carries on when the freeze is lifted.
     let frozen = false;
+    // VR (a phone in a headset holder): the view is split into two eyes side by side, the head (the phone's sensors) turns the
+    // view, a tap speeds up, a double tap stops, a long press leaves. Both eyes are the same camera shifted by half the
+    // eye distance along its right vector (parallel axes). WebGL2 draws it (its canvas can be copied right after the draw).
+    let vr = false;
+    let vrBase = null; // yaw of the view minus the heading of the phone when the VR started
+    let vrBack = null; // the view to return to
+    const vrEl = document.getElementById('vr');
+    const eyes = [...vrEl.querySelectorAll('canvas')];
+    const eyeNotes = [...vrEl.querySelectorAll('b')];
+    const RAD = Math.PI / 180;
+    const onOrient = (e) => {
+      if (!vr || e.alpha == null || e.beta == null || e.gamma == null) return;
+      const a = e.alpha * RAD, b = e.beta * RAD, g = e.gamma * RAD;
+      // where the phone looks through its screen (device -z) in the earth frame (x east, y north, z up): Rz(alpha) Rx(beta) Ry(gamma)
+      const fx = Math.cos(a) * -Math.sin(g) - Math.sin(a) * Math.sin(b) * Math.cos(g);
+      const fy = Math.sin(a) * -Math.sin(g) + Math.cos(a) * Math.sin(b) * Math.cos(g);
+      const fz = -Math.cos(b) * Math.cos(g);
+      const heading = Math.atan2(fx, fy); // clockwise from north: the viewer's yaw grows the same way
+      if (vrBase === null) vrBase = yaw - heading;
+      if (frozen) return;
+      yaw = heading + vrBase;
+      pitch = -Math.asin(Math.max(-1, Math.min(1, fz))); // the viewer's pitch is positive looking down
+      redraw();
+    };
+    let tapAt = 0;
+    let pressTimer = 0;
+    let longPress = false;
+    vrEl.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      longPress = false;
+      clearTimeout(pressTimer);
+      pressTimer = setTimeout(() => ((longPress = true), toggleVr(false)), 700);
+    });
+    vrEl.addEventListener('pointerup', () => {
+      clearTimeout(pressTimer);
+      if (longPress || !vr) return;
+      const now = performance.now();
+      if (now - tapAt < 350) {
+        level.f = level.r = level.u = 0; // double tap: stop
+        tapAt = 0;
+      } else {
+        tapAt = now;
+        level.f += 1; // tap: faster forward
+      }
+      redraw();
+    });
+    vrEl.addEventListener('pointercancel', () => clearTimeout(pressTimer));
+    const toggleVr = async (on = !vr) => {
+      if (on === vr) return;
+      if (on) {
+        vrBack = { mode, kind: activeKind };
+        await setMode('gl');
+        if (mode !== 'gpu' || activeKind !== 'webgl2') return; // no WebGL2: no VR
+        try {
+          if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') await DeviceOrientationEvent.requestPermission();
+        } catch {}
+        locked = null; // free look: the head decides where the view points
+        if (!fly) enterFly();
+        vrBase = null;
+        vr = true;
+        vrEl.classList.add('on');
+        window.addEventListener('deviceorientation', onOrient);
+        try {
+          await document.documentElement.requestFullscreen?.();
+          await screen.orientation?.lock?.('landscape');
+        } catch {}
+      } else {
+        vr = false;
+        vrEl.classList.remove('on');
+        window.removeEventListener('deviceorientation', onOrient);
+        try {
+          screen.orientation?.unlock?.();
+          if (document.fullscreenElement && !matchMedia('(display-mode: standalone)').matches) await document.exitFullscreen();
+        } catch {}
+        await setMode(vrBack?.mode === 'gpu' ? (vrBack.kind === 'webgl2' ? 'gl' : 'gpu') : 'svg');
+      }
+      redraw();
+    };
     const toggleFreeze = () => {
       frozen = !frozen;
       for (const id of ['padFreeze', 'freeze']) document.getElementById(id)?.classList.toggle('on', frozen);
@@ -977,9 +1064,27 @@
             studio,
             light: { direction: [Math.sin(a) * 0.6, 0.8, Math.cos(a) * 0.6] },
           });
-        renderGpu();
+        if (vr) {
+          // two eyes: the same camera shifted along its right vector, drawn one after the other and copied to the eye canvases
+          const W = innerWidth, H = innerHeight, half = Math.floor(W / 2);
+          const square = Math.max(160, Math.min(1100, Math.max(half, H)));
+          const cam0 = makeCamera(view, nothing, 100, fit);
+          const ipd = fit.radius * 0.02;
+          eyes.forEach((cv, k) => {
+            const shift = ((k ? 1 : -1) * ipd) / 2;
+            gpu.render(scene, view, {
+              palette: paletteMap, parts: sceneParts, instances: { mesh: PROTO, data: instances(now, flights.length > 0) },
+              size: square, dpr: 1, fit: { ...fit, center: fit.center.map((c, i) => c + cam0.r[i] * shift) },
+              background: [0.02, 0.02, 0.03], tonemap: filmic, smooth: smooth ? 40 : 0, studio,
+              light: { direction: [Math.sin(a) * 0.6, 0.8, Math.cos(a) * 0.6] },
+            });
+            if (cv.width !== half || cv.height !== H) ((cv.width = half), (cv.height = H));
+            cv.getContext('2d').drawImage(canvas, 0, 0, square, square, (half - square) / 2, (H - square) / 2, square, square);
+          });
+          for (const n of eyeNotes) n.textContent = [...flightEl.children].map((c) => c.textContent).filter(Boolean).join('  ');
+        } else renderGpu();
         layer.className = 'over';
-        layer.innerHTML = renderView(nothing, view, { size, fit: shown_fit, marks });
+        layer.innerHTML = vr ? '' : renderView(nothing, view, { size, fit: shown_fit, marks });
       } else {
         layer.className = '';
         layer.innerHTML = renderView(shown, view, { size, fit: shown_fit, marks, occlude: true, palette: paletteMap });
@@ -2072,6 +2177,10 @@
     document.addEventListener('keydown', (e) => {
       if (e.target instanceof HTMLTextAreaElement) return; // the error text can be selected and copied
       if (e.target instanceof HTMLButtonElement) return; // Space and Enter belong to a focused button
+      if (vr && e.key === 'Escape') {
+        e.preventDefault();
+        return void toggleVr(false);
+      }
       if (e.key === 'Tab') {
         e.preventDefault(); // Tab is the target key: the next object (with no target yet: the one under the cross, like T)
         if (!e.repeat) locked ? nextTarget(e.shiftKey) : travelTo();
@@ -2110,6 +2219,9 @@
       } else if (e.key === 'o' || e.key === 'O') {
         e.preventDefault();
         if (!e.repeat) pickBool();
+      } else if ((e.key === 'y' || e.key === 'Y') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        if (!e.repeat) toggleVr();
       } else if ((e.key === 'j' || e.key === 'J') && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
         if (!e.repeat) toggleFreeze();
@@ -2291,6 +2403,16 @@
         exaMenu.classList.toggle('open');
       });
       document.body.append(exaBtn);
+      const vrBtn = document.createElement('button');
+      vrBtn.id = 'vrBtn';
+      vrBtn.type = 'button';
+      vrBtn.className = 'teal';
+      vrBtn.textContent = 'VR';
+      vrBtn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        toggleVr(true);
+      });
+      document.body.append(vrBtn);
       const loader = document.createElement('div');
       loader.id = 'loader';
       loader.innerHTML = '<i></i><span></span>';
@@ -2329,7 +2451,7 @@
       e: { cap: 'E', sub: 'edges', cat: 'cream', text: 'Edges and points on or off.' },
       r: { cap: 'R', sub: 'up', cat: 'cream', text: 'Fly up (speed steps).', target: 'Swing up over the target.' },
       t: { cap: 'T', sub: 'target', cat: 'teal', text: 'Target the object under the cross: the camera turns to it and keeps looking at it. Over empty space: the nearest object.', target: 'Another object re-targets; the target itself or empty space brings the camera back onto the target.' },
-      y: { cap: 'Y', sub: '', cat: 'free', text: 'Free: no function yet.' },
+      y: { cap: 'Y', sub: 'vr', cat: 'teal', text: 'VR: two eyes side by side for a phone in a headset holder. The phone turns the view, a tap speeds up, a double tap stops, a long press (or Y, Esc) leaves.' },
       u: { cap: 'U', sub: 'undo', cat: 'slate', text: 'Undo the last change. Backspace does the same.' },
       i: { cap: 'I', sub: 'pick', cat: 'red', text: 'Pick the material under the cross (then Shift+click paints with it).' },
       o: { cap: 'O', sub: 'bool', cat: 'red', text: 'Boolean: mark an object, then a second one, then choose union, A−B, B−A or intersect (keys 1–5).' },
