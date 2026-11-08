@@ -356,6 +356,12 @@
     #pad button.wide2 { grid-column: span 2; } #pad button.wide3 { grid-column: span 3; } #pad button.wide4 { grid-column: span 4; }
     #pad button.long { font-size: calc(var(--k) * 0.23); }
     #pad button.gap { visibility: hidden; pointer-events: none; }
+    #flight { position: fixed; z-index: 3; top: 96px; right: 28px; text-align: right; font: 500 12px/1.45 var(--font-mono); color: var(--muted); text-shadow: 0 0 4px #000, 0 0 2px #000; pointer-events: none; font-variant-numeric: tabular-nums; }
+    #flight b { color: var(--fg, inherit); font-weight: 600; }
+    #flight .lock { color: #4dabf7; }
+    #flight div { min-height: 1.45em; }
+    body.zen #flight { display: none; }
+    body.pwa #flight { top: calc(max(8px, env(safe-area-inset-top, 0px)) + clamp(34px, min(10.5vw, 9.5dvh), 48px) * 0.8 + 8px); right: max(10px, env(safe-area-inset-right, 0px)); font-size: 12px; }
     #exaBtn { display: none; }
     body.pwa #exaBtn { display: block; position: fixed; z-index: 6; top: max(8px, env(safe-area-inset-top, 0px)); right: max(8px, env(safe-area-inset-right, 0px)); width: calc(var(--k, 44px) * 0.9); height: calc(var(--k, 44px) * 0.8); padding: 0; border-radius: 12px; font-size: 12px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; opacity: 0.92; }
     #stage.frozen::after { content: ''; position: absolute; inset: 5px; border: 3px dashed #4aa3ff; border-radius: 0; pointer-events: none; z-index: 4; }
@@ -428,6 +434,7 @@
     <line id="vecMain" x1="0" y1="0" x2="0" y2="0" stroke="#2fb8c0" stroke-width="2.5" stroke-linecap="round" marker-end="url(#vecHead)"/>
     <circle r="2.5" fill="#d9d3a7"/>
   </svg>
+  <div id="flight" aria-hidden="true"></div>
   <div id="pad" aria-label="Keys"></div>
 
   <aside id="keypanel" hidden aria-label="Key explainer">
@@ -473,7 +480,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@69345a74d12a6ce5f8436a0e1343681ac4bb6da4/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@298d34ea8375fd0d03539b5f9de4b57fe3cd75c5/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -482,6 +489,7 @@
     const layer = document.getElementById('layer');
     const modeEl = document.getElementById('mode');
     const hudEl = document.getElementById('hud');
+    const flightEl = document.getElementById('flight');
     const hudText = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
     const liveEl = document.getElementById('live');
     const yawEl = document.getElementById('yaw');
@@ -993,8 +1001,7 @@
         const rows = [];
         if (lockedObj) {
           const b = ballOf(lockedObj);
-          const gap = Math.max(0, Math.hypot(...b.center.map((c, i) => c - eye[i])) - b.radius);
-          rows.push(`<div class="row lock"><span>◎ ${hudText(lockedObj.name ?? lockedObj.id)}</span><span>${gap.toFixed(2)}</span></div><div class="row"><span>wasdrf orbit · Tab next · Esc free</span></div>`);
+          rows.push(`<div class="row lock"><span>◎ ${hudText(lockedObj.name ?? lockedObj.id)}</span></div><div class="row"><span>wasdrf orbit · Tab next · Esc free</span></div>`);
         } else rows.push('<div class="row"><span>T target</span></div><div class="row"><span>&nbsp;</span></div>');
         if (under) {
           const d = Math.hypot(...hit.point.map((c, i) => c - eye[i]));
@@ -1002,6 +1009,23 @@
           rows.push(`<div class="row"><b>${hudText(under.name ?? under.id)}</b><b>${d.toFixed(2)}</b></div><div class="row"><span>${faces} faces</span><span>${under.id === locked ? 'target' : ''}</span></div>`);
         } else rows.push('<div class="row"><span>–</span></div><div class="row"><span>&nbsp;</span></div>');
         hudEl.innerHTML = rows.join('');
+        {
+          // the flight readout (top right): the speed is always there, the distance to the target only with a target.
+          // In a star map one unit is one light year, so the speed is given as a multiple of the speed of light
+          // (1 ly/s = 31 557 600 c) and the distance in light years.
+          const star = allObjects().length >= 100 && allObjects().some((o) => o.name === 'Sun');
+          let v;
+          let gapTo = null;
+          if (lockedObj) {
+            const b = ballOf(lockedObj);
+            gapTo = Math.max(0, Math.hypot(...b.center.map((c, i) => c - eye[i])) - b.radius);
+            const dist = fit.dist ?? orbitDist(fit.radius);
+            v = Math.hypot(pace(level.f) * ZOOM * dist, dist * SWING * Math.hypot(pace(level.r), pace(level.u)));
+          } else v = Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT;
+          const nice = (x) => (x >= 1e9 ? `${(x / 1e9).toFixed(1)}G` : x >= 1e6 ? `${(x / 1e6).toFixed(1)}M` : x >= 1e4 ? `${(x / 1e3).toFixed(1)}k` : x >= 100 ? x.toFixed(0) : x >= 1 ? x.toFixed(1) : x.toFixed(2));
+          const speedText = star ? `${v ? nice(v * 31557600) : '0'} c` : `${v.toFixed(2)} u/s`;
+          flightEl.innerHTML = `<div><b>${speedText}</b></div><div class="lock">${gapTo === null ? '' : star ? `${gapTo.toFixed(2)} ly` : gapTo.toFixed(2)}</div>`;
+        }
       }
       surfaceEl.innerHTML = hit
         ? `surface <b>face ${hit.face} · n ${hit.normal.map(signed).join(' ')}</b> · ${healthText(owner(hit.face))}`
