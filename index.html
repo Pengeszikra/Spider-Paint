@@ -493,7 +493,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@5abba22064c9ee028a35446b870b70b15484bc5d/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@692f1650f138fc2ade4f7ac8bed1589d8a6f1bc5/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1144,7 +1144,14 @@
         if (under) {
           const d = Math.hypot(...hit.point.map((c, i) => c - eye[i]));
           const faces = under.mesh.faces.length;
-          rows.push(`<div class="row"><b>${hudText(under.name ?? under.id)}</b><b>${d.toFixed(2)}</b></div><div class="row"><span>${faces} faces</span><span>${under.id === locked ? 'target' : ''}</span></div>`);
+          // a target and another object under the cross: the distance between the two (centre to centre; light years in a star map)
+          let between = '';
+          if (lockedObj && under !== lockedObj) {
+            const gap = Math.hypot(...ballOf(under).center.map((c, i) => c - ballOf(lockedObj).center[i]));
+            const starMap = allObjects().length >= 100 && allObjects().some((o) => o.name === 'Sun');
+            between = `<div class="row"><span>to target</span><span>${starMap ? `${gap.toFixed(2)} ly` : gap.toFixed(2)}</span></div>`;
+          }
+          rows.push(`<div class="row"><b>${hudText(under.name ?? under.id)}</b><b>${d.toFixed(2)}</b></div><div class="row"><span>${faces} faces</span><span>${under.id === locked ? 'target' : ''}</span></div>${between}`);
         } else rows.push('<div class="row"><span>–</span></div><div class="row"><span>&nbsp;</span></div>');
         hudEl.innerHTML = rows.join('');
         {
