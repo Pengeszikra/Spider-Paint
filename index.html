@@ -482,6 +482,7 @@
         <option value="bridge">Stone bridge</option>
         <option value="globe">Globe</option>
         <option value="stars">Stars (500 nearest)</option>
+        <option value="ship">Ship RW-7</option>
       </select>
       <button id="zen" type="button" class="slate" title="Zen: only the model (Z)">Zen</button>
       <button id="clear" type="button" class="slate" title="Remove every object (U brings them back)">Clear</button>
@@ -491,7 +492,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@1d3fed4f61d0273367075a05daf0408cc6779861/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@5e5da87f18cfb0241ab901751b73559759ef2f00/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2377,7 +2378,7 @@
       const box = document.createElement('div');
       box.className = 'box';
       box.innerHTML = '<b>Scene</b>';
-      for (const name of ['empty', 'globe', 'stars']) {
+      for (const name of ['empty', 'globe', 'stars', 'ship']) {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'cream';

@@ -25,7 +25,7 @@ const steps = [
   ['table scene', "      if (name === 'table') return { objects: [{ name: 'table', mesh: table }] };\n", ''],
   ['example path', 'fetch(`../examples/${name}.scene.json`)', 'fetch(`./models/${name}.scene.json`)'],
   // the bridge and the globe are shipped (the scene starts with the globe)
-  ['example list', /(<option value="">\+ Example…<\/option>\n)[\s\S]*?(\s*<\/select>)/, (_, head, tail) => `${head}        <option value="bridge">Stone bridge</option>\n        <option value="globe">Globe</option>\n        <option value="stars">Stars (500 nearest)</option>${tail}`],
+  ['example list', /(<option value="">\+ Example…<\/option>\n)[\s\S]*?(\s*<\/select>)/, (_, head, tail) => `${head}        <option value="bridge">Stone bridge</option>\n        <option value="globe">Globe</option>\n        <option value="stars">Stars (500 nearest)</option>\n        <option value="ship">Ship RW-7</option>${tail}`],
   // no MCP server here: the live link is opt-in (?live), so a static server is not polled for /events
   ['live link', "if (['localhost', '127.0.0.1'].includes(location.hostname) && typeof EventSource", "if (new URLSearchParams(location.search).has('live') && typeof EventSource"],
   // installable on a phone: manifest, icons and theme colour (the files are in this repo, sync does not touch them)
@@ -62,4 +62,5 @@ for (const f of globe.objects.find((o) => o.name === 'Ocean').mesh.faces) f.colo
 writeFileSync(join(here, 'models/globe.scene.json'), JSON.stringify(globe));
 // the 500 nearest stars (not in the offline shell: it is 5 MB, the service worker keeps it after the first use)
 writeFileSync(join(here, 'models/stars.scene.json'), readFileSync(join(src, 'examples/stars.scene.json')));
+writeFileSync(join(here, 'models/ship.scene.json'), readFileSync(join(src, 'examples/ship.scene.json')));
 console.log(`Spider Paint <- 3Draft ${commit}`);
