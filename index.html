@@ -493,7 +493,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@0213dcfcd20106dffc5600c58648f2c2110ec136/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@ff44e7ac4c06153f1398b017ae7ed53d1dbd146d/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -882,7 +882,7 @@
     const lookAt = (o, near = Infinity) => {
       // the camera stays where it is and turns to the object: from here on it moves on a sphere round it
       const { center, radius } = ballOf(o);
-      const eye = eyeNow();
+      const eye = gcam?.eye ? [...gcam.eye] : eyeNow(); // the eye as drawn now, so the first target does not jump either
       const d = center.map((c, i) => c - eye[i]);
       const len = Math.hypot(...d) || 1;
       focused = true;
@@ -960,7 +960,7 @@
       const dist = Math.hypot(...eye0.map((e, i) => e - fit.center[i]));
       const inside = fly ? { fov: INSIDE_FOV } : {}; // flying = an eye in the scene: a wider lens, like standing in a room
       // a targeted or flown view keeps the true eye (the backing off below would drift it with the distance to the target)
-      const shown_fit = size > base && !locked && !fly ? { ...fit, ...inside, dist: dist * (size / base) } : { ...fit, ...inside };
+      const shown_fit = size > base && !focused && !fly ? { ...fit, ...inside, dist: dist * (size / base) } : { ...fit, ...inside };
 
       gcam = makeCamera(view, nothing, size, shown_fit);
       applyLod(); // finer or coarser meshes for the instances, by their size on screen (before anything reads `scene`)
