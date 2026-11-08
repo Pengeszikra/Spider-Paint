@@ -365,6 +365,7 @@
     #exaBtn { display: none; }
     body.pwa #exaBtn { display: block; position: fixed; z-index: 6; top: max(8px, env(safe-area-inset-top, 0px)); right: max(8px, env(safe-area-inset-right, 0px)); width: calc(var(--k, 44px) * 0.9); height: calc(var(--k, 44px) * 0.8); padding: 0; border-radius: 12px; font-size: 12px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; opacity: 0.92; }
     #stage.frozen::after { content: ''; position: absolute; inset: 5px; border: 3px dashed #4aa3ff; border-radius: 0; pointer-events: none; z-index: 4; }
+    #freeze.on { background: var(--red); color: #1b0803; box-shadow: 0 3px 0 #8a2a0f, 0 6px 10px #0009; }
     #pad button.freeze.on { background: var(--red); color: #1b0803; box-shadow: 0 3px 0 #8a2a0f, 0 6px 10px #0009; }
     #loader { display: none; position: fixed; inset: 0; z-index: 8; align-items: center; justify-content: center; flex-direction: column; gap: 14px; background: #000a; color: var(--cream); font: 600 14px var(--font-mono); letter-spacing: 0.1em; }
     #loader.on { display: flex; }
@@ -459,9 +460,10 @@
       <button id="place" type="button" class="red" title="Place a prism (M)">Place</button>
       <button id="delete" type="button" class="slate" title="Delete the object under the cross (X)">Delete</button>
       <button id="travel" type="button" class="teal" title="Target the object under the cross (T)">Target</button>
-      <button id="lines" type="button">Edges</button>
       <button id="keys" type="button" class="teal" title="The key explainer (?)">Keys</button>
-      <button id="gpuBtn" type="button">WebGPU</button>
+      <button id="lines" type="button">Edges</button>
+      <button id="freeze" type="button" class="teal" title="Freeze: everything that moves stands still (J)">Freeze</button>
+      <button id="gpuBtn" type="button" title="The view now: SVG, WebGPU or WebGL2 (G switches)">SVG</button>
       <button id="light" type="button">Light</button>
       <button id="filmic" type="button" title="Filmic look: HDR light, glowing emission, tone mapping (C)">Filmic</button>
       <button id="smooth" type="button" title="Smooth shading: faces that meet at a shallow angle share their normals (N)">Smooth</button>
@@ -480,7 +482,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@eeb09dffd73fbabdf5cfc037a6847c4d67ac4b06/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@2073c3dba63bfa455d4d77534e298f4cb18dec82/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -669,6 +671,12 @@
     // Freeze (touch pad): everything that moves stands still, so the cursor can work. The speed vector is kept as it was
     // and carries on when the freeze is lifted.
     let frozen = false;
+    const toggleFreeze = () => {
+      frozen = !frozen;
+      for (const id of ['padFreeze', 'freeze']) document.getElementById(id)?.classList.toggle('on', frozen);
+      stage.classList.toggle('frozen', frozen);
+      redraw();
+    };
     const stop = () => {
       if (!frozen) level.f = level.r = level.u = 0;
     };
@@ -1040,7 +1048,7 @@
     let studio = true; // K: studio light (key, fill, rim) that follows the camera
     // the installed app (or ?pwa) has no keyboard and is meant for small screens: no filmic look there
     const isApp = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true || /[?&]pwa\b/.test(location.search);
-    let filmic = !isApp; // C: filmic look on the WebGPU view (linear light, tone mapping, glowing emission)
+    let filmic = false; // C: filmic look on the WebGPU view (linear light, tone mapping, glowing emission)
     let renderGpu = null;
     const gpuErrors = [];
     // Two GPU backends, each with its own canvas (a canvas keeps the first kind of context it was given):
@@ -1118,7 +1126,7 @@
       modeEl.textContent = mode !== 'gpu' ? 'svg' : activeKind === 'webgl2' ? (modeEl.title ? 'webgl2 (no webgpu)' : 'webgl2') : 'webgpu';
       if (mode !== 'gpu') modeEl.title = '';
       const btn = document.getElementById('gpuBtn');
-      if (btn) btn.textContent = mode !== 'gpu' ? 'WebGPU' : activeKind === 'webgpu' ? 'WebGL2' : 'SVG'; // the button names the next view
+      if (btn) btn.textContent = mode !== 'gpu' ? 'SVG' : activeKind === 'webgpu' ? 'WebGPU' : 'WebGL2'; // the button names the view that is on
       redraw();
     };
     // G / the button: svg -> webgpu -> webgl2 -> svg (without WebGPU: svg -> webgl2 -> svg)
@@ -2102,6 +2110,9 @@
       } else if (e.key === 'o' || e.key === 'O') {
         e.preventDefault();
         if (!e.repeat) pickBool();
+      } else if ((e.key === 'j' || e.key === 'J') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        if (!e.repeat) toggleFreeze();
       } else if (e.key === 'q' || e.key === 'Q') {
         e.preventDefault();
         if (!e.repeat) editing ? leaveEdit() : enterEdit();
@@ -2229,10 +2240,7 @@
             b.classList.add('freeze');
             b.addEventListener('pointerdown', (e) => {
               e.preventDefault();
-              frozen = !frozen;
-              b.classList.toggle('on', frozen);
-              stage.classList.toggle('frozen', frozen);
-              redraw();
+              toggleFreeze();
             });
           } else if (key) {
             b.addEventListener('pointerdown', (e) => {
@@ -2332,7 +2340,7 @@
       f: { cap: 'F', sub: 'down', cat: 'cream', text: 'Fly down (speed steps).', target: 'Swing down under the target.' },
       g: { cap: 'G', sub: 'gpu', cat: 'teal', text: 'Switch between the SVG view and the WebGPU view.' },
       h: { cap: 'H', sub: 'gizmo', cat: 'red', text: 'Move gizmo on the object under the cross: 1st H world axes, 2nd H its own axes, 3rd H off. Drag an arrow to move it.' },
-      j: { cap: 'J', sub: '', cat: 'free', text: 'Free: no function yet.' },
+      j: { cap: 'J', sub: 'freeze', cat: 'teal', text: 'Freeze: everything that moves stands still (flying, orbiting, dragging the view), so the cursor can work. The speed is kept; J again carries on with it.' },
       k: { cap: 'K', sub: 'studio', cat: 'teal', text: 'Studio light: key, fill and rim light that follow the camera.' },
       l: { cap: 'L', sub: 'light', cat: 'teal', text: 'Turn the sun (the light direction) in steps.' },
       enter: { cap: 'Enter', sub: 'face', cat: 'red', w: 2.2, title: 'Enter', text: '', edit: 'Closes the drawn loop into a face.' },
@@ -2461,6 +2469,7 @@
     document.getElementById('gpuBtn').addEventListener('click', toggleMode);
     document.getElementById('light').addEventListener('click', turnLight);
     document.getElementById('filmic').addEventListener('click', toggleFilmic);
+    document.getElementById('freeze').addEventListener('click', toggleFreeze);
     document.getElementById('filmic').classList.toggle('on', filmic);
     document.getElementById('smooth').addEventListener('click', toggleSmooth);
     document.getElementById('smooth').classList.add('on');
