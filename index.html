@@ -482,7 +482,7 @@
         <option value="bridge">Stone bridge</option>
         <option value="globe">Globe</option>
         <option value="stars">Stars (500 nearest)</option>
-        <option value="ship">Ship RW-7</option>
+        <option value="ex27">EX-27 expedition module</option>
       </select>
       <button id="zen" type="button" class="slate" title="Zen: only the model (Z)">Zen</button>
       <button id="clear" type="button" class="slate" title="Remove every object (U brings them back)">Clear</button>
@@ -492,7 +492,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e63afd43008c683bed8012ef4d14bf03e4606d8d/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@30400dc74220b1d1c329a73008c8b9d230dd3734/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2380,7 +2380,7 @@
       const box = document.createElement('div');
       box.className = 'box';
       box.innerHTML = '<b>Scene</b>';
-      for (const name of ['empty', 'globe', 'stars', 'ship']) {
+      for (const name of ['empty', 'globe', 'stars', 'ex27']) {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'cream';
@@ -2635,6 +2635,17 @@
     if (new URLSearchParams(location.search).has('debug')) {
       globalThis.__3draft = {
         load: (data) => applyScene(data),
+        // put the eye at a point of the scene (fly view), looking along yaw / pitch (degrees)
+        eye: (x, y, z, yawDeg, pitchDeg) => {
+          yaw = (yawDeg * Math.PI) / 180;
+          pitch = (pitchDeg * Math.PI) / 180;
+          const f = makeCamera(orbit({ yaw, pitch }), nothing, 100, { center: [0, 0, 0], radius: 1, dist: FLY_DIST }).f;
+          fit.center = [x + f[0] * FLY_DIST, y + f[1] * FLY_DIST, z + f[2] * FLY_DIST];
+          fit.dist = FLY_DIST;
+          fly = true;
+          focused = true;
+          redraw();
+        },
         state: () => ({ solo: solo ? 1 : 0, faces: scene.faces.length, objects: allObjects().length, db: Boolean(col), palette: !paletteEl.hidden, cursor: getComputedStyle(stage).cursor, center: fit.center, dist: fit.dist, radius: fit.radius, level: { ...level }, yaw, pitch, fly, placed: placed.length }),
         grab: async () => {
           const r = await renderGpu(true);
