@@ -493,7 +493,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@bc876d495739638f4be7578bb4858a62c7631ccd/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@5abba22064c9ee028a35446b870b70b15484bc5d/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1161,7 +1161,7 @@
             v = Math.hypot(pace(level.f) * ZOOM * dist, dist * SWING * Math.hypot(pace(level.r), pace(level.u)));
           } else v = Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT;
           const nice = (x) => (x >= 1e9 ? `${(x / 1e9).toFixed(1)}G` : x >= 1e6 ? `${(x / 1e6).toFixed(1)}M` : x >= 1e4 ? `${(x / 1e3).toFixed(1)}k` : x >= 100 ? x.toFixed(0) : x >= 1 ? x.toFixed(1) : x.toFixed(2));
-          const speedText = star ? `${v ? nice(v * 31557600) : '0'} c` : `${v.toFixed(2)} u/s`;
+          const speedText = star ? (v ? `${nice(v)} ly/s <small style="font-weight:400;opacity:.65">${nice(v * 31557600)} c</small>` : '0 ly/s') : `${v.toFixed(2)} u/s`; // light years per second, with the multiple of the speed of light beside it
           flightEl.innerHTML = `<div><b>${speedText}</b></div><div class="lock">${gapTo === null ? '' : star ? `${gapTo.toFixed(2)} ly` : gapTo.toFixed(2)}</div>`;
         }
       }
