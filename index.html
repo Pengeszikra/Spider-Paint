@@ -492,7 +492,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@690026be952f3a0d6f6efe77b5998b59db80d91a/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@9affbc0bc6f239b7b72dbed16679bdebd61d8607/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -936,6 +936,7 @@
       queued = false;
       stepTravel(performance.now());
       stepFly(performance.now());
+      applyLod(); // finer or coarser meshes for the instances, by their size on screen in the last frame
       const r = stage.getBoundingClientRect();
       const touchy = matchMedia('(pointer: coarse), (max-width: 640px)').matches || document.body.classList.contains('pwa');
       // on a phone the drawing is a little larger than the short side and the rest of the screen is panel color
@@ -1458,6 +1459,7 @@
     };
     const change = (stale, mesh, wire = stale.wire) => {
       const obj = live(stale) ?? stale;
+      delete obj.inst; // an edited instance is an ordinary object from now on
       obj.mesh = mesh;
       obj.wire = wire;
       if (obj.host) save(obj, () => col.doc(obj.id).set(docOf(obj)));
@@ -1510,8 +1512,41 @@
       for (const m of meshes) for (const q of m.positions) q.forEach((c, i) => ((lo[i] = Math.min(lo[i], c)), (hi[i] = Math.max(hi[i], c))));
       return { lo, hi };
     };
+    // instanced objects (a scene with `prototypes` + objects `{ name, proto, at, scale, mats, color }`): the object starts as the
+    // coarsest level of detail and `applyLod` swaps in the finer ones as the eye comes closer
+    const LOD_MIN_PX = 1.6; // an instance never draws smaller than this (radius in pixels): a far star stays a visible dot
+    const placement = (i, scale = i.scale) => ({ at: i.at, scale, mats: i.mats, color: i.color });
+    const instSize = (i, slot) => (typeof i.scale === 'number' ? i.scale : (i.scale[slot] ?? i.scale['*'] ?? 1));
+    const applyLod = () => {
+      if (!gcam || gcam.ortho) return;
+      let changed = false;
+      for (const o of allObjects()) {
+        const i = o.inst;
+        if (!i) continue;
+        const dist = Math.hypot(i.at[0] - gcam.eye[0], i.at[1] - gcam.eye[1], i.at[2] - gcam.eye[2]) || 1e-6;
+        const halo = instSize(i, 'halo');
+        const level = lodLevel((halo * gcam.k) / dist, i.proto.lods.length);
+        let scale = i.scale;
+        let key = String(level);
+        if (level >= 2) {
+          // too small to see: grow it to the minimum size, in steps of 25% so the mesh is not rebuilt every frame
+          const step = Math.max(0, Math.ceil(Math.log(((LOD_MIN_PX * dist) / gcam.k) / halo) / Math.log(1.25)));
+          if (step > 0) {
+            const k = 1.25 ** step;
+            scale = { core: instSize(i, 'core') * k, halo: halo * k };
+            key += `:${step}`;
+          }
+        }
+        if (key === i.key) continue;
+        i.key = key;
+        o.mesh = instantiate(i.proto.lods[level], placement(i, scale));
+        changed = true;
+      }
+      if (changed) rebuild();
+    };
     const addExample = async (name) => {
-      const { objects, palette: extra } = await sceneOf(name);
+      const { objects: raw, palette: extra, prototypes } = await sceneOf(name);
+      const objects = raw.map((o) => (o.proto ? { name: o.name, inst: { ...o, proto: prototypes[o.proto] }, mesh: instantiate(prototypes[o.proto].lods.at(-1), placement(o)) } : o));
       // a scene may bring its own materials; the ones the palette lacks are added (and saved with a db)
       for (const m of extra ?? []) {
         if (materials.some((x) => x.name === m.name)) continue;
@@ -1530,7 +1565,8 @@
       asOneStep(() =>
         objects.forEach((o) => {
           const mesh = dx ? { ...o.mesh, positions: o.mesh.positions.map(([x, y, z]) => [x + dx, y, z]) } : o.mesh;
-          create(o.name, mesh);
+          const made = create(o.name, mesh);
+          if (o.inst) (live(made) ?? made).inst = { ...o.inst, at: [o.inst.at[0] + dx, o.inst.at[1], o.inst.at[2]], key: 'far' };
         }),
       );
       reset();
