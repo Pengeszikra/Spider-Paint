@@ -493,7 +493,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@4173ba6faf0d7395ac69012875a6e25808a5b1f3/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@9b1df960972c86c19d6f6c8949064a64aed58e0b/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1301,7 +1301,7 @@
         const g = s.getContext('2d');
         const base = [0, 1, 2].map((i) => parseInt(key[i] + key[i], 16));
         const lum = (base[0] + base[1] + base[2]) / 3;
-        const rgb = base.map((v) => Math.max(0, Math.min(255, Math.round(lum + (v - lum) * 2.6)))); // the star tints are pale: push the hue so the glow reads as the star's colour
+        const rgb = base.map((v) => Math.max(0, Math.min(255, Math.round(lum + (v - lum) * 1.8)))); // the star tints are pale: push the hue so the glow reads as the star's colour
         const grad = g.createRadialGradient(16, 16, 0, 16, 16, 16);
         grad.addColorStop(0, `rgba(${rgb.map((v) => Math.round(v + (255 - v) * 0.35))},1)`);
         grad.addColorStop(0.15, `rgba(${rgb},0.95)`);
@@ -1336,8 +1336,11 @@
         const y = half - ((dx * u[0] + dy * u[1] + dz * u[2]) / depth) * k;
         if (x < -64 || y < -64 || x > size + 64 || y > size + 64) continue;
         const natural = (i.glow * k) / depth; // the glow radius in pixels
-        const rad = Math.min(48, Math.max(1.4, natural));
-        const alpha = (natural < 1.4 ? Math.max(0.3, natural / 1.4) : 1) * (natural > 20 ? 0.55 : 0.9);
+        // far stars fade out instead of keeping a minimum size: below ~2 px the glow dims with the square of its size
+        const fade = natural < 2 ? (natural / 2) ** 2 : 1;
+        if (fade < 0.01) continue;
+        const rad = Math.min(48, Math.max(1.2, natural));
+        const alpha = fade * (natural > 20 ? 0.55 : 0.9);
         ctx.globalAlpha = alpha;
         const R = rad * dpr;
         ctx.drawImage(glowSprite(i.color), x * dpr - R, y * dpr - R, 2 * R, 2 * R);
