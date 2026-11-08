@@ -491,7 +491,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@2e23892387c4c5f51cf0614e680d15b165b83e9e/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@1d3fed4f61d0273367075a05daf0408cc6779861/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2324,10 +2324,9 @@
     document.getElementById('travel').addEventListener('click', travelTo);
 
     // The touch pad of the installed app: every button does what its key does.
-    if (isApp) {
-      document.body.classList.add('pwa');
-      document.getElementById('palHint').hidden = true; // no help text on the palette in the app
-      stage.classList.add('clean'); // no E button on the pad: start without the edge and point clutter
+    // It is built once, the first time the app look is wanted: in the installed app (or ?pwa), and in any window that is as narrow
+    // as a phone (also a desktop window dragged narrow), where it follows the width live.
+    const buildApp = () => {
       const padEl = document.getElementById('pad');
       const press = (key, extra = {}) => {
         document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...extra }));
@@ -2435,7 +2434,18 @@
         document.getElementById('vec'), // the speed vector sits between the two groups
         group([['Esc', 'Escape', 'slate'], ['Tab', 'Tab', 'teal', 'next'], ['Target', 't', 'teal long'], ['U', 'u', 'slate', 'undo'], ['M', 'm', 'cream', 'place'], ['V', 'v', 'cream', 'bar'], ['X', 'x', 'red', 'del'], ['Paint', 'paint', 'red long'], ['P', 'p', 'red', 'palette']]),
       );
-    }
+    };
+    let appBuilt = false;
+    const setApp = (on) => {
+      document.body.classList.toggle('pwa', on);
+      document.getElementById('palHint').hidden = on; // no help text on the palette in the app
+      stage.classList.toggle('clean', on); // no E button on the pad: start without the edge and point clutter
+      if (on && !appBuilt) ((appBuilt = true), buildApp());
+      redraw();
+    };
+    const narrow = matchMedia('(max-width: 640px)');
+    setApp(isApp || narrow.matches);
+    narrow.addEventListener('change', () => setApp(isApp || narrow.matches));
     document.getElementById('fabTravel').addEventListener('click', travelTo);
     document.getElementById('fabPlace').addEventListener('click', place);
     document.getElementById('fabDelete').addEventListener('click', remove);
