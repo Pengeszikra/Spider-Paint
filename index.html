@@ -493,7 +493,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@ff44e7ac4c06153f1398b017ae7ed53d1dbd146d/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@4173ba6faf0d7395ac69012875a6e25808a5b1f3/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1313,6 +1313,7 @@
       }
       return s;
     };
+    const GLOW_RANGE = 7000; // light years: the glow of stars farther than this is not drawn
     const drawGlow = (size) => {
       const stars = allObjects().filter((o) => o.inst?.glow);
       glowCanvas.hidden = !stars.length || !gcam || gcam.ortho;
@@ -1330,6 +1331,7 @@
         const dx = i.at[0] - eye[0], dy = i.at[1] - eye[1], dz = i.at[2] - eye[2];
         const depth = dx * f[0] + dy * f[1] + dz * f[2];
         if (depth < 1e-3) continue;
+        if (dx * dx + dy * dy + dz * dz > GLOW_RANGE * GLOW_RANGE) continue; // too far: no glow
         const x = half + ((dx * r[0] + dy * r[1] + dz * r[2]) / depth) * k;
         const y = half - ((dx * u[0] + dy * u[1] + dz * u[2]) / depth) * k;
         if (x < -64 || y < -64 || x > size + 64 || y > size + 64) continue;
