@@ -482,7 +482,7 @@
         <option value="bridge">Stone bridge</option>
         <option value="globe">Globe</option>
         <option value="stars">Stars (500 nearest)</option>
-        <option value="stars-plain">Stars, plain (no glow)</option>
+        <option value="stars-plain">Stars, plain (5000 nearest)</option>
         <option value="ex27">EX-27 expedition module</option>
       </select>
       <button id="zen" type="button" class="slate" title="Zen: only the model (Z)">Zen</button>
@@ -493,7 +493,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e372502459b615d8abcf205eddb8f63cfa2065c5/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@5c3803bf50b1dd2b0b118acff1a80844f09c4e7e/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -569,7 +569,10 @@
     let gcam = null; // the camera of every frame (cam only exists while the pointer is over the view)
     let drawing = { left: 0, top: 0 }; // where the square drawing starts, in client pixels
     let solo = null; // `/` isolates one object: its id, null shows everything
+    let holdRebuild = 0; // inside asOneStep the scene is merged once at the end, not after every object
+    let rebuildWanted = false;
     const rebuild = () => {
+      if (holdRebuild) return void (rebuildWanted = true);
       let objs = allObjects();
       if (solo && !objs.some((o) => o.id === solo)) solo = null;
       if (solo) objs = objs.filter((o) => o.id === solo);
@@ -1484,7 +1487,17 @@
     // One undo step for a whole batch (a clear, an added example): the steps recorded while `run` works are folded into one.
     const asOneStep = (run) => {
       const from = history.length;
-      const result = run();
+      holdRebuild++;
+      let result;
+      try {
+        result = run();
+      } finally {
+        holdRebuild--;
+      }
+      if (!holdRebuild && rebuildWanted) {
+        rebuildWanted = false;
+        rebuild();
+      }
       const steps = history.splice(from);
       if (steps.length) history.push(() => steps.reverse().forEach((step) => step()));
       return result;
