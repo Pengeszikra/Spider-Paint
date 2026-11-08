@@ -356,6 +356,10 @@
     #pad button.wide2 { grid-column: span 2; } #pad button.wide3 { grid-column: span 3; } #pad button.wide4 { grid-column: span 4; }
     #pad button.long { font-size: calc(var(--k) * 0.23); }
     #pad button.gap { visibility: hidden; pointer-events: none; }
+    #exaBtn { display: none; }
+    body.pwa #exaBtn { display: block; position: fixed; z-index: 6; top: max(8px, env(safe-area-inset-top, 0px)); right: max(8px, env(safe-area-inset-right, 0px)); width: calc(var(--k, 44px) * 0.9); height: calc(var(--k, 44px) * 0.8); padding: 0; border-radius: 12px; font-size: 12px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; opacity: 0.92; }
+    #stage.frozen::after { content: ''; position: absolute; inset: 5px; border: 3px dashed #4aa3ff; border-radius: 0; pointer-events: none; z-index: 4; }
+    #pad button.freeze.on { background: var(--red); color: #1b0803; box-shadow: 0 3px 0 #8a2a0f, 0 6px 10px #0009; }
     #loader { display: none; position: fixed; inset: 0; z-index: 8; align-items: center; justify-content: center; flex-direction: column; gap: 14px; background: #000a; color: var(--cream); font: 600 14px var(--font-mono); letter-spacing: 0.1em; }
     #loader.on { display: flex; }
     #loader i { width: 38px; height: 38px; border-radius: 50%; border: 4px solid #fff3; border-top-color: var(--teal); animation: spin 0.8s linear infinite; }
@@ -469,7 +473,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@7d7afe4020c10486b279d1d6bb10ad6b97dec61a/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@69345a74d12a6ce5f8436a0e1343681ac4bb6da4/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -653,7 +657,12 @@
     // The speed grows faster than the level: 1, 2.7, 5.6, 9.9, 16, ... (times UNIT), forwards or backwards.
     const pace = (l) => Math.sign(l) * (1.7 ** Math.abs(l) - 1) / 0.7;
     let lastFrame = performance.now();
-    const stop = () => (level.f = level.r = level.u = 0);
+    // Freeze (touch pad): everything that moves stands still, so the cursor can work. The speed vector is kept as it was
+    // and carries on when the freeze is lifted.
+    let frozen = false;
+    const stop = () => {
+      if (!frozen) level.f = level.r = level.u = 0;
+    };
     const enterFly = () => {
       if (fly && !travel) return;
       travel = null;
@@ -666,6 +675,7 @@
       focused = true;
     };
     const speed = (axis, d) => {
+      if (frozen) return;
       if (!locked) enterFly();
       level[axis] += d;
       redraw();
@@ -673,6 +683,7 @@
     const stepFly = (now) => {
       const dt = Math.min(0.05, (now - lastFrame) / 1000);
       lastFrame = now;
+      if (frozen) return;
       if (locked) return stepTarget(dt);
       if (!fly) return;
       const cy = Math.cos(yaw);
@@ -1078,6 +1089,7 @@
       }
     };
     const turn = (dYaw, dPitch) => {
+      if (frozen) return;
       travel = null; // the hand takes over from the glide
       yaw += dYaw;
       pitch = wrapPitch(pitch + dPitch);
@@ -2148,10 +2160,15 @@
               else paintFace(true);
               lastPaint = t;
             });
-          } else if (key === 'exa') {
+          } else if (key === 'freeze') {
+            b.id = 'padFreeze';
+            b.classList.add('freeze');
             b.addEventListener('pointerdown', (e) => {
               e.preventDefault();
-              document.getElementById('exaMenu').classList.toggle('open');
+              frozen = !frozen;
+              b.classList.toggle('on', frozen);
+              stage.classList.toggle('frozen', frozen);
+              redraw();
             });
           } else if (key) {
             b.addEventListener('pointerdown', (e) => {
@@ -2191,6 +2208,17 @@
       }
       exaMenu.append(box);
       document.body.append(exaMenu);
+      const exaBtn = document.createElement('button');
+      exaBtn.id = 'exaBtn';
+      exaBtn.type = 'button';
+      exaBtn.className = 'red';
+      exaBtn.textContent = 'Exa';
+      exaBtn.style.setProperty('--k', getComputedStyle(padEl).getPropertyValue('--k'));
+      exaBtn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        exaMenu.classList.toggle('open');
+      });
+      document.body.append(exaBtn);
       const loader = document.createElement('div');
       loader.id = 'loader';
       loader.innerHTML = '<i></i><span></span>';
@@ -2201,7 +2229,7 @@
       //   Space F     X Paint P
       const gap = ['', '', ''];
       padEl.append(
-        group([['Exa', 'exa', 'red long'], ['W', 'w'], ['R', 'r', 'teal'], ['A', 'a'], ['S', 's'], ['D', 'd'], ['Space', ' ', 'slate wide2', 'speed 0'], ['F', 'f', 'teal']], 3),
+        group([['Freeze', 'freeze', 'teal long'], ['W', 'w'], ['R', 'r', 'teal'], ['A', 'a'], ['S', 's'], ['D', 'd'], ['Space', ' ', 'slate wide2', 'speed 0'], ['F', 'f', 'teal']], 3),
         document.getElementById('vec'), // the speed vector sits between the two groups
         group([['Esc', 'Escape', 'slate'], ['Tab', 'Tab', 'teal', 'next'], ['Target', 't', 'teal long'], ['U', 'u', 'slate', 'undo'], ['M', 'm', 'cream', 'place'], ['V', 'v', 'cream', 'bar'], ['X', 'x', 'red', 'del'], ['Paint', 'paint', 'red long'], ['P', 'p', 'red', 'palette']]),
       );
