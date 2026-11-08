@@ -493,7 +493,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e50af6167cc6afc3ed723623d0a08ad97b2085c9/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@0213dcfcd20106dffc5600c58648f2c2110ec136/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -959,7 +959,8 @@
       const eye0 = makeCamera(view, nothing, 100, fit).eye;
       const dist = Math.hypot(...eye0.map((e, i) => e - fit.center[i]));
       const inside = fly ? { fov: INSIDE_FOV } : {}; // flying = an eye in the scene: a wider lens, like standing in a room
-      const shown_fit = size > base ? { ...fit, ...inside, dist: dist * (size / base) } : { ...fit, ...inside };
+      // a targeted or flown view keeps the true eye (the backing off below would drift it with the distance to the target)
+      const shown_fit = size > base && !locked && !fly ? { ...fit, ...inside, dist: dist * (size / base) } : { ...fit, ...inside };
 
       gcam = makeCamera(view, nothing, size, shown_fit);
       applyLod(); // finer or coarser meshes for the instances, by their size on screen (before anything reads `scene`)
@@ -2762,7 +2763,7 @@
         load: (data) => applyScene(data),
         // put the eye at a point of the scene (fly view), looking along yaw / pitch (degrees)
         eye: (x, y, z, yawDeg, pitchDeg) => lookFrom([x, y, z], yawDeg, pitchDeg),
-        state: () => ({ solo: solo ? 1 : 0, faces: scene.faces.length, objects: allObjects().length, db: Boolean(col), palette: !paletteEl.hidden, cursor: getComputedStyle(stage).cursor, center: fit.center, dist: fit.dist, radius: fit.radius, level: { ...level }, yaw, pitch, eye: eyeNow(), fly, placed: placed.length }),
+        state: () => ({ solo: solo ? 1 : 0, faces: scene.faces.length, objects: allObjects().length, db: Boolean(col), palette: !paletteEl.hidden, cursor: getComputedStyle(stage).cursor, center: fit.center, dist: fit.dist, radius: fit.radius, level: { ...level }, yaw, pitch, eye: eyeNow(), shown: gcam?.eye, fly, placed: placed.length }),
         grab: async () => {
           const r = await renderGpu(true);
           const o = document.createElement('canvas');
