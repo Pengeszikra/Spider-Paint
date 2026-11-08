@@ -480,12 +480,13 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@298d34ea8375fd0d03539b5f9de4b57fe3cd75c5/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@eeb09dffd73fbabdf5cfc037a6847c4d67ac4b06/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
     const frame = document.getElementById('frame');
-    const canvas = document.getElementById('gpu');
+    let canvas = document.getElementById('gpu');
+    let activeKind = 'webgpu';
     const layer = document.getElementById('layer');
     const modeEl = document.getElementById('mode');
     const hudEl = document.getElementById('hud');
@@ -1042,50 +1043,89 @@
     let filmic = !isApp; // C: filmic look on the WebGPU view (linear light, tone mapping, glowing emission)
     let renderGpu = null;
     const gpuErrors = [];
+    // Two GPU backends, each with its own canvas (a canvas keeps the first kind of context it was given):
+    // WebGPU, and WebGL2 for devices and browsers without WebGPU (and for software GL, e.g. SwiftShader, where WebGPU is not there).
+    const backends = { webgpu: null, webgl2: null };
+    let glCanvas = null;
+    const onGpuError = (message) => {
+      gpuErrors.push(message);
+      modeEl.textContent = `gpu error: ${gpuErrors[0].slice(0, 180)}`;
+      modeEl.title = gpuErrors.join('\n\n');
+      const box = document.getElementById('gpuerr');
+      box.hidden = false;
+      box.value = gpuErrors.join('\n\n');
+      console.error('GPU first error:', gpuErrors[0]);
+    };
+    // sets a backend up once; returns it, or null (with the reason in `why`)
+    let why = '';
+    const ensure = async (kind) => {
+      if (backends[kind]) return backends[kind];
+      try {
+        let cv = document.getElementById('gpu');
+        if (kind === 'webgl2') {
+          glCanvas ??= Object.assign(document.createElement('canvas'), { id: 'gl', hidden: true });
+          if (!glCanvas.isConnected) cv.after(glCanvas);
+          cv = glCanvas;
+        }
+        const g = kind === 'webgl2' ? await createGl(cv, { onError: onGpuError }) : await createGpu(cv, { onError: onGpuError });
+        const entry = { g, canvas: cv };
+        backends[kind] = entry;
+        // a lost device or context (driver reset, GPU process crash) drops back to the SVG view
+        g.device.lost.then((info) => {
+          if (gpu !== g) return;
+          gpu = null;
+          mode = 'svg';
+          cv.hidden = true;
+          stage.classList.remove('gpu');
+          modeEl.textContent = `svg (${kind} lost)`;
+          modeEl.title = String(info.message ?? info.reason);
+          backends[kind] = null;
+          redraw();
+        });
+        return entry;
+      } catch (err) {
+        why = String(err.message ?? err);
+        return null;
+      }
+    };
+    // 'svg', 'gpu' (WebGPU, WebGL2 when there is none) or 'gl' (WebGL2)
     const setMode = async (next) => {
-      if (next === 'gpu' && !gpu) {
-        try {
-          const g = await createGpu(canvas, {
-            // a shader or pipeline error leaves the canvas black: say so where the view is named
-            // the FIRST error is the cause; the later ones ("invalid due to a previous error") are only its echo
-            onError: (message) => {
-              gpuErrors.push(message);
-              modeEl.textContent = `gpu error: ${gpuErrors[0].slice(0, 180)}`;
-              modeEl.title = gpuErrors.join('\n\n');
-              const box = document.getElementById('gpuerr');
-              box.hidden = false;
-              box.value = gpuErrors.join('\n\n');
-              console.error('WebGPU first error:', gpuErrors[0]);
-            },
-          });
-          gpu = g;
-          // a lost device (driver reset, GPU process crash) drops back to the SVG view
-          g.device.lost.then((info) => {
-            if (gpu !== g) return;
-            gpu = null;
-            mode = 'svg';
-            canvas.hidden = true;
-            stage.classList.remove('gpu');
-            modeEl.textContent = 'svg (webgpu lost)';
-            modeEl.title = String(info.message ?? info.reason);
-            redraw();
-          });
-        } catch (err) {
-          modeEl.textContent = 'svg (webgpu unavailable)';
-          modeEl.title = String(err.message ?? err);
+      let kind = null;
+      let entry = null;
+      if (next !== 'svg') {
+        kind = next === 'gl' ? 'webgl2' : 'webgpu';
+        entry = await ensure(kind);
+        let note = '';
+        if (!entry && kind === 'webgpu') {
+          const first = why;
+          entry = await ensure('webgl2');
+          if (entry) ((kind = 'webgl2'), (note = first));
+        }
+        if (!entry) {
+          modeEl.textContent = `svg (${kind} unavailable)`;
+          modeEl.title = why;
           return;
         }
+        gpu = entry.g;
+        canvas = entry.canvas;
+        modeEl.title = note;
+        for (const e of Object.values(backends)) if (e && e !== entry) e.canvas.hidden = true;
+        activeKind = kind;
       }
-      mode = next;
+      mode = next === 'svg' ? 'svg' : 'gpu';
       canvas.hidden = mode !== 'gpu';
       stage.classList.toggle('gpu', mode === 'gpu');
-      modeEl.textContent = mode === 'gpu' ? 'webgpu' : 'svg';
-      modeEl.title = '';
+      modeEl.textContent = mode !== 'gpu' ? 'svg' : activeKind === 'webgl2' ? (modeEl.title ? 'webgl2 (no webgpu)' : 'webgl2') : 'webgpu';
+      if (mode !== 'gpu') modeEl.title = '';
+      const btn = document.getElementById('gpuBtn');
+      if (btn) btn.textContent = mode !== 'gpu' ? 'WebGPU' : activeKind === 'webgpu' ? 'WebGL2' : 'SVG'; // the button names the next view
       redraw();
     };
+    // G / the button: svg -> webgpu -> webgl2 -> svg (without WebGPU: svg -> webgl2 -> svg)
     const toggleMode = () => {
       if (document.body.classList.contains('pwa')) return; // the installed app stays in the GPU view
-      setMode(mode === 'gpu' ? 'svg' : 'gpu');
+      if (mode !== 'gpu') return setMode('gpu');
+      setMode(activeKind === 'webgpu' ? 'gl' : 'svg');
     };
     const toggleFilmic = () => {
       filmic = !filmic;
@@ -2437,7 +2477,7 @@
     document.getElementById('undo').addEventListener('click', undo);
     document.getElementById('reset').addEventListener('click', reset);
     new ResizeObserver(redraw).observe(stage);
-    setMode('gpu'); // the starting view; falls back to SVG on its own
+    setMode(/[?&]gl\b/.test(location.search) ? 'gl' : 'gpu'); // the starting view (?gl: WebGL2); falls back to WebGL2, then SVG, on its own
 
     // ?debug: read the WebGPU frame back through an offscreen texture (a headless browser shows no canvas)
     if (new URLSearchParams(location.search).has('debug')) {
