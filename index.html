@@ -469,7 +469,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@0b2cd8bf30b3344a45cc3652ca56d055111be54d/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@7d7afe4020c10486b279d1d6bb10ad6b97dec61a/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -493,6 +493,8 @@
     const nothing = { positions: [], faces: [] };
     const START = { yaw: -0.6, pitch: 0.45 };
     const LIMIT = Math.PI / 2;
+    // the pitch has no end stop: the view can roll over the poles and keep turning (the orbit maths has no singularity there)
+    const wrapPitch = (a) => a - 2 * Math.PI * Math.round(a / (2 * Math.PI));
     const STEP = 0.12;
 
     let yaw = START.yaw;
@@ -711,7 +713,7 @@
       fit.dist = Math.max(near, fit.dist * Math.exp(-pace(level.f) * ZOOM * dt));
       if (fit.dist <= near && level.f > 0) level.f = 0; // reached the surface
       yaw -= pace(level.r) * SWING * dt; // D: the camera goes to the right
-      pitch = Math.max(-LIMIT, Math.min(LIMIT, pitch + pace(level.u) * SWING * dt));
+      pitch = wrapPitch(pitch + pace(level.u) * SWING * dt);
       redraw();
     };
     const letGo = () => {
@@ -1078,7 +1080,7 @@
     const turn = (dYaw, dPitch) => {
       travel = null; // the hand takes over from the glide
       yaw += dYaw;
-      pitch = Math.max(-LIMIT, Math.min(LIMIT, pitch + dPitch));
+      pitch = wrapPitch(pitch + dPitch);
       redraw();
     };
     const reset = () => {
