@@ -494,7 +494,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@426eba793d65bad64445e663d61ec2313f804d4e/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@d5866bf38e209d2e7914420507a06a4387955059/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1355,14 +1355,32 @@
       const u = Object.fromEntries(['uEye', 'uF', 'uR', 'uU', 'uK', 'uHalf', 'uDpr'].map((n) => [n, gl.getUniformLocation(prog, n)]));
       return (cloudGl = { gl, prog, buf, vao, u, loaded: null });
     };
-    const setCloud = (c, dx = 0) => {
-      if (!c) return void (cloud = null);
-      const data = new Float32Array(c.n * 8);
-      for (let i = 0; i < c.n; i++) {
-        const col = c.c[i];
-        data.set([c.p[3 * i] * c.unit + dx, c.p[3 * i + 1] * c.unit, c.p[3 * i + 2] * c.unit, c.r[i], ((col >> 16) & 255) / 255, ((col >> 8) & 255) / 255, (col & 255) / 255, c.l[i] / 100], i * 8);
+    // `c`: the scene's own point set; `sets`: objects that carry `cloud: <name>` get a copy of that point set from `protos`
+    // (scaled by the object's scale, turned by its `rot`, moved to `at`): galaxies from density functions, one record each
+    const setCloud = (c, dx = 0, protos = {}, sets = []) => {
+      const copies = sets.filter((o) => o.cloud && protos[o.cloud]);
+      if (!c && !copies.length) return void (cloud = null);
+      const total = (c?.n ?? 0) + copies.reduce((n, o) => n + protos[o.cloud].n, 0);
+      const data = new Float32Array(total * 8);
+      let at = 0;
+      const put = (x, y, z, rad, col, lum) => {
+        data.set([x, y, z, rad, ((col >> 16) & 255) / 255, ((col >> 8) & 255) / 255, (col & 255) / 255, lum], at);
+        at += 8;
+      };
+      if (c) for (let i = 0; i < c.n; i++) put(c.p[3 * i] * c.unit + dx, c.p[3 * i + 1] * c.unit, c.p[3 * i + 2] * c.unit, c.r[i], c.c[i], c.l[i] / 100);
+      for (const o of copies) {
+        const q = protos[o.cloud];
+        const k = typeof o.scale === 'number' ? o.scale : (o.scale['*'] ?? o.scale.core ?? 1);
+        const [ta, tb] = o.rot ?? [0, 0];
+        const [ca, sa, cb, sb] = [Math.cos(ta), Math.sin(ta), Math.cos(tb), Math.sin(tb)];
+        for (let i = 0; i < q.n; i++) {
+          let x = q.p[3 * i] * q.unit * k, y = q.p[3 * i + 1] * q.unit * k, z = q.p[3 * i + 2] * q.unit * k;
+          [y, z] = [y * ca - z * sa, y * sa + z * ca]; // the same turn as `instantiate`: tilt about x, then turn about y
+          [x, z] = [x * cb + z * sb, -x * sb + z * cb];
+          put(x + o.at[0] + dx, y + o.at[1], z + o.at[2], q.r[i] * q.unit * k, q.c[i], q.l[i] / 100);
+        }
       }
-      cloud = { n: c.n, data };
+      cloud = { n: total, data };
     };
     const drawCloud = (size) => {
       const g = cloud && gcam && !gcam.ortho ? cloudInit() : null;
@@ -1448,7 +1466,10 @@
         const fade = natural < 2 ? (natural / 2) ** 2 : 1;
         if (fade < 0.01) continue;
         const rad = Math.min(48, Math.max(1.2, natural));
-        const alpha = fade * (natural > 20 ? 0.55 : 0.9);
+        // a galaxy drawn as a point cloud: its glow gives way to the stars once it is big on screen
+        const bigPx = i.far && i.cloud ? (i.scale * k) / depth : 0;
+        const alpha = fade * (natural > 20 ? 0.55 : 0.9) * (bigPx > 30 ? Math.max(0, 1 - (bigPx - 30) / 60) : 1);
+        if (alpha < 0.01) continue;
         ctx.globalAlpha = alpha;
         const R = rad * dpr;
         ctx.drawImage(glowSprite(i.glowColor ?? i.color), x * dpr - R, y * dpr - R, 2 * R, 2 * R);
@@ -1749,7 +1770,7 @@
       if (changed) rebuild();
     };
     const addExample = async (name) => {
-      const { objects: raw, palette: extra, prototypes, start, cloud: points } = await sceneOf(name);
+      const { objects: raw, palette: extra, prototypes, start, cloud: points, cloudProtos } = await sceneOf(name);
       const objects = raw.map((o) => (o.proto ? { name: o.name, inst: { ...o, proto: prototypes[o.proto] }, mesh: instantiate(prototypes[o.proto].lods.at(-1), placement(o)) } : o));
       // a scene may bring its own materials; the ones the palette lacks are added (and saved with a db)
       for (const m of extra ?? []) {
@@ -1766,7 +1787,7 @@
         const b = spanOf(objects.map((o) => o.mesh));
         dx = a.hi[0] + gap - b.lo[0];
       }
-      setCloud(points, dx);
+      setCloud(points, dx, cloudProtos, raw);
       asOneStep(() =>
         objects.forEach((o) => {
           const mesh = dx ? { ...o.mesh, positions: o.mesh.positions.map(([x, y, z]) => [x + dx, y, z]) } : o.mesh;
