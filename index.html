@@ -494,7 +494,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@46aaf75f4de4ef3938985396bef4c9d0e60113c9/dist/index.js';
+    import { boolean, health, insertVertex, cutFace, fillLoop, addLine, findLoop, wireFromSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@426eba793d65bad64445e663d61ec2313f804d4e/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1475,6 +1475,7 @@
       const f = makeCamera(orbit({ yaw, pitch }), nothing, 100, { center: [0, 0, 0], radius: 1, dist: FLY_DIST }).f;
       fit.center = eye.map((c, i) => c + f[i] * FLY_DIST);
       fit.dist = FLY_DIST;
+      travel = null; // a turn still under way (the reset of a Clear) must not pull the eye away again
       fly = true;
       focused = true;
       redraw();
