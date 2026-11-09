@@ -63,7 +63,7 @@ With a **target**, W A S D R F move the camera round and towards the target inst
 | I | Pick the material under the cross |
 | Ctrl+click (Cmd on a Mac) | Paint the face under the cross; Ctrl+double click paints the whole object |
 | B | Open / close the store (second 3D view on the left) |
-| Alt + drag | In the store: drag the object under the pointer over the build and let go, a copy is put down there (Esc cancels) |
+| Alt + drag | In the store: drag the object under the pointer over the build and let go, a copy is put down there, its base middle on the surface and its up along the surface normal (Esc cancels) |
 
 ## Materials (the palette)
 

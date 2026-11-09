@@ -652,7 +652,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@62478692a4ef0f8038f2ded77d9512ce2373adc2/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@7ff8530433de1423a2a3874e68fbbdbe247e9833/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2457,7 +2457,23 @@
         const d = orbitDist(fit.radius) * 0.6;
         at = origin.map((c, i) => c + dir[i] * d);
       }
-      create(`${brush.name}-${shortId()}`, shifted(brush.mesh, at ?? [...fit.center]));
+      // the base middle lies on the surface, and the model's up turns to the surface's normal (the shortest turn, so it keeps its heading)
+      let mesh = brush.mesh;
+      const n = hit?.normal;
+      if (n && Math.hypot(...n) > 0.5) {
+        const [kx, ky, kz] = [n[2], 0, -n[0]]; // up x normal
+        const sn = Math.hypot(kx, kz);
+        const cs = n[1];
+        const turn = (v) => {
+          if (sn < 1e-6) return cs > 0 ? v : [v[0], -v[1], -v[2]]; // already flat, or upside down: flip about x
+          const k = [kx / sn, 0, kz / sn];
+          const cr = [k[1] * v[2] - k[2] * v[1], k[2] * v[0] - k[0] * v[2], k[0] * v[1] - k[1] * v[0]];
+          const d = (k[0] * v[0] + k[1] * v[1] + k[2] * v[2]) * (1 - cs);
+          return v.map((c, i) => c * cs + cr[i] * sn + k[i] * d);
+        };
+        mesh = { ...mesh, positions: mesh.positions.map(turn) };
+      }
+      create(`${brush.name}-${shortId()}`, shifted(mesh, at ?? [...fit.center]));
       redraw();
     };
     sceneBtn.addEventListener('click', () => toggleStore());
