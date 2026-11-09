@@ -631,7 +631,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@570311e22cf88d142eaa3aafe5dd663a72759a3c/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@ee78c74c8bcb7a900eaf2dfa9f00ce01df142df5/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -3083,8 +3083,69 @@
       sel = { kind: 'face', items: caps };
       startXf('grab', { orig, axisVec: axis.map((c) => c / l) });
     };
+    // Ctrl+R: loop cut. The selected line's ring of four-sided faces is cut in half across: every face on the ring splits in two,
+    // with a new point in the middle of the ring's lines. The new line round the object stays selected.
+    const loopCut = () => {
+      const orig = editing.mesh;
+      const faces = orig.faces;
+      const [a0, b0] = sel.kind === 'edge' && sel.items.length ? sel.items[0] : [];
+      if (a0 === undefined) return noteEdit('Ctrl+R cuts a loop: select a line (2) on the ring first');
+      const key = (a, b) => (a < b ? `${a}_${b}` : `${b}_${a}`);
+      const slot = (f, a, b) => f.v.length === 4 ? f.v.findIndex((x, i) => (x === a && f.v[(i + 1) % 4] === b) || (x === b && f.v[(i + 1) % 4] === a)) : -1;
+      const ring = new Map(); // face index -> its rotation (the start of the cut line)
+      const walk = (a, b, from) => {
+        let e = [a, b];
+        for (;;) {
+          const fi = faces.findIndex((f, i) => i !== from && !ring.has(i) && slot(f, e[0], e[1]) >= 0);
+          if (fi < 0) return;
+          const f = faces[fi];
+          const i = slot(f, e[0], e[1]);
+          ring.set(fi, i);
+          from = fi;
+          e = [f.v[(i + 2) % 4], f.v[(i + 3) % 4]];
+        }
+      };
+      const first = faces.findIndex((f) => slot(f, a0, b0) >= 0);
+      if (first < 0) return noteEdit('Ctrl+R: that line has no four-sided face');
+      const f0 = faces[first];
+      const i0 = slot(f0, a0, b0);
+      ring.set(first, i0);
+      walk(f0.v[(i0 + 2) % 4], f0.v[(i0 + 3) % 4], first); // one way round
+      walk(a0, b0, first); // and the other
+      const P = orig.positions.map((q) => [...q]);
+      const mids = new Map();
+      const mid = (a, b) => {
+        const k = key(a, b);
+        if (!mids.has(k)) (P.push(P[a].map((c, j) => (c + P[b][j]) / 2)), mids.set(k, P.length - 1));
+        return mids.get(k);
+      };
+      const out = [];
+      const cuts = [];
+      faces.forEach((f, fi) => {
+        if (!ring.has(fi)) return out.push(f);
+        const i = ring.get(fi);
+        const [p, q, r, t] = [0, 1, 2, 3].map((j) => f.v[(i + j) % 4]);
+        const m = mid(p, q);
+        const n = mid(r, t);
+        const { v, ...rest } = f;
+        out.push({ ...rest, v: [p, m, n, t] }, { ...rest, v: [m, q, r, n] });
+        cuts.push([m, n].sort((x, y) => x - y));
+      });
+      editing.mesh = { ...orig, positions: P, faces: out };
+      rebuild();
+      history.push(() => has(editing) && (change(editing, orig), (sel = emptySel()), redraw()));
+      sel = { kind: 'edge', items: cuts };
+      emode = 'edge';
+      noteEdit(`loop cut: ${cuts.length} faces split`);
+      redraw();
+    };
     // the keys of edit mode that are not modes (a few of them are fly keys outside it: those need Shift here)
     const editKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && !xf && e.key.toLowerCase() === 'r') {
+        e.preventDefault(); // Ctrl+R would reload the page
+        if (!e.repeat) loopCut();
+        return true;
+      }
       if (e.ctrlKey || e.metaKey || e.altKey) return false;
       if (xf) {
         e.preventDefault();
