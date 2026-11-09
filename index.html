@@ -141,7 +141,11 @@
     #stage svg polyline[data-mark="cursor"] { stroke: var(--cursor); }
 
     /* P: the material palette. Data first: every entry is a plain object, the swatches are drawn from the list. */
-    #palette { position: fixed; right: 16px; top: 64px; z-index: 5; width: 188px; padding: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; display: grid; gap: 8px; font: 500 12px/1.2 var(--font-mono); color: var(--muted); }
+    #palette { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 10; width: min(92vw, 340px); padding: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; display: grid; gap: 8px; font: 500 12px/1.2 var(--font-mono); color: var(--muted); }
+    /* pop-ups are modals: one at a time, over a scrim; a tap on the scrim (or Esc) closes it */
+    #scrim { position: fixed; inset: 0; z-index: 8; background: rgba(0, 0, 0, 0.62); }
+    #scrim[hidden] { display: none; }
+    body.store #stage { box-shadow: inset 0 0 0 2px #2fb8c0; }
     #palette[hidden] { display: none; }
     #boolq { position: fixed; left: 50%; bottom: 72px; transform: translateX(-50%); z-index: 6; max-width: min(92vw, 520px); padding: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; display: grid; gap: 8px; font: 500 12px/1.3 var(--font-mono); color: var(--muted); }
     #boolq[hidden] { display: none; }
@@ -165,7 +169,14 @@
     #palette label { display: grid; grid-template-columns: 52px 1fr 30px; gap: 6px; align-items: center; }
     #palette input[type=range] { width: 100%; margin: 0; }
     #palette .row { display: flex; gap: 6px; align-items: center; }
-    #palette input[type=color] { width: 34px; height: 26px; padding: 0; border: 1px solid var(--line); background: none; }
+    #palette input[type=text] { width: 76px; box-sizing: border-box; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: none; color: var(--fg); font: inherit; }
+    /* our own colour picker (the browser's is a disaster on a phone): a saturation / brightness square and a hue slider */
+    #palette .picker { display: grid; gap: 8px; }
+    #palette .sv { position: relative; height: 120px; border-radius: 8px; touch-action: none; cursor: crosshair; background: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, hsl(var(--hue, 0), 100%, 50%)); }
+    #palette .sv i { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px #000; pointer-events: none; }
+    #palette #pickHue { height: 18px; -webkit-appearance: none; appearance: none; border-radius: 9px; background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
+    #palette #pickHue::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; border-radius: 50%; background: #fff; border: 2px solid #000; }
+    #palette #pickHue::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid #000; }
     #palette b { color: var(--fg); font-weight: 500; }
     button {
       font: 500 13px/1 var(--font-mono);
@@ -267,25 +278,10 @@
     #hud .row > :last-child { flex: none; font-variant-numeric: tabular-nums; }
     #hud .row + .row + .row { margin-top: 4px; }
     #palette { max-height: calc(100dvh - 90px); overflow-y: auto; }
-    /* B: the asset library, a pack of reusable objects (cards: picture, name, size, place / delete) */
-    #assets { position: fixed; left: 16px; top: 64px; z-index: 5; width: 236px; padding: 10px; border: 1.5px solid var(--outline); border-radius: 14px; background: color-mix(in srgb, var(--panel) 92%, transparent); display: grid; gap: 8px; font: 500 12px/1.2 var(--font-mono); color: var(--muted); max-height: calc(100dvh - 90px); overflow-y: auto; }
-    #assets[hidden] { display: none; }
-    #assets .bar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-    #assets .bar b { color: var(--fg); font-weight: 500; margin-right: auto; }
-    #assets .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    #assets .card { display: grid; gap: 4px; padding: 6px; border: 1px solid var(--line); border-radius: 8px; }
-    #assets .card .pic { width: 100%; aspect-ratio: 1; border-radius: 5px; overflow: hidden; cursor: pointer; background: #1b1b1b; }
-    #assets .card .pic svg { width: 100%; height: 100%; display: block; }
-    #assets .card .pic text { display: none; }
-    #assets .card input { width: 100%; box-sizing: border-box; min-width: 0; background: none; border: 0; border-bottom: 1px solid var(--line); color: var(--fg); font: inherit; padding: 1px 0; }
-    #assets .card small { font-size: 10px; }
-    #assets .card .row { display: flex; gap: 4px; }
-    #assets .card .row button { flex: 1; padding: 3px 0; font-size: 11px; }
-    #assets .empty { grid-column: 1 / -1; }
     #palette .sw { box-shadow: none; padding: 0; border-radius: 6px; }
 
     /* the key explainer: a keyboard you can read, hover, press and run */
-    #keypanel { position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 9; width: min(96vw, 880px); max-height: 86dvh; overflow-y: auto; box-sizing: border-box; padding: 12px 14px 14px; background: #0b0b0a; border: 1.5px solid var(--outline); border-radius: 20px; display: grid; gap: 10px; --u: clamp(19px, calc((min(96vw, 880px) - 56px) / 15.8), 46px); }
+    #keypanel { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 11; width: min(96vw, 880px); max-height: 86dvh; overflow-y: auto; box-sizing: border-box; padding: 12px 14px 14px; background: #0b0b0a; border: 1.5px solid var(--outline); border-radius: 20px; display: grid; gap: 10px; --u: clamp(19px, calc((min(96vw, 880px) - 56px) / 15.8), 46px); }
     #keypanel[hidden] { display: none; }
     #keypanel .head { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: space-between; }
     #keypanel .head b { font: 600 14px/1 var(--font-display); letter-spacing: 0.14em; color: var(--cream); }
@@ -435,6 +431,8 @@
     <i id="boolNote"></i>
   </aside>
 
+  <div id="scrim" hidden></div>
+
   <aside id="palette" hidden aria-label="Material palette">
     <span id="palHint">materials · ctrl+click (cmd on a Mac): paint a face · ctrl+double click: the whole object · i: pick the material under the cross</span>
     <div class="grid" id="swatches"></div>
@@ -444,13 +442,11 @@
     <label>alpha <input type="range" id="p-alpha" min="0" max="1" step="0.05" /><span id="v-alpha"></span></label>
     <label>emit <input type="range" id="p-emit" min="0" max="5" step="0.1" /><span id="v-emit"></span></label>
     <label title="Soft, skin-like light: it wraps round the form, with a warm scattered band at the shade edge">soft <input type="range" id="p-soft" min="0" max="1" step="0.05" /><span id="v-soft"></span></label>
-    <div class="row"><input type="color" id="custom" value="#c0392b" aria-label="Colour of the material" /><button id="addColor" type="button">+ new</button><button id="pickMat" type="button" title="Take the material of a surface (I: from under the cross; the button: then click a surface)">pick</button></div>
-  </aside>
-
-  <aside id="assets" hidden aria-label="Asset library">
-    <div class="bar"><b>assets</b><button id="assetAdd" type="button" title="Save the edited object, the target, or the last one under the cross to the library">+ object</button><button id="assetExport" type="button" title="Download the library as a pack file">export</button><button id="assetImport" type="button" title="Add the assets of a pack file">import</button><input id="assetFile" type="file" accept=".json,application/json" hidden /></div>
-    <span id="assetNote">Click a picture: the asset is placed in front of the eye, its base middle is its origin. “+ object” saves the object being edited, the target, or the one the cross was last on.</span>
-    <div class="cards" id="assetCards"></div>
+    <div class="picker" id="picker">
+      <div class="sv" id="pickSV" aria-label="Saturation and brightness"><i id="pickDot"></i></div>
+      <input type="range" id="pickHue" min="0" max="359" step="1" aria-label="Hue" />
+    </div>
+    <div class="row"><input type="text" id="custom" value="#c0392b" maxlength="7" spellcheck="false" autocapitalize="off" aria-label="Colour of the material (hex)" /><button id="addColor" type="button">+ new</button><button id="pickMat" type="button" title="Take the material of a surface (I: from under the cross; the button: then click a surface)">pick</button></div>
   </aside>
 
   <div class="fab" aria-label="Controls">
@@ -499,7 +495,7 @@
       <button id="delete" type="button" class="slate" title="Delete the object under the cross (X)">Delete</button>
       <button id="travel" type="button" class="teal" title="Target the object under the cross (T)">Target</button>
       <button id="keys" type="button" class="teal" title="The key explainer (?)">Keys</button>
-      <button id="assetsBtn" type="button" class="teal" title="The asset library (B)">Assets</button>
+      <button id="sceneBtn" type="button" class="teal" title="Switch between the build scene and the store scene (B)">Store</button>
       <button id="lines" type="button">Edges</button>
       <button id="freeze" type="button" class="teal" title="Freeze: everything that moves stands still (J)">Freeze</button>
       <button id="gpuBtn" type="button" title="The view now: SVG, WebGPU or WebGL2 (G switches)">SVG</button>
@@ -524,7 +520,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@801236a834c7d1ad0f65ad0a074d82078ece5b68/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@1490f0f102d49970b6eb5624c3bcf74a5476cf23/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1651,6 +1647,10 @@
     // A prism like the old table leg (same base), three times as tall as it is wide,
     // standing on the surface under the cross.
     const place = () => {
+      if (sceneName === 'store') {
+        const t = lockedObject();
+        if (t) return sendToBuild(t); // in the store M puts the target into the build scene
+      }
       if (solo) return shoot();
       if (hit) {
         const color = brown();
@@ -1751,7 +1751,7 @@
     const create = (name, mesh) => {
       const obj = { id: uid(name), name, mesh };
       history.push(() => erase(obj));
-      if (col) {
+      if (col && sceneName === 'build') {
         hostObjects.push({ ...obj, host: true });
         unsaved.add(obj.id);
         save(obj, () => col.doc(obj.id).set(docOf(obj)));
@@ -1995,6 +1995,7 @@
     let current = 0;
     let paletteCol = null; // db collection "palette"
     const paletteEl = document.getElementById('palette');
+    let pickerSet = null; // set by the colour picker below
     const swatchesEl = document.getElementById('swatches');
     const currentEl = document.getElementById('current');
     const PROPS = ['metal', 'rough', 'alpha', 'emit', 'soft'];
@@ -2015,6 +2016,7 @@
       const m = materials[current];
       currentEl.textContent = m.name;
       document.getElementById('custom').value = m.color;
+      if (pickerSet) pickerSet(m.color);
       for (const k of PROPS) {
         document.getElementById(`p-${k}`).value = m[k] ?? 0;
         document.getElementById(`v-${k}`).textContent = (m[k] ?? 0).toFixed(2);
@@ -2030,14 +2032,74 @@
       document.getElementById(`p-${k}`).addEventListener('change', () => saveMaterial(materials[current]));
     }
     document.getElementById('custom').addEventListener('input', (e) => {
+      if (!/^#[0-9a-f]{6}$/i.test(e.target.value)) return; // a half-typed colour waits
       materials[current].color = e.target.value;
       showPalette();
       syncPalette();
     });
     document.getElementById('custom').addEventListener('change', () => saveMaterial(materials[current]));
+    // the colour picker: HSV <-> hex, writing into the hex field and telling the palette through its own events
+    const hexEl = document.getElementById('custom');
+    const svEl = document.getElementById('pickSV');
+    const dotEl = document.getElementById('pickDot');
+    const hueEl = document.getElementById('pickHue');
+    const hsv = { h: 0, s: 1, v: 1 };
+    const hsvToHex = ({ h, s, v }) => {
+      const f = (n) => {
+        const k = (n + h / 60) % 6;
+        return v - v * s * Math.max(0, Math.min(k, 4 - k, 1));
+      };
+      return '#' + [f(5), f(3), f(1)].map((c) => Math.round(c * 255).toString(16).padStart(2, '0')).join('');
+    };
+    const hexToHsv = (hex) => {
+      const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+      const max = Math.max(r, g, b);
+      const d = max - Math.min(r, g, b);
+      const h = d === 0 ? hsv.h : 60 * (max === r ? ((g - b) / d + 6) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4);
+      return { h, s: max === 0 ? 0 : d / max, v: max };
+    };
+    const drawPicker = () => {
+      svEl.style.setProperty('--hue', hsv.h);
+      dotEl.style.left = `${hsv.s * 100}%`;
+      dotEl.style.top = `${(1 - hsv.v) * 100}%`;
+      hueEl.value = Math.round(hsv.h);
+    };
+    pickerSet = (hex) => {
+      if (/^#[0-9a-f]{6}$/i.test(hex)) Object.assign(hsv, hexToHsv(hex));
+      drawPicker();
+    };
+    const pickerWrite = (commit) => {
+      hexEl.value = hsvToHex(hsv);
+      drawPicker();
+      hexEl.dispatchEvent(new Event(commit ? 'change' : 'input'));
+    };
+    const svMove = (e) => {
+      const r = svEl.getBoundingClientRect();
+      hsv.s = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+      hsv.v = 1 - Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
+      pickerWrite(false);
+    };
+    svEl.addEventListener('pointerdown', (e) => {
+      svEl.setPointerCapture(e.pointerId);
+      svMove(e);
+    });
+    svEl.addEventListener('pointermove', (e) => svEl.hasPointerCapture(e.pointerId) && svMove(e));
+    svEl.addEventListener('pointerup', () => pickerWrite(true));
+    hueEl.addEventListener('input', () => ((hsv.h = Number(hueEl.value)), pickerWrite(false)));
+    hueEl.addEventListener('change', () => pickerWrite(true));
+    hexEl.addEventListener('keydown', (e) => e.stopPropagation()); // typing a colour is not a key command
+    hexEl.addEventListener('input', (e) => {
+      if (e.isTrusted) pickerSet(hexEl.value.startsWith('#') ? hexEl.value : `#${hexEl.value}`);
+    });
+    const scrim = document.getElementById('scrim');
+    const syncScrim = () => (scrim.hidden = paletteEl.hidden && keyPanel.hidden);
+    const closeModals = () => {
+      paletteEl.hidden = true;
+      toggleKeys?.(false);
+    };
     const togglePalette = () => {
       paletteEl.hidden = !paletteEl.hidden;
-      if (!paletteEl.hidden) showPalette();
+      if (!paletteEl.hidden) (toggleKeys(false), showPalette());
     };
     document.getElementById('addColor').addEventListener('click', () => {
       // a new material starts as a copy of the selected one
@@ -2050,156 +2112,74 @@
       showPalette();
       syncPalette();
     });
-    // ---- The asset library (B): reusable objects kept like an asset pack. An asset is a mesh with its origin in the middle of its
-    // base, so placing it puts that point at the cross. The library lives in this browser (localStorage); a pack file
-    // ({ format, version, materials, assets }) moves assets between scenes and machines. The first run starts with some timber stock.
-    const ASSET_KEY = '3draft.assets';
-    const PACK = '3draft-assets';
-    const assetsEl = document.getElementById('assets');
-    const cardsEl = document.getElementById('assetCards');
-    const assetNote = document.getElementById('assetNote');
-    const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+    // ---- Two scenes: the build (the one you work in) and the store (loose objects, the timber stock). B switches between
+    // them, each keeps its objects, its undo steps and its camera. In the store: target an object (T) and press M, and a copy is put
+    // into the build scene (its base middle where the build camera looked). The store lives in this visit only (no db).
+    const slots = { build: { mine: [], host: [], hist: [], cam: null }, store: { mine: [], host: [], hist: [], cam: null, seeded: false } };
+    let sceneName = 'build';
+    const sceneBtn = document.getElementById('sceneBtn');
     const baseCentre = (mesh) => {
       const lo = [Infinity, Infinity, Infinity];
       const hi = [-Infinity, -Infinity, -Infinity];
       for (const q of mesh.positions) q.forEach((c, i) => ((lo[i] = Math.min(lo[i], c)), (hi[i] = Math.max(hi[i], c))));
-      return { lo, hi, at: [(lo[0] + hi[0]) / 2, lo[1], (lo[2] + hi[2]) / 2] };
+      return [(lo[0] + hi[0]) / 2, lo[1], (lo[2] + hi[2]) / 2];
     };
-    const round = (v) => Math.round(v * 1e5) / 1e5;
-    const tidy = (mesh) => {
-      // base middle to the origin, a private copy, numbers kept short
-      const { at } = baseCentre(mesh);
-      return { positions: mesh.positions.map((q) => q.map((c, i) => round(c - at[i]))), faces: mesh.faces.map((f) => ({ ...f, v: [...f.v] })) };
-    };
-    const usedMaterials = (list) => {
-      const names = new Set(list.flatMap((a) => a.mesh.faces.map((f) => f.mat).filter(Boolean)));
-      return materials.filter((m) => names.has(m.name)).map((m) => ({ ...m }));
-    };
-    const timber = (name, size) => {
+    const seedStore = () => {
       const wood = materials.find((m) => m.name === 'wood');
-      const mesh = box({ size, at: [0, size[1] / 2, 0], color: wood?.color });
-      mesh.faces.forEach((f) => (f.mat = 'wood'));
-      return { id: `stock-${name}`, name, mesh: tidy(mesh) };
-    };
-    let storedMaterials = [];
-    const loadAssets = () => {
-      try {
-        const pack = JSON.parse(localStorage.getItem(ASSET_KEY) ?? 'null');
-        if (pack?.format === PACK && Array.isArray(pack.assets)) return (storedMaterials = pack.materials ?? []), pack.assets;
-      } catch {
-        // no storage, or damaged: start from the stock
+      // loose on the floor: name, size (m), where
+      for (const [name, size, at] of [
+        ['lath', [2, 0.03, 0.05], [-0.2, 0, -1.5]],
+        ['board', [2, 0.025, 0.2], [0.3, 0, -0.9]],
+        ['plank', [2, 0.05, 0.3], [0, 0, -0.2]],
+        ['beam', [2, 0.1, 0.1], [-0.4, 0, 0.5]],
+        ['plywood', [2.44, 0.012, 1.22], [0.2, 0, 1.6]],
+      ]) {
+        const mesh = box({ size, at: [at[0], size[1] / 2, at[2]], color: wood?.color });
+        mesh.faces.forEach((f) => (f.mat = 'wood'));
+        create(name, mesh);
       }
-      return [timber('lath', [2, 0.03, 0.05]), timber('board', [2, 0.025, 0.2]), timber('plank', [2, 0.05, 0.3]), timber('beam', [2, 0.1, 0.1]), timber('plywood', [2.44, 0.012, 1.22])];
+      history.splice(0); // the stock is not an undo step
+      slots.store.seeded = true;
     };
-    let assets = loadAssets();
-    const packOf = (list) => ({ format: PACK, version: 1, materials: usedMaterials(list), assets: list });
-    const saveAssets = () => {
-      try {
-        localStorage.setItem(ASSET_KEY, JSON.stringify(packOf(assets)));
-      } catch {
-        // the library still works for this visit
-      }
-    };
-    const needMaterials = (defs) => {
-      let added = false;
-      for (const m of defs ?? []) {
-        if (materials.some((x) => x.name === m.name)) continue;
-        materials.push({ ...m });
-        saveMaterial(materials[materials.length - 1]);
-        added = true;
-      }
-      if (added) syncPalette();
-    };
-    needMaterials(storedMaterials); // the materials the saved assets were made of
-    const sizeText = (mesh) => {
-      const { lo, hi } = baseCentre(mesh);
-      return [0, 1, 2].map((i) => +(hi[i] - lo[i]).toPrecision(3)).join(' × ') + ' m';
-    };
-    const thumbOf = (a) => {
-      const b = bounds(a.mesh);
-      const R = b.radius || 1;
-      return renderView(a.mesh, orbit({ yaw: -0.6, pitch: 0.45 }), { size: 100, fit: { center: b.center, radius: R, dist: orbitDist(R) * 0.7 }, palette: paletteMap, occlude: true, points: false, background: '#1b1b1b' });
-    };
-    const noteAsset = (t) => (assetNote.textContent = t);
-    const renderAssets = () => {
-      cardsEl.innerHTML = assets.length
-        ? assets
-            .map((a) => `<div class="card" data-id="${esc(a.id)}"><div class="pic" title="Place at the cross">${thumbOf(a)}</div><input value="${esc(a.name)}" aria-label="Name" spellcheck="false" /><small>${sizeText(a.mesh)}</small><div class="row"><button type="button" data-do="place">place</button><button type="button" data-do="del" class="slate">delete</button></div></div>`)
-            .join('')
-        : '<span class="empty">The library is empty: put the cross on an object and press “+ object”.</span>';
-    };
-    const toggleAssets = () => {
-      assetsEl.hidden = !assetsEl.hidden;
-      document.getElementById('assetsBtn').classList.toggle('on', !assetsEl.hidden);
-      if (!assetsEl.hidden) renderAssets();
-    };
-    const placeAsset = (a) => {
-      if (!a) return;
-      const at = hit ? [...hit.point] : [...fit.center]; // on the surface under the cross, else (a click on the panel) in front of the eye
-      const made = create(`${a.name}-${shortId()}`, shifted(a.mesh, at));
-      noteAsset(`placed ${made.name}`);
+    const switchScene = () => {
+      if (editing) leaveEdit();
+      const from = sceneName;
+      const to = from === 'build' ? 'store' : 'build';
+      slots[from] = { ...slots[from], mine, host: hostObjects, hist: history.splice(0), cam: { center: [...fit.center], radius: fit.radius, dist: fit.dist, yaw, pitch } };
+      const next = slots[to];
+      mine = next.mine;
+      hostObjects = next.host;
+      history.push(...next.hist);
+      sceneName = to;
+      locked = null;
+      gizmo = null;
+      solo = null;
+      spiderFrom = null;
+      boolFrom = null;
+      closeBool();
+      if (to === 'store' && !next.seeded) seedStore();
+      rebuild();
+      goTo(next.cam ?? { center: [0, 0.4, 0.3], radius: 3.2, yaw: START.yaw, pitch: START.pitch });
+      document.body.classList.toggle('store', to === 'store');
+      sceneBtn.textContent = to === 'store' ? 'Build' : 'Store';
+      sceneBtn.classList.toggle('on', to === 'store');
       redraw();
     };
-    const addAssetFrom = (o) => {
-      if (!o) return noteAsset('Put the cross on an object (or target one, or edit one) first.');
-      const base = o.name.replace(/-[a-z0-9]{4}$/, '') || o.name;
-      let name = base;
-      for (let n = 2; assets.some((x) => x.name === name); n++) name = `${base}-${n}`;
-      assets.push({ id: uid('asset'), name, mesh: tidy(o.mesh) });
-      saveAssets();
-      renderAssets();
-      noteAsset(`saved ${name}`);
+    const sendToBuild = (o) => {
+      const b = slots.build;
+      const c = b.cam?.center ?? [0, 0, 0];
+      const at = baseCentre(o.mesh);
+      const obj = { id: uid(o.name), name: `${o.name.replace(/-[a-z0-9]{4}$/, '')}-${shortId()}`, mesh: shifted(o.mesh, c.map((v, i) => v - at[i])) };
+      if (col) {
+        b.host.push({ ...obj, host: true });
+        unsaved.add(obj.id);
+        save(obj, () => col.doc(obj.id).set(docOf(obj)));
+      } else b.mine.push(obj);
+      b.hist.push(() => erase(obj));
+      sceneBtn.textContent = `${obj.name} → build`;
+      setTimeout(() => (sceneBtn.textContent = sceneName === 'store' ? 'Build' : 'Store'), 1400);
     };
-    cardsEl.addEventListener('click', (e) => {
-      const card = e.target.closest('.card');
-      const a = card && assets.find((x) => x.id === card.dataset.id);
-      if (!a) return;
-      const act = e.target.closest('button')?.dataset.do;
-      if (act === 'del') {
-        assets = assets.filter((x) => x !== a);
-        saveAssets();
-        renderAssets();
-      } else if (act === 'place' || e.target.closest('.pic')) placeAsset(a);
-    });
-    cardsEl.addEventListener('change', (e) => {
-      const card = e.target.closest('.card');
-      const a = card && assets.find((x) => x.id === card.dataset.id);
-      if (a && e.target.matches('input')) {
-        a.name = e.target.value.trim() || a.name;
-        saveAssets();
-      }
-    });
-    cardsEl.addEventListener('keydown', (e) => e.stopPropagation()); // typing a name is not a key command
-    document.getElementById('assetAdd').addEventListener('click', () => addAssetFrom((editing && has(editing) ? editing : null) ?? lockedObject() ?? (lastHitId ? allObjects().find((o) => o.id === lastHitId) : null) ?? null));
-    document.getElementById('assetsBtn').addEventListener('click', toggleAssets);
-    document.getElementById('assetExport').addEventListener('click', () => {
-      const blob = new Blob([JSON.stringify(packOf(assets))], { type: 'application/json' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = 'assets.3dpack.json';
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-    });
-    const fileEl = document.getElementById('assetFile');
-    document.getElementById('assetImport').addEventListener('click', () => fileEl.click());
-    fileEl.addEventListener('change', async () => {
-      const file = fileEl.files?.[0];
-      fileEl.value = '';
-      if (!file) return;
-      try {
-        const pack = JSON.parse(await file.text());
-        if (pack?.format !== PACK || !Array.isArray(pack.assets)) throw new Error('not an asset pack');
-        const have = new Set(assets.map((a) => a.id));
-        const fresh = pack.assets.filter((a) => a?.mesh?.positions && a?.mesh?.faces && !have.has(a.id));
-        needMaterials(pack.materials);
-        assets.push(...fresh.map((a) => ({ id: a.id ?? uid('asset'), name: String(a.name ?? 'asset'), mesh: tidy(a.mesh) })));
-        saveAssets();
-        renderAssets();
-        noteAsset(`${fresh.length} asset${fresh.length === 1 ? '' : 's'} added`);
-      } catch (err) {
-        noteAsset(`could not read the pack (${err.message})`);
-      }
-    });
+    sceneBtn.addEventListener('click', switchScene);
     // Pick material (the eyedropper): the material of the face under the cross becomes the selected one. A face that only
     // has a colour selects the entry with that colour, or starts a new entry from it.
     let picking = false;
@@ -2207,6 +2187,7 @@
     const armPick = (on) => {
       picking = on;
       pickBtn.classList.toggle('on', on);
+      if (on) paletteEl.hidden = true; // the modal would cover the surface to click
       stage.style.cursor = on ? 'copy' : '';
     };
     const pickMaterial = () => {
@@ -2919,6 +2900,7 @@
         stop();
         return void letGo();
       }
+      if (e.key === 'Escape' && (!paletteEl.hidden || !keyPanel.hidden)) return void closeModals();
       if (e.key === 'Escape' && !editing && !picking && !locked) {
         // Esc closes what is open: the key explainer, then zen
         if (!keyPanel.hidden) return void toggleKeys(false);
@@ -3003,7 +2985,7 @@
         if (!e.repeat) togglePalette();
       } else if (e.key === 'b' || e.key === 'B') {
         e.preventDefault();
-        if (!e.repeat) toggleAssets();
+        if (!e.repeat) switchScene();
       } else if (e.key === 'x' || e.key === 'X' || e.key === 'Delete') {
         e.preventDefault();
         remove();
@@ -3215,7 +3197,7 @@
       x: { cap: 'X', sub: 'del', cat: 'red', text: 'Delete the object under the cross (U brings it back).', edit: 'Shift+X deletes the object under the cross. During G / S: locks the axis to x.' },
       c: { cap: 'C', sub: 'filmic', cat: 'teal', text: 'Filmic look: HDR light, glowing emission, tone mapping.' },
       v: { cap: 'V', sub: 'bar', cat: 'red', text: 'Spider bar: joins two surface points with a thin bar.', edit: 'Sketches a line from point to point (it does nothing yet). In saw mode (4): puts a saw point (two on one face: a cut square to it; three: a cut through the triangle).' },
-      b: { cap: 'B', sub: 'assets', cat: 'teal', text: 'The asset library: reusable objects like an asset pack. Click a picture to place it at the cross; “+ object” saves the edited object, the target or the last one under the cross; export / import move a pack file.' },
+      b: { cap: 'B', sub: 'store', cat: 'teal', text: 'Switch between the build scene and the store scene. The store holds loose objects (timber stock): target one (T) and press M to put a copy into the build scene.' },
       n: { cap: 'N', sub: 'smooth', cat: 'teal', text: 'Smooth shading: faces that meet at a shallow angle share their normals.' },
       m: { cap: 'M', sub: 'place', cat: 'red', text: 'Puts a prism down at the cross (or shoots one into empty space).', solo: 'In isolated mode the prism is a bullet: where it lands it carves A−B out of the surface; if it misses it disappears.' },
       arrowleft: { cap: '←', sub: '', cat: 'cream', title: 'Arrow left', text: 'Rotate the view left, in steps.' },
@@ -3233,6 +3215,8 @@
     ];
     const CAT_NAME = { cream: 'fly · view', teal: 'target · look', red: 'edit · make', slate: 'system', free: 'free' };
     const keyPanel = document.getElementById('keypanel');
+    for (const el of [paletteEl, keyPanel]) new MutationObserver(syncScrim).observe(el, { attributes: true, attributeFilter: ['hidden'] });
+    scrim.addEventListener('click', closeModals);
     const keyInfo = document.getElementById('keyinfo');
     const keyboardEl = document.getElementById('kb');
     const keyRef = {}; // key id -> its button
@@ -3300,6 +3284,7 @@
       document.getElementById('keys').classList.toggle('on', open);
       document.getElementById('fabKeys').classList.toggle('on', open);
       if (open) {
+        paletteEl.hidden = true;
         refreshKeyContext();
         showKey(keyShown ?? 't');
       }
@@ -3403,6 +3388,7 @@
       const next = (data.objects ?? []).map((o, n) => ({ id: o.id ?? o.name ?? `o${n}`, name: o.name ?? `o${n}`, mesh: o.mesh, wire: o.wire, host: true }));
       // db snapshots hand out every document again (also the echo of our own write): an object whose content did not
       // change stays the same instance, so its mesh and its GPU vertices are kept, and an unchanged scene is not rebuilt
+      if (sceneName === 'store') return void (slots.build.host = next); // the build scene is not on screen: it takes it when we go back
       let unchanged = data.rev === 'db' && next.length === hostObjects.length;
       if (data.rev === 'db') {
         const before = new Map(hostObjects.map((o) => [o.id, o]));
