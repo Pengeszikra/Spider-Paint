@@ -53,7 +53,7 @@ With a **target**, W A S D R F move the camera round and towards the target inst
 
 | Key | Action |
 |---|---|
-| M | Put a prism down at the cross; over empty space it is shot out and flies |
+| M | Put a prism down at the cross (over empty space it is shot out and flies), or a copy of the model chosen in the store |
 | X | Delete the object under the cross |
 | U, Backspace | Undo |
 | V | Spider bar: join two surface points with a thin bar |
@@ -70,7 +70,7 @@ Click a swatch to select it. The sliders change **metal**, **rough**, **alpha**,
 
 ## Two scenes: build and store
 
-**B** or the Store / Build button switches. The *store* holds loose objects (timber stock: lath, board, plank, beam, plywood). In the store, target an object (**T**) and press **M**: a copy goes into the build scene, its base middle where the build camera looked. Each scene has its own objects, undo steps and camera.
+**B** or the Store / Build button switches, and the view cuts over without a flight. The *store* holds loose objects (timber stock: lath, board, plank, beam, plywood). In the store, **target** an object (**T**): it becomes the model of **M**. Switch back to the build and **M** puts a copy of that model down at the cross, every time (a chip next to the cube button names it; click the chip to go back to the plain prism). Each scene has its own objects, undo steps and camera.
 
 ## Edit mode
 

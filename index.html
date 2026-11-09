@@ -454,6 +454,8 @@
       footer.console .grp:nth-child(3n+1)::after { content: ''; position: absolute; top: 1px; right: 0; width: 3px; height: 3px; border-radius: 50%; background: #2fb8c0; opacity: 0.7; animation: blink 3.4s steps(2) infinite; }
       @keyframes blink { 50% { opacity: 0.15; } }
       footer.console button { padding: 7px 10px; border-radius: 7px; font-size: 11px; box-shadow: 0 2px 0 #1a1c17, 0 3px 6px #0008; }
+      footer.console button.chip { padding: 3px 8px; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: #17707a; color: var(--cream); font-size: 9px; letter-spacing: 0.06em; }
+      footer.console button.chip[hidden] { display: none; }
       footer.console button.ic { width: 34px; height: 30px; padding: 0; display: inline-grid; place-items: center; }
       footer.console button.ic svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
       footer.console button.red { background: var(--red); color: #1b0803; }
@@ -580,6 +582,7 @@
     <span class="actions">
       <span class="grp only-build" data-label="make">
         <button id="place" type="button" class="red ic" title="Place a prism (M)" aria-label="Place a prism"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12L4 7.5M12 12v9"/></svg></button>
+        <button id="brush" type="button" class="chip" hidden title="The model M puts down; click to go back to the prism"></button>
         <button id="delete" type="button" class="slate ic" title="Delete the object under the cross (X)" aria-label="Delete"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
         <button id="travel" type="button" class="teal ic" title="Target the object under the cross (T)" aria-label="Target"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
         <button id="sceneBtn" type="button" class="teal" title="Switch between the build scene and the store scene (B)">Store</button>
@@ -626,7 +629,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@a2e3ec368cd8299c0fbd9a8504d5d0c63838cf06/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e0bc25d1c0912d4aff2e94ec9c4e4901226b667c/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -783,6 +786,19 @@
     const TRAVEL_MS = 900;
     const ease = (t) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
     const turnBy = (a, b) => a + ((((b - a) % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI)) - Math.PI; // a -> b the short way round
+    // the same pose without the glide (switching scenes is a cut, not a flight)
+    const jumpTo = (to) => {
+      travel = null;
+      fit.center = [...to.center];
+      fit.radius = to.radius;
+      if (to.dist !== undefined) fit.dist = to.dist;
+      else delete fit.dist;
+      yaw = to.yaw ?? yaw;
+      pitch = to.pitch ?? pitch;
+      fly = false;
+      stop();
+      redraw();
+    };
     const goTo = (to) => {
       travel = {
         start: performance.now(),
@@ -1758,8 +1774,13 @@
     const place = () => {
       if (sceneName === 'store') {
         const t = lockedObject();
-        if (t) return sendToBuild(t); // in the store M puts the target into the build scene
-      }
+        if (t) {
+          setBrush(t); // in the store M takes the target as the model for M in the build
+          sceneBtn.textContent = `M: ${brush.name}`;
+          setTimeout(() => (sceneBtn.textContent = sceneName === 'store' ? 'Build' : 'Store'), 1400);
+          return;
+        }
+      } else if (brush && !solo) return putBrush();
       if (solo) return shoot();
       if (hit) {
         const color = brown();
@@ -2322,6 +2343,10 @@
     };
     const switchScene = () => {
       if (editing) leaveEdit();
+      if (sceneName === 'store') {
+        const t = lockedObject();
+        if (t) setBrush(t); // what is targeted in the store is what M puts down in the build
+      }
       const from = sceneName;
       const to = from === 'build' ? 'store' : 'build';
       slots[from] = { ...slots[from], mine, host: hostObjects, hist: history.splice(0), cam: { center: [...fit.center], radius: fit.radius, dist: fit.dist, yaw, pitch } };
@@ -2338,25 +2363,34 @@
       closeBool();
       if (to === 'store' && !next.seeded) seedStore();
       rebuild();
-      goTo(next.cam ?? { center: [0, 0.4, 0.3], radius: 3.2, yaw: START.yaw, pitch: START.pitch });
+      jumpTo(next.cam ?? { center: [0, 0.4, 0.3], radius: 3.2, yaw: START.yaw, pitch: START.pitch });
       document.body.classList.toggle('store', to === 'store');
       sceneBtn.textContent = to === 'store' ? 'Build' : 'Store';
       sceneBtn.classList.toggle('on', to === 'store');
       redraw();
     };
-    const sendToBuild = (o) => {
-      const b = slots.build;
-      const c = b.cam?.center ?? [0, 0, 0];
-      const at = baseCentre(o.mesh);
-      const obj = { id: uid(o.name), name: `${o.name.replace(/-[a-z0-9]{4}$/, '')}-${shortId()}`, mesh: shifted(o.mesh, c.map((v, i) => v - at[i])) };
-      if (col) {
-        b.host.push({ ...obj, host: true });
-        unsaved.add(obj.id);
-        save(obj, () => col.doc(obj.id).set(docOf(obj)));
-      } else b.mine.push(obj);
-      b.hist.push(() => erase(obj));
-      sceneBtn.textContent = `${obj.name} → build`;
-      setTimeout(() => (sceneBtn.textContent = sceneName === 'store' ? 'Build' : 'Store'), 1400);
+    // The brush: the model that M puts down in the build scene. Target an object in the store (T) and it becomes the brush, either when
+    // you press M there or when you switch to the build; M then places a copy of it (base middle at the cross), every time. The chip
+    // next to the place button names it; a click on the chip goes back to the plain prism.
+    let brush = null; // { name, mesh } with the base middle at the origin
+    const brushChip = document.getElementById('brush');
+    const setBrush = (o) => {
+      brush = o ? { name: o.name.replace(/-[a-z0-9]{4}$/, ''), mesh: shifted(o.mesh, baseCentre(o.mesh).map((c) => -c)) } : null;
+      brushChip.hidden = !brush;
+      brushChip.textContent = brush ? `${brush.name} ✕` : '';
+      document.getElementById('place').title = brush ? `Put down a copy of ${brush.name} (M)` : 'Place a prism (M)';
+    };
+    brushChip.addEventListener('click', () => setBrush(null));
+    const putBrush = () => {
+      // on the surface under the cross, else on the cursor ray a little way out
+      let at = hit ? [...hit.point] : null;
+      if (!at && pointer && cam?.at) {
+        const { origin, dir } = ray(cam, cam.at.x, cam.at.y);
+        const d = orbitDist(fit.radius) * 0.6;
+        at = origin.map((c, i) => c + dir[i] * d);
+      }
+      create(`${brush.name}-${shortId()}`, shifted(brush.mesh, at ?? [...fit.center]));
+      redraw();
     };
     sceneBtn.addEventListener('click', switchScene);
     // Pick material (the eyedropper): the material of the face under the cross becomes the selected one. A face that only
@@ -3384,7 +3418,7 @@
       x: { cap: 'X', sub: 'del', cat: 'red', text: 'Delete the object under the cross (U brings it back).', edit: 'Shift+X deletes the object under the cross. During G / S: locks the axis to x.' },
       c: { cap: 'C', sub: 'filmic', cat: 'teal', text: 'Filmic look: HDR light, glowing emission, tone mapping.' },
       v: { cap: 'V', sub: 'bar', cat: 'red', text: 'Spider bar: joins two surface points with a thin bar.', edit: 'Sketches a line from point to point (it does nothing yet). In saw mode (4): puts a saw point (two on one face: a cut square to it; three: a cut through the triangle).' },
-      b: { cap: 'B', sub: 'store', cat: 'teal', text: 'Switch between the build scene and the store scene. The store holds loose objects (timber stock): target one (T) and press M to put a copy into the build scene.' },
+      b: { cap: 'B', sub: 'store', cat: 'teal', text: 'Switch between the build scene and the store scene. The store holds loose objects (timber stock): target one (T); it becomes the model M puts down in the build scene.' },
       n: { cap: 'N', sub: 'smooth', cat: 'teal', text: 'Smooth shading: faces that meet at a shallow angle share their normals.' },
       m: { cap: 'M', sub: 'place', cat: 'red', text: 'Puts a prism down at the cross (or shoots one into empty space).', solo: 'In isolated mode the prism is a bullet: where it lands it carves A−B out of the surface; if it misses it disappears.' },
       arrowleft: { cap: '←', sub: '', cat: 'cream', title: 'Arrow left', text: 'Rotate the view left, in steps.' },
