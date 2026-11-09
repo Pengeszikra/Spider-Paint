@@ -40,7 +40,7 @@ const steps = [
   <meta name="apple-mobile-web-app-title" content="Spider Paint">`],
   // the scene starts with the globe; not in an artifact, where the shared database holds the scene
   // (adding it there would write a new bridge into the database at every visit)
-  ['starting scene', '\n    draw();\n  </script>', "\n    draw();\n    if (!globalThis.claude?.use) addExample('globe'); // the starting scene\n    // works offline once opened (not in an artifact, nor from a file)\n    if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !globalThis.claude?.use) navigator.serviceWorker.register('sw.js').catch(() => {});\n  </script>"],
+  ['starting scene', '\n    draw();\n    window.__ready = true;', "\n    draw();\n    window.__ready = true;\n    if (!globalThis.claude?.use) addExample('globe'); // the starting scene\n    // works offline once opened (not in an artifact, nor from a file)\n    if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !globalThis.claude?.use) navigator.serviceWorker.register('sw.js').catch(() => {});"],
 ];
 
 let html = readFileSync(join(src, 'app/index.html'), 'utf8');
