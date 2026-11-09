@@ -596,9 +596,7 @@
         <button type="button" class="cream" data-key="s" title="Scale the selection (S)"><b>S</b>sc</button>
         <button type="button" class="cream" data-key="r" title="Rotate the selection (R)"><b>R</b>rot</button>
         <button type="button" class="cream" data-key="e" title="Extrude the selected faces (E)"><b>E</b>ex</button>
-        <button type="button" class="sw" data-mirror="x" title="Mirror editing across the X plane through the middle of the object"><i></i>mir x</button>
-        <button type="button" class="sw" data-mirror="y" title="Mirror editing across the Y plane through the middle of the object"><i></i>mir y</button>
-        <button type="button" class="sw" data-mirror="z" title="Mirror editing across the Z plane through the middle of the object"><i></i>mir z</button>
+        <button type="button" class="cream" data-key="f" title="Fill: make a face of the selected points (F)"><b>F</b>fill</button>
         <button type="button" class="slate" data-key="x" data-shift="1" title="Delete the object under the cross (Shift+X)"><b>⇧X</b>del</button>
         <button type="button" class="teal" data-key="q" title="Leave edit mode (Q)"><b>Q</b>done</button>
       </span>
@@ -633,7 +631,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@8c5e0e87ac1fba84c42158e350ec10430a0f8408/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@570311e22cf88d142eaa3aafe5dd663a72759a3c/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2651,8 +2649,7 @@
       document.body.classList.toggle('editing', Boolean(editing));
       if (!editing) return;
       const chips = Object.entries(MODES).map(([k, label]) => `<i class="${k === emode ? 'on' : ''}">${label}</i>`).join('');
-      const mir = typeof mirrorOn === 'function' && mirrorOn().length ? `<span class="note">mirror ${mirrorOn().join('').toUpperCase()}</span>` : '';
-      barText.innerHTML = `edit ${hudText(editing.name ?? '')}<span class="modes">${chips}</span>${mir}${barNote ? `<span class="note">${hudText(barNote)}</span>` : ''}`;
+      barText.innerHTML = `edit ${hudText(editing.name ?? '')}<span class="modes">${chips}</span>${barNote ? `<span class="note">${hudText(barNote)}</span>` : ''}`;
     };
     const vsub = (a, b) => a.map((c, i) => c - b[i]);
     const vdot = (a, b) => a.reduce((t, c, i) => t + c * b[i], 0);
@@ -2896,43 +2893,6 @@
       }
       return ((panelPointer.x - x.s0.x) * sx + (panelPointer.y - x.s0.y) * sy) / sl / (sl / L);
     };
-    // Mirror editing (the console's mirror switches X / Y / Z): a point that moves takes its twin across the plane with it, mirrored.
-    // The planes go through the middle of the object's box; a point on a plane stays on it. Points without a twin move alone.
-    const mirror = { x: false, y: false, z: false };
-    const mirrorOn = () => ['x', 'y', 'z'].filter((a) => mirror[a]);
-    const withMirror = (x, moves) => {
-      const axes = mirrorOn().map((a) => 'xyz'.indexOf(a));
-      if (!axes.length) return moves;
-      if (!x.mi) {
-        const P = x.mesh0.positions;
-        const lo = [Infinity, Infinity, Infinity];
-        const hi = [-Infinity, -Infinity, -Infinity];
-        for (const q of P) q.forEach((c, i) => ((lo[i] = Math.min(lo[i], c)), (hi[i] = Math.max(hi[i], c))));
-        const eps = 1e-4 * Math.max(Math.hypot(...hi.map((h, i) => h - lo[i])), 1e-6);
-        const key = (q) => q.map((c) => Math.round(c / eps)).join();
-        const index = new Map();
-        P.forEach((q, i) => index.has(key(q)) || index.set(key(q), i));
-        x.mi = { P, ctr: lo.map((l, i) => (l + hi[i]) / 2), key, index };
-      }
-      const { P, ctr, key, index } = x.mi;
-      const subsets = [];
-      for (let m = 1; m < 1 << axes.length; m++) subsets.push(axes.filter((_, b) => m & (1 << b)));
-      const refl = (q, S) => q.map((c, j) => (S.includes(j) ? 2 * ctr[j] - c : c));
-      const out = new Map();
-      const done = new Set();
-      for (const [i, pos] of moves) {
-        if (done.has(i)) continue;
-        out.set(i, pos);
-        done.add(i);
-        for (const S of subsets) {
-          const t = index.get(key(refl(P[i], S)));
-          if (t === undefined) continue;
-          if (t === i) out.set(i, out.get(i).map((c, j) => (S.includes(j) ? ctr[j] : c))); // on the plane: stay on it
-          else if (!done.has(t)) (out.set(t, refl(pos, S)), done.add(t));
-        }
-      }
-      return [...out];
-    }
     function xfUpdate() {
       const x = xf;
       if (!x) return;
@@ -2984,7 +2944,7 @@
         });
       }
       x.changed = true;
-      x.obj.mesh = reshape(x.mesh0, withMirror(x, moves));
+      x.obj.mesh = reshape(x.mesh0, moves);
       rebuild();
       barNote = `${x.kind}${x.lock ? ` ${x.lock.toUpperCase()}` : x.kind === 'rotate' ? ' about its axis' : x.axisVec ? ' along the normal' : ''} · ${typed !== null ? `${x.typed}_` : text} · ⏎ ok, Esc cancels`;
       showBar();
@@ -3010,6 +2970,57 @@
       x.obj.mesh = x.orig;
       rebuild();
       noteEdit('cancelled');
+      redraw();
+    };
+    // F: fill. The selected points (or the points of the selected lines) become one new face: ordered round their middle in their own
+    // plane, wound so that it faces away from the object, in the material of a neighbouring face (else the palette's).
+    const fill = () => {
+      const P = editing.mesh.positions;
+      const ids = selVerts().filter((i) => i < P.length);
+      if (sel.kind === 'face' || ids.length < 3) return noteEdit('F fills a hole: select 3 or more points (1) or the lines round it (2), then F');
+      const sub = (a, b) => a.map((c, i) => c - b[i]);
+      const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+      const unit = (v) => {
+        const l = Math.hypot(...v);
+        return l > 1e-12 ? v.map((c) => c / l) : null;
+      };
+      // the plane: the two farthest points, and the point farthest from the line between them
+      let [a, b] = [ids[0], ids[1]];
+      let far = -1;
+      for (const i of ids) for (const j of ids) if (i < j) {
+        const d = Math.hypot(...sub(P[i], P[j]));
+        if (d > far) ((far = d), (a = i), (b = j));
+      }
+      const u = unit(sub(P[b], P[a]));
+      let n = null;
+      let best = 0;
+      if (u) for (const i of ids) {
+        const m = cross(u, sub(P[i], P[a]));
+        const l = Math.hypot(...m);
+        if (l > best) ((best = l), (n = m.map((c) => c / l)));
+      }
+      if (!n) return noteEdit('F: those points lie on a line, there is nothing to fill');
+      const c = ids.reduce((t, i) => t.map((v, k) => v + P[i][k] / ids.length), [0, 0, 0]);
+      const w = cross(n, u);
+      const angle = (i) => {
+        const d = sub(P[i], c);
+        return Math.atan2(d[0] * w[0] + d[1] * w[1] + d[2] * w[2], d[0] * u[0] + d[1] * u[1] + d[2] * u[2]);
+      };
+      let order = [...ids].sort((p, q) => angle(p) - angle(q));
+      // outward: away from the middle of the whole object
+      const mid = P.reduce((t, q) => t.map((v, k) => v + q[k] / P.length), [0, 0, 0]);
+      if (n[0] * (c[0] - mid[0]) + n[1] * (c[1] - mid[1]) + n[2] * (c[2] - mid[2]) < 0) order = order.reverse();
+      const set = new Set(ids);
+      const near = editing.mesh.faces.find((f) => f.v.filter((i) => set.has(i)).length >= 2);
+      const m = materials[current];
+      const face = { v: order, color: near?.color ?? m.color, mat: near?.mat ?? m.name };
+      const orig = editing.mesh;
+      const obj = editing;
+      change(obj, { ...orig, faces: [...orig.faces, face] });
+      history.push(() => has(obj) && change(obj, orig));
+      sel = emptySel();
+      emode = 'face';
+      noteEdit(`filled ${order.length} points`);
       redraw();
     };
     // R: rotate. About the middle of the selected points or faces; with a selected line the line is the axis (the other selected parts turn
@@ -3112,7 +3123,13 @@
         startRotate();
         return true;
       }
-      if ('wdf'.includes(k) && k.length === 1) return true; // fly only with Shift while editing
+      if (k === 'f') {
+        e.preventDefault();
+        if (e.repeat) return true;
+        fill();
+        return true;
+      }
+      if ('wd'.includes(k) && k.length === 1) return true; // fly only with Shift while editing
       return false;
     };
     let last = null; // drag origin
@@ -3327,14 +3344,6 @@
         turn(...moves[e.key]);
       }
     });
-    for (const b of document.querySelectorAll('footer.console [data-mirror]')) {
-      b.addEventListener('click', () => {
-        const a = b.dataset.mirror;
-        mirror[a] = !mirror[a];
-        b.classList.toggle('on', mirror[a]);
-        showBar();
-      });
-    }
     // the edit panel of the console: each button presses its key
     for (const b of document.querySelectorAll('footer.console [data-key]')) {
       b.addEventListener('click', () => {
@@ -3516,7 +3525,7 @@
       a: { cap: 'A', sub: 'left', cat: 'cream', text: 'Fly left (speed steps).', target: 'Swing left round the target.', edit: 'Select everything (in the point, line or face mode); A A clears the selection. (Shift+A flies left.)' },
       s: { cap: 'S', sub: 'back', cat: 'cream', text: 'Fly back (speed steps).', target: 'Farther from the target.', edit: 'Scale the selection about its centre; X, Y or Z scales along that world axis only, a typed number is the factor. (Shift+S flies back.)' },
       d: { cap: 'D', sub: 'right', cat: 'cream', text: 'Fly right (speed steps).', target: 'Swing right round the target.', edit: 'Only with Shift while editing.' },
-      f: { cap: 'F', sub: 'down', cat: 'cream', text: 'Fly down (speed steps).', target: 'Swing down under the target.', edit: 'Only with Shift while editing.' },
+      f: { cap: 'F', sub: 'down', cat: 'cream', text: 'Fly down (speed steps).', target: 'Swing down under the target.', edit: 'Fill: the selected points (or the points of the selected lines) become one new face. (Shift+F flies down.)' },
       g: { cap: 'G', sub: 'grab', cat: 'red', text: '', edit: 'Grab: moves the selection with the pointer; X, Y or Z locks it to a world axis, a typed number is metres. Click or Enter confirms, Esc cancels.' },
       9: { cap: '9', sub: 'gpu', cat: 'teal', text: 'Switch between the SVG view and the WebGPU view.' },
       h: { cap: 'H', sub: 'gizmo', cat: 'red', text: 'Move gizmo on the object under the cross: 1st H world axes, 2nd H its own axes, 3rd H off. Drag an arrow to move it.' },

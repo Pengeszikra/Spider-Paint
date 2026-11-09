@@ -86,7 +86,7 @@ Put the cross on an object and press **Q**. That object is the active one; every
 | E | Extrude the selected faces along their normal |
 | V | Sketch a line from point to point (nothing happens yet) |
 | 4, then V | **Saw**: V puts two or three points. Two on one face: a cut square to it. Three: a cut through the triangle. **Enter** cuts the object into closed solids that keep their material |
-| mir x / y / z (switches) | **Mirror editing:** while a switch is on, every point you move (G, S, R, E) takes its twin across that plane with it, mirrored. The planes go through the middle of the object's box; a point on a plane stays on it. The edit bar shows `mirror X` etc. |
+| F | **Fill:** the selected points (or the points of the selected lines) become one new face, wound to face away from the object, in the material of a neighbouring face. Closes a hole |
 | Shift+X | Delete the object under the cross |
 | Shift+W A S D R F | Fly (plain, these are edit keys) |
 | U | Undo (stops at the start of the edit session) |
