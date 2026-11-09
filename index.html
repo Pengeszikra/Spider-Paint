@@ -502,7 +502,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@570ec04ce51f3108b8980f7d02ccb1b446f17a46/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@d5d5b5acc06f06b54fe99da0758868ccf10495df/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -578,10 +578,10 @@
     let gcam = null; // the camera of every frame (cam only exists while the pointer is over the view)
     let drawing = { left: 0, top: 0 }; // where the square drawing starts, in client pixels
     let solo = null; // `/` isolates one object: its id, null shows everything
-    const benchRadius = () => Math.max(...allObjects().filter((o) => bench?.ids.has(o.id)).map((o) => bounds(o.mesh).radius * 1.3), 1e-3);
-    // The workbench (edit mode): the object being edited stands on the plane y = 0 at the origin and the camera looks at (0,0,0).
-    // Only the objects on the bench are shown; leaving edit mode puts them back where they were.
-    let bench = null; // { off: [dx, dy, dz] (home -> bench), ids: Set of object ids, cam: the view to return to }
+    const benchRadius = () => Math.max(editing && has(editing) ? bounds(editing.mesh).radius * 1.3 : 0, 1e-3);
+    // The workbench (edit mode): every object stays where it is and stays visible. The object being edited is the active one: its
+    // local origin (the middle of its base) carries the grid (the plane under it) and the camera looks at that point.
+    let bench = null; // { origin: [x, y, z], base: history length at the start, cam: the view to return to }
     let holdRebuild = 0; // inside asOneStep the scene is merged once at the end, not after every object
     let rebuildWanted = false;
     const rebuild = () => {
@@ -589,7 +589,6 @@
       let objs = allObjects();
       if (solo && !objs.some((o) => o.id === solo)) solo = null;
       if (solo) objs = objs.filter((o) => o.id === solo);
-      if (bench) objs = objs.filter((o) => bench.ids.has(o.id));
       let n = 0;
       owners = objs.map((o) => ({ obj: o, start: n, end: (n += o.mesh.faces.length) }));
       sceneParts = objs.map((o) => o.mesh);
@@ -1032,35 +1031,37 @@
         marks.push({ name: 'bool', color, width: 3, lines: edges });
       }
       if (bench && editing) {
-        // the workbench: a plane at y = 0 (a grid, 10 cells either way) and the two axes through the origin
-        const R = Math.max(...allObjects().filter((o) => bench.ids.has(o.id)).map((o) => bounds(o.mesh).radius), 1e-6);
+        // the workbench: a plane under the edited object (a grid, 12 cells either way) and the two axes through its local origin
+        const R = Math.max(editing && has(editing) ? bounds(editing.mesh).radius : 0, 1e-6);
+        const [ox, oy, oz] = bench.origin;
         const step = 10 ** Math.floor(Math.log10(R / 2));
         const N = 12;
         const E = N * step;
         const grid = [];
-        for (let i = -N; i <= N; i++) if (i) grid.push([[-E, 0, i * step], [E, 0, i * step]], [[i * step, 0, -E], [i * step, 0, E]]);
+        for (let i = -N; i <= N; i++) if (i) grid.push([[ox - E, oy, oz + i * step], [ox + E, oy, oz + i * step]], [[ox + i * step, oy, oz - E], [ox + i * step, oy, oz + E]]);
         marks.push({ name: 'bench', color: '#6b7280', width: 1, opacity: 0.28, lines: grid });
-        marks.push({ name: 'bench-x', color: '#e03131', width: 2, opacity: 0.7, lines: [[[-E, 0, 0], [E, 0, 0]]] });
-        marks.push({ name: 'bench-z', color: '#1c7ed6', width: 2, opacity: 0.7, lines: [[[0, 0, -E], [0, 0, E]]] });
+        marks.push({ name: 'bench-x', color: '#e03131', width: 2, opacity: 0.7, lines: [[[ox - E, oy, oz], [ox + E, oy, oz]]] });
+        marks.push({ name: 'bench-z', color: '#1c7ed6', width: 2, opacity: 0.7, lines: [[[ox, oy, oz - E], [ox, oy, oz + E]]] });
       }
       if (editing && has(editing)) {
         const P = editing.mesh.positions;
         const e = fit.radius * 0.012;
+        const dot = (q) => [[q, q]]; // a zero-length line with round caps is a point
         const cross = (q, k = 1) => [[[q[0] - e * k, q[1], q[2]], [q[0] + e * k, q[1], q[2]]], [[q[0], q[1] - e * k, q[2]], [q[0], q[1] + e * k, q[2]]], [[q[0], q[1], q[2] - e * k], [q[0], q[1], q[2] + e * k]]];
         const wire = (editing.wire ?? []).filter(([a, b]) => a < P.length && b < P.length);
-        if (P.length <= 600) marks.push({ name: 'verts', color: '#9aa0a6', width: 1.5, lines: P.flatMap((q) => cross(q)) });
+        if (P.length <= 600) marks.push({ name: 'verts', color: '#aeb4bb', width: 7, lines: P.map(dot).flat() });
         if (wire.length) marks.push({ name: 'wire', color: '#ff4d3d', width: 3, lines: wire.map(([a, b]) => [P[a], P[b]]) });
         const ends = [...new Set(wire.flat())];
-        if (ends.length) marks.push({ name: 'wire-ends', color: '#ff4d3d', width: 2.5, lines: ends.flatMap((i) => cross(P[i], 1.6)) });
+        if (ends.length) marks.push({ name: 'wire-ends', color: '#ff4d3d', width: 8, lines: ends.flatMap((i) => dot(P[i])) });
         if (editing.lines?.length) marks.push({ name: 'sketch', color: '#ff4d3d', width: 3, lines: editing.lines });
         if (sketchFrom) {
           const to = sawHere()?.p;
-          marks.push({ name: 'sketch-start', color: '#2f9e44', width: 3, lines: cross(sketchFrom, 2.2) });
+          marks.push({ name: 'sketch-start', color: '#2f9e44', width: 10, lines: dot(sketchFrom) });
           if (to) marks.push({ name: 'sketch-rubber', color: '#ff4d3d', width: 1.5, lines: [[sketchFrom, to]] });
         }
         if (emode === 'saw' && sawPts.length) {
           const pts = sawPts.map((q) => q.p);
-          marks.push({ name: 'saw-pts', color: '#ff4d3d', width: 3, lines: pts.flatMap((q) => cross(q, 3.2)) });
+          marks.push({ name: 'saw-pts', color: '#ff4d3d', width: 11, lines: pts.flatMap((q) => dot(q)) });
           const lines = pts.slice(1).map((q, k) => [pts[k], q]);
           if (pts.length === 3) lines.push([pts[2], pts[0]]);
           if (lines.length) marks.push({ name: 'saw-line', color: '#ff4d3d', width: 3, lines });
@@ -1079,14 +1080,14 @@
         if (selOn()) {
           const lines = [];
           for (const it of sel.items) {
-            if (sel.kind === 'vertex') it < P.length && lines.push(...cross(P[it], 2.4));
+            if (sel.kind === 'vertex') it < P.length && lines.push(...dot(P[it]));
             else if (sel.kind === 'edge') it.every((i) => i < P.length) && lines.push([P[it[0]], P[it[1]]]);
             else {
               const fi = it.every((i) => i < P.length) ? faceAt(it) : -1;
               if (fi >= 0) lines.push(...outline(editing.mesh.faces[fi].v));
             }
           }
-          marks.push({ name: 'selected', color: '#e8590c', width: 4, lines });
+          marks.push({ name: 'selected', color: '#e8590c', width: sel.kind === 'vertex' ? 11 : 4, lines });
         }
         if (xf) {
           // the axis the move or scale is locked to: a long line through the centre of the selection
@@ -1096,7 +1097,7 @@
             marks.push({ name: 'xf-axis', color: xf.lock ? ['#e03131', '#2f9e44', '#1c7ed6']['xyz'.indexOf(xf.lock)] : '#ffffff', width: 2, lines: [[xf.c.map((c, i) => c - A[i] * L), xf.c.map((c, i) => c + A[i] * L)]] });
           }
         }
-        if (snapV >= 0 && snapV < P.length && !xf) marks.push({ name: 'snap', color: '#ffffff', width: 3, lines: cross(P[snapV], 2.6) });
+        if (snapV >= 0 && snapV < P.length && !xf) marks.push({ name: 'snap', color: '#ffffff', width: 11, lines: dot(P[snapV]) });
         if (snapE && !xf) marks.push({ name: 'snap-edge', color: '#ffffff', width: 4, lines: [[P[snapE[0]], P[snapE[1]]]] });
         if (snapF >= 0 && !xf && editing.mesh.faces[snapF]) marks.push({ name: 'snap-face', color: '#ffffff', width: 3, lines: outline(editing.mesh.faces[snapF].v) });
       }
@@ -1560,7 +1561,7 @@
       redraw();
     };
     const reset = () => {
-      if (bench) return goTo({ center: [0, 0, 0], radius: benchRadius(), yaw: START.yaw, pitch: START.pitch });
+      if (bench) return goTo({ center: [...bench.origin], radius: benchRadius(), yaw: START.yaw, pitch: START.pitch });
       focused = false;
       goTo({ ...overview(), yaw: START.yaw, pitch: START.pitch });
     };
@@ -1862,7 +1863,7 @@
     };
     const undo = () => {
       if (xf) return;
-      if (editing && history.at(-1)?.bench) {
+      if (editing && bench && history.length <= bench.base) {
         noteEdit('nothing left to undo in this edit session');
         return redraw();
       }
@@ -2332,44 +2333,28 @@
       }
       return best;
     };
-    // The bench: the object to edit goes to the origin and stands on the plane y = 0; the camera looks at (0,0,0).
-    // Entering is an undo step (flagged: U inside edit mode stops there), and so is the return on leaving.
-    const benchOffset = (o) => {
+    // The bench: the local origin of the edited object is the middle of its base (lowest point, centre of x and z).
+    // Nothing moves: the grid sits there and the camera looks at it; leaving edit mode brings the camera back.
+    const benchOrigin = (o) => {
       const lo = [Infinity, Infinity, Infinity];
       const hi = [-Infinity, -Infinity, -Infinity];
       for (const q of o.mesh.positions) q.forEach((c, i) => ((lo[i] = Math.min(lo[i], c)), (hi[i] = Math.max(hi[i], c))));
-      return [-(lo[0] + hi[0]) / 2, -lo[1], -(lo[2] + hi[2]) / 2];
-    };
-    const shiftObj = (o, d, flag = false) => {
-      const now = live(o) ?? o;
-      const before = now.mesh;
-      const lines = now.lines;
-      change(now, shifted(before, d));
-      const cur = live(o) ?? o;
-      if (lines) cur.lines = lines.map((l) => l.map((q) => q.map((c, i) => c + d[i])));
-      const step = () => {
-        if (!has(o)) return;
-        change(o, before);
-        (live(o) ?? o).lines = lines;
-      };
-      if (flag) step.bench = true;
-      history.push(step);
+      return [(lo[0] + hi[0]) / 2, lo[1], (lo[2] + hi[2]) / 2];
     };
     const enterEdit = () => {
       let o = (hit && owner(hit.face)) ?? lockedObject() ?? null;
       if (!o) {
         // nothing under the cross and no target: a new 1 x 1 x 1 m cube of the selected material, standing on the bench
         const m = materials[current];
-        const mesh = box({ size: [1, 1, 1], at: [0, 0.5, 0], color: m.color });
+        const c = fit.center; // in front of the eye (or the middle of the view); the cube stands with its base middle there
+        const mesh = box({ size: [1, 1, 1], at: [c[0], c[1] + 0.5, c[2]], color: m.color });
         mesh.faces.forEach((f) => (f.mat = m.name));
         const made = create(`prism-${shortId()}`, mesh);
         o = live(made) ?? made;
       }
-      const off = benchOffset(o);
-      bench = { off, ids: new Set([o.id]), cam: { center: [...fit.center], radius: fit.radius, dist: fit.dist, yaw, pitch } };
+      bench = { seen: [o.id], origin: benchOrigin(o), base: history.length, cam: { center: [...fit.center], radius: fit.radius, dist: fit.dist, yaw, pitch } };
       gizmo = null;
       locked = null;
-      shiftObj(o, off, true);
       editing = live(o) ?? o;
       sel = emptySel();
       sawPts = [];
@@ -2377,7 +2362,7 @@
       xf = null;
       emode = 'draw';
       barNote = '';
-      goTo({ center: [0, 0, 0], radius: benchRadius(), yaw, pitch });
+      goTo({ center: [...bench.origin], radius: benchRadius(), yaw, pitch });
       showBar();
       redraw();
     };
@@ -2390,16 +2375,7 @@
       xf = null;
       emode = 'draw';
       bench = null;
-      if (b) {
-        const back = b.off.map((c) => -c);
-        asOneStep(() => {
-          for (const id of b.ids) {
-            const o = allObjects().find((x) => x.id === id);
-            if (o) shiftObj(o, back);
-          }
-        });
-        goTo({ ...b.cam });
-      }
+      if (b) goTo({ ...b.cam });
       rebuild();
       showBar();
       redraw();
@@ -2407,9 +2383,10 @@
     // the edited object is gone (an undo, a delete): carry on with another one from the bench, or leave
     const refocusEdit = () => {
       if (!editing || has(editing)) return;
-      const next = bench && [...bench.ids].map((id) => allObjects().find((o) => o.id === id)).find(Boolean);
+      const next = bench && bench.seen.map((id) => allObjects().find((o) => o.id === id)).reverse().find(Boolean); // the latest edited one that still exists
       if (!next) return leaveEdit();
       editing = next;
+      bench.origin = benchOrigin(next);
       sel = emptySel();
       sawPts = [];
       sketchFrom = null;
@@ -2503,13 +2480,14 @@
         history.push(() => has(obj) || restore(obj));
         made = pieces.map((mesh) => {
           const piece = create(`${obj.name.startsWith('prism-') ? 'prism' : obj.name}-${shortId()}`, mesh);
-          bench?.ids.add(piece.id); // the pieces lie on the bench too
           return piece;
         });
       });
       sawPts = [];
       sel = emptySel();
-      editing = live(made[0]) ?? made[0]; // stay in edit mode, on the first piece: the next cut can follow at once
+      editing = live(made[0]) ?? made[0];
+      if (bench) (bench.origin = benchOrigin(editing)), bench.seen.push(editing.id);
+      // stay in edit mode, on the first piece: the next cut can follow at once
       noteEdit(`cut into ${pieces.length}; now editing ${editing.name}`);
       redraw();
     };
