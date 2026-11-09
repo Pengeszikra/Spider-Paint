@@ -145,11 +145,11 @@
     #palette[hidden] { display: none; }
     #boolq { position: fixed; left: 50%; bottom: 72px; transform: translateX(-50%); z-index: 6; max-width: min(92vw, 520px); padding: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; display: grid; gap: 8px; font: 500 12px/1.3 var(--font-mono); color: var(--muted); }
     #boolq[hidden] { display: none; }
-    #editbar { position: fixed; left: 50%; top: 70px; transform: translateX(-50%); z-index: 6; max-width: min(94vw, 760px); padding: 6px 10px; background: var(--panel); border: 1px solid #ff4d3d; border-radius: 6px; font: 500 12px/1.4 var(--font-mono); color: var(--muted); text-align: center; pointer-events: none; }
+    #editbar { position: fixed; left: 50%; top: 70px; transform: translateX(-50%); z-index: 6; max-width: min(94vw, 760px); padding: 0; background: none; border: 0; text-shadow: 0 0 4px #000, 0 0 2px #000; font: 500 12px/1.4 var(--font-mono); color: var(--muted); text-align: center; pointer-events: none; }
     #editbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 10px; }
-    #editbar b { color: #ff4d3d; }
+    #editbar, #editbar b { color: #fff; }
     #editbar button { pointer-events: auto; cursor: pointer; font: inherit; line-height: 1; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--line); background: none; color: var(--muted); }
-    #editbar button.on { color: #ff4d3d; border-color: #ff4d3d; }
+    #editbar button.on { color: #fff; border-color: #fff; }
     #editbar #editHelpText { flex-basis: 100%; }
     #editbar #editHelpText[hidden] { display: none; }
     #editbar[hidden] { display: none; }
@@ -257,8 +257,7 @@
     button.slate.on { background: var(--teal); color: #04181a; }
     select { font: 600 12px/1 var(--font-mono); color: var(--cream); background: var(--panel); border: 1.5px solid var(--outline); border-radius: 9px; padding: 9px 10px; max-width: 100%; }
     input[type=range] { accent-color: var(--teal); }
-    #hud, #palette, #boolq, #editbar { border: 1.5px solid var(--outline); border-radius: 14px; background: color-mix(in srgb, var(--panel) 92%, transparent); }
-    #editbar { border-color: var(--red); }
+    #hud, #palette, #boolq { border: 1.5px solid var(--outline); border-radius: 14px; background: color-mix(in srgb, var(--panel) 92%, transparent); }
     #hud { width: min(46%, 240px); max-width: none; box-sizing: border-box; }
     #hud .row > :first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     #hud .row > :last-child { flex: none; font-variant-numeric: tabular-nums; }
@@ -403,7 +402,7 @@
 
   <main id="stage" tabindex="0" role="img" aria-label="Empty space for prisms. G switches between the SVG and the WebGPU view, L turns the light, C switches the filmic look, N smooth shading, K the studio light. Drag, or use the arrow keys, to rotate the view. The cross follows the surface under the pointer. M puts a prism down there, or shoots one into empty space; Space stops the movement. O marks an object, a second O on another one asks for a boolean operation (union, A minus B, B minus A, intersect). V joins two surface points with a thin bar (P over empty space forgets a pending first point), X deletes the object under the cross, W A S D R F fly, / shows only the model under the cross (/ again: the whole scene), P shows the material palette (Shift+click paints a face, Shift+double click the whole model), T flies the camera to the object under the cross, H puts the move gizmo (helper) on the object under the cross with the world axes, the next H switches to the object's own axes, the third takes it off; drag an arrow to move the object; E toggles edges and points, U or Backspace takes the last one back."><div id="frame"><canvas id="gpu" hidden></canvas><div id="layer"></div></div><div id="hud" aria-hidden="true"></div></main>
 
-  <div id="editbar" hidden><b id="editText"></b><button id="editHelp" type="button" title="Show / hide the edit help" aria-pressed="false">?</button><span id="editHelpText" hidden>The saw (the default, also 4): V puts 2 points on one face = a cut square to the face along the line, or 3 points = a cut through the triangle; the orange outline previews it, Enter cuts, Esc forgets the points · 1 / 2 / 3: move points / lines / faces (drag, or the gizmo arrows) · U: undo · Esc: back to the saw, then leave · Tab: leave</span></div>
+  <div id="editbar" hidden><b id="editText"></b><button id="editHelp" type="button" title="Show / hide the edit help" aria-pressed="false">?</button><span id="editHelpText" hidden>V: sketch lines on the surface (any number, they do nothing yet) · 4: the saw: V puts 2 points on one face = a cut square to the face along the line, or 3 points = a cut through the triangle; the orange outline previews it, Enter cuts, Esc forgets the points · 1 / 2 / 3: move points / lines / faces (drag, or the gizmo arrows) · X: delete the object under the cross · U: undo · Esc: back to sketching, then leave · Q: leave</span></div>
 
   <aside id="boolq" hidden aria-label="Boolean operation">
     <span id="boolText"></span>
@@ -499,7 +498,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@44289287e6bd9a18ed28a80fdaa53566666d14be/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@a3c5474cdd95727ea90e1aed076c787b3dfcb643/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -602,7 +601,7 @@
         placed.splice(placed.indexOf(p), 1);
         placedVer++; // the GPU instances are rebuilt without it (a bullet that missed would hang where it was last drawn)
         if (p.shot) carve(p); // a shot that hit carves, one that missed just vanishes
-        else create('prism', p.mesh);
+        else create(`prism-${shortId()}`, p.mesh);
         any = true;
       }
       return any;
@@ -994,7 +993,7 @@
       snapE = null;
       snapF = -1;
       if (editing && !vdrag) {
-        if (emode === 'vertex' || emode === 'saw') snapV = findSnap();
+        if (emode === 'draw' || emode === 'vertex' || emode === 'saw') snapV = findSnap();
         else if (emode === 'edge') snapE = findEdge();
         else if (hit && owner(hit.face) === editing) snapF = hit.face - owners.find((o) => o.obj === editing).start;
       }
@@ -1032,6 +1031,12 @@
         if (wire.length) marks.push({ name: 'wire', color: '#ff4d3d', width: 3, lines: wire.map(([a, b]) => [P[a], P[b]]) });
         const ends = [...new Set(wire.flat())];
         if (ends.length) marks.push({ name: 'wire-ends', color: '#ff4d3d', width: 2.5, lines: ends.flatMap((i) => cross(P[i], 1.6)) });
+        if (editing.lines?.length) marks.push({ name: 'sketch', color: '#ff4d3d', width: 3, lines: editing.lines });
+        if (sketchFrom) {
+          const to = sawHere()?.p;
+          marks.push({ name: 'sketch-start', color: '#2f9e44', width: 3, lines: cross(sketchFrom, 2.2) });
+          if (to) marks.push({ name: 'sketch-rubber', color: '#ff4d3d', width: 1.5, lines: [[sketchFrom, to]] });
+        }
         if (emode === 'saw' && sawPts.length) {
           const pts = sawPts.map((q) => q.p);
           marks.push({ name: 'saw-pts', color: '#ff4d3d', width: 3, lines: pts.flatMap((q) => cross(q, 3.2)) });
@@ -1587,7 +1592,7 @@
       if (hit) {
         const color = brown();
         const mesh = standOn(scene, hit, { base: LEG.base, color });
-        create('prism', mesh);
+        create(`prism-${shortId()}`, mesh);
         return redraw();
       }
       if (!pointer || !cam?.at) return;
@@ -1678,6 +1683,7 @@
     const save = (obj, op) => col && enqueue(op, () => unsaved.delete(obj.id));
     // the stored document of an object; the lines drawn on it ride along
     const docOf = (o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}) });
+    const shortId = () => Math.random().toString(36).slice(2, 6).padEnd(4, '0'); // prism-{id}
     const uid = (name) => `${name}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
     const create = (name, mesh) => {
       const obj = { id: uid(name), name, mesh };
@@ -2196,13 +2202,14 @@
         let sawPts = []; // saw mode: up to 3 points { p, n } (n: the face normal where it was put, when known)
     // What the mouse does in edit mode, as in Blender: V draws lines (nothing can be moved while drawing); 1 moves points,
     // 2 moves lines (edges), 3 moves faces.
-    let emode = 'saw'; // 'saw' (the default) | 'vertex' | 'edge' | 'face'
+    let emode = 'draw'; // 'draw' (the default: sketch lines, they do nothing yet) | 'vertex' | 'edge' | 'face' | 'saw' (4)
+    let sketchFrom = null; // draw mode: the point the next V continues from
     let sel = null; // the selection: { ids: [vertex indices], edge?: [a, b], face?: n }
     let snapV = -1; // the vertex the pointer snaps to (drawing, moving points)
     let snapE = null; // the edge under the pointer (moving lines)
     let snapF = -1; // the face under the pointer (moving faces)
     let vdrag = null; // { ids, from: [positions], p0, mesh0, moved, at, delta }
-    const MODES = { vertex: 'move points (1)', edge: 'move lines (2)', face: 'move faces (3)', saw: 'saw (4)' };
+    const MODES = { draw: 'sketch lines (V)', vertex: 'move points (1)', edge: 'move lines (2)', face: 'move faces (3)', saw: 'saw (4)' };
     let panelPointer = null; // the pointer in panel pixels, as of the last frame
     const bar = document.getElementById('editbar');
     const barText = document.getElementById('editText');
@@ -2281,7 +2288,8 @@
       gizmo = null;
       sel = null;
       sawPts = [];
-      emode = 'saw';
+      sketchFrom = null;
+      emode = 'draw';
       barNote = '';
       showBar();
       redraw();
@@ -2290,7 +2298,8 @@
       editing = null;
       sawPts = [];
       sel = vdrag = null;
-      emode = 'saw';
+      sketchFrom = null;
+      emode = 'draw';
       showBar();
       redraw();
     };
@@ -2300,6 +2309,22 @@
       const before = { mesh: obj.mesh, wire: obj.wire ?? [] }; // (undefined would mean "keep the lines")
       change(obj, mesh, wire);
       history.push(() => has(obj) && change(obj, before.mesh, before.wire));
+    };
+    // Draw mode (the default): V sketches lines on the surface, as many as you like. They are only marks for now: the mesh does
+    // not change and the lines are not saved. A point is a vertex (the pointer snaps to it) or a spot on the surface.
+    const sketch = () => {
+      const q = sawHere()?.p;
+      if (!q) return (sketchFrom = null), redraw();
+      if (!sketchFrom) {
+        sketchFrom = q;
+        return redraw();
+      }
+      const obj = editing;
+      const before = obj.lines ?? [];
+      obj.lines = [...before, [sketchFrom, q]];
+      history.push(() => (obj.lines = before));
+      sketchFrom = q; // the chain goes on from here
+      redraw();
     };
     // 4: the saw. V puts up to three points (on a vertex, or on the surface). Two points are a line drawn on a face: the
     // cut plane contains the line and stands square on that face. Three points are a triangle: the cut plane is its plane.
@@ -2363,7 +2388,7 @@
       asOneStep(() => {
         erase(obj);
         history.push(() => has(obj) || restore(obj));
-        made = pieces.map((mesh, i) => create(`${obj.name}-${i + 1}`, mesh));
+        made = pieces.map((mesh) => create(`${obj.name.startsWith('prism-') ? 'prism' : obj.name}-${shortId()}`, mesh));
       });
       sawPts = [];
       sel = null;
@@ -2379,7 +2404,7 @@
       }
       pointer = { x: e.clientX, y: e.clientY };
       if (editing && !grab0(e)) {
-        if (emode !== 'saw') {
+        if (emode !== 'draw' && emode !== 'saw') {
           const P = editing.mesh.positions;
           let grab = null;
           if (emode === 'vertex' && snapV >= 0) grab = { sel: { ids: [snapV] }, p0: P[snapV] };
@@ -2519,22 +2544,25 @@
         emode = ['vertex', 'edge', 'face', 'saw'][e.key - 1];
         sel = null;
         sawPts = [];
+        sketchFrom = null;
         barNote = '';
         showBar();
         redraw();
       } else if (editing && e.key === 'Escape') {
         if (sawPts.length) ((sawPts = []), noteEdit(''), redraw());
-        else if (emode !== 'saw') ((emode = 'saw'), (sel = null), showBar(), redraw());
+        else if (sketchFrom) ((sketchFrom = null), redraw());
+        else if (emode !== 'draw') ((emode = 'draw'), (sel = null), showBar(), redraw());
         else leaveEdit();
       } else if (editing && (e.key === 'h' || e.key === 'H' || e.key === 'o' || e.key === 'O')) {
         e.preventDefault(); // the object tools wait outside edit mode
       } else if (e.key === 'v' || e.key === 'V') {
         e.preventDefault();
         if (!e.repeat) {
-          if (editing) {
-            // the saw: nothing is selected and nothing moves
-            if (emode !== 'saw') ((emode = 'saw'), (sel = null), showBar());
-            addSawPoint();
+          if (editing && emode === 'saw') addSawPoint(); // only in the saw mode (4) does V saw
+          else if (editing) {
+            // any other mode: V sketches a line (nothing is selected, nothing moves)
+            if (emode !== 'draw') ((emode = 'draw'), (sel = null), showBar());
+            sketch();
           } else spider();
         }
       } else if (e.key === '?') {
@@ -2724,7 +2752,7 @@
     // ?: the key explainer, a keyboard drawn from data. Hover or tap a key to read it, press a real key to see it light up,
     // "run" does what the key does. Colours: teal = target / look, red = editing and making, cream = flying and viewing, slate = system.
     const KEYS = {
-      escape: { cap: 'Esc', sub: 'free', cat: 'slate', w: 1.5, title: 'Escape', text: 'Cancels: closes the boolean question, stops a pending spider bar, ends zen.', target: 'Lets go of the target. The camera stays exactly where it is.', edit: 'Forgets the saw points, then leaves a move mode, then leaves edit mode (the target stays).' },
+      escape: { cap: 'Esc', sub: 'free', cat: 'slate', w: 1.5, title: 'Escape', text: 'Cancels: closes the boolean question, stops a pending spider bar, ends zen.', target: 'Lets go of the target. The camera stays exactly where it is.', edit: 'Forgets the saw points or the sketch line, then leaves the saw or a move mode, then leaves edit mode (the target stays).' },
       1: { cap: '1', sub: 'union', cat: 'red', text: 'Boolean question: union.', edit: 'Move points (drag a point, or the gizmo arrows).' },
       2: { cap: '2', sub: 'A−B', cat: 'red', text: 'Boolean question: A minus B.', edit: 'Move lines (edges).' },
       3: { cap: '3', sub: 'B−A', cat: 'red', text: 'Boolean question: B minus A.', edit: 'Move faces.' },
@@ -2734,7 +2762,7 @@
       '?': { cap: '?', sub: 'keys', cat: 'slate', text: 'This key explainer.' },
       backspace: { cap: '⌫', sub: 'undo', cat: 'slate', w: 2.2, title: 'Backspace', text: 'Undo the last change (same as U).' },
       tab: { cap: 'Tab', sub: 'next', cat: 'teal', w: 1.6, title: 'Tab', text: 'Targets the object under the cross (like T).', target: 'Next target; Shift+Tab: the previous one. The camera frames it, however small or far.' },
-      q: { cap: 'Q', sub: 'edit', cat: 'red', text: 'Edit mode on the object under the cross: saw it, or move its points, lines and faces. Again: leave.' },
+      q: { cap: 'Q', sub: 'edit', cat: 'red', text: 'Edit mode on the object under the cross: sketch lines, saw it (4), or move its points, lines and faces. Again: leave.' },
       w: { cap: 'W', sub: 'fwd', cat: 'cream', text: 'Fly forward. Every press is one speed step; S slows down and reverses.', target: 'Closer to the target (stops at its surface).' },
       e: { cap: 'E', sub: 'edges', cat: 'cream', text: 'Edges and points on or off.' },
       r: { cap: 'R', sub: 'up', cat: 'cream', text: 'Fly up (speed steps).', target: 'Swing up over the target.' },
@@ -2758,7 +2786,7 @@
       z: { cap: 'Z', sub: 'zen', cat: 'slate', text: 'Zen: hide everything but the model. Z or Esc brings the panels back.' },
       x: { cap: 'X', sub: 'del', cat: 'red', text: 'Delete the object under the cross (U brings it back).' },
       c: { cap: 'C', sub: 'filmic', cat: 'teal', text: 'Filmic look: HDR light, glowing emission, tone mapping.' },
-      v: { cap: 'V', sub: 'bar', cat: 'red', text: 'Spider bar: joins two surface points with a thin bar.', edit: 'Saw: puts a point (two on one face: a cut square to it; three: a cut through the triangle).' },
+      v: { cap: 'V', sub: 'bar', cat: 'red', text: 'Spider bar: joins two surface points with a thin bar.', edit: 'Sketches a line from point to point (it does nothing yet). In saw mode (4): puts a saw point (two on one face: a cut square to it; three: a cut through the triangle).' },
       b: { cap: 'B', sub: '', cat: 'slate', text: 'Not used.' },
       n: { cap: 'N', sub: 'smooth', cat: 'teal', text: 'Smooth shading: faces that meet at a shallow angle share their normals.' },
       m: { cap: 'M', sub: 'place', cat: 'red', text: 'Puts a prism down at the cross (or shoots one into empty space).', solo: 'In isolated mode the prism is a bullet: where it lands it carves A−B out of the surface; if it misses it disappears.' },
