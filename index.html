@@ -499,7 +499,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@bdd621bed70780bce8f1704dee0b1f10dccd22a1/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@4dc8ab77b16e2caa0f54a6dd798893404e60822e/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1703,6 +1703,7 @@
       if (!o) return;
       erase(o);
       history.push(() => has(o) || restore(o));
+      if (editing && !has(editing)) leaveEdit(); // the object being edited is gone
       redraw();
     };
     const erase = (stale) => {
@@ -1817,6 +1818,7 @@
     };
     const undo = () => {
       history.pop()?.();
+      if (editing && !has(editing)) leaveEdit(); // e.g. undoing a cut: the pieces are gone
       redraw();
     };
     // O: object boolean. The first O marks the object under the cross, the second one (on another object) asks which
@@ -2306,18 +2308,19 @@
     const sawPlane = () => {
       if (sawPts.length < 2) return null;
       const [a, b, c] = sawPts;
-      if (sawPts.length === 3) return planeThroughTriangle(a.p, b.p, c.p);
+      if (sawPts.length === 3) return { ...planeThroughTriangle(a.p, b.p, c.p), face: sawPts.find((q) => q.f !== undefined)?.f };
       const tol = 2e-3 * bounds(editing.mesh).radius;
       // the face both points lie on: the normal found at either point
-      const n = [b.n, a.n].find((m) => m && onPlane(a.p, b.p, m, tol) && onPlane(b.p, a.p, m, tol));
-      if (!n) throw new Error('the two points are not on one face: put them on one face, or use three points');
-      return planeThroughLine(a.p, b.p, n);
+      const q = [b, a].find((m) => m.n && onPlane(a.p, b.p, m.n, tol) && onPlane(b.p, a.p, m.n, tol));
+      if (!q) throw new Error('the two points are not on one face: put them on one face, or use three points');
+      return { ...planeThroughLine(a.p, b.p, q.n), face: q.f };
     };
     const sawHere = () => {
       const P = editing.mesh.positions;
       const onIt = hit && owner(hit.face) === editing;
-      if (snapV >= 0) return { p: P[snapV], n: onIt ? hit.normal : null };
-      if (onIt) return { p: hit.point, n: hit.normal };
+      const f = onIt ? hit.face - owners.find((o) => o.obj === editing).start : undefined; // the face under the cross
+      if (snapV >= 0) return { p: P[snapV], n: onIt ? hit.normal : null, f };
+      if (onIt) return { p: hit.point, n: hit.normal, f };
       return null;
     };
     const addSawPoint = () => {
@@ -2346,21 +2349,26 @@
       }
       if (!plane) return noteEdit('saw: put two or three points first (V)');
       const obj = editing;
+      // the new faces get the material of the face that was sawn (the one the points were put on)
       const m = materials[current];
+      const src = obj.mesh.faces[plane.face];
       let cut;
       try {
-        cut = saw(obj.mesh, plane, { color: m.color, mat: m.name });
+        cut = saw(obj.mesh, plane, src ? { color: src.color ?? m.color, mat: src.mat } : { color: m.color, mat: m.name });
       } catch (err) {
         return noteEdit(`not cut: ${err.message}`);
       }
       const pieces = [...cut.front, ...cut.back];
+      let made = [];
       asOneStep(() => {
         erase(obj);
         history.push(() => has(obj) || restore(obj));
-        pieces.forEach((mesh, i) => create(`${obj.name}-${i + 1}`, mesh));
+        made = pieces.map((mesh, i) => create(`${obj.name}-${i + 1}`, mesh));
       });
       sawPts = [];
-      leaveEdit();
+      sel = null;
+      editing = live(made[0]) ?? made[0]; // stay in edit mode, on the first piece: the next cut can follow at once
+      noteEdit(`cut into ${pieces.length}; now editing ${editing.name}`);
       redraw();
     };
     let last = null; // drag origin
@@ -2518,8 +2526,6 @@
         if (sawPts.length) ((sawPts = []), noteEdit(''), redraw());
         else if (emode !== 'saw') ((emode = 'saw'), (sel = null), showBar(), redraw());
         else leaveEdit();
-      } else if (editing && (e.key === 'x' || e.key === 'X' || e.key === 'Delete')) {
-        e.preventDefault(); // nothing to delete while editing: Esc leaves, U undoes
       } else if (editing && (e.key === 'h' || e.key === 'H' || e.key === 'o' || e.key === 'O')) {
         e.preventDefault(); // the object tools wait outside edit mode
       } else if (e.key === 'v' || e.key === 'V') {
@@ -2896,6 +2902,7 @@
     if (new URLSearchParams(location.search).has('debug')) {
       globalThis.__3draft = {
         load: (data) => applyScene(data),
+        objects: () => allObjects().map((o) => ({ name: o.name, faces: o.mesh.faces.map((f) => [f.color, f.mat]) })),
         // put the eye at a point of the scene (fly view), looking along yaw / pitch (degrees)
         eye: (x, y, z, yawDeg, pitchDeg) => lookFrom([x, y, z], yawDeg, pitchDeg),
         state: () => ({ solo: solo ? 1 : 0, faces: scene.faces.length, objects: allObjects().length, db: Boolean(col), palette: !paletteEl.hidden, cursor: getComputedStyle(stage).cursor, center: fit.center, dist: fit.dist, radius: fit.radius, level: { ...level }, yaw, pitch, eye: eyeNow(), shown: gcam?.eye, fly, placed: placed.length }),
