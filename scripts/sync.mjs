@@ -54,6 +54,7 @@ if (html.includes('../dist/') || html.includes('../examples/')) throw new Error(
 writeFileSync(join(here, 'index.html'), html);
 mkdirSync(join(here, 'models'), { recursive: true });
 writeFileSync(join(here, 'models/bridge.scene.json'), readFileSync(join(src, 'examples/bridge.scene.json')));
+writeFileSync(join(here, 'help.md'), readFileSync(join(src, 'app/help.md'))); // the help page (Markdown), shown in the side panel
 // the globe: the ocean is the half-transparent teal material, so the far side of the earth shows through
 const globe = JSON.parse(readFileSync(join(src, 'examples/globe.scene.json'), 'utf8'));
 const seaMaterial = { color: '#4fb5a5', alpha: 0.55 };

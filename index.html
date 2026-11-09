@@ -141,7 +141,27 @@
     #stage svg polyline[data-mark="cursor"] { stroke: var(--cursor); }
 
     /* P: the material palette. Data first: every entry is a plain object, the swatches are drawn from the list. */
-    #palette { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 10; width: min(92vw, 340px); padding: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; display: grid; gap: 8px; font: 500 12px/1.2 var(--font-mono); color: var(--muted); }
+    /* the side panels (palette, help): one vertical panel on the right, one at a time; the desktop console lies over their foot */
+    .side { position: fixed; top: 0; right: 0; bottom: 0; z-index: 9; width: min(88vw, 320px); box-sizing: border-box; padding: 12px 14px 104px; overflow-y: auto; background: color-mix(in srgb, #0b0b0a 95%, transparent); border-left: 1.5px solid var(--outline); display: grid; align-content: start; gap: 8px; font: 500 12px/1.3 var(--font-mono); color: var(--muted); }
+    .side[hidden] { display: none; }
+    .side.wide { width: min(92vw, 430px); }
+    #palette.side { top: 0; max-height: none; width: min(88vw, 320px); border-width: 0 0 0 1.5px; border-radius: 0; background: color-mix(in srgb, #0b0b0a 95%, transparent); }
+    .side .sidehead { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .side .sidehead b { font: 600 13px/1 var(--font-display); letter-spacing: 0.14em; color: var(--cream); text-transform: uppercase; }
+    .side .sidehead button { padding: 6px 10px; border-radius: 8px; }
+    @media (pointer: fine) and (min-width: 641px) { .side { z-index: 6; } }
+    /* the help page: Markdown rendered into plain HTML */
+    #helpDoc { color: #c9cdc2; line-height: 1.5; font-size: 12px; }
+    #helpDoc h1 { margin: 0 0 6px; font: 600 18px/1.2 var(--font-display); color: var(--cream); }
+    #helpDoc h2 { margin: 18px 0 6px; padding-top: 8px; border-top: 1px solid var(--line); font: 600 13px/1.2 var(--font-display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--teal); }
+    #helpDoc p, #helpDoc ul, #helpDoc ol { margin: 6px 0; }
+    #helpDoc ul, #helpDoc ol { padding-left: 18px; }
+    #helpDoc code { padding: 1px 4px; border-radius: 4px; background: #1d201b; color: var(--cream); font: 11px var(--font-mono); }
+    #helpDoc a { color: var(--teal); }
+    #helpDoc table { width: 100%; border-collapse: collapse; margin: 6px 0; }
+    #helpDoc th { text-align: left; color: var(--muted); font-weight: 500; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; }
+    #helpDoc th, #helpDoc td { padding: 4px 6px 4px 0; border-bottom: 1px solid #23261f; vertical-align: top; }
+    #helpDoc td:first-child { white-space: nowrap; color: var(--cream); font-weight: 600; }
     /* pop-ups are modals: one at a time, over a scrim; a tap on the scrim (or Esc) closes it */
     #scrim { position: fixed; inset: 0; z-index: 8; background: rgba(0, 0, 0, 0.62); }
     #scrim[hidden] { display: none; }
@@ -494,8 +514,14 @@
 
   <div id="scrim" hidden></div>
 
-  <aside id="palette" hidden aria-label="Material palette">
-    <span id="palHint">materials · ctrl+click (cmd on a Mac): paint a face · ctrl+double click: the whole object · i: pick the material under the cross</span>
+  <aside id="helpPanel" class="side wide" hidden aria-label="Help">
+    <div class="sidehead"><b>help</b><button id="helpClose" type="button" class="slate" aria-label="Close">✕</button></div>
+    <article id="helpDoc">loading…</article>
+  </aside>
+
+  <aside id="palette" class="side" hidden aria-label="Material palette">
+    <div class="sidehead"><b>materials</b><button id="palClose" type="button" class="slate" aria-label="Close">✕</button></div>
+    <span id="palHint">ctrl+click (cmd on a Mac): paint a face · ctrl+double click: the whole object · i: pick the material under the cross</span>
     <div class="grid" id="swatches"></div>
     <b id="current">–</b>
     <label>metal <input type="range" id="p-metal" min="0" max="1" step="0.05" /><span id="v-metal"></span></label>
@@ -600,7 +626,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@0e30653bce68db1a985921dc05835affcf00e530/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@a2e3ec368cd8299c0fbd9a8504d5d0c63838cf06/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2175,14 +2201,84 @@
       if (e.isTrusted) pickerSet(hexEl.value.startsWith('#') ? hexEl.value : `#${hexEl.value}`);
     });
     const scrim = document.getElementById('scrim');
-    const syncScrim = () => (scrim.hidden = paletteEl.hidden && keyPanel.hidden);
-    const closeModals = () => {
-      paletteEl.hidden = true;
-      toggleKeys?.(false);
+    const helpEl = document.getElementById('helpPanel');
+    const helpDoc = document.getElementById('helpDoc');
+    const sidePanels = [paletteEl, helpEl];
+    const syncScrim = () => (scrim.hidden = keyPanel.hidden);
+    const closeModals = () => toggleKeys(false);
+    const closeSide = () => {
+      for (const el of sidePanels) el.hidden = true;
     };
+    // one side panel at a time (and not under the phone's scene menu)
+    const openSide = (el, on = el.hidden) => {
+      document.getElementById('exaMenu')?.classList.remove('open');
+      for (const p of sidePanels) p.hidden = p !== el || !on;
+    };
+    document.getElementById('palClose').addEventListener('click', closeSide);
+    document.getElementById('helpClose').addEventListener('click', closeSide);
+    // Markdown -> HTML: just what help.md uses (headings, lists, tables, code, bold, italic, links). The text is escaped first.
+    const md = (src) => {
+      const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const inline = (t) =>
+        esc(t)
+          .replace(/`([^`]+)`/g, '<code>$1</code>')
+          .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+          .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+          .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+      const out = [];
+      const lines = src.replace(/\r/g, '').split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const l = lines[i];
+        let m;
+        if (!l.trim()) continue;
+        if ((m = l.match(/^(#{1,3}) (.*)/))) out.push(`<h${m[1].length}>${inline(m[2])}</h${m[1].length}>`);
+        else if (l.startsWith('|')) {
+          const rows = [];
+          while (i < lines.length && lines[i].startsWith('|')) rows.push(lines[i++]);
+          i--;
+          const cells = (r) => r.replace(/^\||\|$/g, '').split('|').map((c) => inline(c.trim()));
+          const [head, , ...body] = rows;
+          out.push(`<table><thead><tr>${cells(head).map((c) => `<th>${c}</th>`).join('')}</tr></thead><tbody>${body.map((r) => `<tr>${cells(r).map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`);
+        } else if (/^[-*] /.test(l)) {
+          const items = [];
+          while (i < lines.length && /^[-*] /.test(lines[i])) items.push(lines[i++].slice(2));
+          i--;
+          out.push(`<ul>${items.map((t) => `<li>${inline(t)}</li>`).join('')}</ul>`);
+        } else if (/^\d+\. /.test(l)) {
+          const items = [];
+          while (i < lines.length && /^\d+\. /.test(lines[i])) items.push(lines[i++].replace(/^\d+\. /, ''));
+          i--;
+          out.push(`<ol>${items.map((t) => `<li>${inline(t)}</li>`).join('')}</ol>`);
+        } else {
+          const para = [l];
+          while (i + 1 < lines.length && lines[i + 1].trim() && !/^(#|\||[-*] |\d+\. )/.test(lines[i + 1])) para.push(lines[++i]);
+          out.push(`<p>${inline(para.join(' '))}</p>`);
+        }
+      }
+      return out.join('\n');
+    };
+    let helpLoaded = false;
+    const toggleHelp = async () => {
+      openSide(helpEl);
+      if (helpEl.hidden || helpLoaded) return;
+      try {
+        const res = await fetch('help.md');
+        if (!res.ok) throw new Error(res.status);
+        helpDoc.innerHTML = md(await res.text());
+        helpLoaded = true;
+      } catch (err) {
+        helpDoc.textContent = `The help page could not be loaded (${err.message}).`;
+      }
+    };
+    helpDoc.addEventListener('click', (e) => {
+      const a = e.target.closest('a[href="#keys"]');
+      if (!a) return;
+      e.preventDefault();
+      toggleKeys(true); // the keyboard map is a modal over the page
+    });
     const togglePalette = () => {
-      paletteEl.hidden = !paletteEl.hidden;
-      if (!paletteEl.hidden) (toggleKeys(false), showPalette());
+      openSide(paletteEl);
+      if (!paletteEl.hidden) showPalette();
     };
     document.getElementById('addColor').addEventListener('click', () => {
       // a new material starts as a copy of the selected one
@@ -2270,7 +2366,6 @@
     const armPick = (on) => {
       picking = on;
       pickBtn.classList.toggle('on', on);
-      if (on) paletteEl.hidden = true; // the modal would cover the surface to click
       stage.style.cursor = on ? 'copy' : '';
     };
     const pickMaterial = () => {
@@ -2970,7 +3065,7 @@
     // setting can swap it: `bindKey('q', 'scene')`, or `KEYMAP` replaced as a whole). The console buttons call the actions directly,
     // so they keep working whatever the keys are. `once`: a held key does not repeat; `plain`: not with Ctrl / Cmd / Alt.
     const ACTIONS = {
-      help: { run: () => toggleKeys(), once: true },
+      help: { run: () => toggleHelp(), once: true },
       zen: { run: () => toggleZen(), once: true, plain: true },
       isolate: { run: () => isolate(), once: true },
       palette: { run: () => togglePalette(), once: true },
@@ -3014,7 +3109,8 @@
         stop();
         return void letGo();
       }
-      if (e.key === 'Escape' && (!paletteEl.hidden || !keyPanel.hidden)) return void closeModals();
+      if (e.key === 'Escape' && !keyPanel.hidden) return void closeModals();
+      if (e.key === 'Escape' && !editing && !picking && !locked && sidePanels.some((el) => !el.hidden)) return void closeSide();
       if (e.key === 'Escape' && !editing && !picking && !locked) {
         // Esc closes what is open: the key explainer, then zen
         if (!keyPanel.hidden) return void toggleKeys(false);
@@ -3201,6 +3297,7 @@
       exaBtn.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         swap.textContent = sceneName === 'build' ? 'store' : 'build';
+        closeSide();
         exaMenu.classList.toggle('open');
       });
       document.body.append(exaBtn);
@@ -3258,7 +3355,7 @@
       4: { cap: '4', sub: 'and', cat: 'red', text: 'Boolean question: intersect.', edit: 'Saw: V puts two or three points, Enter cuts the object into closed solids.' },
       5: { cap: '5', sub: 'cancel', cat: 'red', text: 'Boolean question: cancel.' },
       '/': { cap: '/', sub: 'solo', cat: 'cream', text: 'Isolate: shows only the model under the cross. Again: the whole scene. In isolated mode M shoots carving bullets.' },
-      '?': { cap: '?', sub: 'keys', cat: 'slate', text: 'This key explainer.' },
+      '?': { cap: '?', sub: 'help', cat: 'slate', text: 'The help page: modes, keys and the screen. It links to this keyboard map.' },
       backspace: { cap: '⌫', sub: 'undo', cat: 'slate', w: 2.2, title: 'Backspace', text: 'Undo the last change (same as U).' },
       tab: { cap: 'Tab', sub: 'next', cat: 'teal', w: 1.6, title: 'Tab', text: 'Targets the object under the cross (like T).', target: 'Next target; Shift+Tab: the previous one. The camera frames it, however small or far.' },
       q: { cap: 'Q', sub: 'edit', cat: 'red', text: 'Edit mode on the object under the cross (or the target). With neither: a new 1 m cube of the selected material. Again: leave.' },
@@ -3305,7 +3402,7 @@
     ];
     const CAT_NAME = { cream: 'fly · view', teal: 'target · look', red: 'edit · make', slate: 'system', free: 'free' };
     const keyPanel = document.getElementById('keypanel');
-    for (const el of [paletteEl, keyPanel]) new MutationObserver(syncScrim).observe(el, { attributes: true, attributeFilter: ['hidden'] });
+    for (const el of [keyPanel]) new MutationObserver(syncScrim).observe(el, { attributes: true, attributeFilter: ['hidden'] });
     scrim.addEventListener('click', closeModals);
     const keyInfo = document.getElementById('keyinfo');
     const keyboardEl = document.getElementById('kb');
@@ -3371,10 +3468,8 @@
     const toggleKeys = (force) => {
       const open = force ?? keyPanel.hidden;
       keyPanel.hidden = !open;
-      document.getElementById('keys').classList.toggle('on', open);
       document.getElementById('fabKeys').classList.toggle('on', open);
       if (open) {
-        paletteEl.hidden = true;
         refreshKeyContext();
         showKey(keyShown ?? 't');
       }
@@ -3393,7 +3488,7 @@
       keyRef[keyId(e)]?.classList.remove('down');
       setTimeout(refreshKeyContext, 30);
     }, true);
-    document.getElementById('keys').addEventListener('click', () => toggleKeys());
+    document.getElementById('keys').addEventListener('click', () => toggleHelp());
     document.getElementById('fabKeys').addEventListener('click', () => toggleKeys());
     document.getElementById('keyclose').addEventListener('click', () => toggleKeys(false));
     // Z: zen, only the model
