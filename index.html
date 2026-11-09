@@ -146,8 +146,12 @@
     #boolq { position: fixed; left: 50%; bottom: 72px; transform: translateX(-50%); z-index: 6; max-width: min(92vw, 520px); padding: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; display: grid; gap: 8px; font: 500 12px/1.3 var(--font-mono); color: var(--muted); }
     #boolq[hidden] { display: none; }
     #editbar { position: fixed; left: 50%; top: 70px; transform: translateX(-50%); z-index: 6; max-width: min(94vw, 760px); padding: 0; background: none; border: 0; text-shadow: 0 0 4px #000, 0 0 2px #000; font: 500 12px/1.4 var(--font-mono); color: var(--muted); text-align: center; pointer-events: none; }
-    #editbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 10px; }
+    #editbar { width: max-content; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 10px; }
     #editbar, #editbar b { color: #fff; }
+    #editbar .modes { display: inline-flex; gap: 4px; margin-left: 10px; vertical-align: middle; }
+    #editbar .modes i { font-style: normal; padding: 1px 7px; border-radius: 9px; border: 1px solid rgba(255,255,255,.28); opacity: .55; }
+    #editbar .modes i.on { opacity: 1; background: #fff; color: #111; border-color: #fff; text-shadow: none; }
+    #editbar .note { margin-left: 10px; opacity: .85; }
     #editbar button { pointer-events: auto; cursor: pointer; font: inherit; line-height: 1; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--line); background: none; color: var(--muted); }
     #editbar button.on { color: #fff; border-color: #fff; }
     #editbar #editHelpText { flex-basis: 100%; }
@@ -400,9 +404,9 @@
     <p class="build" id="build" title="Build, YY.MM.DD.NNN">–</p>
   </header>
 
-  <main id="stage" tabindex="0" role="img" aria-label="Empty space for prisms. G switches between the SVG and the WebGPU view, L turns the light, C switches the filmic look, N smooth shading, K the studio light. Drag, or use the arrow keys, to rotate the view. The cross follows the surface under the pointer. M puts a prism down there, or shoots one into empty space; Space stops the movement. O marks an object, a second O on another one asks for a boolean operation (union, A minus B, B minus A, intersect). V joins two surface points with a thin bar (P over empty space forgets a pending first point), X deletes the object under the cross, W A S D R F fly, / shows only the model under the cross (/ again: the whole scene), P shows the material palette (Shift+click paints a face, Shift+double click the whole model), T flies the camera to the object under the cross, H puts the move gizmo (helper) on the object under the cross with the world axes, the next H switches to the object's own axes, the third takes it off; drag an arrow to move the object; E toggles edges and points, U or Backspace takes the last one back."><div id="frame"><canvas id="gpu" hidden></canvas><div id="layer"></div></div><div id="hud" aria-hidden="true"></div></main>
+  <main id="stage" tabindex="0" role="img" aria-label="Empty space for prisms. 9 switches between the SVG and the WebGPU view, L turns the light, C switches the filmic look, N smooth shading, K the studio light. Drag, or use the arrow keys, to rotate the view. The cross follows the surface under the pointer. M puts a prism down there, or shoots one into empty space; Space stops the movement. O marks an object, a second O on another one asks for a boolean operation (union, A minus B, B minus A, intersect). V joins two surface points with a thin bar (P over empty space forgets a pending first point), X deletes the object under the cross, W A S D R F fly, / shows only the model under the cross (/ again: the whole scene), P shows the material palette (Ctrl+click (Cmd on a Mac) paints a face, Ctrl+double click the whole model), T flies the camera to the object under the cross, H puts the move gizmo (helper) on the object under the cross with the world axes, the next H switches to the object's own axes, the third takes it off; drag an arrow to move the object; E toggles edges and points, U or Backspace takes the last one back."><div id="frame"><canvas id="gpu" hidden></canvas><div id="layer"></div></div><div id="hud" aria-hidden="true"></div></main>
 
-  <div id="editbar" hidden><b id="editText"></b><button id="editHelp" type="button" title="Show / hide the edit help" aria-pressed="false">?</button><span id="editHelpText" hidden>V: sketch lines on the surface (any number, they do nothing yet) · 4: the saw: V puts 2 points on one face = a cut square to the face along the line, or 3 points = a cut through the triangle; the orange outline previews it, Enter cuts, Esc forgets the points · 1 / 2 / 3: move points / lines / faces (drag, or the gizmo arrows) · X: delete the object under the cross · U: undo · Esc: back to sketching, then leave · Q: leave</span></div>
+  <div id="editbar" hidden><b id="editText"></b><button id="editHelp" type="button" title="Show / hide the edit help" aria-pressed="false">?</button><span id="editHelpText" hidden>V: sketch lines (nothing happens yet) · 1 / 2 / 3: select points / lines / faces (click; Shift+click adds or takes away; A selects all, A A clears) · G: grab the selection (X / Y / Z lock the axis, type metres, click or Enter confirms, Esc cancels) · S: scale (same keys) · E: extrude the selected faces · 4: the saw: V puts 2 points on one face = a cut square to the face, or 3 points = a cut through the triangle; Enter cuts · Shift+W A S D R F fly · Ctrl/Cmd+click paints · X deletes the object under the cross · U undo · Esc back, then leave · Q leave</span></div>
 
   <aside id="boolq" hidden aria-label="Boolean operation">
     <span id="boolText"></span>
@@ -417,7 +421,7 @@
   </aside>
 
   <aside id="palette" hidden aria-label="Material palette">
-    <span id="palHint">materials · shift+click: paint a face · shift+double click: the whole object · i: pick the material under the cross</span>
+    <span id="palHint">materials · ctrl+click (cmd on a Mac): paint a face · ctrl+double click: the whole object · i: pick the material under the cross</span>
     <div class="grid" id="swatches"></div>
     <b id="current">–</b>
     <label>metal <input type="range" id="p-metal" min="0" max="1" step="0.05" /><span id="v-metal"></span></label>
@@ -498,7 +502,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@a3c5474cdd95727ea90e1aed076c787b3dfcb643/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@6896d033d9cd83c5055a81486836ebbeec275245/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -574,6 +578,10 @@
     let gcam = null; // the camera of every frame (cam only exists while the pointer is over the view)
     let drawing = { left: 0, top: 0 }; // where the square drawing starts, in client pixels
     let solo = null; // `/` isolates one object: its id, null shows everything
+    const benchRadius = () => Math.max(...allObjects().filter((o) => bench?.ids.has(o.id)).map((o) => bounds(o.mesh).radius * 1.3), 1e-3);
+    // The workbench (edit mode): the object being edited stands on the plane y = 0 at the origin and the camera looks at (0,0,0).
+    // Only the objects on the bench are shown; leaving edit mode puts them back where they were.
+    let bench = null; // { off: [dx, dy, dz] (home -> bench), ids: Set of object ids, cam: the view to return to }
     let holdRebuild = 0; // inside asOneStep the scene is merged once at the end, not after every object
     let rebuildWanted = false;
     const rebuild = () => {
@@ -581,6 +589,7 @@
       let objs = allObjects();
       if (solo && !objs.some((o) => o.id === solo)) solo = null;
       if (solo) objs = objs.filter((o) => o.id === solo);
+      if (bench) objs = objs.filter((o) => bench.ids.has(o.id));
       let n = 0;
       owners = objs.map((o) => ({ obj: o, start: n, end: (n += o.mesh.faces.length) }));
       sceneParts = objs.map((o) => o.mesh);
@@ -992,7 +1001,7 @@
       snapV = -1;
       snapE = null;
       snapF = -1;
-      if (editing && !vdrag) {
+      if (editing && !xf) {
         if (emode === 'draw' || emode === 'vertex' || emode === 'saw') snapV = findSnap();
         else if (emode === 'edge') snapE = findEdge();
         else if (hit && owner(hit.face) === editing) snapF = hit.face - owners.find((o) => o.obj === editing).start;
@@ -1021,6 +1030,18 @@
           edges.push([c(a, b, 0), c(a, b, 1)], [c(a, 0, b), c(a, 1, b)], [c(0, a, b), c(1, a, b)]);
         }
         marks.push({ name: 'bool', color, width: 3, lines: edges });
+      }
+      if (bench && editing) {
+        // the workbench: a plane at y = 0 (a grid, 10 cells either way) and the two axes through the origin
+        const R = Math.max(...allObjects().filter((o) => bench.ids.has(o.id)).map((o) => bounds(o.mesh).radius), 1e-6);
+        const step = 10 ** Math.floor(Math.log10(R / 2));
+        const N = 12;
+        const E = N * step;
+        const grid = [];
+        for (let i = -N; i <= N; i++) if (i) grid.push([[-E, 0, i * step], [E, 0, i * step]], [[i * step, 0, -E], [i * step, 0, E]]);
+        marks.push({ name: 'bench', color: '#6b7280', width: 1, opacity: 0.28, lines: grid });
+        marks.push({ name: 'bench-x', color: '#e03131', width: 2, opacity: 0.7, lines: [[[-E, 0, 0], [E, 0, 0]]] });
+        marks.push({ name: 'bench-z', color: '#1c7ed6', width: 2, opacity: 0.7, lines: [[[0, 0, -E], [0, 0, E]]] });
       }
       if (editing && has(editing)) {
         const P = editing.mesh.positions;
@@ -1055,13 +1076,29 @@
           }
         }
         const outline = (ids) => ids.map((v, k) => [P[v], P[ids[(k + 1) % ids.length]]]);
-        if (sel && sel.ids.every((i) => i < P.length)) {
-          const lines = sel.face !== undefined ? outline(editing.mesh.faces[sel.face]?.v ?? sel.ids) : sel.edge ? [[P[sel.edge[0]], P[sel.edge[1]]]] : cross(P[sel.ids[0]], 2.4);
+        if (selOn()) {
+          const lines = [];
+          for (const it of sel.items) {
+            if (sel.kind === 'vertex') it < P.length && lines.push(...cross(P[it], 2.4));
+            else if (sel.kind === 'edge') it.every((i) => i < P.length) && lines.push([P[it[0]], P[it[1]]]);
+            else {
+              const fi = it.every((i) => i < P.length) ? faceAt(it) : -1;
+              if (fi >= 0) lines.push(...outline(editing.mesh.faces[fi].v));
+            }
+          }
           marks.push({ name: 'selected', color: '#e8590c', width: 4, lines });
         }
-        if (snapV >= 0 && snapV < P.length) marks.push({ name: 'snap', color: '#ffffff', width: 3, lines: cross(P[snapV], 2.6) });
-        if (snapE) marks.push({ name: 'snap-edge', color: '#ffffff', width: 4, lines: [[P[snapE[0]], P[snapE[1]]]] });
-        if (snapF >= 0 && editing.mesh.faces[snapF]) marks.push({ name: 'snap-face', color: '#ffffff', width: 3, lines: outline(editing.mesh.faces[snapF].v) });
+        if (xf) {
+          // the axis the move or scale is locked to: a long line through the centre of the selection
+          const A = xf.lock ? AXIS[xf.lock] : xf.axisVec;
+          if (A) {
+            const L = Math.max(fit.radius * 4, 1);
+            marks.push({ name: 'xf-axis', color: xf.lock ? ['#e03131', '#2f9e44', '#1c7ed6']['xyz'.indexOf(xf.lock)] : '#ffffff', width: 2, lines: [[xf.c.map((c, i) => c - A[i] * L), xf.c.map((c, i) => c + A[i] * L)]] });
+          }
+        }
+        if (snapV >= 0 && snapV < P.length && !xf) marks.push({ name: 'snap', color: '#ffffff', width: 3, lines: cross(P[snapV], 2.6) });
+        if (snapE && !xf) marks.push({ name: 'snap-edge', color: '#ffffff', width: 4, lines: [[P[snapE[0]], P[snapE[1]]]] });
+        if (snapF >= 0 && !xf && editing.mesh.faces[snapF]) marks.push({ name: 'snap-face', color: '#ffffff', width: 3, lines: outline(editing.mesh.faces[snapF].v) });
       }
       if (lockedObj) {
         const lo = [Infinity, Infinity, Infinity];
@@ -1170,17 +1207,17 @@
           let between = '';
           if (lockedObj && under !== lockedObj) {
             const gap = Math.hypot(...ballOf(under).center.map((c, i) => c - ballOf(lockedObj).center[i]));
-            const starMap = allObjects().length >= 100 && allObjects().some((o) => o.name === 'Sun');
+            const starMap = !editing && allObjects().length >= 100 && allObjects().some((o) => o.name === 'Sun');
             between = `<div class="row"><span>to target</span><span>${starMap ? `${gap.toFixed(2)} ly` : gap.toFixed(2)}</span></div>`;
           }
-          rows.push(`<div class="row"><b>${hudText(under.name ?? under.id)}</b><b>${d.toFixed(2)}</b></div><div class="row"><span>${faces} faces</span><span>${under.id === locked ? 'target' : ''}</span></div>${between}`);
+          rows.push(`<div class="row"><b>${hudText(under.name ?? under.id)}</b><b>${d.toFixed(2)}${editing ? ' m' : ''}</b></div><div class="row"><span>${faces} faces</span><span>${under.id === locked ? 'target' : ''}</span></div>${between}`);
         } else rows.push('<div class="row"><span>–</span></div><div class="row"><span>&nbsp;</span></div>');
         hudEl.innerHTML = rows.join('');
         {
           // the flight readout (top right): the speed is always there, the distance to the target only with a target.
           // In a star map one unit is one light year, so the speed is given as a multiple of the speed of light
           // (1 ly/s = 31 557 600 c) and the distance in light years.
-          const star = allObjects().length >= 100 && allObjects().some((o) => o.name === 'Sun');
+          const star = !editing && allObjects().length >= 100 && allObjects().some((o) => o.name === 'Sun');
           let v;
           let gapTo = null;
           if (lockedObj) {
@@ -1190,8 +1227,8 @@
             v = Math.hypot(pace(level.f) * ZOOM * dist, dist * SWING * Math.hypot(pace(level.r), pace(level.u)));
           } else v = Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT;
           const nice = (x) => (x >= 1e9 ? `${(x / 1e9).toFixed(1)}G` : x >= 1e6 ? `${(x / 1e6).toFixed(1)}M` : x >= 1e4 ? `${(x / 1e3).toFixed(1)}k` : x >= 100 ? x.toFixed(0) : x >= 1 ? x.toFixed(1) : x.toFixed(2));
-          const speedText = star ? (v ? `${nice(v)} ly/s <small style="font-weight:400;opacity:.65">${nice(v * 31557600)} c</small>` : '0 ly/s') : `${v.toFixed(2)} u/s`; // light years per second, with the multiple of the speed of light beside it
-          flightEl.innerHTML = `<div><b>${speedText}</b></div><div class="lock">${gapTo === null ? '' : star ? `${gapTo.toFixed(2)} ly` : gapTo.toFixed(2)}</div>`;
+          const speedText = star ? (v ? `${nice(v)} ly/s <small style="font-weight:400;opacity:.65">${nice(v * 31557600)} c</small>` : '0 ly/s') : `${v.toFixed(2)} ${editing ? 'm/s' : 'u/s'}`; // light years per second, with the multiple of the speed of light beside it
+          flightEl.innerHTML = `<div><b>${speedText}</b></div><div class="lock">${gapTo === null ? '' : star ? `${gapTo.toFixed(2)} ly` : `${gapTo.toFixed(2)}${editing ? ' m' : ''}`}</div>`;
         }
       }
       drawCloud(size);
@@ -1404,7 +1441,7 @@
       cloud = { n: total, data };
     };
     const drawCloud = (size) => {
-      const g = cloud && gcam && !gcam.ortho ? cloudInit() : null;
+      const g = cloud && gcam && !gcam.ortho && !bench ? cloudInit() : null;
       cloudCanvas.hidden = !g || g.failed;
       if (cloudCanvas.hidden) return;
       const { gl } = g;
@@ -1463,7 +1500,7 @@
     const GLOW_RANGE = 7000; // light years: the glow of stars farther than this is not drawn
     const drawGlow = (size) => {
       const stars = allObjects().filter((o) => o.inst?.glow);
-      glowCanvas.hidden = !stars.length || !gcam || gcam.ortho;
+      glowCanvas.hidden = !stars.length || !gcam || gcam.ortho || Boolean(bench);
       if (glowCanvas.hidden) return;
       const dpr = Math.min(2, globalThis.devicePixelRatio || 1);
       const px = Math.round(size * dpr);
@@ -1523,6 +1560,7 @@
       redraw();
     };
     const reset = () => {
+      if (bench) return goTo({ center: [0, 0, 0], radius: benchRadius(), yaw: START.yaw, pitch: START.pitch });
       focused = false;
       goTo({ ...overview(), yaw: START.yaw, pitch: START.pitch });
     };
@@ -1709,7 +1747,7 @@
       if (!o) return;
       erase(o);
       history.push(() => has(o) || restore(o));
-      if (editing && !has(editing)) leaveEdit(); // the object being edited is gone
+      refocusEdit(); // the object being edited may be the one that was deleted
       redraw();
     };
     const erase = (stale) => {
@@ -1823,8 +1861,13 @@
       else reset();
     };
     const undo = () => {
+      if (xf) return;
+      if (editing && history.at(-1)?.bench) {
+        noteEdit('nothing left to undo in this edit session');
+        return redraw();
+      }
       history.pop()?.();
-      if (editing && !has(editing)) leaveEdit(); // e.g. undoing a cut: the pieces are gone
+      refocusEdit(); // e.g. undoing a cut: the pieces are gone, the original is back on the bench
       redraw();
     };
     // O: object boolean. The first O marks the object under the cross, the second one (on another object) asks which
@@ -2045,7 +2088,7 @@
       focused = false;
       goTo({ ...overview(), yaw, pitch }); // frame the isolated object, keep the viewing direction
     };
-    // Shift+press: the face under the cross (the palette must be on). Shift+double click: its whole model.
+    // Ctrl (Cmd) + press: the face under the cross (the palette must be on). Ctrl + double click: its whole model.
     const paintFace = (force = false) => {
       if ((paletteEl.hidden && !force) || !hit) return;
       paintFaces(owner(hit.face), new Set([hit.face]));
@@ -2066,12 +2109,7 @@
     const AXES = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
     const GCOLORS = ['#e03131', '#2f9e44', '#1c7ed6'];
     const gizmoFrame = () => {
-      if (editing) {
-        // while editing the gizmo belongs to the selected vertex
-        if (!sel || !has(editing) || sel.ids.some((i) => i >= editing.mesh.positions.length)) return (sel = null);
-        const at = sel.ids.reduce((t, i) => t.map((c, k) => c + editing.mesh.positions[i][k] / sel.ids.length), [0, 0, 0]);
-        return { c: at, L: fit.radius * 0.08, axes: AXES };
-      }
+      if (editing) return null; // no gizmo while editing: G moves the selection, S scales it
       if (!gizmo || !has(gizmo)) return (gizmo = null);
       const lo = [Infinity, Infinity, Infinity];
       const hi = [-Infinity, -Infinity, -Infinity];
@@ -2159,29 +2197,7 @@
       rebuild();
       redraw();
     };
-    // dragging a vertex itself moves it in the plane that faces the camera
-    const dragVertex = () => {
-      panelPointer = toPanelXY();
-      const q = planePoint(vdrag.p0);
-      if (!q) return;
-      const dist = Math.hypot(pointer.x - vdrag.at.x, pointer.y - vdrag.at.y);
-      if (!vdrag.moved && dist < 4) return;
-      vdrag.moved = true;
-      vdrag.delta = q.map((c, i) => c - vdrag.p0[i]);
-      const d = vdrag;
-      editing.mesh = { ...d.mesh0, positions: d.mesh0.positions.map((p, k) => (d.ids.includes(k) ? p.map((c, i) => c + d.delta[i]) : p)) };
-      rebuild();
-      redraw();
-    };
     const toPanelXY = () => ({ x: pointer.x - drawing.left, y: pointer.y - drawing.top });
-    const dropVertex = () => {
-      const d = vdrag;
-      vdrag = null;
-      if (!d || !d.moved) return;
-      const obj = editing;
-      obj.mesh = d.mesh0;
-      commit(moveVertexSet(d.mesh0, d.ids.map((i, k) => [i, d.from[k].map((c, j) => c + d.delta[j])])), obj.wire);
-    };
     const dropGizmo = () => {
       const g = gdrag;
       gdrag = null;
@@ -2204,12 +2220,45 @@
     // 2 moves lines (edges), 3 moves faces.
     let emode = 'draw'; // 'draw' (the default: sketch lines, they do nothing yet) | 'vertex' | 'edge' | 'face' | 'saw' (4)
     let sketchFrom = null; // draw mode: the point the next V continues from
-    let sel = null; // the selection: { ids: [vertex indices], edge?: [a, b], face?: n }
     let snapV = -1; // the vertex the pointer snaps to (drawing, moving points)
     let snapE = null; // the edge under the pointer (moving lines)
     let snapF = -1; // the face under the pointer (moving faces)
-    let vdrag = null; // { ids, from: [positions], p0, mesh0, moved, at, delta }
-    const MODES = { draw: 'sketch lines (V)', vertex: 'move points (1)', edge: 'move lines (2)', face: 'move faces (3)', saw: 'saw (4)' };
+    const MODES = { draw: 'sketch (V)', vertex: 'points (1)', edge: 'lines (2)', face: 'faces (3)', saw: 'saw (4)' };
+    // The selection, as in Blender: points, lines or faces (the mode keys 1 2 3); Shift+click adds or takes one away.
+    // vertex: an index · edge: [a, b] with a < b · face: its vertex indices, sorted (so it survives a re-triangulation).
+    let sel = { kind: null, items: [] };
+    const emptySel = () => ({ kind: null, items: [] });
+    const selOn = () => sel.items.length > 0;
+    const itemKey = (it) => (Array.isArray(it) ? it.join(',') : String(it));
+    const selVerts = () => [...new Set(sel.items.flatMap((it) => (Array.isArray(it) ? it : [it])))];
+    const faceKey = (f) => [...f.v].sort((a, b) => a - b);
+    const faceAt = (key) => editing.mesh.faces.findIndex((f) => f.v.length === key.length && faceKey(f).join() === key.join());
+    const toggleSel = (kind, item, add) => {
+      const k = itemKey(item);
+      const same = sel.kind === kind;
+      const on = same && sel.items.some((x) => itemKey(x) === k);
+      if (!add) sel = { kind, items: [item] };
+      else if (on) sel = { kind, items: sel.items.filter((x) => itemKey(x) !== k) };
+      else sel = { kind, items: [...(same ? sel.items : []), item] };
+    };
+    const selectAll = () => {
+      if (!['vertex', 'edge', 'face'].includes(emode)) return noteEdit('select with 1 (points), 2 (lines) or 3 (faces) first');
+      const m = editing.mesh;
+      if (emode === 'vertex') sel = { kind: 'vertex', items: m.positions.map((_, i) => i) };
+      else if (emode === 'face') sel = { kind: 'face', items: m.faces.map(faceKey) };
+      else {
+        const seen = new Set();
+        const items = [];
+        for (const f of m.faces) f.v.forEach((v, k) => {
+          const w = f.v[(k + 1) % f.v.length];
+          const e = v < w ? [v, w] : [w, v];
+          if (!seen.has(e.join())) (seen.add(e.join()), items.push(e));
+        });
+        sel = { kind: 'edge', items };
+      }
+      redraw();
+    };
+    let lastA = 0; // A selects everything, a quick second A (A A) clears the selection
     let panelPointer = null; // the pointer in panel pixels, as of the last frame
     const bar = document.getElementById('editbar');
     const barText = document.getElementById('editText');
@@ -2227,7 +2276,9 @@
     });
     const showBar = () => {
       bar.hidden = !editing;
-      if (editing) barText.textContent = `edit ${editing.name} · ${MODES[emode]}${barNote ? ` · ${barNote}` : ''}`;
+      if (!editing) return;
+      const chips = Object.entries(MODES).map(([k, label]) => `<i class="${k === emode ? 'on' : ''}">${label}</i>`).join('');
+      barText.innerHTML = `edit ${hudText(editing.name ?? '')}<span class="modes">${chips}</span>${barNote ? `<span class="note">${hudText(barNote)}</span>` : ''}`;
     };
     const vsub = (a, b) => a.map((c, i) => c - b[i]);
     const vdot = (a, b) => a.reduce((t, c, i) => t + c * b[i], 0);
@@ -2281,27 +2332,82 @@
       }
       return best;
     };
+    // The bench: the object to edit goes to the origin and stands on the plane y = 0; the camera looks at (0,0,0).
+    // Entering is an undo step (flagged: U inside edit mode stops there), and so is the return on leaving.
+    const benchOffset = (o) => {
+      const lo = [Infinity, Infinity, Infinity];
+      const hi = [-Infinity, -Infinity, -Infinity];
+      for (const q of o.mesh.positions) q.forEach((c, i) => ((lo[i] = Math.min(lo[i], c)), (hi[i] = Math.max(hi[i], c))));
+      return [-(lo[0] + hi[0]) / 2, -lo[1], -(lo[2] + hi[2]) / 2];
+    };
+    const shiftObj = (o, d, flag = false) => {
+      const now = live(o) ?? o;
+      const before = now.mesh;
+      const lines = now.lines;
+      change(now, shifted(before, d));
+      const cur = live(o) ?? o;
+      if (lines) cur.lines = lines.map((l) => l.map((q) => q.map((c, i) => c + d[i])));
+      const step = () => {
+        if (!has(o)) return;
+        change(o, before);
+        (live(o) ?? o).lines = lines;
+      };
+      if (flag) step.bench = true;
+      history.push(step);
+    };
     const enterEdit = () => {
       const o = hit && owner(hit.face);
       if (!o) return noteEdit('') || redraw();
-      editing = o;
+      const off = benchOffset(o);
+      bench = { off, ids: new Set([o.id]), cam: { center: [...fit.center], radius: fit.radius, dist: fit.dist, yaw, pitch } };
       gizmo = null;
-      sel = null;
+      locked = null;
+      shiftObj(o, off, true);
+      editing = live(o) ?? o;
+      sel = emptySel();
       sawPts = [];
       sketchFrom = null;
+      xf = null;
       emode = 'draw';
       barNote = '';
+      goTo({ center: [0, 0, 0], radius: benchRadius(), yaw, pitch });
       showBar();
       redraw();
     };
     const leaveEdit = () => {
+      const b = bench;
       editing = null;
       sawPts = [];
-      sel = vdrag = null;
       sketchFrom = null;
+      sel = emptySel();
+      xf = null;
       emode = 'draw';
+      bench = null;
+      if (b) {
+        const back = b.off.map((c) => -c);
+        asOneStep(() => {
+          for (const id of b.ids) {
+            const o = allObjects().find((x) => x.id === id);
+            if (o) shiftObj(o, back);
+          }
+        });
+        goTo({ ...b.cam });
+      }
+      rebuild();
       showBar();
       redraw();
+    };
+    // the edited object is gone (an undo, a delete): carry on with another one from the bench, or leave
+    const refocusEdit = () => {
+      if (!editing || has(editing)) return;
+      const next = bench && [...bench.ids].map((id) => allObjects().find((o) => o.id === id)).find(Boolean);
+      if (!next) return leaveEdit();
+      editing = next;
+      sel = emptySel();
+      sawPts = [];
+      sketchFrom = null;
+      xf = null;
+      showBar();
     };
     // one undo step for whatever a single key press changed
     const commit = (mesh, wire) => {
@@ -2388,37 +2494,187 @@
       asOneStep(() => {
         erase(obj);
         history.push(() => has(obj) || restore(obj));
-        made = pieces.map((mesh) => create(`${obj.name.startsWith('prism-') ? 'prism' : obj.name}-${shortId()}`, mesh));
+        made = pieces.map((mesh) => {
+          const piece = create(`${obj.name.startsWith('prism-') ? 'prism' : obj.name}-${shortId()}`, mesh);
+          bench?.ids.add(piece.id); // the pieces lie on the bench too
+          return piece;
+        });
       });
       sawPts = [];
-      sel = null;
+      sel = emptySel();
       editing = live(made[0]) ?? made[0]; // stay in edit mode, on the first piece: the next cut can follow at once
       noteEdit(`cut into ${pieces.length}; now editing ${editing.name}`);
       redraw();
     };
+    // G grabs, S scales, E extrudes: the selected points, lines or faces, as in Blender. The move happens while the pointer moves;
+    // a click or Enter confirms, Esc or a right click cancels. X, Y or Z locks it to that world axis (the same key again lets go);
+    // a typed number is exact: metres for a grab, a factor for a scale (G X 0.25 Enter moves a quarter of a metre along x).
+    const AXIS = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
+    let xf = null; // { kind, obj, mesh0, orig, ids, from, c, p0, s0, sc, dist0, base, lock, axisVec, typed, changed }
+    const fmt = (v) => (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(3));
+    const startXf = (kind, extra = {}) => {
+      if (!editing || !gcam) return;
+      if (!panelPointer) panelPointer = { x: gcam.size / 2, y: gcam.size / 2 };
+      const ids = selVerts().filter((i) => i < editing.mesh.positions.length);
+      if (!ids.length) return noteEdit('select something first (1 points, 2 lines, 3 faces, then click; Shift+click adds)');
+      const P = editing.mesh.positions;
+      const c = ids.reduce((t, i) => t.map((v, k) => v + P[i][k] / ids.length), [0, 0, 0]);
+      const sc = project(gcam, c);
+      const dist0 = Math.hypot(panelPointer.x - sc.x, panelPointer.y - sc.y);
+      xf = { kind, obj: editing, mesh0: editing.mesh, orig: extra.orig ?? editing.mesh, ids, from: ids.map((i) => P[i]), c, p0: planePoint(c) ?? c, s0: { ...panelPointer }, sc: { x: sc.x, y: sc.y }, dist0, base: Math.max(dist0, 40), lock: null, axisVec: extra.axisVec ?? null, typed: '', changed: false };
+      xfUpdate();
+    };
+    // how far (in world units) the pointer has moved along an axis, measured on the screen
+    const axisDistance = (x, A) => {
+      const L = Math.max(fit.radius * 0.1, 1e-6);
+      const a = project(gcam, x.c);
+      const b = project(gcam, x.c.map((c, i) => c + A[i] * L));
+      const sx = b.x - a.x;
+      const sy = b.y - a.y;
+      const sl = Math.hypot(sx, sy);
+      if (sl < 3) {
+        const q = planePoint(x.p0); // the axis points at the eye: fall back on the plane that faces the camera
+        return q ? vdot(vsub(q, x.p0), A) : 0;
+      }
+      return ((panelPointer.x - x.s0.x) * sx + (panelPointer.y - x.s0.y) * sy) / sl / (sl / L);
+    };
+    function xfUpdate() {
+      const x = xf;
+      if (!x) return;
+      if (pointer) panelPointer = toPanelXY();
+      const A = x.lock ? AXIS[x.lock] : x.axisVec;
+      const typed = x.typed !== '' && !Number.isNaN(parseFloat(x.typed)) ? parseFloat(x.typed) : null;
+      let moves;
+      let text;
+      if (x.kind === 'grab') {
+        let delta;
+        if (A) {
+          const v = typed ?? axisDistance(x, A);
+          delta = A.map((c) => c * v);
+          text = `${fmt(v)} m`;
+        } else {
+          const q = planePoint(x.p0);
+          delta = q ? vsub(q, x.p0) : [0, 0, 0];
+          text = `${fmt(Math.hypot(...delta))} m`;
+        }
+        moves = x.ids.map((i, k) => [i, x.from[k].map((c, j) => c + delta[j])]);
+      } else {
+        const f = typed ?? (Math.hypot(panelPointer.x - x.sc.x, panelPointer.y - x.sc.y) - x.dist0 + x.base) / x.base;
+        text = `×${f.toFixed(3)}`;
+        moves = x.ids.map((i, k) => {
+          const v = x.from[k];
+          const d = vsub(v, x.c);
+          if (!A) return [i, x.c.map((c, j) => c + d[j] * f)];
+          const t = vdot(d, A) * (f - 1);
+          return [i, v.map((c, j) => c + A[j] * t)];
+        });
+      }
+      x.changed = true;
+      x.obj.mesh = reshape(x.mesh0, moves);
+      rebuild();
+      barNote = `${x.kind}${x.lock ? ` ${x.lock.toUpperCase()}` : x.axisVec ? ' along the normal' : ''} · ${typed !== null ? `${x.typed}_` : text} · ⏎ ok, Esc cancels`;
+      showBar();
+      redraw();
+    }
+    const xfConfirm = () => {
+      const x = xf;
+      xf = null;
+      if (!x) return;
+      const final = x.obj.mesh;
+      x.obj.mesh = x.orig;
+      if (x.changed && final !== x.orig) {
+        change(x.obj, final); // one write, one undo step
+        history.push(() => has(x.obj) && change(x.obj, x.orig));
+      } else rebuild();
+      noteEdit('');
+      redraw();
+    };
+    const xfCancel = () => {
+      const x = xf;
+      xf = null;
+      if (!x) return;
+      x.obj.mesh = x.orig;
+      rebuild();
+      noteEdit('cancelled');
+      redraw();
+    };
+    // E: every selected face is pushed out a hair (side faces join it to the solid), then the new faces are grabbed along their normal
+    const extrude = () => {
+      if (sel.kind !== 'face' || !selOn()) return noteEdit('E extrudes faces: press 3, select a face, then E');
+      const orig = editing.mesh;
+      let mesh = orig;
+      const eps = 1e-4 * (bounds(mesh).radius || 1);
+      let axis = [0, 0, 0];
+      const caps = [];
+      for (const key of sel.items) {
+        const fi = mesh.faces.findIndex((f) => f.v.length === key.length && faceKey(f).join() === key.join());
+        if (fi < 0) continue;
+        const n = faceNormal(mesh.faces[fi].v.map((v) => mesh.positions[v]));
+        const l = Math.hypot(...n) || 1;
+        axis = axis.map((c, i) => c + n[i] / l);
+        mesh = extrudeFace(mesh, fi, { distance: eps }).mesh;
+        caps.push(faceKey(mesh.faces[fi]));
+      }
+      if (!caps.length) return;
+      const l = Math.hypot(...axis);
+      if (l < 1e-9) return noteEdit('the selected faces point in opposite directions: extrude them one by one');
+      editing.mesh = mesh;
+      rebuild();
+      sel = { kind: 'face', items: caps };
+      startXf('grab', { orig, axisVec: axis.map((c) => c / l) });
+    };
+    // the keys of edit mode that are not modes (a few of them are fly keys outside it: those need Shift here)
+    const editKey = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return false;
+      if (xf) {
+        e.preventDefault();
+        if (e.repeat && e.key !== 'Backspace') return true;
+        const k = e.key.toLowerCase();
+        if (e.key === 'Escape') xfCancel();
+        else if (e.key === 'Enter') xfConfirm();
+        else if (k === 'x' || k === 'y' || k === 'z') ((xf.lock = xf.lock === k ? null : k), xfUpdate());
+        else if (/^[0-9.]$/.test(e.key)) ((xf.typed += e.key), xfUpdate());
+        else if (e.key === '-') ((xf.typed = xf.typed.startsWith('-') ? xf.typed.slice(1) : `-${xf.typed}`), xfUpdate());
+        else if (e.key === 'Backspace') ((xf.typed = xf.typed.slice(0, -1)), xfUpdate());
+        return true;
+      }
+      if (e.shiftKey) return false; // Shift+W A S D R F fly
+      const k = e.key.toLowerCase();
+      if (k === 'a') {
+        e.preventDefault();
+        if (e.repeat) return true;
+        const t = performance.now();
+        if (t - lastA < 400) ((sel = emptySel()), (lastA = 0), redraw()); // A A: nothing selected
+        else ((lastA = t), selectAll());
+        return true;
+      }
+      if (k === 'g' || k === 's' || k === 'e') {
+        e.preventDefault();
+        if (e.repeat) return true;
+        if (!['vertex', 'edge', 'face'].includes(emode) && !(k === 'e' && emode === 'face')) return (noteEdit('select with 1 (points), 2 (lines) or 3 (faces) first'), true);
+        if (k === 'e') extrude();
+        else startXf(k === 'g' ? 'grab' : 'scale');
+        return true;
+      }
+      if ('wdrf'.includes(k) && k.length === 1) return true; // fly only with Shift while editing
+      return false;
+    };
     let last = null; // drag origin
     stage.addEventListener('pointerdown', (e) => {
-      if (e.shiftKey || shiftOn) {
-        pointer = { x: e.clientX, y: e.clientY };
-        return paintFace(); // Shift+press paints, it never starts a rotation
-      }
       pointer = { x: e.clientX, y: e.clientY };
-      if (editing && !grab0(e)) {
-        if (emode !== 'draw' && emode !== 'saw') {
-          const P = editing.mesh.positions;
-          let grab = null;
-          if (emode === 'vertex' && snapV >= 0) grab = { sel: { ids: [snapV] }, p0: P[snapV] };
-          else if (emode === 'edge' && snapE) grab = { sel: { ids: [...snapE], edge: snapE }, p0: P[snapE[0]].map((c, i) => (c + P[snapE[1]][i]) / 2) };
-          else if (emode === 'face' && snapF >= 0 && hit) grab = { sel: { ids: [...editing.mesh.faces[snapF].v], face: snapF }, p0: hit.point };
-          if (grab) {
-            sel = grab.sel;
-            vdrag = { ids: sel.ids, from: sel.ids.map((i) => P[i]), p0: grab.p0, mesh0: editing.mesh, moved: false, delta: [0, 0, 0], at: { x: e.clientX, y: e.clientY } };
-            stage.setPointerCapture(e.pointerId);
-            redraw();
-            return;
-          }
-          sel = null; // a click on nothing lets go
-        }
+      if (xf) {
+        // a grab / scale is under way: the left button confirms it, the right one cancels it
+        e.preventDefault();
+        return e.button === 2 ? xfCancel() : xfConfirm();
+      }
+      if (e.ctrlKey || e.metaKey || (shiftOn && !editing)) return paintFace(); // Ctrl (Cmd on a Mac) + press paints, it never starts a rotation
+      if (editing && ['vertex', 'edge', 'face'].includes(emode)) {
+        // selecting (1 points, 2 lines, 3 faces): a click picks one, Shift+click adds it or takes it away
+        const add = e.shiftKey || shiftOn;
+        const item = emode === 'vertex' ? (snapV >= 0 ? snapV : null) : emode === 'edge' ? (snapE ? [...snapE].sort((a, b) => a - b) : null) : snapF >= 0 && editing.mesh.faces[snapF] ? faceKey(editing.mesh.faces[snapF]) : null;
+        if (item !== null) toggleSel(emode, item, add);
+        else if (!add) sel = emptySel();
+        redraw();
       }
       if (picking) {
         pickMaterial();
@@ -2433,8 +2689,8 @@
         const q = toPanel(e);
         // the pointer may sit anywhere along the arrow: measure from where it was grabbed
         const t0 = ((q.x - grab.a.x) * dx + (q.y - grab.a.y) * dy) / (len * len);
-        const target = editing ?? gizmo;
-        gdrag = { obj: target, verts: editing ? sel.ids : null, axis: grab.h.axis, from: { x: grab.a.x + dx * t0, y: grab.a.y + dy * t0 }, mesh0: target.mesh, dir: grab.h.dir, unit: { x: dx / len, y: dy / len }, perUnit: len / grab.h.L, d: 0 };
+        const target = gizmo;
+        gdrag = { obj: target, verts: null, axis: grab.h.axis, from: { x: grab.a.x + dx * t0, y: grab.a.y + dy * t0 }, mesh0: target.mesh, dir: grab.h.dir, unit: { x: dx / len, y: dy / len }, perUnit: len / grab.h.L, d: 0 };
         stage.setPointerCapture(e.pointerId);
         return;
       }
@@ -2445,8 +2701,8 @@
     });
     stage.addEventListener('pointermove', (e) => {
       pointer = { x: e.clientX, y: e.clientY };
+      if (xf) return xfUpdate();
       if (gdrag) return dragGizmo(e);
-      if (vdrag) return dragVertex();
       if (!last) {
         const g = nearAxis(e);
         gHover = g ? g.h.axis : null;
@@ -2457,7 +2713,6 @@
       last = { x: e.clientX, y: e.clientY };
     });
     const release = () => {
-      dropVertex();
       dropGizmo();
       last = null;
       stage.classList.remove('drag');
@@ -2469,7 +2724,12 @@
       pointer = null;
       redraw();
     });
-    stage.addEventListener('dblclick', (e) => (e.shiftKey || shiftOn ? paintModel() : reset()));
+    stage.addEventListener('dblclick', (e) => (e.ctrlKey || e.metaKey || (shiftOn && !editing) ? paintModel() : reset()));
+    stage.addEventListener('contextmenu', (e) => {
+      if (!editing && !e.ctrlKey) return;
+      e.preventDefault(); // a right click cancels a grab / scale; Ctrl+click (a Mac right click) paints
+      if (xf) xfCancel();
+    });
 
     const moves = {
       ArrowLeft: [-STEP, 0],
@@ -2489,6 +2749,7 @@
         e.preventDefault();
         return void toggleVr(false);
       }
+      if (xf && e.key === 'Tab') return e.preventDefault();
       if (e.key === 'Tab') {
         e.preventDefault(); // Tab is the target key: the next object (with no target yet: the one under the cross, like T)
         if (!e.repeat) locked ? nextTarget(e.shiftKey) : travelTo();
@@ -2504,7 +2765,8 @@
         if (!keyPanel.hidden) return void toggleKeys(false);
         if (document.body.classList.contains('zen')) return void toggleZen(false);
       }
-      const fk = !e.ctrlKey && !e.metaKey && !e.altKey && FLY_KEYS[e.key.toLowerCase()];
+      if (editing && editKey(e)) return;
+      const fk = !e.ctrlKey && !e.metaKey && !e.altKey && (!editing || e.shiftKey) && FLY_KEYS[e.key.toLowerCase()];
       if (fk) {
         e.preventDefault();
         if (!e.repeat) speed(...fk);
@@ -2542,7 +2804,7 @@
       } else if (editing && /^[1234]$/.test(e.key)) {
         e.preventDefault();
         emode = ['vertex', 'edge', 'face', 'saw'][e.key - 1];
-        sel = null;
+        sel = emptySel();
         sawPts = [];
         sketchFrom = null;
         barNote = '';
@@ -2551,7 +2813,7 @@
       } else if (editing && e.key === 'Escape') {
         if (sawPts.length) ((sawPts = []), noteEdit(''), redraw());
         else if (sketchFrom) ((sketchFrom = null), redraw());
-        else if (emode !== 'draw') ((emode = 'draw'), (sel = null), showBar(), redraw());
+        else if (emode !== 'draw') ((emode = 'draw'), (sel = emptySel()), showBar(), redraw());
         else leaveEdit();
       } else if (editing && (e.key === 'h' || e.key === 'H' || e.key === 'o' || e.key === 'O')) {
         e.preventDefault(); // the object tools wait outside edit mode
@@ -2561,7 +2823,7 @@
           if (editing && emode === 'saw') addSawPoint(); // only in the saw mode (4) does V saw
           else if (editing) {
             // any other mode: V sketches a line (nothing is selected, nothing moves)
-            if (emode !== 'draw') ((emode = 'draw'), (sel = null), showBar());
+            if (emode !== 'draw') ((emode = 'draw'), (sel = emptySel()), showBar());
             sketch();
           } else spider();
         }
@@ -2580,9 +2842,9 @@
       } else if (e.key === 'x' || e.key === 'X' || e.key === 'Delete') {
         e.preventDefault();
         remove();
-      } else if (e.key === 'g' || e.key === 'G') {
+      } else if (e.key === '9') {
         e.preventDefault();
-        toggleMode();
+        toggleMode(); // 9: the SVG / WebGPU switch (it was G)
       } else if (e.key === 'i' || e.key === 'I') {
         e.preventDefault();
         if (!e.repeat) pickMaterial();
@@ -2753,9 +3015,9 @@
     // "run" does what the key does. Colours: teal = target / look, red = editing and making, cream = flying and viewing, slate = system.
     const KEYS = {
       escape: { cap: 'Esc', sub: 'free', cat: 'slate', w: 1.5, title: 'Escape', text: 'Cancels: closes the boolean question, stops a pending spider bar, ends zen.', target: 'Lets go of the target. The camera stays exactly where it is.', edit: 'Forgets the saw points or the sketch line, then leaves the saw or a move mode, then leaves edit mode (the target stays).' },
-      1: { cap: '1', sub: 'union', cat: 'red', text: 'Boolean question: union.', edit: 'Move points (drag a point, or the gizmo arrows).' },
-      2: { cap: '2', sub: 'A−B', cat: 'red', text: 'Boolean question: A minus B.', edit: 'Move lines (edges).' },
-      3: { cap: '3', sub: 'B−A', cat: 'red', text: 'Boolean question: B minus A.', edit: 'Move faces.' },
+      1: { cap: '1', sub: 'union', cat: 'red', text: 'Boolean question: union.', edit: 'Select points: click one, Shift+click adds or takes away. G / S / E then work on them.' },
+      2: { cap: '2', sub: 'A−B', cat: 'red', text: 'Boolean question: A minus B.', edit: 'Select lines (edges).' },
+      3: { cap: '3', sub: 'B−A', cat: 'red', text: 'Boolean question: B minus A.', edit: 'Select faces.' },
       4: { cap: '4', sub: 'and', cat: 'red', text: 'Boolean question: intersect.', edit: 'Saw: V puts two or three points, Enter cuts the object into closed solids.' },
       5: { cap: '5', sub: 'cancel', cat: 'red', text: 'Boolean question: cancel.' },
       '/': { cap: '/', sub: 'solo', cat: 'cream', text: 'Isolate: shows only the model under the cross. Again: the whole scene. In isolated mode M shoots carving bullets.' },
@@ -2763,26 +3025,27 @@
       backspace: { cap: '⌫', sub: 'undo', cat: 'slate', w: 2.2, title: 'Backspace', text: 'Undo the last change (same as U).' },
       tab: { cap: 'Tab', sub: 'next', cat: 'teal', w: 1.6, title: 'Tab', text: 'Targets the object under the cross (like T).', target: 'Next target; Shift+Tab: the previous one. The camera frames it, however small or far.' },
       q: { cap: 'Q', sub: 'edit', cat: 'red', text: 'Edit mode on the object under the cross: sketch lines, saw it (4), or move its points, lines and faces. Again: leave.' },
-      w: { cap: 'W', sub: 'fwd', cat: 'cream', text: 'Fly forward. Every press is one speed step; S slows down and reverses.', target: 'Closer to the target (stops at its surface).' },
-      e: { cap: 'E', sub: 'edges', cat: 'cream', text: 'Edges and points on or off.' },
-      r: { cap: 'R', sub: 'up', cat: 'cream', text: 'Fly up (speed steps).', target: 'Swing up over the target.' },
+      w: { cap: 'W', sub: 'fwd', cat: 'cream', text: 'Fly forward. Every press is one speed step; S slows down and reverses.', target: 'Closer to the target (stops at its surface).', edit: 'Only with Shift while editing.' },
+      e: { cap: 'E', sub: 'edges', cat: 'cream', text: 'Edges and points on or off.', edit: 'Extrude the selected faces (face mode, 3): they are pushed out along their normal; move the pointer, or type metres.' },
+      r: { cap: 'R', sub: 'up', cat: 'cream', text: 'Fly up (speed steps).', target: 'Swing up over the target.', edit: 'Only with Shift while editing.' },
       t: { cap: 'T', sub: 'target', cat: 'teal', text: 'Target the object under the cross: the camera turns to it and keeps looking at it. Over empty space: the nearest object.', target: 'Another object re-targets; the target itself or empty space brings the camera back onto the target.' },
       y: { cap: 'Y', sub: 'vr', cat: 'teal', text: 'VR: two eyes side by side for a phone in a headset holder. The phone turns the view, a tap speeds up, a double tap stops, a long press (or Y, Esc) leaves.' },
       u: { cap: 'U', sub: 'undo', cat: 'slate', text: 'Undo the last change. Backspace does the same.' },
-      i: { cap: 'I', sub: 'pick', cat: 'red', text: 'Pick the material under the cross (then Shift+click paints with it).' },
+      i: { cap: 'I', sub: 'pick', cat: 'red', text: 'Pick the material under the cross (then Ctrl/Cmd+click paints with it).' },
       o: { cap: 'O', sub: 'bool', cat: 'red', text: 'Boolean: mark an object, then a second one, then choose union, A−B, B−A or intersect (keys 1–5).' },
-      p: { cap: 'P', sub: 'paint', cat: 'red', text: 'The material palette. Shift+click paints a face, Shift+double click the whole object.' },
-      a: { cap: 'A', sub: 'left', cat: 'cream', text: 'Fly left (speed steps).', target: 'Swing left round the target.' },
-      s: { cap: 'S', sub: 'back', cat: 'cream', text: 'Fly back (speed steps).', target: 'Farther from the target.' },
-      d: { cap: 'D', sub: 'right', cat: 'cream', text: 'Fly right (speed steps).', target: 'Swing right round the target.' },
-      f: { cap: 'F', sub: 'down', cat: 'cream', text: 'Fly down (speed steps).', target: 'Swing down under the target.' },
-      g: { cap: 'G', sub: 'gpu', cat: 'teal', text: 'Switch between the SVG view and the WebGPU view.' },
+      p: { cap: 'P', sub: 'paint', cat: 'red', text: 'The material palette. Ctrl+click (Cmd on a Mac) paints a face, Ctrl+double click the whole object.' },
+      a: { cap: 'A', sub: 'left', cat: 'cream', text: 'Fly left (speed steps).', target: 'Swing left round the target.', edit: 'Select everything (in the point, line or face mode); A A clears the selection. (Shift+A flies left.)' },
+      s: { cap: 'S', sub: 'back', cat: 'cream', text: 'Fly back (speed steps).', target: 'Farther from the target.', edit: 'Scale the selection about its centre; X, Y or Z scales along that world axis only, a typed number is the factor. (Shift+S flies back.)' },
+      d: { cap: 'D', sub: 'right', cat: 'cream', text: 'Fly right (speed steps).', target: 'Swing right round the target.', edit: 'Only with Shift while editing.' },
+      f: { cap: 'F', sub: 'down', cat: 'cream', text: 'Fly down (speed steps).', target: 'Swing down under the target.', edit: 'Only with Shift while editing.' },
+      g: { cap: 'G', sub: 'grab', cat: 'red', text: '', edit: 'Grab: moves the selection with the pointer; X, Y or Z locks it to a world axis, a typed number is metres. Click or Enter confirms, Esc cancels.' },
+      9: { cap: '9', sub: 'gpu', cat: 'teal', text: 'Switch between the SVG view and the WebGPU view.' },
       h: { cap: 'H', sub: 'gizmo', cat: 'red', text: 'Move gizmo on the object under the cross: 1st H world axes, 2nd H its own axes, 3rd H off. Drag an arrow to move it.' },
       j: { cap: 'J', sub: 'freeze', cat: 'teal', text: 'Freeze: everything that moves stands still (flying, orbiting, dragging the view), so the cursor can work. The speed is kept; J again carries on with it.' },
       k: { cap: 'K', sub: 'studio', cat: 'teal', text: 'Studio light: key, fill and rim light that follow the camera.' },
       l: { cap: 'L', sub: 'light', cat: 'teal', text: 'Turn the sun (the light direction) in steps.' },
       enter: { cap: 'Enter', sub: 'cut', cat: 'red', w: 2.2, title: 'Enter', text: '', edit: 'Saw: cuts along the marked plane.' },
-      shift: { cap: 'Shift', sub: 'paint', cat: 'slate', w: 2.4, title: 'Shift', text: 'Shift+click paints a face with the current material, Shift+double click the whole object. Shift+Tab: previous target.', run: false },
+      shift: { cap: 'Shift', sub: 'paint', cat: 'slate', w: 2.4, title: 'Shift', text: 'Shift+Tab: previous target. Painting is Ctrl+click (Cmd on a Mac).', edit: 'Shift+click adds to the selection or takes from it. Shift+W A S D R F fly (plain, they are edit keys).', run: false },
       z: { cap: 'Z', sub: 'zen', cat: 'slate', text: 'Zen: hide everything but the model. Z or Esc brings the panels back.' },
       x: { cap: 'X', sub: 'del', cat: 'red', text: 'Delete the object under the cross (U brings it back).' },
       c: { cap: 'C', sub: 'filmic', cat: 'teal', text: 'Filmic look: HDR light, glowing emission, tone mapping.' },
@@ -2797,7 +3060,7 @@
       ' ': { cap: 'Space', sub: 'speed zero', cat: 'cream', w: 7.6, title: 'Space', text: 'Speed zero: stops the flying.', target: 'Speed zero; the target stays.' },
     };
     const KEY_ROWS = [
-      ['escape', '1', '2', '3', '4', '5', '/', '?', 'backspace'],
+      ['escape', '1', '2', '3', '4', '5', '9', '/', '?', 'backspace'],
       ['tab', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
       [1.9, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'enter'],
       ['shift', 'z', 'x', 'c', 'v', 'b', 'n', 'm', 0.4, 'arrowleft', 'arrowdown', 'arrowup', 'arrowright'],
@@ -2930,7 +3193,21 @@
     if (new URLSearchParams(location.search).has('debug')) {
       globalThis.__3draft = {
         load: (data) => applyScene(data),
-        objects: () => allObjects().map((o) => ({ name: o.name, faces: o.mesh.faces.map((f) => [f.color, f.mat]) })),
+        objects: () => allObjects().map((o) => {
+          const lo = [Infinity, Infinity, Infinity];
+          const hi = [-Infinity, -Infinity, -Infinity];
+          for (const q of o.mesh.positions) q.forEach((c, i) => ((lo[i] = Math.min(lo[i], c)), (hi[i] = Math.max(hi[i], c))));
+          return { name: o.name, faces: o.mesh.faces.map((f) => [f.color, f.mat]), lo, hi, nf: o.mesh.faces.length };
+        }),
+        edit: () => ({ mode: emode, sel: { kind: sel.kind, n: sel.items.length }, xf: xf ? { kind: xf.kind, lock: xf.lock, typed: xf.typed } : null, editing: editing?.name ?? null, bench: Boolean(bench) }),
+        // screen position (stage pixels) of a point on the edited object: its face centre / vertex / edge middle
+        screen: (kind, i) => {
+          const m = editing.mesh;
+          const pts = kind === 'face' ? m.faces[i].v.map((v) => m.positions[v]) : kind === 'edge' ? i.map((v) => m.positions[v]) : [m.positions[i]];
+          const c = pts.reduce((t, q) => t.map((v, k) => v + q[k] / pts.length), [0, 0, 0]);
+          const a = project(gcam, c);
+          return { x: a.x + drawing.left, y: a.y + drawing.top };
+        },
         // put the eye at a point of the scene (fly view), looking along yaw / pitch (degrees)
         eye: (x, y, z, yawDeg, pitchDeg) => lookFrom([x, y, z], yawDeg, pitchDeg),
         state: () => ({ solo: solo ? 1 : 0, faces: scene.faces.length, objects: allObjects().length, db: Boolean(col), palette: !paletteEl.hidden, cursor: getComputedStyle(stage).cursor, center: fit.center, dist: fit.dist, radius: fit.radius, level: { ...level }, yaw, pitch, eye: eyeNow(), shown: gcam?.eye, fly, placed: placed.length }),
@@ -2976,7 +3253,7 @@
       // a snapshot (also the echo of our own write) makes new objects: whatever points at one follows it by id
       const same = (o) => (o ? allObjects().find((x) => x.id === o.id) ?? null : null);
       editing = same(editing);
-      if (!editing) sel = vdrag = null;
+      if (!editing) sel = emptySel();
       showBar();
       gizmo = same(gizmo);
       boolFrom = same(boolFrom);
