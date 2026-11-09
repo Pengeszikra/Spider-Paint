@@ -182,6 +182,7 @@
       body.split #hud { top: calc(var(--splitH) + 8px); left: 8px; }
       body.split.pwa #exaBtn, body.split.pwa #vrBtn { top: calc(var(--splitH) + 8px); }
     }
+    body.dropping, body.dropping #stage { cursor: copy; }
     body.embed { padding: 0; gap: 0; }
     body.embed #stage { position: fixed; inset: 0; border: 0; border-radius: 0; }
     body.embed header.bar, body.embed footer, body.embed .fab, body.embed #pad, body.embed #exaBtn, body.embed #vrBtn, body.embed .side, body.embed #keypanel, body.embed #scrim, body.embed #zenOff { display: none !important; }
@@ -651,7 +652,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@38bbdbb845c8c0dbfb2504c6f7f65a99b6960609/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@62478692a4ef0f8038f2ded77d9512ce2373adc2/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2404,6 +2405,25 @@
         else if (d.type === 'store-toggle') {
           toggleStore(false);
           focusPane(false);
+        } else if (d.type === 'drag-start' && Array.isArray(d.mesh?.positions) && Array.isArray(d.mesh?.faces)) {
+          useBrush({ name: String(d.name).slice(0, 40), mesh: d.mesh });
+          document.body.classList.add('dropping');
+          pointer = { x: d.x, y: d.y };
+          redraw();
+        } else if (d.type === 'drag-move') {
+          pointer = { x: d.x, y: d.y };
+          redraw();
+        } else if (d.type === 'drag-end' || d.type === 'drag-cancel') {
+          document.body.classList.remove('dropping');
+          const over = d.type === 'drag-end' && stage.getBoundingClientRect().left <= d.x && d.x <= innerWidth && d.y >= stage.getBoundingClientRect().top;
+          pointer = { x: d.x, y: d.y };
+          if (over) {
+            draw(); // the surface under the drop point
+            putBrush();
+          }
+          pointer = null;
+          redraw();
+          focusPane(false);
         } else if (d.type === 'brush' && Array.isArray(d.mesh?.positions) && Array.isArray(d.mesh?.faces)) {
           useBrush({ name: String(d.name).slice(0, 40), mesh: d.mesh });
           sceneBtn.textContent = `M: ${brush.name}`;
@@ -3272,8 +3292,19 @@
       return false;
     };
     let last = null; // drag origin
+    // Drag and drop from the store: Alt+press an object in the store and drag it over the build (the pointer keeps going there),
+    // let go to put a copy down under the pointer. Esc cancels. The build gets the model and the pointer position as messages.
+    let carry = null;
+    const carryTell = (type, e) => parent.postMessage({ type, x: e.clientX, y: e.clientY, ...(type === 'drag-start' ? { name: carry.name, mesh: carry.mesh } : {}) }, location.origin);
     stage.addEventListener('pointerdown', (e) => {
       pointer = { x: e.clientX, y: e.clientY };
+      if (EMBED && e.altKey && !editing && hit && owner(hit.face)) {
+        e.preventDefault();
+        carry = brushOf(owner(hit.face));
+        stage.setPointerCapture(e.pointerId);
+        stage.classList.add('drag');
+        return carryTell('drag-start', e);
+      }
       if (xf) {
         // a grab / scale is under way: the left button confirms it, the right one cancels it
         e.preventDefault();
@@ -3313,6 +3344,7 @@
     });
     stage.addEventListener('pointermove', (e) => {
       pointer = { x: e.clientX, y: e.clientY };
+      if (carry) return carryTell('drag-move', e);
       if (xf) return xfUpdate();
       if (gdrag) return dragGizmo(e);
       if (!last) {
@@ -3324,6 +3356,16 @@
       turn((e.clientX - last.x) * 0.008, (e.clientY - last.y) * 0.008);
       last = { x: e.clientX, y: e.clientY };
     });
+    const carryEnd = (e, drop) => {
+      if (!carry) return false;
+      carry = null;
+      stage.classList.remove('drag');
+      parent.postMessage({ type: drop ? 'drag-end' : 'drag-cancel', x: e.clientX, y: e.clientY }, location.origin);
+      return true;
+    };
+    stage.addEventListener('pointerup', (e) => carryEnd(e, true));
+    stage.addEventListener('pointercancel', (e) => carryEnd(e, false));
+    window.addEventListener('keydown', (e) => e.key === 'Escape' && carryEnd({ clientX: 0, clientY: 0 }, false));
     const release = () => {
       dropGizmo();
       last = null;

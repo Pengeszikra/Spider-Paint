@@ -63,6 +63,7 @@ With a **target**, W A S D R F move the camera round and towards the target inst
 | I | Pick the material under the cross |
 | Ctrl+click (Cmd on a Mac) | Paint the face under the cross; Ctrl+double click paints the whole object |
 | B | Open / close the store (second 3D view on the left) |
+| Alt + drag | In the store: drag the object under the pointer over the build and let go, a copy is put down there (Esc cancels) |
 
 ## Materials (the palette)
 
@@ -70,7 +71,7 @@ Click a swatch to select it. The sliders change **metal**, **rough**, **alpha**,
 
 ## Two views: build and store
 
-**B** or the Store button opens the store as a second 3D view on the left, a third of the width (the build keeps two thirds); B again closes it. They are two separate engines, each with its own objects, undo steps and camera. The keys go to the view the pointer is over (a teal frame marks it). The *store* holds loose objects (timber stock: lath, board, plank, beam, plywood). In the store, **target** an object (**T**) and press **M**: it becomes the model of **M** in the build. Move the pointer over the build and **M** puts a copy of that model down at the cross, every time (a chip next to the cube button names it; click the chip to go back to the plain prism).
+**B** or the Store button opens the store as a second 3D view on the left, a third of the width (the build keeps two thirds); B again closes it. They are two separate engines, each with its own objects, undo steps and camera. The keys go to the view the pointer is over (a teal frame marks it). The *store* holds loose objects (timber stock: lath, board, plank, beam, plywood). In the store, **target** an object (**T**) and press **M**: it becomes the model of **M** in the build. Move the pointer over the build and **M** puts a copy of that model down at the cross, every time (a chip next to the cube button names it; click the chip to go back to the plain prism). Or **drag and drop**: hold **Alt**, press an object in the store, drag it over the build and let go.
 
 ## Edit mode
 
