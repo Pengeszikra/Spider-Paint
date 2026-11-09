@@ -1,7 +1,7 @@
 // Spider Paint service worker: the app works offline once it has been opened.
 // The page, models and icons come from the cache first and are refreshed in the background;
 // the engine (pinned to one commit on jsDelivr, so it never changes) and the fonts are kept after the first visit.
-const CACHE = 'spider-paint-v39';
+const CACHE = 'spider-paint-v40';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'favicon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'models/bridge.scene.json', 'models/globe.scene.json'];
 
 self.addEventListener('install', (e) => {
