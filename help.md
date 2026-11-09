@@ -87,7 +87,7 @@ Put the cross on an object and press **Q**. That object is the active one; every
 | V | Sketch a line from point to point (nothing happens yet) |
 | 4, then V | **Saw**: V puts two or three points. Two on one face: a cut square to it. Three: a cut through the triangle. **Enter** cuts the object into closed solids that keep their material |
 | F | **Fill:** the selected points (or the points of the selected lines) become one new face, wound to face away from the object, in the material of a neighbouring face. Closes a hole |
-| Ctrl+R | **Loop cut:** with a line selected (2), the ring of four-sided faces through it is cut in half across, and the new line stays selected (G moves it, S scales it) |
+| Ctrl+R | **Loop cut:** with a line selected (2), the ring of four-sided faces through it is cut across. Type a number for how many cuts (1 by default), move the pointer along the line to slide them, Enter confirms, Esc cancels. The new line stays selected |
 | Shift+X | Delete the object under the cross |
 | Shift+W A S D R F | Fly (plain, these are edit keys) |
 | U | Undo (stops at the start of the edit session) |
