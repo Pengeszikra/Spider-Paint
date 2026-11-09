@@ -594,6 +594,7 @@
         <button type="button" class="red" data-key="4" title="Saw (4, then V)"><b>4</b>saw</button>
         <button type="button" class="cream" data-key="g" title="Move the selection (G)"><b>G</b>mv</button>
         <button type="button" class="cream" data-key="s" title="Scale the selection (S)"><b>S</b>sc</button>
+        <button type="button" class="cream" data-key="r" title="Rotate the selection (R)"><b>R</b>rot</button>
         <button type="button" class="cream" data-key="e" title="Extrude the selected faces (E)"><b>E</b>ex</button>
         <button type="button" class="slate" data-key="x" data-shift="1" title="Delete the object under the cross (Shift+X)"><b>⇧X</b>del</button>
         <button type="button" class="teal" data-key="q" title="Leave edit mode (Q)"><b>Q</b>done</button>
@@ -629,7 +630,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e0bc25d1c0912d4aff2e94ec9c4e4901226b667c/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@0ae0af513013c1ac3af5a97ff898549b5421b51d/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2868,13 +2869,13 @@
     const startXf = (kind, extra = {}) => {
       if (!editing || !gcam) return;
       if (!panelPointer) panelPointer = { x: gcam.size / 2, y: gcam.size / 2 };
-      const ids = selVerts().filter((i) => i < editing.mesh.positions.length);
+      const ids = extra.ids ?? selVerts().filter((i) => i < editing.mesh.positions.length);
       if (!ids.length) return noteEdit('select something first (1 points, 2 lines, 3 faces, then click; Shift+click adds)');
       const P = editing.mesh.positions;
-      const c = ids.reduce((t, i) => t.map((v, k) => v + P[i][k] / ids.length), [0, 0, 0]);
+      const c = extra.c ?? ids.reduce((t, i) => t.map((v, k) => v + P[i][k] / ids.length), [0, 0, 0]);
       const sc = project(gcam, c);
       const dist0 = Math.hypot(panelPointer.x - sc.x, panelPointer.y - sc.y);
-      xf = { kind, obj: editing, mesh0: editing.mesh, orig: extra.orig ?? editing.mesh, ids, from: ids.map((i) => P[i]), c, p0: planePoint(c) ?? c, s0: { ...panelPointer }, sc: { x: sc.x, y: sc.y }, dist0, base: Math.max(dist0, 40), lock: null, axisVec: extra.axisVec ?? null, typed: '', changed: false };
+      xf = { kind, obj: editing, mesh0: editing.mesh, orig: extra.orig ?? editing.mesh, ids, from: ids.map((i) => P[i]), c, p0: planePoint(c) ?? c, s0: { ...panelPointer }, sc: { x: sc.x, y: sc.y }, dist0, base: Math.max(dist0, 40), lock: null, axisVec: extra.axisVec ?? null, typed: '', changed: false, a0: Math.atan2(panelPointer.y - sc.y, panelPointer.x - sc.x), accum: 0 };
       xfUpdate();
     };
     // how far (in world units) the pointer has moved along an axis, measured on the screen
@@ -2911,6 +2912,25 @@
           text = `${fmt(Math.hypot(...delta))} m`;
         }
         moves = x.ids.map((i, k) => [i, x.from[k].map((c, j) => c + delta[j])]);
+      } else if (x.kind === 'rotate') {
+        // the angle follows the pointer round the pivot on the screen (clockwise on screen is the right-hand turn about an axis pointing
+        // away from the eye); a typed number is degrees
+        const a = Math.atan2(panelPointer.y - x.sc.y, panelPointer.x - x.sc.x);
+        let da = a - x.a0;
+        da = Math.atan2(Math.sin(da), Math.cos(da)); // the shortest way, so the turn does not jump at the half circle
+        x.a0 = a;
+        x.accum += da;
+        const toward = vdot(A, gcam.f) < 0;
+        const theta = typed !== null ? (typed * Math.PI) / 180 : toward ? -x.accum : x.accum;
+        const cs = Math.cos(theta);
+        const sn = Math.sin(theta);
+        text = `${((theta * 180) / Math.PI).toFixed(1)}°`;
+        moves = x.ids.map((i, k) => {
+          const d = vsub(x.from[k], x.c);
+          const cr = [A[1] * d[2] - A[2] * d[1], A[2] * d[0] - A[0] * d[2], A[0] * d[1] - A[1] * d[0]];
+          const ad = vdot(A, d) * (1 - cs);
+          return [i, x.c.map((c, j) => c + d[j] * cs + cr[j] * sn + A[j] * ad)];
+        });
       } else {
         const f = typed ?? (Math.hypot(panelPointer.x - x.sc.x, panelPointer.y - x.sc.y) - x.dist0 + x.base) / x.base;
         text = `×${f.toFixed(3)}`;
@@ -2925,7 +2945,7 @@
       x.changed = true;
       x.obj.mesh = reshape(x.mesh0, moves);
       rebuild();
-      barNote = `${x.kind}${x.lock ? ` ${x.lock.toUpperCase()}` : x.axisVec ? ' along the normal' : ''} · ${typed !== null ? `${x.typed}_` : text} · ⏎ ok, Esc cancels`;
+      barNote = `${x.kind}${x.lock ? ` ${x.lock.toUpperCase()}` : x.kind === 'rotate' ? ' about its axis' : x.axisVec ? ' along the normal' : ''} · ${typed !== null ? `${x.typed}_` : text} · ⏎ ok, Esc cancels`;
       showBar();
       redraw();
     }
@@ -2950,6 +2970,41 @@
       rebuild();
       noteEdit('cancelled');
       redraw();
+    };
+    // R: rotate. About the middle of the selected points or faces; with a selected line the line is the axis (the other selected parts turn
+    // about it, or the whole object when the line is all that is selected). X / Y / Z turn it about that world axis through the pivot.
+    const startRotate = () => {
+      if (!editing || !gcam) return;
+      const P = editing.mesh.positions;
+      const all = P.map((_, i) => i);
+      const unit = (v) => {
+        const l = Math.hypot(...v);
+        return l > 1e-9 ? v.map((c) => c / l) : null;
+      };
+      let ids = selVerts().filter((i) => i < P.length);
+      if (!ids.length) return noteEdit('R rotates: select points, lines or faces first (1 / 2 / 3)');
+      let c = ids.reduce((t, i) => t.map((v, k) => v + P[i][k] / ids.length), [0, 0, 0]);
+      let axis = null;
+      if (sel.kind === 'edge') {
+        const [a, b] = sel.items[0];
+        axis = unit(vsub(P[b], P[a]));
+        c = P[a].map((v, k) => (v + P[b][k]) / 2); // any point of the line will do
+        ids = ids.filter((i) => i !== a && i !== b);
+        if (!ids.length) ids = all; // only the line is selected: it turns the whole object
+      } else if (sel.kind === 'face') {
+        const n = [0, 0, 0];
+        for (const key of sel.items) {
+          const [p, q, r] = key.slice(0, 3).map((i) => P[i]);
+          const u = vsub(q, p);
+          const v = vsub(r, p);
+          n[0] += u[1] * v[2] - u[2] * v[1];
+          n[1] += u[2] * v[0] - u[0] * v[2];
+          n[2] += u[0] * v[1] - u[1] * v[0];
+        }
+        axis = unit(n);
+      }
+      axis ??= gcam.f.slice(); // points (or faces that cancel out): turn about the viewing direction
+      startXf('rotate', { ids, c, axisVec: axis });
     };
     // E: every selected face is pushed out a hair (side faces join it to the solid), then the new faces are grabbed along their normal
     const extrude = () => {
@@ -3009,7 +3064,14 @@
         else startXf(k === 'g' ? 'grab' : 'scale');
         return true;
       }
-      if ('wdrf'.includes(k) && k.length === 1) return true; // fly only with Shift while editing
+      if (k === 'r') {
+        e.preventDefault();
+        if (e.repeat) return true;
+        if (!['vertex', 'edge', 'face'].includes(emode)) return (noteEdit('select with 1 (points), 2 (lines) or 3 (faces) first'), true);
+        startRotate();
+        return true;
+      }
+      if ('wdf'.includes(k) && k.length === 1) return true; // fly only with Shift while editing
       return false;
     };
     let last = null; // drag origin
@@ -3395,7 +3457,7 @@
       q: { cap: 'Q', sub: 'edit', cat: 'red', text: 'Edit mode on the object under the cross (or the target). With neither: a new 1 m cube of the selected material. Again: leave.' },
       w: { cap: 'W', sub: 'fwd', cat: 'cream', text: 'Fly forward. Every press is one speed step; S slows down and reverses.', target: 'Closer to the target (stops at its surface).', edit: 'Only with Shift while editing.' },
       e: { cap: 'E', sub: 'edges', cat: 'cream', text: 'Edges and points on or off.', edit: 'Extrude the selected faces (face mode, 3): they are pushed out along their normal; move the pointer, or type metres.' },
-      r: { cap: 'R', sub: 'up', cat: 'cream', text: 'Fly up (speed steps).', target: 'Swing up over the target.', edit: 'Only with Shift while editing.' },
+      r: { cap: 'R', sub: 'up', cat: 'cream', text: 'Fly up (speed steps).', target: 'Swing up over the target.', edit: 'Rotate the selection: about the middle of points or faces; with a selected line the line is the axis. X, Y or Z turns about that world axis, a typed number is degrees. (Shift+R flies up.)' },
       t: { cap: 'T', sub: 'target', cat: 'teal', text: 'Target the object under the cross: the camera turns to it and keeps looking at it. Over empty space: the nearest object.', target: 'Another object re-targets; the target itself or empty space brings the camera back onto the target.' },
       y: { cap: 'Y', sub: 'vr', cat: 'teal', text: 'VR: two eyes side by side for a phone in a headset holder. The phone turns the view, a tap speeds up, a double tap stops, a long press (or Y, Esc) leaves.' },
       u: { cap: 'U', sub: 'undo', cat: 'slate', text: 'Undo the last change. Backspace does the same.' },

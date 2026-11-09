@@ -82,6 +82,7 @@ Put the cross on an object and press **Q**. That object is the active one; every
 | A, A A | Select everything; two quick presses clear the selection |
 | G | Grab: move the selection with the pointer; X Y Z lock an axis; type metres; click or Enter confirms, Esc cancels |
 | S | Scale about the centre; X Y Z scale along an axis; type a factor |
+| R | Rotate: about the middle of the selected points or faces; with a selected **line** the line is the axis (the other selected parts turn about it, or the whole object when the line is all that is selected). Move the pointer round the pivot, X Y Z turn about a world axis, type degrees |
 | E | Extrude the selected faces along their normal |
 | V | Sketch a line from point to point (nothing happens yet) |
 | 4, then V | **Saw**: V puts two or three points. Two on one face: a cut square to it. Three: a cut through the triangle. **Enter** cuts the object into closed solids that keep their material |
