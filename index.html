@@ -407,7 +407,68 @@
 
     #vec { display: none; }
     body.pwa #vec { display: block; flex: 1 1 0; min-width: 0; max-width: 140px; height: auto; aspect-ratio: 1; margin: 0 4px; align-self: flex-end; pointer-events: none; opacity: 0.9; }
-  </style>
+  
+    /* ===== Desktop: the 3D view is the whole window, the console lies over its bottom edge, the readouts float on top.
+       (The phone layout above is untouched: there the footer is hidden and the fab / pad rule.) ===== */
+    @media (pointer: fine) and (min-width: 641px) {
+      body:not(.pwa):not(.zen) { padding: 0; gap: 0; }
+      body:not(.pwa) #stage { position: fixed; inset: 0; border: 0; border-radius: 0; z-index: 1; }
+      body:not(.pwa) header.bar { position: fixed; top: 10px; left: 14px; right: 14px; z-index: 6; pointer-events: none; align-items: center; }
+      body:not(.pwa) h1 { font-size: 15px; }
+      body:not(.pwa) h1 span { font-size: 10px; }
+      body:not(.pwa) .build { pointer-events: auto; background: none; border-color: transparent; opacity: 0.7; }
+      body:not(.pwa) #hud { top: 46px; left: 14px; }
+      /* the readouts: one quiet line at the top, no boxes */
+      body:not(.pwa) footer.console .read { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 6; margin: 0; gap: 2px 14px; flex-wrap: nowrap; pointer-events: none; }
+      body:not(.pwa) footer.console .read > span { border: 0; padding: 0; font-size: 9px; }
+      body:not(.pwa) footer.console .read b { font-size: 11px; }
+      body:not(.pwa) footer.console .read .surface { display: none; }
+      /* the console: a dark metal band along the bottom, chamfered at the top corners, a few engraved labels, LEDs and an orange accent */
+      body:not(.pwa) footer.console { position: fixed; left: 0; right: 0; bottom: 0; z-index: 7; display: block; max-height: none; overflow: visible; padding: 14px 22px 9px; box-sizing: border-box; background: linear-gradient(#171917, #0c0d0b); border-top: 2px solid #34382f; clip-path: polygon(0 16px, 16px 0, calc(50% - 90px) 0, calc(50% - 74px) -0px, calc(50% + 74px) 0, calc(50% + 90px) 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%); }
+      footer.console::before { content: ''; position: absolute; top: 0; left: 22px; width: 42px; height: 4px; background: var(--red); box-shadow: 52px 0 0 #3a3d33, 64px 0 0 #3a3d33, 76px 0 0 #3a3d33; }
+      footer.console::after { content: '3DRAFT · 126000'; position: absolute; top: 3px; right: 24px; font: 500 8px/1 var(--font-mono); letter-spacing: 0.22em; color: #55594c; }
+      footer.console .actions { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 18px; padding: 0; }
+      footer.console .grp { position: relative; display: inline-flex; align-items: center; gap: 6px; padding-top: 11px; }
+      footer.console .grp::before { content: attr(data-label); position: absolute; top: 0; left: 1px; font: 500 7px/1 var(--font-mono); letter-spacing: 0.24em; text-transform: uppercase; color: #6c7062; }
+      footer.console .grp + .grp { padding-left: 14px; border-left: 1px solid #262922; }
+      footer.console .grp:nth-child(3n+1)::after { content: ''; position: absolute; top: 1px; right: 0; width: 3px; height: 3px; border-radius: 50%; background: #2fb8c0; opacity: 0.7; animation: blink 3.4s steps(2) infinite; }
+      @keyframes blink { 50% { opacity: 0.15; } }
+      footer.console button { padding: 7px 10px; border-radius: 7px; font-size: 11px; box-shadow: 0 2px 0 #1a1c17, 0 3px 6px #0008; }
+      footer.console button.ic { width: 34px; height: 30px; padding: 0; display: inline-grid; place-items: center; }
+      footer.console button.ic svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+      footer.console button.red { background: var(--red); color: #1b0803; }
+      footer.console button.teal { background: var(--teal); color: #04181a; }
+      footer.console button.slate { background: #3a382f; color: var(--cream); }
+      footer.console button b { display: block; margin-bottom: 2px; font-size: 12px; }
+      footer.console button[data-key] { min-width: 38px; padding: 4px 6px; font-size: 8px; letter-spacing: 0.12em; text-transform: uppercase; }
+      /* switches: a real toggle, the label next to it */
+      footer.console button.sw { display: inline-flex; align-items: center; gap: 7px; padding: 4px 4px; background: none; box-shadow: none; color: var(--muted); font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; }
+      footer.console button.sw i { position: relative; flex: none; width: 26px; height: 14px; border-radius: 7px; background: #2a2d26; box-shadow: inset 0 1px 3px #000; transition: background 0.12s; }
+      footer.console button.sw i::after { content: ''; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: #8d9183; transition: transform 0.12s, background 0.12s; }
+      footer.console button.sw.on { color: var(--cream); }
+      footer.console button.sw.on i { background: #17707a; }
+      footer.console button.sw.on i::after { transform: translateX(12px); background: var(--teal); }
+      footer.console button.sw.red.on i { background: #8a2a0f; }
+      footer.console button.sw.red.on i::after { background: var(--red); }
+      footer.console select { padding: 6px 8px; font-size: 10px; border-radius: 7px; max-width: 120px; background: #11120f; border-width: 1px; border-color: #3a3d33; }
+      /* two different panels: building and editing */
+      footer.console .only-edit { display: none; }
+      body.editing footer.console .only-edit { display: inline-flex; }
+      body.editing footer.console .only-build { display: none; }
+      body.zen footer.console, body.zen header.bar { display: none; }
+      body:not(.pwa) #stage svg text { display: none; }
+      @media (max-width: 1100px) {
+        footer.console .grp::before { display: none; }
+        footer.console .grp { padding-top: 0; }
+        footer.console .grp + .grp { padding-left: 10px; }
+        footer.console .actions { gap: 6px 10px; }
+        footer.console button.sw { font-size: 8px; gap: 4px; letter-spacing: 0.08em; }
+        footer.console { padding-top: 12px; }
+      }
+      /* modals and the edit bar sit above the console */
+      #editbar { bottom: auto; top: 40px; }
+    }
+</style>
 </head>
 <body>
   <header class="bar">
@@ -478,7 +539,7 @@
     <div id="keyinfo" aria-live="polite"></div>
   </aside>
 
-  <footer class="bar">
+  <footer class="bar console">
     <p class="read">
       <span>yaw <b id="yaw">–</b></span>
       <span>pitch <b id="pitch">–</b></span>
@@ -491,36 +552,55 @@
     </p>
     <textarea id="gpuerr" readonly hidden rows="4" aria-label="WebGPU error text (select and copy)" style="width:100%;box-sizing:border-box;font:12px/1.4 var(--font-mono);background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:6px"></textarea>
     <span class="actions">
-      <button id="place" type="button" class="red" title="Place a prism (M)">Place</button>
-      <button id="delete" type="button" class="slate" title="Delete the object under the cross (X)">Delete</button>
-      <button id="travel" type="button" class="teal" title="Target the object under the cross (T)">Target</button>
-      <button id="keys" type="button" class="teal" title="The key explainer (?)">Keys</button>
-      <button id="sceneBtn" type="button" class="teal" title="Switch between the build scene and the store scene (B)">Store</button>
-      <button id="lines" type="button">Edges</button>
-      <button id="freeze" type="button" class="teal" title="Freeze: everything that moves stands still (J)">Freeze</button>
-      <button id="gpuBtn" type="button" title="The view now: SVG, WebGPU or WebGL2 (G switches)">SVG</button>
-      <button id="light" type="button">Light</button>
-      <button id="filmic" type="button" title="Filmic look: HDR light, glowing emission, tone mapping (C)">Filmic</button>
-      <button id="smooth" type="button" title="Smooth shading: faces that meet at a shallow angle share their normals (N)">Smooth</button>
-      <button id="studio" type="button" title="Studio light: key, fill and rim light that follow the camera (K)">Studio</button>
-      <select id="examples" aria-label="Add an example model to the scene" title="Add an example model to the scene">
-        <option value="">+ Example…</option>
+      <span class="grp only-build" data-label="make">
+        <button id="place" type="button" class="red ic" title="Place a prism (M)" aria-label="Place a prism"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12L4 7.5M12 12v9"/></svg></button>
+        <button id="delete" type="button" class="slate ic" title="Delete the object under the cross (X)" aria-label="Delete"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
+        <button id="travel" type="button" class="teal ic" title="Target the object under the cross (T)" aria-label="Target"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
+        <button id="sceneBtn" type="button" class="teal" title="Switch between the build scene and the store scene (B)">Store</button>
+      </span>
+      <span class="grp only-edit" data-label="edit">
+        <button type="button" class="red" data-key="1" title="Select points (1)"><b>1</b>pt</button>
+        <button type="button" class="red" data-key="2" title="Select lines (2)"><b>2</b>ln</button>
+        <button type="button" class="red" data-key="3" title="Select faces (3)"><b>3</b>fc</button>
+        <button type="button" class="red" data-key="4" title="Saw (4, then V)"><b>4</b>saw</button>
+        <button type="button" class="cream" data-key="g" title="Move the selection (G)"><b>G</b>mv</button>
+        <button type="button" class="cream" data-key="s" title="Scale the selection (S)"><b>S</b>sc</button>
+        <button type="button" class="cream" data-key="e" title="Extrude the selected faces (E)"><b>E</b>ex</button>
+        <button type="button" class="slate" data-key="x" data-shift="1" title="Delete the object under the cross (Shift+X)"><b>⇧X</b>del</button>
+        <button type="button" class="teal" data-key="q" title="Leave edit mode (Q)"><b>Q</b>done</button>
+      </span>
+      <span class="grp" data-label="view">
+        <button id="lines" type="button" class="sw" title="Edges and points (E)"><i></i>edges</button>
+        <button id="gpuBtn" type="button" class="sw" title="The view now: SVG, WebGPU or WebGL2 (9 switches)"><i></i><span>SVG</span></button>
+        <button id="filmic" type="button" class="sw" title="Filmic look: HDR light, glowing emission, tone mapping (C)"><i></i>filmic</button>
+        <button id="smooth" type="button" class="sw" title="Smooth shading: faces that meet at a shallow angle share their normals (N)"><i></i>smooth</button>
+        <button id="studio" type="button" class="sw" title="Studio light: key, fill and rim light that follow the camera (K)"><i></i>studio</button>
+        <button id="freeze" type="button" class="sw red" title="Freeze: everything that moves stands still (J)"><i></i>freeze</button>
+        <button id="light" type="button" class="slate" title="Turn the light (L)">light</button>
+      </span>
+      <span class="grp only-build" data-label="scene">
+        <select id="examples" aria-label="Add an example model to the scene" title="Add an example model to the scene">
+          <option value="">+ example</option>
         <option value="bridge">Stone bridge</option>
         <option value="globe">Globe</option>
         <option value="stars">Stars (500 nearest)</option>
         <option value="milkyway">Milky Way (30 000 super-stars)</option>
         <option value="stars-plain">Stars (300) + 100 galaxies (point glow)</option>
         <option value="ex27">EX-27 expedition module</option>
-      </select>
-      <button id="zen" type="button" class="slate" title="Zen: only the model (Z)">Zen</button>
-      <button id="clear" type="button" class="slate" title="Remove every object (U brings them back)">Clear</button>
-      <button id="undo" type="button" class="slate">Undo</button>
-      <button id="reset" type="button" class="slate">Reset view</button>
+        </select>
+        <button id="clear" type="button" class="slate ic" title="Remove every object (U brings them back)" aria-label="Clear"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M8 7V5h8v2M7 7l1 12h8l1-12"/></svg></button>
+      </span>
+      <span class="grp" data-label="sys">
+        <button id="undo" type="button" class="slate ic" title="Undo (U)" aria-label="Undo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7L4 12l5 5"/><path d="M4 12h10a6 6 0 0 1 0 12" transform="translate(0 -5)"/></svg></button>
+        <button id="reset" type="button" class="slate ic" title="Reset the view" aria-label="Reset view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><circle cx="12" cy="12" r="2.5"/></svg></button>
+        <button id="zen" type="button" class="slate ic" title="Zen: only the model (Z)" aria-label="Zen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+        <button id="keys" type="button" class="teal ic" title="Help: every mode and key (?)" aria-label="Help"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.1 1-1.1 1.8M12 17h.01"/></svg></button>
+      </span>
     </span>
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@1490f0f102d49970b6eb5624c3bcf74a5476cf23/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@15d418c8d01112cdec38da37b5227a488a414a29/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1344,7 +1424,10 @@
       modeEl.textContent = mode !== 'gpu' ? 'svg' : activeKind === 'webgl2' ? (modeEl.title ? 'webgl2 (no webgpu)' : 'webgl2') : 'webgpu';
       if (mode !== 'gpu') modeEl.title = '';
       const btn = document.getElementById('gpuBtn');
-      if (btn) btn.textContent = mode !== 'gpu' ? 'SVG' : activeKind === 'webgpu' ? 'WebGPU' : 'WebGL2'; // the button names the view that is on
+      if (btn) {
+        btn.querySelector('span').textContent = mode !== 'gpu' ? 'SVG' : activeKind === 'webgpu' ? 'WebGPU' : 'WebGL2'; // the switch names the view that is on
+        btn.classList.toggle('on', mode === 'gpu');
+      }
       redraw();
     };
     // G / the button: svg -> webgpu -> webgl2 -> svg (without WebGPU: svg -> webgl2 -> svg)
@@ -2432,6 +2515,7 @@
     });
     const showBar = () => {
       bar.hidden = !editing;
+      document.body.classList.toggle('editing', Boolean(editing));
       if (!editing) return;
       const chips = Object.entries(MODES).map(([k, label]) => `<i class="${k === emode ? 'on' : ''}">${label}</i>`).join('');
       barText.innerHTML = `edit ${hudText(editing.name ?? '')}<span class="modes">${chips}</span>${barNote ? `<span class="note">${hudText(barNote)}</span>` : ''}`;
@@ -2882,6 +2966,36 @@
     document.addEventListener('click', (e) => {
       if (e.detail > 0 && e.target instanceof HTMLButtonElement) e.target.blur();
     });
+    // ---- Keys are data. ACTIONS is what the program can do; KEYMAP says which key does it (one table, so a mode or a user
+    // setting can swap it: `bindKey('q', 'scene')`, or `KEYMAP` replaced as a whole). The console buttons call the actions directly,
+    // so they keep working whatever the keys are. `once`: a held key does not repeat; `plain`: not with Ctrl / Cmd / Alt.
+    const ACTIONS = {
+      help: { run: () => toggleKeys(), once: true },
+      zen: { run: () => toggleZen(), once: true, plain: true },
+      isolate: { run: () => isolate(), once: true },
+      palette: { run: () => togglePalette(), once: true },
+      scene: { run: () => switchScene(), once: true },
+      view: { run: () => toggleMode() },
+      pick: { run: () => pickMaterial(), once: true },
+      filmic: { run: () => toggleFilmic(), once: true },
+      smooth: { run: () => toggleSmooth(), once: true },
+      studio: { run: () => toggleStudio(), once: true },
+      light: { run: () => turnLight() },
+      target: { run: () => travelTo(), once: true },
+      gizmo: { run: () => toggleGizmo(), once: true },
+      clean: { run: () => (stage.classList.toggle('clean'), syncLines()) },
+      undo: { run: () => undo() },
+      delete: { run: () => remove() },
+    };
+    const KEYMAP = { '?': 'help', z: 'zen', '/': 'isolate', p: 'palette', b: 'scene', 9: 'view', i: 'pick', c: 'filmic', n: 'smooth', k: 'studio', l: 'light', t: 'target', h: 'gizmo', e: 'clean', u: 'undo', Backspace: 'undo', x: 'delete', Delete: 'delete' };
+    const bindKey = (key, action) => (action ? (KEYMAP[key] = action) : delete KEYMAP[key]);
+    const boundAction = (e) => {
+      const a = ACTIONS[KEYMAP[e.key.length === 1 ? e.key.toLowerCase() : e.key]];
+      if (!a || (a.plain && (e.ctrlKey || e.metaKey || e.altKey)) || (a.once && e.repeat)) return Boolean(a); // a held key does nothing, but is still handled
+      a.run();
+      return true;
+    };
+    Object.assign(window, { ACTIONS, KEYMAP, bindKey });
     document.addEventListener('keydown', (e) => {
       if (e.target instanceof HTMLTextAreaElement) return; // the error text can be selected and copied
       if (e.target instanceof HTMLButtonElement) return; // Space and Enter belong to a focused button
@@ -2971,61 +3085,23 @@
             sketch();
           } else spider();
         }
-      } else if (e.key === '?') {
-        e.preventDefault();
-        if (!e.repeat) toggleKeys();
-      } else if ((e.key === 'z' || e.key === 'Z') && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        e.preventDefault();
-        if (!e.repeat) toggleZen();
-      } else if (e.key === '/') {
-        e.preventDefault();
-        if (!e.repeat) isolate();
-      } else if (e.key === 'p' || e.key === 'P') {
-        e.preventDefault();
-        if (!e.repeat) togglePalette();
-      } else if (e.key === 'b' || e.key === 'B') {
-        e.preventDefault();
-        if (!e.repeat) switchScene();
-      } else if (e.key === 'x' || e.key === 'X' || e.key === 'Delete') {
-        e.preventDefault();
-        remove();
-      } else if (e.key === '9') {
-        e.preventDefault();
-        toggleMode(); // 9: the SVG / WebGPU switch (it was G)
-      } else if (e.key === 'i' || e.key === 'I') {
-        e.preventDefault();
-        if (!e.repeat) pickMaterial();
       } else if (picking && e.key === 'Escape') {
         armPick(false);
-      } else if (e.key === 'c' || e.key === 'C') {
+      } else if (boundAction(e)) {
         e.preventDefault();
-        if (!e.repeat) toggleFilmic();
-      } else if (e.key === 'n' || e.key === 'N') {
-        e.preventDefault();
-        if (!e.repeat) toggleSmooth();
-      } else if (e.key === 'k' || e.key === 'K') {
-        e.preventDefault();
-        if (!e.repeat) toggleStudio();
-      } else if (e.key === 'l' || e.key === 'L') {
-        e.preventDefault();
-        turnLight();
-      } else if (e.key === 't' || e.key === 'T') {
-        e.preventDefault();
-        if (!e.repeat) travelTo();
-      } else if (e.key === 'h' || e.key === 'H') {
-        e.preventDefault();
-        if (!e.repeat) toggleGizmo();
-      } else if (e.key === 'e' || e.key === 'E') {
-        e.preventDefault();
-        stage.classList.toggle('clean');
-      } else if (e.key === 'Backspace' || e.key === 'u' || e.key === 'U') {
-        e.preventDefault();
-        undo();
       } else if (moves[e.key]) {
         e.preventDefault();
         turn(...moves[e.key]);
       }
     });
+    // the edit panel of the console: each button presses its key
+    for (const b of document.querySelectorAll('footer.console [data-key]')) {
+      b.addEventListener('click', () => {
+        const init = { key: b.dataset.shift ? b.dataset.key.toUpperCase() : b.dataset.key, shiftKey: Boolean(b.dataset.shift), bubbles: true, cancelable: true };
+        document.dispatchEvent(new KeyboardEvent('keydown', init));
+        document.dispatchEvent(new KeyboardEvent('keyup', init));
+      });
+    }
     document.getElementById('place').addEventListener('click', place);
     document.getElementById('delete').addEventListener('click', remove);
     document.getElementById('travel').addEventListener('click', travelTo);
@@ -3157,7 +3233,10 @@
     document.getElementById('fabPlace').addEventListener('click', place);
     document.getElementById('fabDelete').addEventListener('click', remove);
     document.getElementById('fabMode').addEventListener('click', toggleMode);
-    document.getElementById('lines').addEventListener('click', () => stage.classList.toggle('clean'));
+    const linesBtn = document.getElementById('lines');
+    const syncLines = () => linesBtn.classList.toggle('on', !stage.classList.contains('clean'));
+    linesBtn.addEventListener('click', () => (stage.classList.toggle('clean'), syncLines()));
+    syncLines();
     // ?: the key explainer, a keyboard drawn from data. Hover or tap a key to read it, press a real key to see it light up,
     // "run" does what the key does. Colours: teal = target / look, red = editing and making, cream = flying and viewing, slate = system.
     const KEYS = {
