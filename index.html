@@ -165,7 +165,27 @@
     /* pop-ups are modals: one at a time, over a scrim; a tap on the scrim (or Esc) closes it */
     #scrim { position: fixed; inset: 0; z-index: 8; background: rgba(0, 0, 0, 0.62); }
     #scrim[hidden] { display: none; }
-    body.store #stage { box-shadow: inset 0 0 0 2px #2fb8c0; }
+    #storePane { position: fixed; left: 0; top: 0; height: 100%; width: var(--splitW, 33.333vw); border: 0; border-right: 2px solid #34382f; background: #0c0d0b; z-index: 2; }
+    #storePane[hidden] { display: none; }
+    body.split { --splitW: 33.333vw; }
+    body.split.focusStore #storePane { outline: 2px solid #2fb8c0; outline-offset: -2px; }
+    body.split:not(.focusStore) #stage::after { content: ''; position: absolute; inset: 0; border: 2px solid #2fb8c0; pointer-events: none; z-index: 5; }
+    body.split:not(.pwa) header.bar { left: calc(var(--splitW) + 14px); }
+    body.split:not(.nope) #stage, body.split.pwa #stage { left: var(--splitW); }
+    body.split:not(.pwa) footer.console { left: var(--splitW); }
+    body.split:not(.pwa) footer.console .read, body.split #editbar { left: calc(50% + var(--splitW) / 2); }
+    body.split #hud { left: calc(var(--splitW) + 10px); }
+    @media (max-width: 640px) {
+      body.split { --splitW: 0px; --splitH: 38vh; }
+      #storePane { width: 100%; height: var(--splitH, 38vh); border-right: 0; border-bottom: 2px solid #34382f; }
+      body.split:not(.nope) #stage, body.split.pwa #stage { top: var(--splitH); left: 0; }
+      body.split #hud { top: calc(var(--splitH) + 8px); left: 8px; }
+      body.split.pwa #exaBtn, body.split.pwa #vrBtn { top: calc(var(--splitH) + 8px); }
+    }
+    body.embed { padding: 0; gap: 0; }
+    body.embed #stage { position: fixed; inset: 0; border: 0; border-radius: 0; }
+    body.embed header.bar, body.embed footer, body.embed .fab, body.embed #pad, body.embed #exaBtn, body.embed #vrBtn, body.embed .side, body.embed #keypanel, body.embed #scrim, body.embed #zenOff { display: none !important; }
+    body.embed::after { content: 'STORE'; position: fixed; right: 12px; top: 10px; z-index: 6; color: #2fb8c0; font: 600 10px var(--font-mono); letter-spacing: 0.2em; pointer-events: none; }
     #palette[hidden] { display: none; }
     #boolq { position: fixed; left: 50%; bottom: 72px; transform: translateX(-50%); z-index: 6; max-width: min(92vw, 520px); padding: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; display: grid; gap: 8px; font: 500 12px/1.3 var(--font-mono); color: var(--muted); }
     #boolq[hidden] { display: none; }
@@ -585,7 +605,7 @@
         <button id="brush" type="button" class="chip" hidden title="The model M puts down; click to go back to the prism"></button>
         <button id="delete" type="button" class="slate ic" title="Delete the object under the cross (X)" aria-label="Delete"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
         <button id="travel" type="button" class="teal ic" title="Target the object under the cross (T)" aria-label="Target"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
-        <button id="sceneBtn" type="button" class="teal" title="Switch between the build scene and the store scene (B)">Store</button>
+        <button id="sceneBtn" type="button" class="teal" title="Open or close the store, a second 3D view beside the build (B)">Store</button>
       </span>
       <span class="grp only-edit" data-label="edit">
         <button type="button" class="red" data-key="1" title="Select points (1)"><b>1</b>pt</button>
@@ -631,7 +651,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e156de514b4f5dd3689bfb40eb6baa121f1a364e/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@38bbdbb845c8c0dbfb2504c6f7f65a99b6960609/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1389,6 +1409,8 @@
     let smooth = true; // N: smooth shading on the WebGPU view (faces within 40 degrees share normals)
     let studio = true; // K: studio light (key, fill, rim) that follows the camera
     // the installed app (or ?pwa) has no keyboard and is meant for small screens: no filmic look there
+    const EMBED = /[?&]store\b/.test(location.search); // ?store: this page is the store pane of another one (its own engine, its own scene)
+    if (EMBED) document.body.classList.add('embed');
     const isApp = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true || /[?&]pwa\b/.test(location.search);
     let filmic = false; // C: filmic look on the WebGPU view (linear light, tone mapping, glowing emission)
     let renderGpu = null;
@@ -1777,9 +1799,8 @@
       if (sceneName === 'store') {
         const t = lockedObject();
         if (t) {
-          setBrush(t); // in the store M takes the target as the model for M in the build
-          sceneBtn.textContent = `M: ${brush.name}`;
-          setTimeout(() => (sceneBtn.textContent = sceneName === 'store' ? 'Build' : 'Store'), 1400);
+          const b = brushOf(t); // in the store M takes the target as the model for M in the build (the other engine)
+          parent.postMessage({ type: 'brush', name: b.name, mesh: b.mesh }, location.origin);
           return;
         }
       } else if (brush && !solo) return putBrush();
@@ -2314,11 +2335,11 @@
       showPalette();
       syncPalette();
     });
-    // ---- Two scenes: the build (the one you work in) and the store (loose objects, the timber stock). B switches between
-    // them, each keeps its objects, its undo steps and its camera. In the store: target an object (T) and press M, and a copy is put
-    // into the build scene (its base middle where the build camera looked). The store lives in this visit only (no db).
-    const slots = { build: { mine: [], host: [], hist: [], cam: null }, store: { mine: [], host: [], hist: [], cam: null, seeded: false } };
-    let sceneName = 'build';
+    // ---- Two scenes, two engines: the build (this page) and the store (loose objects, the timber stock), which is this same page loaded
+    // in an iframe (?store) on the left, a third of the width, while B has it open. Each engine has its own objects, undo steps and
+    // camera, so nothing is copied between them; the keys go to the one the pointer is over (it takes the keyboard focus, the clicked
+    // one too). In the store: target an object (T) and press M, and the model goes to the build as the brush M puts down.
+    const sceneName = EMBED ? 'store' : 'build';
     const sceneBtn = document.getElementById('sceneBtn');
     const baseCentre = (mesh) => {
       const lo = [Infinity, Infinity, Infinity];
@@ -2341,43 +2362,68 @@
         create(name, mesh);
       }
       history.splice(0); // the stock is not an undo step
-      slots.store.seeded = true;
     };
-    const switchScene = () => {
-      if (editing) leaveEdit();
-      if (sceneName === 'store') {
-        const t = lockedObject();
-        if (t) setBrush(t); // what is targeted in the store is what M puts down in the build
+    let storeFrame = null;
+    const focusPane = (store) => {
+      if (store) storeFrame?.contentWindow?.focus();
+      else {
+        storeFrame?.blur();
+        window.focus();
       }
-      const from = sceneName;
-      const to = from === 'build' ? 'store' : 'build';
-      slots[from] = { ...slots[from], mine, host: hostObjects, hist: history.splice(0), cam: { center: [...fit.center], radius: fit.radius, dist: fit.dist, yaw, pitch } };
-      const next = slots[to];
-      mine = next.mine;
-      hostObjects = next.host;
-      history.push(...next.hist);
-      sceneName = to;
-      locked = null;
-      gizmo = null;
-      solo = null;
-      spiderFrom = null;
-      boolFrom = null;
-      closeBool();
-      if (to === 'store' && !next.seeded) seedStore();
-      rebuild();
-      jumpTo(next.cam ?? { center: [0, 0.4, 0.3], radius: 3.2, yaw: START.yaw, pitch: START.pitch });
-      document.body.classList.toggle('store', to === 'store');
-      sceneBtn.textContent = to === 'store' ? 'Build' : 'Store';
-      sceneBtn.classList.toggle('on', to === 'store');
+      document.body.classList.toggle('focusStore', Boolean(store));
+    };
+    const toggleStore = (on = !document.body.classList.contains('split')) => {
+      if (EMBED) return void parent.postMessage({ type: 'store-toggle' }, location.origin); // B in the store closes it
+      if (editing && on) leaveEdit();
+      if (on && !storeFrame) {
+        const u = new URL(location.href);
+        u.hash = '';
+        u.searchParams.set('store', '1');
+        storeFrame = document.createElement('iframe');
+        storeFrame.id = 'storePane';
+        storeFrame.title = 'store';
+        storeFrame.src = u.href;
+        storeFrame.addEventListener('load', () => document.body.classList.contains('focusStore') && focusPane(true)); // focus given before it loaded is lost
+        document.body.append(storeFrame);
+      }
+      document.body.classList.toggle('split', on);
+      if (storeFrame) storeFrame.hidden = !on;
+      sceneBtn.classList.toggle('on', on);
+      focusPane(on);
       redraw();
     };
+    if (!EMBED) {
+      // the keyboard follows the pointer: over the store it goes there, over the build it comes back
+      document.addEventListener('pointermove', () => {
+        if (storeFrame && document.activeElement === storeFrame) focusPane(false);
+      });
+      window.addEventListener('message', (e) => {
+        if (e.origin !== location.origin || e.source !== storeFrame?.contentWindow) return;
+        const d = e.data ?? {};
+        if (d.type === 'focus') focusPane(true);
+        else if (d.type === 'store-toggle') {
+          toggleStore(false);
+          focusPane(false);
+        } else if (d.type === 'brush' && Array.isArray(d.mesh?.positions) && Array.isArray(d.mesh?.faces)) {
+          useBrush({ name: String(d.name).slice(0, 40), mesh: d.mesh });
+          sceneBtn.textContent = `M: ${brush.name}`;
+          setTimeout(() => (sceneBtn.textContent = 'Store'), 1400);
+        }
+      });
+    } else {
+      const claim = () => parent.postMessage({ type: 'focus' }, location.origin); // the parent hands the keyboard over
+      document.addEventListener('pointermove', () => document.hasFocus() || claim());
+      document.addEventListener('pointerdown', claim);
+    }
     // The brush: the model that M puts down in the build scene. Target an object in the store (T) and it becomes the brush, either when
     // you press M there or when you switch to the build; M then places a copy of it (base middle at the cross), every time. The chip
     // next to the place button names it; a click on the chip goes back to the plain prism.
     let brush = null; // { name, mesh } with the base middle at the origin
     const brushChip = document.getElementById('brush');
-    const setBrush = (o) => {
-      brush = o ? { name: o.name.replace(/-[a-z0-9]{4}$/, ''), mesh: shifted(o.mesh, baseCentre(o.mesh).map((c) => -c)) } : null;
+    const brushOf = (o) => ({ name: o.name.replace(/-[a-z0-9]{4}$/, ''), mesh: shifted(o.mesh, baseCentre(o.mesh).map((c) => -c)) });
+    const setBrush = (o) => useBrush(o ? brushOf(o) : null);
+    const useBrush = (b) => {
+      brush = b;
       brushChip.hidden = !brush;
       brushChip.textContent = brush ? `${brush.name} ✕` : '';
       document.getElementById('place').title = brush ? `Put down a copy of ${brush.name} (M)` : 'Place a prism (M)';
@@ -2394,7 +2440,7 @@
       create(`${brush.name}-${shortId()}`, shifted(brush.mesh, at ?? [...fit.center]));
       redraw();
     };
-    sceneBtn.addEventListener('click', switchScene);
+    sceneBtn.addEventListener('click', () => toggleStore());
     // Pick material (the eyedropper): the material of the face under the cross becomes the selected one. A face that only
     // has a colour selects the entry with that colour, or starts a new entry from it.
     let picking = false;
@@ -3316,7 +3362,7 @@
       zen: { run: () => toggleZen(), once: true, plain: true },
       isolate: { run: () => isolate(), once: true },
       palette: { run: () => togglePalette(), once: true },
-      scene: { run: () => switchScene(), once: true },
+      scene: { run: () => toggleStore(), once: true },
       view: { run: () => toggleMode() },
       pick: { run: () => pickMaterial(), once: true },
       filmic: { run: () => toggleFilmic(), once: true },
@@ -3506,11 +3552,11 @@
       const swap = document.createElement('button');
       swap.type = 'button';
       swap.className = 'teal';
-      swap.textContent = sceneName === 'build' ? 'store' : 'build';
+      swap.textContent = document.body.classList.contains('split') ? 'close store' : 'store';
       swap.addEventListener('click', () => {
         exaMenu.classList.remove('open');
-        switchScene(); // on the phone the console is hidden: the build / store switch lives here
-        swap.textContent = sceneName === 'build' ? 'store' : 'build';
+        toggleStore(); // on the phone the console is hidden: the build / store switch lives here
+        swap.textContent = document.body.classList.contains('split') ? 'close store' : 'store';
       });
       box.append(swap);
       for (const name of ['empty', 'globe', 'stars', 'stars-plain', 'milkyway', 'ex27']) {
@@ -3543,7 +3589,7 @@
       exaBtn.style.setProperty('--k', getComputedStyle(padEl).getPropertyValue('--k'));
       exaBtn.addEventListener('pointerdown', (e) => {
         e.preventDefault();
-        swap.textContent = sceneName === 'build' ? 'store' : 'build';
+        swap.textContent = document.body.classList.contains('split') ? 'close store' : 'store';
         closeSide();
         exaMenu.classList.toggle('open');
       });
@@ -3631,7 +3677,7 @@
       x: { cap: 'X', sub: 'del', cat: 'red', text: 'Delete the object under the cross (U brings it back).', edit: 'Shift+X deletes the object under the cross. During G / S: locks the axis to x.' },
       c: { cap: 'C', sub: 'filmic', cat: 'teal', text: 'Filmic look: HDR light, glowing emission, tone mapping.' },
       v: { cap: 'V', sub: 'bar', cat: 'red', text: 'Spider bar: joins two surface points with a thin bar.', edit: 'Sketches a line from point to point (it does nothing yet). In saw mode (4): puts a saw point (two on one face: a cut square to it; three: a cut through the triangle).' },
-      b: { cap: 'B', sub: 'store', cat: 'teal', text: 'Switch between the build scene and the store scene. The store holds loose objects (timber stock): target one (T); it becomes the model M puts down in the build scene.' },
+      b: { cap: 'B', sub: 'store', cat: 'teal', text: 'Open or close the store: a second 3D view on the left (a third of the width) with the loose objects (timber stock). The keys go to the view the pointer is over. In the store: target one (T) and press M, and it becomes the model M puts down in the build view.' },
       n: { cap: 'N', sub: 'smooth', cat: 'teal', text: 'Smooth shading: faces that meet at a shallow angle share their normals.' },
       m: { cap: 'M', sub: 'place', cat: 'red', text: 'Puts a prism down at the cross (or shoots one into empty space).', solo: 'In isolated mode the prism is a bullet: where it lands it carves A−B out of the surface; if it misses it disappears.' },
       arrowleft: { cap: '←', sub: '', cat: 'cream', title: 'Arrow left', text: 'Rotate the view left, in steps.' },
@@ -3817,10 +3863,10 @@
       return `${o.name}|${o.mesh.positions.length}|${o.mesh.faces.length}|${o.wire ? JSON.stringify(o.wire).length : 0}|${h}`;
     };
     const applyScene = (data) => {
+      if (EMBED) return; // the store has its own objects
       const next = (data.objects ?? []).map((o, n) => ({ id: o.id ?? o.name ?? `o${n}`, name: o.name ?? `o${n}`, mesh: o.mesh, wire: o.wire, host: true }));
       // db snapshots hand out every document again (also the echo of our own write): an object whose content did not
       // change stays the same instance, so its mesh and its GPU vertices are kept, and an unchanged scene is not rebuilt
-      if (sceneName === 'store') return void (slots.build.host = next); // the build scene is not on screen: it takes it when we go back
       let unchanged = data.rev === 'db' && next.length === hostObjects.length;
       if (data.rev === 'db') {
         const before = new Map(hostObjects.map((o) => [o.id, o]));
@@ -3851,7 +3897,7 @@
       liveEl.textContent = `${hostObjects.length + mine.length} object${hostObjects.length + mine.length === 1 ? '' : 's'} · ${data.rev}`;
       redraw();
     };
-    if (new URLSearchParams(location.search).has('live') && typeof EventSource !== 'undefined') {
+    if (!EMBED && new URLSearchParams(location.search).has('live') && typeof EventSource !== 'undefined') {
       const events = new EventSource('/events');
       events.addEventListener('scene', (e) => {
         try {
@@ -3869,7 +3915,7 @@
     // Published as a Claude artifact with the `db` capability: the objects live in the shared
     // collection "objects" (one document per object: { name, mesh }). Claude writes them with
     // its own tools and every open view shows them at once. Outside an artifact `claude` does not exist.
-    if (globalThis.claude?.use) {
+    if (!EMBED && globalThis.claude?.use) {
       globalThis.claude.use('db').then((db) => {
         if (!db) return;
         col = db.collection('objects');
@@ -3906,11 +3952,12 @@
       });
     }
 
+    if (EMBED) seedStore();
     draw();
     window.__ready = true;
-    if (!globalThis.claude?.use) addExample('globe'); // the starting scene
+    if (!EMBED && !globalThis.claude?.use) addExample('globe'); // the starting scene (the store pane has its own stock)
     // works offline once opened (not in an artifact, nor from a file)
-    if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !globalThis.claude?.use) navigator.serviceWorker.register('sw.js').catch(() => {}); // the engine and the page script both ran (the watchdog below looks at this)
+    if (!EMBED && 'serviceWorker' in navigator && location.protocol.startsWith('http') && !globalThis.claude?.use) navigator.serviceWorker.register('sw.js').catch(() => {}); // the engine and the page script both ran (the watchdog below looks at this)
   </script>
   <script>
     // If the module script above never ran (the engine did not load: no network, or an outdated cache), say so instead of staying blank.

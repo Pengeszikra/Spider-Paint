@@ -10,7 +10,7 @@ A minimal 3D scene builder. Fly through a scene, build with solid prisms, and ed
 - **Middle:** the 3D view, full screen. The **cross** follows the surface under the pointer; most keys act on what is under it.
 - **Bottom (desktop):** the console. Its panels are `make`, `view`, `scene`, `sys`; in edit mode `make` and `scene` are replaced by `edit`.
 - **Side panel:** the material palette (**P**) and this help (**?**) open on the right, one at a time. **Esc** closes it.
-- **Phone:** no console; the fly pad has the keys, **Exa** opens the scene menu (also the store / build switch).
+- **Phone:** no console; the fly pad has the keys, **Exa** opens the scene menu (also the store switch; on the phone the store takes the top part of the screen).
 
 ## Console
 
@@ -62,15 +62,15 @@ With a **target**, W A S D R F move the camera round and towards the target inst
 | P | The material palette |
 | I | Pick the material under the cross |
 | Ctrl+click (Cmd on a Mac) | Paint the face under the cross; Ctrl+double click paints the whole object |
-| B | Switch build / store |
+| B | Open / close the store (second 3D view on the left) |
 
 ## Materials (the palette)
 
 Click a swatch to select it. The sliders change **metal**, **rough**, **alpha**, **emit** and **soft** of the selected material. Pick a colour with the square and the hue slider, or type a hex value, then **+ new** makes a new material from it. **pick** takes the material of the next surface you click.
 
-## Two scenes: build and store
+## Two views: build and store
 
-**B** or the Store / Build button switches, and the view cuts over without a flight. The *store* holds loose objects (timber stock: lath, board, plank, beam, plywood). In the store, **target** an object (**T**): it becomes the model of **M**. Switch back to the build and **M** puts a copy of that model down at the cross, every time (a chip next to the cube button names it; click the chip to go back to the plain prism). Each scene has its own objects, undo steps and camera.
+**B** or the Store button opens the store as a second 3D view on the left, a third of the width (the build keeps two thirds); B again closes it. They are two separate engines, each with its own objects, undo steps and camera. The keys go to the view the pointer is over (a teal frame marks it). The *store* holds loose objects (timber stock: lath, board, plank, beam, plywood). In the store, **target** an object (**T**) and press **M**: it becomes the model of **M** in the build. Move the pointer over the build and **M** puts a copy of that model down at the cross, every time (a chip next to the cube button names it; click the chip to go back to the plain prism).
 
 ## Edit mode
 
