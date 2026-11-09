@@ -406,7 +406,7 @@
 
   <main id="stage" tabindex="0" role="img" aria-label="Empty space for prisms. 9 switches between the SVG and the WebGPU view, L turns the light, C switches the filmic look, N smooth shading, K the studio light. Drag, or use the arrow keys, to rotate the view. The cross follows the surface under the pointer. M puts a prism down there, or shoots one into empty space; Space stops the movement. O marks an object, a second O on another one asks for a boolean operation (union, A minus B, B minus A, intersect). V joins two surface points with a thin bar (P over empty space forgets a pending first point), X deletes the object under the cross, W A S D R F fly, / shows only the model under the cross (/ again: the whole scene), P shows the material palette (Ctrl+click (Cmd on a Mac) paints a face, Ctrl+double click the whole model), T flies the camera to the object under the cross, H puts the move gizmo (helper) on the object under the cross with the world axes, the next H switches to the object's own axes, the third takes it off; drag an arrow to move the object; E toggles edges and points, U or Backspace takes the last one back."><div id="frame"><canvas id="gpu" hidden></canvas><div id="layer"></div></div><div id="hud" aria-hidden="true"></div></main>
 
-  <div id="editbar" hidden><b id="editText"></b><button id="editHelp" type="button" title="Show / hide the edit help" aria-pressed="false">?</button><span id="editHelpText" hidden>V: sketch lines (nothing happens yet) · 1 / 2 / 3: select points / lines / faces (click; Shift+click adds or takes away; A selects all, A A clears) · G: grab the selection (X / Y / Z lock the axis, type metres, click or Enter confirms, Esc cancels) · S: scale (same keys) · E: extrude the selected faces · 4: the saw: V puts 2 points on one face = a cut square to the face, or 3 points = a cut through the triangle; Enter cuts · Shift+W A S D R F fly · Ctrl/Cmd+click paints · X deletes the object under the cross · U undo · Esc back, then leave · Q leave</span></div>
+  <div id="editbar" hidden><b id="editText"></b><button id="editHelp" type="button" title="Show / hide the edit help" aria-pressed="false">?</button><span id="editHelpText" hidden>V: sketch lines (nothing happens yet) · 1 / 2 / 3: select points / lines / faces (click; Shift+click adds or takes away; A selects all, A A clears) · G: grab the selection (X / Y / Z lock the axis, type metres, click or Enter confirms, Esc cancels) · S: scale (same keys) · E: extrude the selected faces · 4: the saw: V puts 2 points on one face = a cut square to the face, or 3 points = a cut through the triangle; Enter cuts · Shift+W A S D R F fly · Ctrl/Cmd+click paints · Shift+X deletes the object under the cross · U undo · Esc back, then leave · Q leave</span></div>
 
   <aside id="boolq" hidden aria-label="Boolean operation">
     <span id="boolText"></span>
@@ -502,7 +502,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@6896d033d9cd83c5055a81486836ebbeec275245/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@570ec04ce51f3108b8980f7d02ccb1b446f17a46/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2356,8 +2356,15 @@
       history.push(step);
     };
     const enterEdit = () => {
-      const o = hit && owner(hit.face);
-      if (!o) return noteEdit('') || redraw();
+      let o = (hit && owner(hit.face)) ?? lockedObject() ?? null;
+      if (!o) {
+        // nothing under the cross and no target: a new 1 x 1 x 1 m cube of the selected material, standing on the bench
+        const m = materials[current];
+        const mesh = box({ size: [1, 1, 1], at: [0, 0.5, 0], color: m.color });
+        mesh.faces.forEach((f) => (f.mat = m.name));
+        const made = create(`prism-${shortId()}`, mesh);
+        o = live(made) ?? made;
+      }
       const off = benchOffset(o);
       bench = { off, ids: new Set([o.id]), cam: { center: [...fit.center], radius: fit.radius, dist: fit.dist, yaw, pitch } };
       gizmo = null;
@@ -2815,6 +2822,9 @@
         else if (sketchFrom) ((sketchFrom = null), redraw());
         else if (emode !== 'draw') ((emode = 'draw'), (sel = emptySel()), showBar(), redraw());
         else leaveEdit();
+      } else if (editing && (e.key === 'x' || e.key === 'X' || e.key === 'Delete')) {
+        e.preventDefault(); // in edit mode only Shift+X (or Delete) deletes the object under the cross
+        if (e.shiftKey || e.key === 'Delete') remove();
       } else if (editing && (e.key === 'h' || e.key === 'H' || e.key === 'o' || e.key === 'O')) {
         e.preventDefault(); // the object tools wait outside edit mode
       } else if (e.key === 'v' || e.key === 'V') {
@@ -3024,7 +3034,7 @@
       '?': { cap: '?', sub: 'keys', cat: 'slate', text: 'This key explainer.' },
       backspace: { cap: '⌫', sub: 'undo', cat: 'slate', w: 2.2, title: 'Backspace', text: 'Undo the last change (same as U).' },
       tab: { cap: 'Tab', sub: 'next', cat: 'teal', w: 1.6, title: 'Tab', text: 'Targets the object under the cross (like T).', target: 'Next target; Shift+Tab: the previous one. The camera frames it, however small or far.' },
-      q: { cap: 'Q', sub: 'edit', cat: 'red', text: 'Edit mode on the object under the cross: sketch lines, saw it (4), or move its points, lines and faces. Again: leave.' },
+      q: { cap: 'Q', sub: 'edit', cat: 'red', text: 'Edit mode on the object under the cross (or the target). With neither: a new 1 m cube of the selected material. Again: leave.' },
       w: { cap: 'W', sub: 'fwd', cat: 'cream', text: 'Fly forward. Every press is one speed step; S slows down and reverses.', target: 'Closer to the target (stops at its surface).', edit: 'Only with Shift while editing.' },
       e: { cap: 'E', sub: 'edges', cat: 'cream', text: 'Edges and points on or off.', edit: 'Extrude the selected faces (face mode, 3): they are pushed out along their normal; move the pointer, or type metres.' },
       r: { cap: 'R', sub: 'up', cat: 'cream', text: 'Fly up (speed steps).', target: 'Swing up over the target.', edit: 'Only with Shift while editing.' },
@@ -3047,7 +3057,7 @@
       enter: { cap: 'Enter', sub: 'cut', cat: 'red', w: 2.2, title: 'Enter', text: '', edit: 'Saw: cuts along the marked plane.' },
       shift: { cap: 'Shift', sub: 'paint', cat: 'slate', w: 2.4, title: 'Shift', text: 'Shift+Tab: previous target. Painting is Ctrl+click (Cmd on a Mac).', edit: 'Shift+click adds to the selection or takes from it. Shift+W A S D R F fly (plain, they are edit keys).', run: false },
       z: { cap: 'Z', sub: 'zen', cat: 'slate', text: 'Zen: hide everything but the model. Z or Esc brings the panels back.' },
-      x: { cap: 'X', sub: 'del', cat: 'red', text: 'Delete the object under the cross (U brings it back).' },
+      x: { cap: 'X', sub: 'del', cat: 'red', text: 'Delete the object under the cross (U brings it back).', edit: 'Shift+X deletes the object under the cross. During G / S: locks the axis to x.' },
       c: { cap: 'C', sub: 'filmic', cat: 'teal', text: 'Filmic look: HDR light, glowing emission, tone mapping.' },
       v: { cap: 'V', sub: 'bar', cat: 'red', text: 'Spider bar: joins two surface points with a thin bar.', edit: 'Sketches a line from point to point (it does nothing yet). In saw mode (4): puts a saw point (two on one face: a cut square to it; three: a cut through the triangle).' },
       b: { cap: 'B', sub: '', cat: 'slate', text: 'Not used.' },
