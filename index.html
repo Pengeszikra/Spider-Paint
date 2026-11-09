@@ -267,6 +267,21 @@
     #hud .row > :last-child { flex: none; font-variant-numeric: tabular-nums; }
     #hud .row + .row + .row { margin-top: 4px; }
     #palette { max-height: calc(100dvh - 90px); overflow-y: auto; }
+    /* B: the asset library, a pack of reusable objects (cards: picture, name, size, place / delete) */
+    #assets { position: fixed; left: 16px; top: 64px; z-index: 5; width: 236px; padding: 10px; border: 1.5px solid var(--outline); border-radius: 14px; background: color-mix(in srgb, var(--panel) 92%, transparent); display: grid; gap: 8px; font: 500 12px/1.2 var(--font-mono); color: var(--muted); max-height: calc(100dvh - 90px); overflow-y: auto; }
+    #assets[hidden] { display: none; }
+    #assets .bar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    #assets .bar b { color: var(--fg); font-weight: 500; margin-right: auto; }
+    #assets .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    #assets .card { display: grid; gap: 4px; padding: 6px; border: 1px solid var(--line); border-radius: 8px; }
+    #assets .card .pic { width: 100%; aspect-ratio: 1; border-radius: 5px; overflow: hidden; cursor: pointer; background: #1b1b1b; }
+    #assets .card .pic svg { width: 100%; height: 100%; display: block; }
+    #assets .card .pic text { display: none; }
+    #assets .card input { width: 100%; box-sizing: border-box; min-width: 0; background: none; border: 0; border-bottom: 1px solid var(--line); color: var(--fg); font: inherit; padding: 1px 0; }
+    #assets .card small { font-size: 10px; }
+    #assets .card .row { display: flex; gap: 4px; }
+    #assets .card .row button { flex: 1; padding: 3px 0; font-size: 11px; }
+    #assets .empty { grid-column: 1 / -1; }
     #palette .sw { box-shadow: none; padding: 0; border-radius: 6px; }
 
     /* the key explainer: a keyboard you can read, hover, press and run */
@@ -432,6 +447,12 @@
     <div class="row"><input type="color" id="custom" value="#c0392b" aria-label="Colour of the material" /><button id="addColor" type="button">+ new</button><button id="pickMat" type="button" title="Take the material of a surface (I: from under the cross; the button: then click a surface)">pick</button></div>
   </aside>
 
+  <aside id="assets" hidden aria-label="Asset library">
+    <div class="bar"><b>assets</b><button id="assetAdd" type="button" title="Save the edited object, the target, or the last one under the cross to the library">+ object</button><button id="assetExport" type="button" title="Download the library as a pack file">export</button><button id="assetImport" type="button" title="Add the assets of a pack file">import</button><input id="assetFile" type="file" accept=".json,application/json" hidden /></div>
+    <span id="assetNote">Click a picture: the asset is placed in front of the eye, its base middle is its origin. “+ object” saves the object being edited, the target, or the one the cross was last on.</span>
+    <div class="cards" id="assetCards"></div>
+  </aside>
+
   <div class="fab" aria-label="Controls">
     <button id="fabTravel" type="button" class="teal" aria-label="Target the object under the cross (T)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
     <button id="fabPlace" type="button" class="red" aria-label="Place or shoot a prism (M)"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12L4 7.5M12 12v9"/></svg></button>
@@ -478,6 +499,7 @@
       <button id="delete" type="button" class="slate" title="Delete the object under the cross (X)">Delete</button>
       <button id="travel" type="button" class="teal" title="Target the object under the cross (T)">Target</button>
       <button id="keys" type="button" class="teal" title="The key explainer (?)">Keys</button>
+      <button id="assetsBtn" type="button" class="teal" title="The asset library (B)">Assets</button>
       <button id="lines" type="button">Edges</button>
       <button id="freeze" type="button" class="teal" title="Freeze: everything that moves stands still (J)">Freeze</button>
       <button id="gpuBtn" type="button" title="The view now: SVG, WebGPU or WebGL2 (G switches)">SVG</button>
@@ -502,7 +524,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@d5d5b5acc06f06b54fe99da0758868ccf10495df/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@801236a834c7d1ad0f65ad0a074d82078ece5b68/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -536,6 +558,7 @@
     let pitch = START.pitch;
     let pointer = null; // last pointer position, client pixels
     let hit = null; // the surface under the pointer in the last drawn frame
+    let lastHitId = null; // the object the cross was last on (a click on a panel button takes the pointer off the view)
     let queued = false;
 
     // Prisms still flying: { mesh, inst, from, start }; once landed they become ordinary objects.
@@ -993,6 +1016,7 @@
         hit = kernel ? kernel.pick(scene, cam, x, y) : pick(scene, cam, x, y);
         cam.at = { x, y };
         panelPointer = { x, y };
+        if (hit) lastHitId = owner(hit.face)?.id ?? lastHitId;
       } else panelPointer = null;
       gcam = makeCamera(view, scene, size, shown_fit);
       drawing = { left: r.left + (r.width - size) / 2, top: r.top + (r.height - size) / 2 };
@@ -2026,6 +2050,156 @@
       showPalette();
       syncPalette();
     });
+    // ---- The asset library (B): reusable objects kept like an asset pack. An asset is a mesh with its origin in the middle of its
+    // base, so placing it puts that point at the cross. The library lives in this browser (localStorage); a pack file
+    // ({ format, version, materials, assets }) moves assets between scenes and machines. The first run starts with some timber stock.
+    const ASSET_KEY = '3draft.assets';
+    const PACK = '3draft-assets';
+    const assetsEl = document.getElementById('assets');
+    const cardsEl = document.getElementById('assetCards');
+    const assetNote = document.getElementById('assetNote');
+    const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+    const baseCentre = (mesh) => {
+      const lo = [Infinity, Infinity, Infinity];
+      const hi = [-Infinity, -Infinity, -Infinity];
+      for (const q of mesh.positions) q.forEach((c, i) => ((lo[i] = Math.min(lo[i], c)), (hi[i] = Math.max(hi[i], c))));
+      return { lo, hi, at: [(lo[0] + hi[0]) / 2, lo[1], (lo[2] + hi[2]) / 2] };
+    };
+    const round = (v) => Math.round(v * 1e5) / 1e5;
+    const tidy = (mesh) => {
+      // base middle to the origin, a private copy, numbers kept short
+      const { at } = baseCentre(mesh);
+      return { positions: mesh.positions.map((q) => q.map((c, i) => round(c - at[i]))), faces: mesh.faces.map((f) => ({ ...f, v: [...f.v] })) };
+    };
+    const usedMaterials = (list) => {
+      const names = new Set(list.flatMap((a) => a.mesh.faces.map((f) => f.mat).filter(Boolean)));
+      return materials.filter((m) => names.has(m.name)).map((m) => ({ ...m }));
+    };
+    const timber = (name, size) => {
+      const wood = materials.find((m) => m.name === 'wood');
+      const mesh = box({ size, at: [0, size[1] / 2, 0], color: wood?.color });
+      mesh.faces.forEach((f) => (f.mat = 'wood'));
+      return { id: `stock-${name}`, name, mesh: tidy(mesh) };
+    };
+    let storedMaterials = [];
+    const loadAssets = () => {
+      try {
+        const pack = JSON.parse(localStorage.getItem(ASSET_KEY) ?? 'null');
+        if (pack?.format === PACK && Array.isArray(pack.assets)) return (storedMaterials = pack.materials ?? []), pack.assets;
+      } catch {
+        // no storage, or damaged: start from the stock
+      }
+      return [timber('lath', [2, 0.03, 0.05]), timber('board', [2, 0.025, 0.2]), timber('plank', [2, 0.05, 0.3]), timber('beam', [2, 0.1, 0.1]), timber('plywood', [2.44, 0.012, 1.22])];
+    };
+    let assets = loadAssets();
+    const packOf = (list) => ({ format: PACK, version: 1, materials: usedMaterials(list), assets: list });
+    const saveAssets = () => {
+      try {
+        localStorage.setItem(ASSET_KEY, JSON.stringify(packOf(assets)));
+      } catch {
+        // the library still works for this visit
+      }
+    };
+    const needMaterials = (defs) => {
+      let added = false;
+      for (const m of defs ?? []) {
+        if (materials.some((x) => x.name === m.name)) continue;
+        materials.push({ ...m });
+        saveMaterial(materials[materials.length - 1]);
+        added = true;
+      }
+      if (added) syncPalette();
+    };
+    needMaterials(storedMaterials); // the materials the saved assets were made of
+    const sizeText = (mesh) => {
+      const { lo, hi } = baseCentre(mesh);
+      return [0, 1, 2].map((i) => +(hi[i] - lo[i]).toPrecision(3)).join(' × ') + ' m';
+    };
+    const thumbOf = (a) => {
+      const b = bounds(a.mesh);
+      const R = b.radius || 1;
+      return renderView(a.mesh, orbit({ yaw: -0.6, pitch: 0.45 }), { size: 100, fit: { center: b.center, radius: R, dist: orbitDist(R) * 0.7 }, palette: paletteMap, occlude: true, points: false, background: '#1b1b1b' });
+    };
+    const noteAsset = (t) => (assetNote.textContent = t);
+    const renderAssets = () => {
+      cardsEl.innerHTML = assets.length
+        ? assets
+            .map((a) => `<div class="card" data-id="${esc(a.id)}"><div class="pic" title="Place at the cross">${thumbOf(a)}</div><input value="${esc(a.name)}" aria-label="Name" spellcheck="false" /><small>${sizeText(a.mesh)}</small><div class="row"><button type="button" data-do="place">place</button><button type="button" data-do="del" class="slate">delete</button></div></div>`)
+            .join('')
+        : '<span class="empty">The library is empty: put the cross on an object and press “+ object”.</span>';
+    };
+    const toggleAssets = () => {
+      assetsEl.hidden = !assetsEl.hidden;
+      document.getElementById('assetsBtn').classList.toggle('on', !assetsEl.hidden);
+      if (!assetsEl.hidden) renderAssets();
+    };
+    const placeAsset = (a) => {
+      if (!a) return;
+      const at = hit ? [...hit.point] : [...fit.center]; // on the surface under the cross, else (a click on the panel) in front of the eye
+      const made = create(`${a.name}-${shortId()}`, shifted(a.mesh, at));
+      noteAsset(`placed ${made.name}`);
+      redraw();
+    };
+    const addAssetFrom = (o) => {
+      if (!o) return noteAsset('Put the cross on an object (or target one, or edit one) first.');
+      const base = o.name.replace(/-[a-z0-9]{4}$/, '') || o.name;
+      let name = base;
+      for (let n = 2; assets.some((x) => x.name === name); n++) name = `${base}-${n}`;
+      assets.push({ id: uid('asset'), name, mesh: tidy(o.mesh) });
+      saveAssets();
+      renderAssets();
+      noteAsset(`saved ${name}`);
+    };
+    cardsEl.addEventListener('click', (e) => {
+      const card = e.target.closest('.card');
+      const a = card && assets.find((x) => x.id === card.dataset.id);
+      if (!a) return;
+      const act = e.target.closest('button')?.dataset.do;
+      if (act === 'del') {
+        assets = assets.filter((x) => x !== a);
+        saveAssets();
+        renderAssets();
+      } else if (act === 'place' || e.target.closest('.pic')) placeAsset(a);
+    });
+    cardsEl.addEventListener('change', (e) => {
+      const card = e.target.closest('.card');
+      const a = card && assets.find((x) => x.id === card.dataset.id);
+      if (a && e.target.matches('input')) {
+        a.name = e.target.value.trim() || a.name;
+        saveAssets();
+      }
+    });
+    cardsEl.addEventListener('keydown', (e) => e.stopPropagation()); // typing a name is not a key command
+    document.getElementById('assetAdd').addEventListener('click', () => addAssetFrom((editing && has(editing) ? editing : null) ?? lockedObject() ?? (lastHitId ? allObjects().find((o) => o.id === lastHitId) : null) ?? null));
+    document.getElementById('assetsBtn').addEventListener('click', toggleAssets);
+    document.getElementById('assetExport').addEventListener('click', () => {
+      const blob = new Blob([JSON.stringify(packOf(assets))], { type: 'application/json' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'assets.3dpack.json';
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    });
+    const fileEl = document.getElementById('assetFile');
+    document.getElementById('assetImport').addEventListener('click', () => fileEl.click());
+    fileEl.addEventListener('change', async () => {
+      const file = fileEl.files?.[0];
+      fileEl.value = '';
+      if (!file) return;
+      try {
+        const pack = JSON.parse(await file.text());
+        if (pack?.format !== PACK || !Array.isArray(pack.assets)) throw new Error('not an asset pack');
+        const have = new Set(assets.map((a) => a.id));
+        const fresh = pack.assets.filter((a) => a?.mesh?.positions && a?.mesh?.faces && !have.has(a.id));
+        needMaterials(pack.materials);
+        assets.push(...fresh.map((a) => ({ id: a.id ?? uid('asset'), name: String(a.name ?? 'asset'), mesh: tidy(a.mesh) })));
+        saveAssets();
+        renderAssets();
+        noteAsset(`${fresh.length} asset${fresh.length === 1 ? '' : 's'} added`);
+      } catch (err) {
+        noteAsset(`could not read the pack (${err.message})`);
+      }
+    });
     // Pick material (the eyedropper): the material of the face under the cross becomes the selected one. A face that only
     // has a colour selects the entry with that colour, or starts a new entry from it.
     let picking = false;
@@ -2827,6 +3001,9 @@
       } else if (e.key === 'p' || e.key === 'P') {
         e.preventDefault();
         if (!e.repeat) togglePalette();
+      } else if (e.key === 'b' || e.key === 'B') {
+        e.preventDefault();
+        if (!e.repeat) toggleAssets();
       } else if (e.key === 'x' || e.key === 'X' || e.key === 'Delete') {
         e.preventDefault();
         remove();
@@ -3038,7 +3215,7 @@
       x: { cap: 'X', sub: 'del', cat: 'red', text: 'Delete the object under the cross (U brings it back).', edit: 'Shift+X deletes the object under the cross. During G / S: locks the axis to x.' },
       c: { cap: 'C', sub: 'filmic', cat: 'teal', text: 'Filmic look: HDR light, glowing emission, tone mapping.' },
       v: { cap: 'V', sub: 'bar', cat: 'red', text: 'Spider bar: joins two surface points with a thin bar.', edit: 'Sketches a line from point to point (it does nothing yet). In saw mode (4): puts a saw point (two on one face: a cut square to it; three: a cut through the triangle).' },
-      b: { cap: 'B', sub: '', cat: 'slate', text: 'Not used.' },
+      b: { cap: 'B', sub: 'assets', cat: 'teal', text: 'The asset library: reusable objects like an asset pack. Click a picture to place it at the cross; “+ object” saves the edited object, the target or the last one under the cross; export / import move a pack file.' },
       n: { cap: 'N', sub: 'smooth', cat: 'teal', text: 'Smooth shading: faces that meet at a shallow angle share their normals.' },
       m: { cap: 'M', sub: 'place', cat: 'red', text: 'Puts a prism down at the cross (or shoots one into empty space).', solo: 'In isolated mode the prism is a bullet: where it lands it carves A−B out of the surface; if it misses it disappears.' },
       arrowleft: { cap: '←', sub: '', cat: 'cream', title: 'Arrow left', text: 'Rotate the view left, in steps.' },
