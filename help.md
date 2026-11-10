@@ -87,7 +87,7 @@ Put the cross on an object and press **Q**. That object is the active one; every
 | S | Scale about the centre; X Y Z scale along an axis; type a factor |
 | R | Rotate: about the middle of the selected points or faces; with a selected **line** the line is the axis (the other selected parts turn about it, or the whole object when the line is all that is selected). Move the pointer round the pivot, X Y Z turn about a world axis, type degrees |
 | E | Extrude and grab at once: a point becomes a line, a line becomes a face, a face is pushed out along its normal |
-| 5 | Sketch mode: V draws lines on the surface; **Enter** (or 5 again) turns the drawing into the mesh: a chain that comes back near where it began (within a third of a stroke) becomes a face, an open chain becomes lines. The new faces are selected, so E pulls them out |
+| 5 | Sketch mode: V draws lines on the surface; **Enter** (or 5 again) turns the drawing into the mesh: a chain that comes back near where it began (within a third of a stroke) becomes a face, an open chain becomes lines. The new faces are selected, so E pulls them out. They take the selected material and sit a hair above the surface |
 | V | Sketch a line from point to point on the surface (in the sketch mode, 5; Enter builds it) |
 | 4, then V | **Saw**: V puts two or three points. Two on one face: a cut square to it. Three: a cut through the triangle. **Enter** cuts the object into closed solids that keep their material |
 | F | **Fill:** the selected points (or the points of the selected lines) become one new face, wound to face away from the object, in the material of a neighbouring face. Closes a hole |

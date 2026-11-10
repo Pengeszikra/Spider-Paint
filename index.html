@@ -654,7 +654,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@c4f8c70c7015a4c06f58b394ec4df1c3c9ab1913/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@d4401b6f56a30e9020e0c68309f7b4d75190433c/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -3262,11 +3262,15 @@
         const closed = pts.length >= 4 && gap <= Math.max(mean / 3, eps);
         if (closed) {
           const ring = pts.slice(0, -1);
-          const ids = ring.map(vert);
           const n = newell(ring);
           const c = ring.reduce((t, q) => t.map((v, k) => v + q[k] / ring.length), [0, 0, 0]);
-          if (Math.hypot(...n) < 1e-12) continue;
-          if (vdot(n, vsub(c, mid)) < 0) ids.reverse(); // outward, away from the middle of the object
+          const nl = Math.hypot(...n);
+          if (nl < 1e-12) continue;
+          const out = vdot(n, vsub(c, mid)) < 0 ? -1 : 1; // outward, away from the middle of the object
+          // a hair above the surface (a new point each, so the surface itself stays as it was), in the selected material
+          const lift = 0.004 * (bounds(orig).radius || 1);
+          const ids = ring.map((q) => (P.push(q.map((v, k) => v + (n[k] / nl) * out * lift)), P.length - 1));
+          if (out < 0) ids.reverse();
           faces.push({ v: ids, color: m.color, mat: m.name });
           made.push(faceKey(faces[faces.length - 1]));
         } else {
@@ -3491,6 +3495,7 @@
     // Drag and drop from the store: Alt+press an object in the store and drag it over the build (the pointer keeps going there),
     // let go to put a copy down under the pointer. Esc cancels. The build gets the model and the pointer position as messages.
     let carry = null;
+    let lastCtrlPaint = 0;
     let carryFrozen = false;
     const carryTell = (type, e) => parent.postMessage({ type, x: e.clientX, y: e.clientY, ...(type === 'drag-start' ? { name: carry.name, mesh: carry.mesh } : {}) }, location.origin);
     stage.addEventListener('pointerdown', (e) => {
@@ -3509,7 +3514,17 @@
         e.preventDefault();
         return e.button === 2 ? xfCancel() : xfConfirm();
       }
-      if (e.ctrlKey || e.metaKey || (shiftOn && !editing)) return paintFace(); // Ctrl (Cmd on a Mac) + press paints, it never starts a rotation
+      if (e.ctrlKey || e.metaKey || (shiftOn && !editing)) {
+        // Ctrl (Cmd on a Mac) + press paints the face, it never starts a rotation; twice quickly paints the whole model (counted here:
+        // on a Mac Ctrl+click is a right click and sends no dblclick)
+        const t = performance.now();
+        if (t - lastCtrlPaint < 450) {
+          lastCtrlPaint = 0;
+          return paintModel();
+        }
+        lastCtrlPaint = t;
+        return paintFace();
+      }
       if (editing && ['vertex', 'edge', 'face'].includes(emode)) {
         // selecting (1 points, 2 lines, 3 faces): a click picks one, Shift+click adds it or takes it away
         const add = e.shiftKey || shiftOn;
@@ -3578,7 +3593,7 @@
       pointer = null;
       redraw();
     });
-    stage.addEventListener('dblclick', (e) => (e.ctrlKey || e.metaKey || (shiftOn && !editing) ? paintModel() : reset()));
+    stage.addEventListener('dblclick', (e) => (e.ctrlKey || e.metaKey || (shiftOn && !editing) ? undefined : reset())); // (Ctrl + double click is counted in pointerdown)
     stage.addEventListener('contextmenu', (e) => {
       if (!editing && !e.ctrlKey) return;
       e.preventDefault(); // a right click cancels a grab / scale; Ctrl+click (a Mac right click) paints
