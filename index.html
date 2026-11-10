@@ -654,7 +654,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@a0a0dff4c9a8ebc6eea57975ff943fd72f75cbe1/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@4f34c89c544de6f69a0f3021d5d1eb955ecd9cab/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1160,6 +1160,7 @@
         cam.at = { x, y };
         panelPointer = { x, y };
         if (hit) lastHitId = owner(hit.face)?.id ?? lastHitId;
+        if (scrubWant) ((scrubWant = false), setTimeout(scrub, 0)); // (outside the frame: painting rebuilds the scene)
       } else panelPointer = null;
       gcam = makeCamera(view, scene, size, shown_fit);
       drawing = { left: r.left + (r.width - size) / 2, top: r.top + (r.height - size) / 2 };
@@ -2543,6 +2544,31 @@
       goTo({ ...overview(), yaw, pitch }); // frame the isolated object, keep the viewing direction
     };
     // Ctrl (Cmd) + press: the face under the cross (the palette must be on). Ctrl + double click: its whole model.
+    // Alt + Ctrl (Cmd) with the palette open: no click, every face the pointer passes over takes the selected material, in edit mode too.
+    // One stroke (until a key is let go) is one undo step.
+    let scrubWant = false;
+    const stroke = new Map();
+    const scrub = () => {
+      if (!hit || paletteEl.hidden) return;
+      const obj = owner(hit.face);
+      const base = owners.find((o) => o.obj === obj)?.start;
+      if (!obj || base === undefined) return;
+      const i = hit.face - base;
+      const f = obj.mesh.faces[i];
+      const m = materials[current];
+      if (!f || (f.color === m.color && f.mat === m.name)) return;
+      if (!stroke.has(obj.id)) stroke.set(obj.id, { obj, before: obj.mesh });
+      change(obj, { ...obj.mesh, faces: obj.mesh.faces.map((g, k) => (k === i ? { ...g, color: m.color, mat: m.name } : g)) });
+      redraw();
+    };
+    const endStroke = () => {
+      if (!stroke.size) return;
+      const items = [...stroke.values()];
+      stroke.clear();
+      history.push(() => items.forEach(({ obj, before }) => has(obj) && change(obj, before)));
+    };
+    window.addEventListener('keyup', (e) => ['Alt', 'Control', 'Meta'].includes(e.key) && endStroke());
+    window.addEventListener('blur', endStroke);
     const paintFace = (force = false) => {
       if ((paletteEl.hidden && !force) || !hit) return;
       paintFaces(owner(hit.face), new Set([hit.face]));
@@ -3558,6 +3584,7 @@
     });
     stage.addEventListener('pointermove', (e) => {
       pointer = { x: e.clientX, y: e.clientY };
+      scrubWant = e.altKey && (e.ctrlKey || e.metaKey) && !paletteEl.hidden; // Alt+Ctrl with the palette open: the faces the pointer passes are painted
       if (carry) return carryTell('drag-move', e);
       if (xf) return xfUpdate();
       if (gdrag) return dragGizmo(e);

@@ -64,6 +64,7 @@ With a **target**, W A S D R F move the camera round and towards the target inst
 | P | The material palette |
 | I | Pick the material under the cross |
 | Ctrl+click (Cmd on a Mac) | Paint the face under the cross; Ctrl+double click paints the whole object |
+| Alt+Ctrl (Alt+Cmd) + move | With the palette open: no click, every face the pointer passes over takes the selected material (edit mode too). One stroke is one undo step |
 | 7 | Open / close the store (second 3D view on the left) |
 | Alt + drag | In the store: drag the object under the pointer over the build and let go, a copy is put down there, the point you grabbed (dropped straight to the floor of the store) on the surface and its up along the surface normal; that point is the new object's origin (Esc cancels). The store stands still while you drag |
 
