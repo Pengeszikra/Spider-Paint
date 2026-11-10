@@ -654,7 +654,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@31dfaaf3dc1542556daf72559df3945bebe85f47/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@c4f8c70c7015a4c06f58b394ec4df1c3c9ab1913/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -3401,6 +3401,38 @@
       if (src.wire?.length) change(copy, copy.mesh, structuredClone(src.wire));
       grabObject(copy, true);
     };
+    // Shift+X in edit mode with something selected deletes just that: a point takes the faces and lines that use it, a line the faces on
+    // it (and the line itself), a face only itself. Nothing selected: it is the object under the cross that goes.
+    const deleteSelection = () => {
+      const orig = editing.mesh;
+      const wire0 = editing.wire ?? [];
+      const hasVert = (f, set) => f.v.some((v) => set.has(v));
+      let faces = orig.faces;
+      let wire = wire0;
+      let gone = new Set();
+      if (sel.kind === 'vertex') {
+        gone = new Set(sel.items);
+        faces = faces.filter((f) => !hasVert(f, gone));
+        wire = wire.filter(([a, b]) => !gone.has(a) && !gone.has(b));
+      } else if (sel.kind === 'edge') {
+        const has2 = (f, a, b) => f.v.includes(a) && f.v.includes(b) && f.v.some((v, i) => (v === a && f.v[(i + 1) % f.v.length] === b) || (v === b && f.v[(i + 1) % f.v.length] === a));
+        faces = faces.filter((f) => !sel.items.some(([a, b]) => has2(f, a, b)));
+        wire = wire.filter(([x, y]) => !sel.items.some(([a, b]) => (x === a && y === b) || (x === b && y === a)));
+      } else {
+        const keys = new Set(sel.items.map((k) => k.join()));
+        faces = faces.filter((f) => !keys.has(faceKey(f).join()));
+      }
+      const map = [];
+      const positions = [];
+      orig.positions.forEach((q, i) => (gone.has(i) ? map.push(-1) : (map.push(positions.length), positions.push(q))));
+      const mesh = { ...orig, positions, faces: faces.map((f) => ({ ...f, v: f.v.map((v) => map[v]) })) };
+      const wires = wire.map(([a, b]) => [map[a], map[b]]);
+      const n = orig.faces.length - faces.length;
+      sel = emptySel();
+      commit(mesh, wires);
+      noteEdit(`deleted ${gone.size ? `${gone.size} point${gone.size === 1 ? '' : 's'}, ` : ''}${n} face${n === 1 ? '' : 's'}`);
+      redraw();
+    };
     // the keys of edit mode that are not modes (a few of them are fly keys outside it: those need Shift here)
     const editKey = (e) => {
       if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && !xf && e.key.toLowerCase() === 'r') {
@@ -3632,7 +3664,7 @@
       }
       if ((e.key === 'X' && !e.ctrlKey && !e.metaKey && !e.altKey) || e.key === 'Delete') {
         e.preventDefault(); // delete is Shift+X everywhere
-        if (!e.repeat) remove();
+        if (!e.repeat) (editing && selOn() ? deleteSelection() : remove());
         return;
       }
       const fk = !e.ctrlKey && !e.metaKey && !e.altKey && (!editing || e.shiftKey) && FLY_KEYS[e.key.toLowerCase()];
@@ -3900,7 +3932,7 @@
       enter: { cap: 'Enter', sub: 'cut', cat: 'red', w: 2.2, title: 'Enter', text: '', edit: 'Saw: cuts along the marked plane.' },
       shift: { cap: 'Shift', sub: 'paint', cat: 'slate', w: 2.4, title: 'Shift', text: 'Shift+Tab: previous target. Painting is Ctrl+click (Cmd on a Mac).', edit: 'Shift+click adds to the selection or takes from it. Shift+W A S D R F fly (plain, they are edit keys).', run: false },
       z: { cap: 'Z', sub: 'zen', cat: 'slate', text: 'Zen: hide everything but the model. Z or Esc brings the panels back.' },
-      x: { cap: 'X', sub: 'del', cat: 'red', text: 'Shift+X deletes the object under the cross, in every mode (U brings it back). Alone, during G / S / R, X locks the axis to x.', edit: 'Shift+X deletes the object under the cross. During G / S: locks the axis to x.' },
+      x: { cap: 'X', sub: 'del', cat: 'red', text: 'Shift+X deletes the object under the cross, in every mode (U brings it back). Alone, during G / S / R, X locks the axis to x.', edit: 'Shift+X deletes the selected points, lines or faces (a point takes its faces, a line the faces on it); with nothing selected, the object under the cross. During G / S: locks the axis to x.' },
       c: { cap: 'C', sub: 'filmic', cat: 'teal', text: 'Filmic look: HDR light, glowing emission, tone mapping.' },
       v: { cap: 'V', sub: 'bar', cat: 'red', text: 'Spider bar: joins two surface points with a thin bar.', edit: 'Sketches a line from point to point on the surface (sketch mode, 5; Enter then makes faces and lines of the drawing). In saw mode (4): puts a saw point (two on one face: a cut square to it; three: a cut through the triangle).' },
       7: { cap: '7', sub: 'store', cat: 'teal', text: 'Open or close the store: a second 3D view on the left (a third of the width) with the loose objects (timber stock). The keys go to the view the pointer is over. In the store: target one (T) and press M, and it becomes the model M puts down in the build view.' },

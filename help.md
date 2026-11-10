@@ -54,7 +54,7 @@ With a **target**, W A S D R F move the camera round and towards the target inst
 | Key | Action |
 |---|---|
 | M | Put a prism down at the cross (over empty space it is shot out and flies), or a copy of the model chosen in the store |
-| Shift+X | Delete the object under the cross (every mode; Delete too) |
+| Shift+X | Delete the object under the cross (every mode; Delete too). In edit mode with something selected it deletes just that: a point with the faces and lines that use it, a line with the faces on it, a face alone |
 | G | Grab the target (T) or the object under the cross: it follows the pointer; X, Y or Z locks an axis, type metres, click or Enter confirms, Esc cancels |
 | Ctrl+D | Duplicate: a copy (a new model, not an instance) that is grabbed at once, so you can move it right away |
 | U, Backspace | Undo |
