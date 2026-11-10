@@ -63,7 +63,7 @@ With a **target**, W A S D R F move the camera round and towards the target inst
 | H | Move gizmo: world axes, its own axes, off |
 | P | The material palette |
 | I | Pick the material under the cross |
-| Ctrl+click (Cmd on a Mac) | Paint the face under the cross; Ctrl+double click paints the whole object. In edit mode paint with **Ctrl+Shift+click** (Shift+click selects; Ctrl alone paints nothing there) |
+| Ctrl+click (Cmd on a Mac) | Paint the face under the cross; Ctrl+double click paints the whole object |
 | 7 | Open / close the store (second 3D view on the left) |
 | Alt + drag | In the store: drag the object under the pointer over the build and let go, a copy is put down there, the point you grabbed (dropped straight to the floor of the store) on the surface and its up along the surface normal; that point is the new object's origin (Esc cancels). The store stands still while you drag |
 
