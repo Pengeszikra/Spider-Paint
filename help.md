@@ -23,7 +23,7 @@ A minimal 3D scene builder. Fly through a scene, build with solid prisms, and ed
 | Edges | Edges and points on or off (E) |
 | View | SVG, WebGPU or WebGL2 (9) |
 | Filmic | HDR light, glow, tone mapping (C) |
-| Smooth | Smooth shading (N) |
+| Smooth | Smooth shading (N): edges are rounded only on materials with soft above 0 (soft 0 keeps every edge hard; from 0.5 up the full 40° crease is smoothed) |
 | Studio | Key, fill and rim light that follow the camera (K) |
 | Freeze | Everything that moves stands still (`;`, which is `é` on a Hungarian keyboard) |
 | Light | Turn the sun in steps (L) |
