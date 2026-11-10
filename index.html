@@ -642,6 +642,7 @@
         <option value="stars-plain">Stars (300) + 100 galaxies (point glow)</option>
         <option value="ex27">EX-27 expedition module</option>
         <option value="human">Low poly human</option>
+        <option value="tr74">TR-74 expedition module</option>
         </select>
         <button id="clear" type="button" class="slate ic" title="Remove every object (U brings them back)" aria-label="Clear"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M8 7V5h8v2M7 7l1 12h8l1-12"/></svg></button>
       </span>
@@ -3860,7 +3861,7 @@
         swap.textContent = document.body.classList.contains('split') ? 'close store' : 'store';
       });
       box.append(swap);
-      for (const name of ['empty', 'globe', 'stars', 'stars-plain', 'milkyway', 'ex27', 'human']) {
+      for (const name of ['empty', 'globe', 'stars', 'stars-plain', 'milkyway', 'ex27', 'human', 'tr74']) {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'cream';
