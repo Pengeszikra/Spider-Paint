@@ -169,7 +169,7 @@
     #storePane[hidden] { display: none; }
     body.split { --splitW: 33.333vw; }
     body.split.focusStore #storePane { outline: 2px solid #2fb8c0; outline-offset: -2px; }
-    body.split:not(.focusStore) #stage::after { content: ''; position: absolute; inset: 0; border: 2px solid #2fb8c0; pointer-events: none; z-index: 5; }
+    body.split:not(.focusStore) #stage::before { content: ''; position: absolute; inset: 0; border: 2px solid #2fb8c0; pointer-events: none; z-index: 5; }
     body.split:not(.pwa) header.bar { left: calc(var(--splitW) + 14px); }
     body.split:not(.nope) #stage, body.split.pwa #stage { left: var(--splitW); }
     body.split:not(.pwa) footer.console { left: var(--splitW); }
@@ -471,6 +471,7 @@
       footer.console .actions { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 18px; padding: 0; }
       footer.console .grp { position: relative; display: inline-flex; align-items: center; gap: 6px; padding-top: 11px; }
       footer.console .grp::before { content: attr(data-label); position: absolute; top: 0; left: 1px; font: 500 7px/1 var(--font-mono); letter-spacing: 0.24em; text-transform: uppercase; color: #6c7062; }
+      footer.console .grp[data-label=view] { flex-wrap: wrap; max-width: 340px; row-gap: 5px; }
       footer.console .grp + .grp { padding-left: 14px; border-left: 1px solid #262922; }
       footer.console .grp:nth-child(3n+1)::after { content: ''; position: absolute; top: 1px; right: 0; width: 3px; height: 3px; border-radius: 50%; background: #2fb8c0; opacity: 0.7; animation: blink 3.4s steps(2) infinite; }
       @keyframes blink { 50% { opacity: 0.15; } }
@@ -606,7 +607,7 @@
         <button id="brush" type="button" class="chip" hidden title="The model M puts down; click to go back to the prism"></button>
         <button id="delete" type="button" class="slate ic" title="Delete the object under the cross (X)" aria-label="Delete"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
         <button id="travel" type="button" class="teal ic" title="Target the object under the cross (T)" aria-label="Target"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
-        <button id="sceneBtn" type="button" class="teal" title="Open or close the store, a second 3D view beside the build (B)">Store</button>
+        <button id="sceneBtn" type="button" class="teal" title="Open or close the store, a second 3D view beside the build (7)">Store</button>
       </span>
       <span class="grp only-edit" data-label="edit">
         <button type="button" class="red" data-key="1" title="Select points (1)"><b>1</b>pt</button>
@@ -622,12 +623,12 @@
         <button type="button" class="teal" data-key="q" title="Leave edit mode (Q)"><b>Q</b>done</button>
       </span>
       <span class="grp" data-label="view">
-        <button id="lines" type="button" class="sw" title="Edges and points (E)"><i></i>edges</button>
+        <button id="freeze" type="button" class="sw red" title="Freeze: everything that moves stands still (; — é on a Hungarian keyboard)"><i></i>freeze</button>
         <button id="gpuBtn" type="button" class="sw" title="The view now: SVG, WebGPU or WebGL2 (9 switches)"><i></i><span>SVG</span></button>
+        <button id="lines" type="button" class="sw" title="Edges and points (E)"><i></i>edges</button>
         <button id="filmic" type="button" class="sw" title="Filmic look: HDR light, glowing emission, tone mapping (C)"><i></i>filmic</button>
         <button id="smooth" type="button" class="sw" title="Smooth shading: faces that meet at a shallow angle share their normals (N)"><i></i>smooth</button>
         <button id="studio" type="button" class="sw" title="Studio light: key, fill and rim light that follow the camera (K)"><i></i>studio</button>
-        <button id="freeze" type="button" class="sw red" title="Freeze: everything that moves stands still (J)"><i></i>freeze</button>
         <button id="light" type="button" class="slate" title="Turn the light (L)">light</button>
       </span>
       <span class="grp only-build" data-label="scene">
@@ -652,7 +653,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@7ff8530433de1423a2a3874e68fbbdbe247e9833/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@17ff6c28e90a73661fc4603f4ab02f4163ca26f4/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2374,7 +2375,7 @@
       document.body.classList.toggle('focusStore', Boolean(store));
     };
     const toggleStore = (on = !document.body.classList.contains('split')) => {
-      if (EMBED) return void parent.postMessage({ type: 'store-toggle' }, location.origin); // B in the store closes it
+      if (EMBED) return void parent.postMessage({ type: 'store-toggle' }, location.origin); // 7 in the store closes it
       if (editing && on) leaveEdit();
       if (on && !storeFrame) {
         const u = new URL(location.href);
@@ -2440,7 +2441,7 @@
     // next to the place button names it; a click on the chip goes back to the plain prism.
     let brush = null; // { name, mesh } with the base middle at the origin
     const brushChip = document.getElementById('brush');
-    const brushOf = (o) => ({ name: o.name.replace(/-[a-z0-9]{4}$/, ''), mesh: shifted(o.mesh, baseCentre(o.mesh).map((c) => -c)) });
+    const brushOf = (o, origin = baseCentre(o.mesh)) => ({ name: o.name.replace(/-[a-z0-9]{4}$/, ''), mesh: shifted(o.mesh, origin.map((c) => -c)) });
     const setBrush = (o) => useBrush(o ? brushOf(o) : null);
     const useBrush = (b) => {
       brush = b;
@@ -3311,12 +3312,15 @@
     // Drag and drop from the store: Alt+press an object in the store and drag it over the build (the pointer keeps going there),
     // let go to put a copy down under the pointer. Esc cancels. The build gets the model and the pointer position as messages.
     let carry = null;
+    let carryFrozen = false;
     const carryTell = (type, e) => parent.postMessage({ type, x: e.clientX, y: e.clientY, ...(type === 'drag-start' ? { name: carry.name, mesh: carry.mesh } : {}) }, location.origin);
     stage.addEventListener('pointerdown', (e) => {
       pointer = { x: e.clientX, y: e.clientY };
       if (EMBED && e.altKey && !editing && hit && owner(hit.face)) {
         e.preventDefault();
-        carry = brushOf(owner(hit.face));
+        carry = brushOf(owner(hit.face), [hit.point[0], 0, hit.point[2]]); // the grabbed point, dropped to the floor, is the new origin
+        carryFrozen = frozen;
+        if (!frozen) toggleFreeze(); // the store stands still while the model is carried away
         stage.setPointerCapture(e.pointerId);
         stage.classList.add('drag');
         return carryTell('drag-start', e);
@@ -3375,6 +3379,7 @@
     const carryEnd = (e, drop) => {
       if (!carry) return false;
       carry = null;
+      if (!carryFrozen && frozen) toggleFreeze();
       stage.classList.remove('drag');
       parent.postMessage({ type: drop ? 'drag-end' : 'drag-cancel', x: e.clientX, y: e.clientY }, location.origin);
       return true;
@@ -3433,7 +3438,7 @@
       undo: { run: () => undo() },
       delete: { run: () => remove() },
     };
-    const KEYMAP = { '?': 'help', z: 'zen', '/': 'isolate', p: 'palette', b: 'scene', 9: 'view', i: 'pick', c: 'filmic', n: 'smooth', k: 'studio', l: 'light', t: 'target', h: 'gizmo', e: 'clean', u: 'undo', Backspace: 'undo', x: 'delete', Delete: 'delete' };
+    const KEYMAP = { '?': 'help', z: 'zen', '/': 'isolate', p: 'palette', 7: 'scene', 9: 'view', i: 'pick', c: 'filmic', n: 'smooth', k: 'studio', l: 'light', t: 'target', h: 'gizmo', e: 'clean', u: 'undo', Backspace: 'undo', x: 'delete', Delete: 'delete' };
     const bindKey = (key, action) => (action ? (KEYMAP[key] = action) : delete KEYMAP[key]);
     const boundAction = (e) => {
       const a = ACTIONS[KEYMAP[e.key.length === 1 ? e.key.toLowerCase() : e.key]];
@@ -3491,10 +3496,10 @@
       } else if (e.key === 'o' || e.key === 'O') {
         e.preventDefault();
         if (!e.repeat) pickBool();
-      } else if ((e.key === 'y' || e.key === 'Y') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      } else if (e.key === '8' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
         if (!e.repeat) toggleVr();
-      } else if ((e.key === 'j' || e.key === 'J') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      } else if ((e.code === 'Semicolon' || e.key === ';' || e.key === 'é') && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
         if (!e.repeat) toggleFreeze();
       } else if (e.key === 'q' || e.key === 'Q') {
@@ -3714,7 +3719,7 @@
       e: { cap: 'E', sub: 'edges', cat: 'cream', text: 'Edges and points on or off.', edit: 'Extrude the selected faces (face mode, 3): they are pushed out along their normal; move the pointer, or type metres.' },
       r: { cap: 'R', sub: 'up', cat: 'cream', text: 'Fly up (speed steps).', target: 'Swing up over the target.', edit: 'Rotate the selection: about the middle of points or faces; with a selected line the line is the axis. X, Y or Z turns about that world axis, a typed number is degrees. (Shift+R flies up.)' },
       t: { cap: 'T', sub: 'target', cat: 'teal', text: 'Target the object under the cross: the camera turns to it and keeps looking at it. Over empty space: the nearest object.', target: 'Another object re-targets; the target itself or empty space brings the camera back onto the target.' },
-      y: { cap: 'Y', sub: 'vr', cat: 'teal', text: 'VR: two eyes side by side for a phone in a headset holder. The phone turns the view, a tap speeds up, a double tap stops, a long press (or Y, Esc) leaves.' },
+      8: { cap: '8', sub: 'vr', cat: 'teal', text: 'VR: two eyes side by side for a phone in a headset holder. The phone turns the view, a tap speeds up, a double tap stops, a long press (or 8, Esc) leaves.' },
       u: { cap: 'U', sub: 'undo', cat: 'slate', text: 'Undo the last change. Backspace does the same.' },
       i: { cap: 'I', sub: 'pick', cat: 'red', text: 'Pick the material under the cross (then Ctrl/Cmd+click paints with it).' },
       o: { cap: 'O', sub: 'bool', cat: 'red', text: 'Boolean: mark an object, then a second one, then choose union, A−B, B−A or intersect (keys 1–5).' },
@@ -3726,7 +3731,7 @@
       g: { cap: 'G', sub: 'grab', cat: 'red', text: '', edit: 'Grab: moves the selection with the pointer; X, Y or Z locks it to a world axis, a typed number is metres. Click or Enter confirms, Esc cancels.' },
       9: { cap: '9', sub: 'gpu', cat: 'teal', text: 'Switch between the SVG view and the WebGPU view.' },
       h: { cap: 'H', sub: 'gizmo', cat: 'red', text: 'Move gizmo on the object under the cross: 1st H world axes, 2nd H its own axes, 3rd H off. Drag an arrow to move it.' },
-      j: { cap: 'J', sub: 'freeze', cat: 'teal', text: 'Freeze: everything that moves stands still (flying, orbiting, dragging the view), so the cursor can work. The speed is kept; J again carries on with it.' },
+      ';': { cap: ';', sub: 'freeze', title: '; (é on a Hungarian keyboard)', cat: 'teal', text: 'Freeze: everything that moves stands still (flying, orbiting, dragging the view), so the cursor can work. The speed is kept; the key again carries on with it.' },
       k: { cap: 'K', sub: 'studio', cat: 'teal', text: 'Studio light: key, fill and rim light that follow the camera.' },
       l: { cap: 'L', sub: 'light', cat: 'teal', text: 'Turn the sun (the light direction) in steps.' },
       enter: { cap: 'Enter', sub: 'cut', cat: 'red', w: 2.2, title: 'Enter', text: '', edit: 'Saw: cuts along the marked plane.' },
@@ -3735,7 +3740,7 @@
       x: { cap: 'X', sub: 'del', cat: 'red', text: 'Delete the object under the cross (U brings it back).', edit: 'Shift+X deletes the object under the cross. During G / S: locks the axis to x.' },
       c: { cap: 'C', sub: 'filmic', cat: 'teal', text: 'Filmic look: HDR light, glowing emission, tone mapping.' },
       v: { cap: 'V', sub: 'bar', cat: 'red', text: 'Spider bar: joins two surface points with a thin bar.', edit: 'Sketches a line from point to point (it does nothing yet). In saw mode (4): puts a saw point (two on one face: a cut square to it; three: a cut through the triangle).' },
-      b: { cap: 'B', sub: 'store', cat: 'teal', text: 'Open or close the store: a second 3D view on the left (a third of the width) with the loose objects (timber stock). The keys go to the view the pointer is over. In the store: target one (T) and press M, and it becomes the model M puts down in the build view.' },
+      7: { cap: '7', sub: 'store', cat: 'teal', text: 'Open or close the store: a second 3D view on the left (a third of the width) with the loose objects (timber stock). The keys go to the view the pointer is over. In the store: target one (T) and press M, and it becomes the model M puts down in the build view.' },
       n: { cap: 'N', sub: 'smooth', cat: 'teal', text: 'Smooth shading: faces that meet at a shallow angle share their normals.' },
       m: { cap: 'M', sub: 'place', cat: 'red', text: 'Puts a prism down at the cross (or shoots one into empty space).', solo: 'In isolated mode the prism is a bullet: where it lands it carves A−B out of the surface; if it misses it disappears.' },
       arrowleft: { cap: '←', sub: '', cat: 'cream', title: 'Arrow left', text: 'Rotate the view left, in steps.' },
@@ -3745,10 +3750,10 @@
       ' ': { cap: 'Space', sub: 'speed zero', cat: 'cream', w: 7.6, title: 'Space', text: 'Speed zero: stops the flying.', target: 'Speed zero; the target stays.' },
     };
     const KEY_ROWS = [
-      ['escape', '1', '2', '3', '4', '5', '9', '/', '?', 'backspace'],
-      ['tab', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
-      [1.9, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'enter'],
-      ['shift', 'z', 'x', 'c', 'v', 'b', 'n', 'm', 0.4, 'arrowleft', 'arrowdown', 'arrowup', 'arrowright'],
+      ['escape', '1', '2', '3', '4', '5', '7', '8', '9', '/', '?', 'backspace'],
+      ['tab', 'q', 'w', 'e', 'r', 't', 'u', 'i', 'o', 'p'],
+      [1.9, 'a', 's', 'd', 'f', 'g', 'h', 'k', 'l', ';', 'enter'],
+      ['shift', 'z', 'x', 'c', 'v', 'n', 'm', 0.4, 'arrowleft', 'arrowdown', 'arrowup', 'arrowright'],
       [' '],
     ];
     const CAT_NAME = { cream: 'fly · view', teal: 'target · look', red: 'edit · make', slate: 'system', free: 'free' };
