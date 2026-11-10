@@ -659,7 +659,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@82acead51a69590be61dbf7100841abbee9ffbe2/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@edb8614b939a06c7a737a64d624d74b4d90f44a2/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -3357,7 +3357,13 @@
         const n = faceNormal(mesh.faces[fi].v.map((v) => mesh.positions[v]));
         const l = Math.hypot(...n) || 1;
         axis = axis.map((c, i) => c + n[i] / l);
+        // a face that hangs free (a sketch outline on a surface: none of its lines is shared) keeps its old self as the back, so what
+        // is pulled out is a closed shell and can be sawn / used in a boolean
+        const old = mesh.faces[fi];
+        const edgeOf = (g, a, b) => g.v.some((x, k) => (x === a && g.v[(k + 1) % g.v.length] === b) || (x === b && g.v[(k + 1) % g.v.length] === a));
+        const free = old.v.every((a, k) => !mesh.faces.some((g, gi) => gi !== fi && edgeOf(g, a, old.v[(k + 1) % old.v.length])));
         mesh = extrudeFace(mesh, fi, { distance: eps }).mesh;
+        if (free) mesh = { ...mesh, faces: [...mesh.faces, { ...old, v: [...old.v].reverse() }] };
         caps.push(faceKey(mesh.faces[fi]));
       }
       if (!caps.length) return;
@@ -4554,7 +4560,7 @@
           let h = 0;
           for (const q of o.mesh.positions) for (const c of q) h = (Math.imul(h, 31) + Math.round(c * 1000)) | 0;
           for (const f of o.mesh.faces) for (const v of f.v) h = (Math.imul(h, 31) + v) | 0;
-          return { name: o.name, verts: o.mesh.positions.length, faces: o.mesh.faces.length, hash: h };
+          return { name: o.name, verts: o.mesh.positions.length, faces: o.mesh.faces.length, solid: health(o.mesh).allSolid, hash: h };
         }) };
     }
 
