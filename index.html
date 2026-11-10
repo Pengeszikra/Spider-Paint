@@ -563,7 +563,7 @@
   <div class="fab" aria-label="Controls">
     <button id="fabTravel" type="button" class="teal" aria-label="Target the object under the cross (T)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
     <button id="fabPlace" type="button" class="red" aria-label="Place or shoot a prism (M)"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12L4 7.5M12 12v9"/></svg></button>
-    <button id="fabDelete" type="button" class="slate" aria-label="Delete the prism under the cross (X)"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
+    <button id="fabDelete" type="button" class="slate" aria-label="Delete the prism under the cross (Shift+X)"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
     <button id="fabMode" type="button" aria-label="Switch SVG / WebGPU view (G)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></button>
     <button id="fabKeys" type="button" aria-label="Key explainer (?)"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/></svg></button>
     <button id="fabZen" type="button" class="slate" aria-label="Zen: only the model (Z)"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
@@ -605,7 +605,7 @@
       <span class="grp only-build" data-label="make">
         <button id="place" type="button" class="red ic" title="Place a prism (M)" aria-label="Place a prism"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12L4 7.5M12 12v9"/></svg></button>
         <button id="brush" type="button" class="chip" hidden title="The model M puts down; click to go back to the prism"></button>
-        <button id="delete" type="button" class="slate ic" title="Delete the object under the cross (X)" aria-label="Delete"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
+        <button id="delete" type="button" class="slate ic" title="Delete the object under the cross (Shift+X)" aria-label="Delete"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
         <button id="travel" type="button" class="teal ic" title="Target the object under the cross (T)" aria-label="Target"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
         <button id="sceneBtn" type="button" class="teal" title="Open or close the store, a second 3D view beside the build (7)">Store</button>
       </span>
@@ -653,7 +653,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@17ff6c28e90a73661fc4603f4ab02f4163ca26f4/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@8560bfade110860403737f9aadfde41d8399033d/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2728,9 +2728,12 @@
       helpBtn.setAttribute('aria-pressed', String(!helpText.hidden));
     });
     const showBar = () => {
-      bar.hidden = !editing;
+      bar.hidden = !editing && !xf;
       document.body.classList.toggle('editing', Boolean(editing));
-      if (!editing) return;
+      if (!editing) {
+        if (xf) barText.innerHTML = `move ${hudText(xf.obj.name ?? '')}${barNote ? `<span class="note">${hudText(barNote)}</span>` : ''}`; // G outside edit mode
+        return;
+      }
       const chips = Object.entries(MODES).map(([k, label]) => `<i class="${k === emode ? 'on' : ''}">${label}</i>`).join('');
       barText.innerHTML = `edit ${hudText(editing.name ?? '')}<span class="modes">${chips}</span>${barNote ? `<span class="note">${hudText(barNote)}</span>` : ''}`;
     };
@@ -2951,15 +2954,16 @@
     let xf = null; // { kind, obj, mesh0, orig, ids, from, c, p0, s0, sc, dist0, base, lock, axisVec, typed, changed }
     const fmt = (v) => (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(3));
     const startXf = (kind, extra = {}) => {
-      if (!editing || !gcam) return;
+      const obj = extra.obj ?? editing; // outside edit mode G grabs a whole object
+      if (!obj || !gcam) return;
       if (!panelPointer) panelPointer = { x: gcam.size / 2, y: gcam.size / 2 };
-      const ids = extra.ids ?? selVerts().filter((i) => i < editing.mesh.positions.length);
+      const ids = extra.ids ?? selVerts().filter((i) => i < obj.mesh.positions.length);
       if (!ids.length) return noteEdit('select something first (1 points, 2 lines, 3 faces, then click; Shift+click adds)');
-      const P = editing.mesh.positions;
+      const P = obj.mesh.positions;
       const c = extra.c ?? ids.reduce((t, i) => t.map((v, k) => v + P[i][k] / ids.length), [0, 0, 0]);
       const sc = project(gcam, c);
       const dist0 = Math.hypot(panelPointer.x - sc.x, panelPointer.y - sc.y);
-      xf = { kind, obj: editing, mesh0: editing.mesh, orig: extra.orig ?? editing.mesh, ids, from: ids.map((i) => P[i]), c, p0: planePoint(c) ?? c, s0: { ...panelPointer }, sc: { x: sc.x, y: sc.y }, dist0, base: Math.max(dist0, 40), lock: null, axisVec: extra.axisVec ?? null, typed: '', changed: false, a0: Math.atan2(panelPointer.y - sc.y, panelPointer.x - sc.x), accum: 0, loop: extra.loop ?? null, sel0: sel };
+      xf = { kind, obj, mesh0: obj.mesh, orig: extra.orig ?? obj.mesh, ids, from: ids.map((i) => P[i]), c, p0: planePoint(c) ?? c, s0: { ...panelPointer }, sc: { x: sc.x, y: sc.y }, dist0, base: Math.max(dist0, 40), lock: null, axisVec: extra.axisVec ?? null, typed: '', changed: false, a0: Math.atan2(panelPointer.y - sc.y, panelPointer.x - sc.x), accum: 0, loop: extra.loop ?? null, sel0: sel };
       xfUpdate();
     };
     // how far (in world units) the pointer has moved along an axis, measured on the screen
@@ -3254,6 +3258,24 @@
       const len = Math.hypot(...d) || 1;
       startXf('loop', { ids: [a0], c: P[a0].map((q, i) => (q + P[b0][i]) / 2), loop: { ring, dir: d.map((q) => q / len), len } });
     };
+    // G outside edit mode: grab the target (T) or the object under the cross, whole. Ctrl+D: a copy (a new model, not an instance) that is
+    // grabbed at once.
+    const grabObject = (o, copied = false) => {
+      if (!o) return;
+      startXf('grab', { obj: o, ids: o.mesh.positions.map((_, i) => i), c: undefined });
+      if (copied) barNote = 'copy · ' + barNote;
+      showBar();
+    };
+    const pointedObject = () => lockedObject() ?? (hit && owner(hit.face)) ?? null;
+    const duplicate = () => {
+      const src = editing ?? pointedObject();
+      if (!src) return;
+      if (editing) leaveEdit();
+      const m = src.mesh;
+      const copy = create(`${src.name.replace(/-[a-z0-9]{4}$/, '')}-${shortId()}`, { ...m, positions: m.positions.map((q) => [...q]), faces: m.faces.map((f) => ({ ...f, v: [...f.v] })) });
+      if (src.wire?.length) change(copy, copy.mesh, structuredClone(src.wire));
+      grabObject(copy, true);
+    };
     // the keys of edit mode that are not modes (a few of them are fly keys outside it: those need Shift here)
     const editKey = (e) => {
       if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && !xf && e.key.toLowerCase() === 'r') {
@@ -3438,7 +3460,7 @@
       undo: { run: () => undo() },
       delete: { run: () => remove() },
     };
-    const KEYMAP = { '?': 'help', z: 'zen', '/': 'isolate', p: 'palette', 7: 'scene', 9: 'view', i: 'pick', c: 'filmic', n: 'smooth', k: 'studio', l: 'light', t: 'target', h: 'gizmo', e: 'clean', u: 'undo', Backspace: 'undo', x: 'delete', Delete: 'delete' };
+    const KEYMAP = { '?': 'help', z: 'zen', '/': 'isolate', p: 'palette', 7: 'scene', 9: 'view', i: 'pick', c: 'filmic', n: 'smooth', k: 'studio', l: 'light', t: 'target', h: 'gizmo', e: 'clean', u: 'undo', Backspace: 'undo' };
     const bindKey = (key, action) => (action ? (KEYMAP[key] = action) : delete KEYMAP[key]);
     const boundAction = (e) => {
       const a = ACTIONS[KEYMAP[e.key.length === 1 ? e.key.toLowerCase() : e.key]];
@@ -3472,7 +3494,22 @@
         if (!keyPanel.hidden) return void toggleKeys(false);
         if (document.body.classList.contains('zen')) return void toggleZen(false);
       }
-      if (editing && editKey(e)) return;
+      if ((editing || xf) && editKey(e)) return;
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault(); // not the browser's bookmark
+        if (!e.repeat) duplicate();
+        return;
+      }
+      if (e.key === 'g' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && !editing) {
+        e.preventDefault();
+        if (!e.repeat) grabObject(pointedObject());
+        return;
+      }
+      if ((e.key === 'X' && !e.ctrlKey && !e.metaKey && !e.altKey) || e.key === 'Delete') {
+        e.preventDefault(); // delete is Shift+X everywhere
+        if (!e.repeat) remove();
+        return;
+      }
       const fk = !e.ctrlKey && !e.metaKey && !e.altKey && (!editing || e.shiftKey) && FLY_KEYS[e.key.toLowerCase()];
       if (fk) {
         e.preventDefault();
@@ -3522,9 +3559,8 @@
         else if (sketchFrom) ((sketchFrom = null), redraw());
         else if (emode !== 'draw') ((emode = 'draw'), (sel = emptySel()), showBar(), redraw());
         else leaveEdit();
-      } else if (editing && (e.key === 'x' || e.key === 'X' || e.key === 'Delete')) {
-        e.preventDefault(); // in edit mode only Shift+X (or Delete) deletes the object under the cross
-        if (e.shiftKey || e.key === 'Delete') remove();
+      } else if (e.key === 'x') {
+        e.preventDefault(); // x alone does nothing: delete is Shift+X
       } else if (editing && (e.key === 'h' || e.key === 'H' || e.key === 'o' || e.key === 'O')) {
         e.preventDefault(); // the object tools wait outside edit mode
       } else if (e.key === 'v' || e.key === 'V') {
@@ -3679,7 +3715,7 @@
       padEl.append(
         group([['Freeze', 'freeze', 'teal long'], ['W', 'w'], ['R', 'r', 'teal'], ['A', 'a'], ['S', 's'], ['D', 'd'], ['Space', ' ', 'slate wide2', 'speed 0'], ['F', 'f', 'teal']], 3),
         document.getElementById('vec'), // the speed vector sits between the two groups
-        group([['Esc', 'Escape', 'slate'], ['Tab', 'Tab', 'teal', 'next'], ['Target', 't', 'teal long'], ['U', 'u', 'slate', 'undo'], ['M', 'm', 'cream', 'place'], ['V', 'v', 'cream', 'bar'], ['X', 'x', 'red', 'del'], ['Paint', 'paint', 'red long'], ['P', 'p', 'red', 'palette']]),
+        group([['Esc', 'Escape', 'slate'], ['Tab', 'Tab', 'teal', 'next'], ['Target', 't', 'teal long'], ['U', 'u', 'slate', 'undo'], ['M', 'm', 'cream', 'place'], ['V', 'v', 'cream', 'bar'], ['⇧X', 'X', 'red', 'del'], ['Paint', 'paint', 'red long'], ['P', 'p', 'red', 'palette']]),
       );
     };
     let appBuilt = false;
@@ -3728,7 +3764,7 @@
       s: { cap: 'S', sub: 'back', cat: 'cream', text: 'Fly back (speed steps).', target: 'Farther from the target.', edit: 'Scale the selection about its centre; X, Y or Z scales along that world axis only, a typed number is the factor. (Shift+S flies back.)' },
       d: { cap: 'D', sub: 'right', cat: 'cream', text: 'Fly right (speed steps).', target: 'Swing right round the target.', edit: 'Only with Shift while editing.' },
       f: { cap: 'F', sub: 'down', cat: 'cream', text: 'Fly down (speed steps).', target: 'Swing down under the target.', edit: 'Fill: the selected points (or the points of the selected lines) become one new face. (Shift+F flies down.)' },
-      g: { cap: 'G', sub: 'grab', cat: 'red', text: '', edit: 'Grab: moves the selection with the pointer; X, Y or Z locks it to a world axis, a typed number is metres. Click or Enter confirms, Esc cancels.' },
+      g: { cap: 'G', sub: 'grab', cat: 'red', text: 'Grab the target (T) or the object under the cross with the pointer; X, Y or Z locks it to a world axis, a typed number is metres. Click or Enter confirms, Esc cancels. Ctrl+D first makes a copy and grabs that.', edit: 'Grab: moves the selection with the pointer; X, Y or Z locks it to a world axis, a typed number is metres. Click or Enter confirms, Esc cancels.' },
       9: { cap: '9', sub: 'gpu', cat: 'teal', text: 'Switch between the SVG view and the WebGPU view.' },
       h: { cap: 'H', sub: 'gizmo', cat: 'red', text: 'Move gizmo on the object under the cross: 1st H world axes, 2nd H its own axes, 3rd H off. Drag an arrow to move it.' },
       ';': { cap: ';', sub: 'freeze', title: '; (é on a Hungarian keyboard)', cat: 'teal', text: 'Freeze: everything that moves stands still (flying, orbiting, dragging the view), so the cursor can work. The speed is kept; the key again carries on with it.' },
@@ -3737,7 +3773,7 @@
       enter: { cap: 'Enter', sub: 'cut', cat: 'red', w: 2.2, title: 'Enter', text: '', edit: 'Saw: cuts along the marked plane.' },
       shift: { cap: 'Shift', sub: 'paint', cat: 'slate', w: 2.4, title: 'Shift', text: 'Shift+Tab: previous target. Painting is Ctrl+click (Cmd on a Mac).', edit: 'Shift+click adds to the selection or takes from it. Shift+W A S D R F fly (plain, they are edit keys).', run: false },
       z: { cap: 'Z', sub: 'zen', cat: 'slate', text: 'Zen: hide everything but the model. Z or Esc brings the panels back.' },
-      x: { cap: 'X', sub: 'del', cat: 'red', text: 'Delete the object under the cross (U brings it back).', edit: 'Shift+X deletes the object under the cross. During G / S: locks the axis to x.' },
+      x: { cap: 'X', sub: 'del', cat: 'red', text: 'Shift+X deletes the object under the cross, in every mode (U brings it back). Alone, during G / S / R, X locks the axis to x.', edit: 'Shift+X deletes the object under the cross. During G / S: locks the axis to x.' },
       c: { cap: 'C', sub: 'filmic', cat: 'teal', text: 'Filmic look: HDR light, glowing emission, tone mapping.' },
       v: { cap: 'V', sub: 'bar', cat: 'red', text: 'Spider bar: joins two surface points with a thin bar.', edit: 'Sketches a line from point to point (it does nothing yet). In saw mode (4): puts a saw point (two on one face: a cut square to it; three: a cut through the triangle).' },
       7: { cap: '7', sub: 'store', cat: 'teal', text: 'Open or close the store: a second 3D view on the left (a third of the width) with the loose objects (timber stock). The keys go to the view the pointer is over. In the store: target one (T) and press M, and it becomes the model M puts down in the build view.' },

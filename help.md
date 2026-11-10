@@ -54,7 +54,9 @@ With a **target**, W A S D R F move the camera round and towards the target inst
 | Key | Action |
 |---|---|
 | M | Put a prism down at the cross (over empty space it is shot out and flies), or a copy of the model chosen in the store |
-| X | Delete the object under the cross |
+| Shift+X | Delete the object under the cross (every mode; Delete too) |
+| G | Grab the target (T) or the object under the cross: it follows the pointer; X, Y or Z locks an axis, type metres, click or Enter confirms, Esc cancels |
+| Ctrl+D | Duplicate: a copy (a new model, not an instance) that is grabbed at once, so you can move it right away |
 | U, Backspace | Undo |
 | V | Spider bar: join two surface points with a thin bar |
 | O | Boolean: mark an object, then a second one, then choose 1 union, 2 A−B, 3 B−A, 4 intersect, 5 cancel |
@@ -89,7 +91,6 @@ Put the cross on an object and press **Q**. That object is the active one; every
 | 4, then V | **Saw**: V puts two or three points. Two on one face: a cut square to it. Three: a cut through the triangle. **Enter** cuts the object into closed solids that keep their material |
 | F | **Fill:** the selected points (or the points of the selected lines) become one new face, wound to face away from the object, in the material of a neighbouring face. Closes a hole |
 | Ctrl+R | **Loop cut:** with a line selected (2), the ring of four-sided faces through it is cut across. Type a number for how many cuts (1 by default), move the pointer along the line to slide them, Enter confirms, Esc cancels. The new line stays selected |
-| Shift+X | Delete the object under the cross |
 | Shift+W A S D R F | Fly (plain, these are edit keys) |
 | U | Undo (stops at the start of the edit session) |
 
