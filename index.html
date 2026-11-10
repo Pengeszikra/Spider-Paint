@@ -659,7 +659,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@5eb9d95065dc0d3a8e59322787032778e481363d/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@82acead51a69590be61dbf7100841abbee9ffbe2/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -3151,10 +3151,31 @@
         const d = sub(P[i], c);
         return Math.atan2(d[0] * w[0] + d[1] * w[1] + d[2] * w[2], d[0] * u[0] + d[1] * u[1] + d[2] * u[2]);
       };
-      let order = [...ids].sort((p, q) => angle(p) - angle(q));
-      // outward: away from the middle of the whole object
+      // The outline. A concave shape (an L, a V) cannot be ordered by angle round the middle, so the lines are followed instead: the
+      // selected lines (or, for selected points, the open lines of the mesh between them) make a graph, and the walk goes along it; where
+      // several lines meet it continues in the direction that turns the least (the tangent changes the least), as Rustroke's fill does.
+      // Without a closed walk it falls back to the angle order (right for any convex outline).
+      const inSel = new Set(ids);
+      const key = (a, b) => (a < b ? `${a},${b}` : `${b},${a}`);
+      const lines = new Map();
+      if (sel.kind === 'edge') for (const [a, b] of sel.items) lines.set(key(a, b), [a, b]);
+      else {
+        const used = new Map();
+        for (const f of editing.mesh.faces) f.v.forEach((a, i) => used.set(key(a, f.v[(i + 1) % f.v.length]), (used.get(key(a, f.v[(i + 1) % f.v.length])) ?? 0) + 1));
+        for (const [k, cnt] of used) if (cnt === 1) {
+          const [a, b] = k.split(',').map(Number);
+          if (inSel.has(a) && inSel.has(b)) lines.set(k, [a, b]);
+        }
+        for (const [a, b] of editing.wire ?? []) if (inSel.has(a) && inSel.has(b)) lines.set(key(a, b), [a, b]);
+      }
+      let order = lines.size ? outlineOf(P, [...lines.values()], ids) : null;
+      const walked = !!order;
+      order ??= [...ids].sort((p, q) => angle(p) - angle(q));
+      // outward: away from the middle of the whole object (the walk has its own winding, so its own normal is the test)
       const mid = P.reduce((t, q) => t.map((v, k) => v + q[k] / P.length), [0, 0, 0]);
-      if (n[0] * (c[0] - mid[0]) + n[1] * (c[1] - mid[1]) + n[2] * (c[2] - mid[2]) < 0) order = order.reverse();
+      const nOut = walked ? newell(order.map((i) => P[i])) : n;
+      const cOut = order.reduce((t, i) => t.map((v, k) => v + P[i][k] / order.length), [0, 0, 0]);
+      if (nOut[0] * (cOut[0] - mid[0]) + nOut[1] * (cOut[1] - mid[1]) + nOut[2] * (cOut[2] - mid[2]) < 0) order = order.reverse();
       const set = new Set(ids);
       const near = editing.mesh.faces.find((f) => f.v.filter((i) => set.has(i)).length >= 2);
       const m = materials[current];
