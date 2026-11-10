@@ -647,6 +647,9 @@
         <button id="clear" type="button" class="slate ic" title="Remove every object (U brings them back)" aria-label="Clear"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M8 7V5h8v2M7 7l1 12h8l1-12"/></svg></button>
       </span>
       <span class="grp" data-label="sys">
+        <button id="rec" type="button" class="slate" title="Record: starts from an empty scene and writes every move and key into a JSON file when you press it again">rec</button>
+        <button id="play" type="button" class="slate" title="Play: pick a recording (JSON) and watch it build the scene again from an empty one; press again to stop">play</button>
+        <input id="playFile" type="file" accept=".json,application/json" hidden>
         <button id="undo" type="button" class="slate ic" title="Undo (U)" aria-label="Undo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7L4 12l5 5"/><path d="M4 12h10a6 6 0 0 1 0 12" transform="translate(0 -5)"/></svg></button>
         <button id="reset" type="button" class="slate ic" title="Reset the view" aria-label="Reset view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><circle cx="12" cy="12" r="2.5"/></svg></button>
         <button id="zen" type="button" class="slate ic" title="Zen: only the model (Z)" aria-label="Zen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
@@ -656,7 +659,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@4f34c89c544de6f69a0f3021d5d1eb955ecd9cab/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@5eb9d95065dc0d3a8e59322787032778e481363d/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2158,7 +2161,8 @@
     const swatchesEl = document.getElementById('swatches');
     const currentEl = document.getElementById('current');
     const PROPS = ['metal', 'rough', 'alpha', 'emit', 'soft'];
-    const saveMaterial = (m) => paletteCol && enqueue(() => paletteCol.doc(m.name).set({ ...m, order: materials.indexOf(m) }));
+    let replaying = false; // a recording is being played: it must not write into the saved palette
+    const saveMaterial = (m) => !replaying && paletteCol && enqueue(() => paletteCol.doc(m.name).set({ ...m, order: materials.indexOf(m) }));
     const showPalette = () => {
       swatchesEl.innerHTML = '';
       materials.forEach((m, i) => {
@@ -4252,6 +4256,285 @@
           save(o, () => col.doc(o.id).set(docOf(o)));
         }
       });
+    }
+
+
+    // ---- Record / Play. A recording is a JSON file: the starting state (an empty scene, the palette) and every pointer / key / wheel /
+    // click event with its time. Play clears the scene, sets the same start and dispatches the events again in real time, so the program
+    // does by itself what the hands did. Same viewport size is best: positions are scaled to the current window, nothing more.
+    if (!EMBED) {
+      const recBtn = document.getElementById('rec');
+      const playBtn = document.getElementById('play');
+      const fileEl = document.getElementById('playFile');
+      const TYPES = ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'keydown', 'keyup', 'wheel', 'click', 'dblclick', 'contextmenu', 'input', 'change'];
+      const OWN = '#rec, #play, #playFile';
+      const r1 = (n) => Math.round(n * 10) / 10;
+      const pathOf = (el) => {
+        const parts = [];
+        for (; el && el !== document.body && el.nodeType === 1; el = el.parentElement) {
+          if (el.id) return [`#${CSS.escape(el.id)}`, ...parts].join(' > ');
+          const i = [...el.parentElement.children].indexOf(el) + 1;
+          parts.unshift(`${el.localName}:nth-child(${i})`);
+        }
+        return parts.length ? `body > ${parts.join(' > ')}` : '';
+      };
+      const modsOf = (e) => (e.ctrlKey ? 'c' : '') + (e.shiftKey ? 's' : '') + (e.altKey ? 'a' : '') + (e.metaKey ? 'm' : '');
+      const seeded = (seed) => {
+        let a = seed >>> 0;
+        return () => {
+          a = (a + 0x6d2b79f5) >>> 0;
+          let t = Math.imul(a ^ (a >>> 15), 1 | a);
+          t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      };
+      const realRandom = Math.random;
+      const toggles = () => ({ frozen, smooth, studio, filmic });
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const sceneHasObjects = () => allObjects().length > 0;
+      // the same start every time: an empty scene, the palette of the recording, the home view
+      // prisms still flying in join the scene when they land: let them land before the scene is cleared or looked at
+      const settle = async () => {
+        for (let i = 0; i < 100 && placed.length; i++) await wait(50);
+      };
+      const prepare = async (start) => {
+        await settle();
+        if (xf) xfCancel();
+        if (editing) leaveEdit();
+        clearScene();
+        history.length = 0;
+        if (start?.materials) {
+          materials = start.materials.map((m) => ({ ...m }));
+          current = Math.min(start.current ?? 0, materials.length - 1);
+          syncPalette();
+          if (!paletteEl.hidden) showPalette();
+        }
+        const want = start?.toggles ?? {};
+        if (want.frozen !== undefined && want.frozen !== frozen) toggleFreeze();
+        if (want.smooth !== undefined && want.smooth !== smooth) toggleSmooth();
+        if (want.studio !== undefined && want.studio !== studio) toggleStudio();
+        if (want.filmic !== undefined && want.filmic !== filmic) toggleFilmic();
+        reset();
+        await wait(900); // the turn of the reset view finishes before anything is recorded or played
+      };
+
+      // ---- record
+      let rec = null;
+      let tick = 0;
+      const capture = (e) => {
+        if (!rec || !e.isTrusted || !TYPES.includes(e.type)) return;
+        const t = e.target;
+        if (t instanceof Element && t.closest(OWN)) return;
+        const now = performance.now() - rec.t0;
+        if (rec.pending && e.type !== 'pointermove') (rec.events.push(rec.pending), (rec.pending = null));
+        const r = { t: Math.round(now), e: e.type };
+        if (e.type.startsWith('pointer') || e.type === 'wheel' || e.type === 'click' || e.type === 'dblclick' || e.type === 'contextmenu') {
+          if (e.type === 'pointermove' && !e.buttons && !(t instanceof Element && t.closest('#stage'))) return; // a hover over the page chrome says nothing
+          if (e.type === 'pointermove' && now - rec.lastMove < 12 && e.buttons === rec.lastButtons) {
+            // thin out the mouse stream, but keep the newest dropped move: it is written before the next event of any other kind
+            rec.pending = { t: Math.round(now), e: 'pointermove', x: r1(e.clientX), y: r1(e.clientY), ...(t instanceof Element ? { el: pathOf(t) } : {}), ...(e.buttons ? { bs: e.buttons } : {}), ...(e.pointerType ? { pt: e.pointerType } : {}), ...(modsOf(e) ? { m: modsOf(e) } : {}) };
+            return;
+          }
+          if (e.type === 'pointermove') ((rec.lastMove = now), (rec.lastButtons = e.buttons), (rec.pending = null));
+          r.x = r1(e.clientX);
+          r.y = r1(e.clientY);
+          if (t instanceof Element) r.el = pathOf(t);
+          if (e.type !== 'pointermove' && e.type !== 'wheel') r.b = e.button;
+          if (e.buttons) r.bs = e.buttons;
+          if (e.pointerType) r.pt = e.pointerType;
+          if (e.type === 'wheel') ((r.dx = e.deltaX), (r.dy = e.deltaY), (r.dm = e.deltaMode));
+          if (e.detail) r.d = e.detail;
+        } else if (e.type === 'keydown' || e.type === 'keyup') {
+          if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement) return; // typing into a field is recorded by its input events
+          r.k = e.key;
+          r.c = e.code;
+          if (e.repeat) r.rp = 1;
+        } else {
+          if (!(t instanceof Element)) return;
+          r.el = pathOf(t);
+          if (t instanceof HTMLInputElement && (t.type === 'checkbox' || t.type === 'radio')) r.checked = t.checked;
+          else if ('value' in t) r.v = t.value;
+        }
+        const m = modsOf(e);
+        if (m) r.m = m;
+        rec.events.push(r);
+      };
+      const downloadJson = (obj) => {
+        const url = URL.createObjectURL(new Blob([JSON.stringify(obj)], { type: 'application/json' }));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `3draft-rec-${new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')}.json`;
+        document.body.append(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+      };
+      const label = () => {
+        if (rec) {
+          const s = Math.round((performance.now() - rec.t0) / 1000);
+          recBtn.textContent = `● ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+        }
+      };
+      const startRec = async ({ ask = true } = {}) => {
+        if (rec || player) return;
+        if (ask && sceneHasObjects() && !confirm('Recording starts from an empty scene: the current scene is removed (it cannot be undone). Continue?')) return;
+        recBtn.disabled = true;
+        const seed = (Math.random() * 2 ** 32) >>> 0;
+        const start = { materials: materials.map((m) => ({ ...m })), current, toggles: toggles() };
+        await prepare(start);
+        Math.random = seeded(seed);
+        rec = { seed, start, events: [], t0: performance.now(), lastMove: -99, lastButtons: 0 };
+        recBtn.disabled = false;
+        recBtn.classList.add('on');
+        tick = setInterval(label, 500);
+        label();
+      };
+      const stopRec = ({ save = true } = {}) => {
+        if (!rec) return null;
+        clearInterval(tick);
+        Math.random = realRandom;
+        const out = { format: '3draft-recording', version: 1, seed: rec.seed, view: [innerWidth, innerHeight], start: rec.start, duration: Math.round(performance.now() - rec.t0), events: rec.events };
+        rec = null;
+        recBtn.classList.remove('on');
+        recBtn.textContent = 'rec';
+        window.rec.last = out;
+        if (save) downloadJson(out);
+        return out;
+      };
+      for (const type of TYPES) window.addEventListener(type, capture, true);
+
+      // ---- play
+      let player = null;
+      const captured = new WeakSet();
+      const proto = Element.prototype;
+      const nativeCapture = { set: proto.setPointerCapture, release: proto.releasePointerCapture, has: proto.hasPointerCapture };
+      const patchCapture = (on) => {
+        // synthetic pointers have no real pointer to capture: pretend, so the handlers that ask keep working
+        proto.setPointerCapture = on ? function (id) { captured.add(this); } : nativeCapture.set;
+        proto.releasePointerCapture = on ? function (id) { captured.delete(this); } : nativeCapture.release;
+        proto.hasPointerCapture = on ? function (id) { return captured.has(this); } : nativeCapture.has;
+      };
+      const blockReal = (e) => {
+        if (!player || !e.isTrusted) return;
+        if (e.target instanceof Element && e.target.closest(OWN)) return;
+        e.stopImmediatePropagation();
+        e.preventDefault();
+      };
+      for (const type of [...TYPES.filter((t) => t !== 'input' && t !== 'change'), 'pointerover', 'pointerout', 'mousedown', 'mouseup', 'mousemove']) window.addEventListener(type, blockReal, true);
+
+      const dispatch = (r, sx, sy) => {
+        const m = r.m ?? '';
+        const base = { bubbles: true, cancelable: true, composed: true, view: window, ctrlKey: m.includes('c'), shiftKey: m.includes('s'), altKey: m.includes('a'), metaKey: m.includes('m') };
+        const el = r.el ? document.querySelector(r.el) : null;
+        if (r.e.startsWith('pointer')) {
+          const t = el ?? stage;
+          const down = r.e === 'pointerdown';
+          const ev = new PointerEvent(r.e, { ...base, clientX: r.x * sx, clientY: r.y * sy, button: r.b ?? -1, buttons: r.bs ?? 0, pointerId: 1, pointerType: r.pt || 'mouse', isPrimary: true });
+          t.dispatchEvent(ev);
+          if (r.e === 'pointerup' || r.e === 'pointercancel') captured.delete(t);
+          return down;
+        }
+        if (r.e === 'keydown' || r.e === 'keyup') {
+          (document.activeElement && document.activeElement !== document.body && document.activeElement.tagName !== 'INPUT' ? document.activeElement : document.body).dispatchEvent(new KeyboardEvent(r.e, { ...base, key: r.k, code: r.c, repeat: !!r.rp }));
+          return;
+        }
+        if (r.e === 'wheel') {
+          (el ?? stage).dispatchEvent(new WheelEvent('wheel', { ...base, clientX: r.x * sx, clientY: r.y * sy, deltaX: r.dx, deltaY: r.dy, deltaMode: r.dm ?? 0 }));
+          return;
+        }
+        if (r.e === 'input' || r.e === 'change') {
+          if (!el) return;
+          if ('checked' in r) el.checked = r.checked;
+          else if ('v' in r) el.value = r.v;
+          el.dispatchEvent(new Event(r.e, { bubbles: true }));
+          return;
+        }
+        (el ?? stage).dispatchEvent(new MouseEvent(r.e, { ...base, clientX: r.x * sx, clientY: r.y * sy, button: r.b ?? 0, detail: r.d ?? 0 }));
+      };
+      const stopPlay = () => {
+        if (!player) return;
+        player.stop = true;
+      };
+      const play = async (data, { ask = true, speed = 1, cap = 3000 } = {}) => {
+        if (typeof data === 'string') data = JSON.parse(data);
+        if (data?.format !== '3draft-recording' || !Array.isArray(data.events)) throw new Error('not a 3Draft recording');
+        if (rec || player) return false;
+        if (ask && sceneHasObjects() && !confirm('Play starts from an empty scene: the current scene is removed (it cannot be undone). Continue?')) return false;
+        player = { stop: false, done: 0, total: data.events.length };
+        replaying = true;
+        playBtn.classList.add('on');
+        playBtn.textContent = '■ 0%';
+        Math.random = seeded(data.seed ?? 1);
+        patchCapture(true);
+        try {
+          await prepare(data.start);
+          const sx = innerWidth / (data.view?.[0] || innerWidth);
+          const sy = innerHeight / (data.view?.[1] || innerHeight);
+          const t0 = performance.now();
+          let skipped = 0; // time cut out of long pauses
+          let prev = 0;
+          let movedLast = false;
+          for (const r of data.events) {
+            if (player.stop) break;
+            const gap = r.t - prev;
+            if (gap > cap) skipped += gap - cap;
+            prev = r.t;
+            const due = (r.t - skipped) / speed;
+            const delay = due - (performance.now() - t0);
+            if (delay > 0) await wait(delay);
+            if (player.stop) break;
+            // a person's hand is slower than this loop: let the view draw once after a move, so what is under the cross is known before the next press
+            if (movedLast && r.e !== 'pointermove') await new Promise((done) => requestAnimationFrame(done));
+            movedLast = r.e === 'pointermove';
+            try {
+              dispatch(r, sx, sy);
+            } catch (err) {
+              console.warn('recording event failed', r, err);
+            }
+            player.done++;
+            if (player.done % 8 === 0) playBtn.textContent = `■ ${Math.round((player.done / player.total) * 100)}%`;
+          }
+          await wait(150);
+          await settle();
+          // keys still held when the recording ended (or the play was stopped) are let go
+          for (const k of ['Control', 'Shift', 'Alt', 'Meta']) document.body.dispatchEvent(new KeyboardEvent('keyup', { key: k, bubbles: true }));
+        } finally {
+          const result = { done: player.done, total: player.total, stopped: player.stop };
+          patchCapture(false);
+          Math.random = realRandom;
+          replaying = false;
+          player = null;
+          playBtn.classList.remove('on');
+          playBtn.textContent = 'play';
+          window.rec.result = result;
+        }
+        return window.rec.result;
+      };
+
+      recBtn.addEventListener('click', () => (rec ? stopRec() : startRec()));
+      playBtn.addEventListener('click', () => (player ? stopPlay() : fileEl.click()));
+      fileEl.addEventListener('change', async () => {
+        const f = fileEl.files[0];
+        fileEl.value = '';
+        if (!f) return;
+        try {
+          await play(await f.text());
+        } catch (err) {
+          alert(`Cannot play this file: ${err.message}`);
+        }
+      });
+      // ?play=<url of a recording> plays it as soon as the page is up
+      const playUrl = new URLSearchParams(location.search).get('play');
+      if (playUrl) setTimeout(async () => (await play(await (await fetch(playUrl)).json(), { ask: false })), 1200);
+      // for code and for Claude: rec.start(), rec.stop() -> the recording object, rec.play(object | JSON text)
+      window.rec = { start: (o) => startRec({ ask: false, ...o }), stop: (o) => stopRec({ save: false, ...o }), play: (d, o) => play(d, { ask: false, ...o }), stopPlay, get recording() { return !!rec; }, get playing() { return !!player; }, last: null, result: null,
+        // a short fingerprint of the scene (object, vertex and face counts and a hash of the geometry): two runs that agree built the same thing
+        scene: () => allObjects().map((o) => {
+          let h = 0;
+          for (const q of o.mesh.positions) for (const c of q) h = (Math.imul(h, 31) + Math.round(c * 1000)) | 0;
+          for (const f of o.mesh.faces) for (const v of f.v) h = (Math.imul(h, 31) + v) | 0;
+          return { name: o.name, verts: o.mesh.positions.length, faces: o.mesh.faces.length, hash: h };
+        }) };
     }
 
     if (EMBED) seedStore();
