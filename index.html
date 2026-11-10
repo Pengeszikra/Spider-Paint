@@ -614,6 +614,7 @@
         <button type="button" class="red" data-key="2" title="Select lines (2)"><b>2</b>ln</button>
         <button type="button" class="red" data-key="3" title="Select faces (3)"><b>3</b>fc</button>
         <button type="button" class="red" data-key="4" title="Saw (4, then V)"><b>4</b>saw</button>
+        <button type="button" class="red" data-key="5" title="Sketch (5): V draws on the surface, Enter makes faces and lines of it"><b>5</b>sketch</button>
         <button type="button" class="cream" data-key="g" title="Move the selection (G)"><b>G</b>mv</button>
         <button type="button" class="cream" data-key="s" title="Scale the selection (S)"><b>S</b>sc</button>
         <button type="button" class="cream" data-key="r" title="Rotate the selection (R)"><b>R</b>rot</button>
@@ -653,7 +654,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@8560bfade110860403737f9aadfde41d8399033d/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@2c520e550ab4a235282a7b5b21a93156a5e841cf/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2676,7 +2677,7 @@
     let snapV = -1; // the vertex the pointer snaps to (drawing, moving points)
     let snapE = null; // the edge under the pointer (moving lines)
     let snapF = -1; // the face under the pointer (moving faces)
-    const MODES = { draw: 'sketch (V)', vertex: 'points (1)', edge: 'lines (2)', face: 'faces (3)', saw: 'saw (4)' };
+    const MODES = { draw: 'sketch (5)', vertex: 'points (1)', edge: 'lines (2)', face: 'faces (3)', saw: 'saw (4)' };
     // The selection, as in Blender: points, lines or faces (the mode keys 1 2 3); Shift+click adds or takes one away.
     // vertex: an index · edge: [a, b] with a < b · face: its vertex indices, sorted (so it survives a re-triangulation).
     let sel = { kind: null, items: [] };
@@ -2963,7 +2964,7 @@
       const c = extra.c ?? ids.reduce((t, i) => t.map((v, k) => v + P[i][k] / ids.length), [0, 0, 0]);
       const sc = project(gcam, c);
       const dist0 = Math.hypot(panelPointer.x - sc.x, panelPointer.y - sc.y);
-      xf = { kind, obj, mesh0: obj.mesh, orig: extra.orig ?? obj.mesh, ids, from: ids.map((i) => P[i]), c, p0: planePoint(c) ?? c, s0: { ...panelPointer }, sc: { x: sc.x, y: sc.y }, dist0, base: Math.max(dist0, 40), lock: null, axisVec: extra.axisVec ?? null, typed: '', changed: false, a0: Math.atan2(panelPointer.y - sc.y, panelPointer.x - sc.x), accum: 0, loop: extra.loop ?? null, sel0: sel };
+      xf = { kind, obj, mesh0: obj.mesh, orig: extra.orig ?? obj.mesh, ids, from: ids.map((i) => P[i]), c, p0: planePoint(c) ?? c, s0: { ...panelPointer }, sc: { x: sc.x, y: sc.y }, dist0, base: Math.max(dist0, 40), lock: null, axisVec: extra.axisVec ?? null, typed: '', changed: false, a0: Math.atan2(panelPointer.y - sc.y, panelPointer.x - sc.x), accum: 0, loop: extra.loop ?? null, sel0: sel, wire0: extra.wire0, fixFaces: extra.fixFaces ?? null };
       xfUpdate();
     };
     // how far (in world units) the pointer has moved along an axis, measured on the screen
@@ -3046,7 +3047,15 @@
         });
       }
       x.changed = true;
-      x.obj.mesh = reshape(x.mesh0, moves);
+      let moved;
+      if (x.fixFaces) {
+        // the faces made by extruding lines start flat, so they are kept out of the reshape (it would cut them into triangles) and turned
+        // to show their front to the eye
+        const quads = x.fixFaces.map((i) => x.mesh0.faces[i]);
+        moved = reshape({ ...x.mesh0, faces: x.mesh0.faces.filter((_, i) => !x.fixFaces.includes(i)) }, moves);
+        moved = faceTheCamera({ ...moved, faces: [...moved.faces, ...quads] }, quads.map((_, k) => moved.faces.length + k));
+      } else moved = reshape(x.mesh0, moves);
+      x.obj.mesh = moved;
       rebuild();
       barNote = `${x.kind}${x.lock ? ` ${x.lock.toUpperCase()}` : x.kind === 'rotate' ? ' about its axis' : x.axisVec ? ' along the normal' : ''} · ${typed !== null ? `${x.typed}_` : text} · ⏎ ok, Esc cancels`;
       showBar();
@@ -3060,7 +3069,7 @@
       x.obj.mesh = x.orig;
       if (x.changed && final !== x.orig) {
         change(x.obj, final); // one write, one undo step
-        history.push(() => has(x.obj) && change(x.obj, x.orig));
+        history.push(() => has(x.obj) && change(x.obj, x.orig, x.wire0 ?? x.obj.wire));
       } else rebuild();
       noteEdit('');
       redraw();
@@ -3070,6 +3079,7 @@
       xf = null;
       if (!x) return;
       x.obj.mesh = x.orig;
+      if (x.wire0) x.obj.wire = x.wire0;
       if (x.kind === 'loop') sel = x.sel0;
       rebuild();
       noteEdit('cancelled');
@@ -3162,8 +3172,123 @@
       startXf('rotate', { ids, c, axisVec: axis });
     };
     // E: every selected face is pushed out a hair (side faces join it to the solid), then the new faces are grabbed along their normal
+    const newell = (pts) => {
+      const n = [0, 0, 0];
+      pts.forEach((p, i) => {
+        const q = pts[(i + 1) % pts.length];
+        n[0] += (p[1] - q[1]) * (p[2] + q[2]);
+        n[1] += (p[2] - q[2]) * (p[0] + q[0]);
+        n[2] += (p[0] - q[0]) * (p[1] + q[1]);
+      });
+      return n;
+    };
+    const faceTheCamera = (mesh, which) => {
+      const faces = mesh.faces.map((f, i) => {
+        if (!which.includes(i)) return f;
+        const n = newell(f.v.map((v) => mesh.positions[v]));
+        return Math.hypot(...n) > 1e-12 && vdot(n, gcam.f) > 0 ? { ...f, v: [...f.v].reverse() } : f;
+      });
+      return { ...mesh, faces };
+    };
+    // E on points and lines: a point is extruded into a line, a line into a face (a four-sided one); then it is a grab at once, so the
+    // pointer pulls the new points away. Chains share their new points, so selected neighbours make one strip.
+    const extrudeLoose = () => {
+      const orig = editing.mesh;
+      const wire0 = (editing.wire ?? []).map((w) => [...w]);
+      const P = orig.positions.map((q) => [...q]);
+      const copy = new Map();
+      const dup = (i) => copy.get(i) ?? (P.push([...P[i]]), copy.set(i, P.length - 1), P.length - 1);
+      const faces = [...orig.faces];
+      let wire = wire0.map((w) => [...w]);
+      const made = [];
+      const fix = [];
+      const m = materials[current];
+      for (const it of sel.items) {
+        if (sel.kind === 'vertex') {
+          const n = dup(it);
+          wire.push([it, n]);
+          made.push(n);
+        } else {
+          const [a, b] = it;
+          const a2 = dup(a);
+          const b2 = dup(b);
+          const near = faces.find((f) => f.v.includes(a) && f.v.includes(b));
+          fix.push(faces.length);
+          faces.push({ v: [a, b, b2, a2], color: near?.color ?? m.color, mat: near?.mat ?? m.name });
+          wire = wire.filter(([x, y]) => !((x === a && y === b) || (x === b && y === a))); // the line is now an edge of the new face
+          made.push([a2, b2].sort((x, y) => x - y));
+        }
+      }
+      if (!made.length) return;
+      editing.mesh = { ...orig, positions: P, faces };
+      editing.wire = wire;
+      rebuild();
+      sel = { kind: sel.kind, items: made };
+      startXf('grab', { orig, wire0, fixFaces: fix.length ? fix : null });
+    };
+    // Sketch mode (5): V draws on the surface, Enter (or 5 again) turns the drawing into the mesh. A chain of lines that comes back to where
+    // it began, near enough (a third of a stroke), is a closed outline and becomes a face; an open chain becomes lines. The new faces
+    // are selected, so E can pull them out at once.
+    const buildSketch = () => {
+      const lines = editing.lines ?? [];
+      if (!lines.length) return noteEdit('sketch: draw with V first (points on the surface), then Enter');
+      const same = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) < 1e-9;
+      const chains = [];
+      for (const [p, q] of lines) {
+        const last = chains[chains.length - 1];
+        if (last && same(last[last.length - 1], p)) last.push(q);
+        else chains.push([p, q]);
+      }
+      const orig = editing.mesh;
+      const origWire = editing.wire ?? [];
+      const P = orig.positions.map((q) => [...q]);
+      const eps = 1e-4 * (bounds(orig).radius || 1);
+      const vert = (q) => {
+        const i = P.findIndex((r) => Math.hypot(r[0] - q[0], r[1] - q[1], r[2] - q[2]) < eps);
+        if (i >= 0) return i;
+        P.push([...q]);
+        return P.length - 1;
+      };
+      const mid = P.reduce((t, q) => t.map((v, k) => v + q[k] / P.length), [0, 0, 0]);
+      const m = materials[current];
+      const faces = [...orig.faces];
+      const wire = origWire.map((w) => [...w]);
+      const made = [];
+      let lineCount = 0;
+      for (const pts of chains) {
+        const segs = pts.slice(1).map((q, i) => Math.hypot(...q.map((c, k) => c - pts[i][k])));
+        const mean = segs.reduce((t, v) => t + v, 0) / segs.length;
+        const gap = Math.hypot(...pts[pts.length - 1].map((c, k) => c - pts[0][k]));
+        const closed = pts.length >= 4 && gap <= Math.max(mean / 3, eps);
+        if (closed) {
+          const ring = pts.slice(0, -1);
+          const ids = ring.map(vert);
+          const n = newell(ring);
+          const c = ring.reduce((t, q) => t.map((v, k) => v + q[k] / ring.length), [0, 0, 0]);
+          if (Math.hypot(...n) < 1e-12) continue;
+          if (vdot(n, vsub(c, mid)) < 0) ids.reverse(); // outward, away from the middle of the object
+          faces.push({ v: ids, color: m.color, mat: m.name });
+          made.push(faceKey(faces[faces.length - 1]));
+        } else {
+          const ids = pts.map(vert);
+          for (let i = 0; i + 1 < ids.length; i++) if (ids[i] !== ids[i + 1]) (wire.push([ids[i], ids[i + 1]]), lineCount++);
+        }
+      }
+      const was = editing.lines;
+      const obj = editing;
+      asOneStep(() => {
+        commit({ ...orig, positions: P, faces }, wire);
+        obj.lines = [];
+        history.push(() => (obj.lines = was));
+      });
+      if (made.length) ((emode = 'face'), (sel = { kind: 'face', items: made }));
+      sketchFrom = null;
+      noteEdit(`sketch: ${made.length} face${made.length === 1 ? '' : 's'}, ${lineCount} line${lineCount === 1 ? '' : 's'}`);
+      redraw();
+    };
     const extrude = () => {
-      if (sel.kind !== 'face' || !selOn()) return noteEdit('E extrudes faces: press 3, select a face, then E');
+      if (sel.kind === 'vertex' || sel.kind === 'edge') return selOn() ? extrudeLoose() : noteEdit('E: select a point (1), a line (2) or a face (3) first');
+      if (sel.kind !== 'face' || !selOn()) return noteEdit('E extrudes: select a point (1), a line (2) or a face (3), then E');
       const orig = editing.mesh;
       let mesh = orig;
       const eps = 1e-4 * (bounds(mesh).radius || 1);
@@ -3545,9 +3670,11 @@
       } else if (editing && e.key === 'Enter') {
         e.preventDefault();
         if (emode === 'saw') applySaw();
-      } else if (editing && /^[1234]$/.test(e.key)) {
+        else if (emode === 'draw') buildSketch();
+      } else if (editing && /^[12345]$/.test(e.key)) {
         e.preventDefault();
-        emode = ['vertex', 'edge', 'face', 'saw'][e.key - 1];
+        if (e.key === '5' && emode === 'draw' && editing.lines?.length) return void buildSketch(); // 5 again builds what is drawn
+        emode = ['vertex', 'edge', 'face', 'saw', 'draw'][e.key - 1];
         sel = emptySel();
         sawPts = [];
         sketchFrom = null;
@@ -3745,14 +3872,14 @@
       2: { cap: '2', sub: 'A−B', cat: 'red', text: 'Boolean question: A minus B.', edit: 'Select lines (edges).' },
       3: { cap: '3', sub: 'B−A', cat: 'red', text: 'Boolean question: B minus A.', edit: 'Select faces.' },
       4: { cap: '4', sub: 'and', cat: 'red', text: 'Boolean question: intersect.', edit: 'Saw: V puts two or three points, Enter cuts the object into closed solids.' },
-      5: { cap: '5', sub: 'cancel', cat: 'red', text: 'Boolean question: cancel.' },
+      5: { cap: '5', sub: 'cancel', cat: 'red', text: 'Boolean question: cancel.', edit: 'Sketch mode: V draws lines on the surface; Enter (or 5 again) turns the drawing into the mesh. A chain that comes back near its start (within a third of a stroke) becomes a face, an open chain becomes lines.' },
       '/': { cap: '/', sub: 'solo', cat: 'cream', text: 'Isolate: shows only the model under the cross. Again: the whole scene. In isolated mode M shoots carving bullets.' },
       '?': { cap: '?', sub: 'help', cat: 'slate', text: 'The help page: modes, keys and the screen. It links to this keyboard map.' },
       backspace: { cap: '⌫', sub: 'undo', cat: 'slate', w: 2.2, title: 'Backspace', text: 'Undo the last change (same as U).' },
       tab: { cap: 'Tab', sub: 'next', cat: 'teal', w: 1.6, title: 'Tab', text: 'Targets the object under the cross (like T).', target: 'Next target; Shift+Tab: the previous one. The camera frames it, however small or far.' },
       q: { cap: 'Q', sub: 'edit', cat: 'red', text: 'Edit mode on the object under the cross (or the target). With neither: a new 1 m cube of the selected material. Again: leave.' },
       w: { cap: 'W', sub: 'fwd', cat: 'cream', text: 'Fly forward. Every press is one speed step; S slows down and reverses.', target: 'Closer to the target (stops at its surface).', edit: 'Only with Shift while editing.' },
-      e: { cap: 'E', sub: 'edges', cat: 'cream', text: 'Edges and points on or off.', edit: 'Extrude the selected faces (face mode, 3): they are pushed out along their normal; move the pointer, or type metres.' },
+      e: { cap: 'E', sub: 'edges', cat: 'cream', text: 'Edges and points on or off.', edit: 'Extrude the selection and grab it at once: a point (1) becomes a line, a line (2) becomes a face, a face (3) is pushed out along its normal. Move the pointer, or type metres; X Y Z lock an axis.' },
       r: { cap: 'R', sub: 'up', cat: 'cream', text: 'Fly up (speed steps).', target: 'Swing up over the target.', edit: 'Rotate the selection: about the middle of points or faces; with a selected line the line is the axis. X, Y or Z turns about that world axis, a typed number is degrees. (Shift+R flies up.)' },
       t: { cap: 'T', sub: 'target', cat: 'teal', text: 'Target the object under the cross: the camera turns to it and keeps looking at it. Over empty space: the nearest object.', target: 'Another object re-targets; the target itself or empty space brings the camera back onto the target.' },
       8: { cap: '8', sub: 'vr', cat: 'teal', text: 'VR: two eyes side by side for a phone in a headset holder. The phone turns the view, a tap speeds up, a double tap stops, a long press (or 8, Esc) leaves.' },
@@ -3775,7 +3902,7 @@
       z: { cap: 'Z', sub: 'zen', cat: 'slate', text: 'Zen: hide everything but the model. Z or Esc brings the panels back.' },
       x: { cap: 'X', sub: 'del', cat: 'red', text: 'Shift+X deletes the object under the cross, in every mode (U brings it back). Alone, during G / S / R, X locks the axis to x.', edit: 'Shift+X deletes the object under the cross. During G / S: locks the axis to x.' },
       c: { cap: 'C', sub: 'filmic', cat: 'teal', text: 'Filmic look: HDR light, glowing emission, tone mapping.' },
-      v: { cap: 'V', sub: 'bar', cat: 'red', text: 'Spider bar: joins two surface points with a thin bar.', edit: 'Sketches a line from point to point (it does nothing yet). In saw mode (4): puts a saw point (two on one face: a cut square to it; three: a cut through the triangle).' },
+      v: { cap: 'V', sub: 'bar', cat: 'red', text: 'Spider bar: joins two surface points with a thin bar.', edit: 'Sketches a line from point to point on the surface (sketch mode, 5; Enter then makes faces and lines of the drawing). In saw mode (4): puts a saw point (two on one face: a cut square to it; three: a cut through the triangle).' },
       7: { cap: '7', sub: 'store', cat: 'teal', text: 'Open or close the store: a second 3D view on the left (a third of the width) with the loose objects (timber stock). The keys go to the view the pointer is over. In the store: target one (T) and press M, and it becomes the model M puts down in the build view.' },
       n: { cap: 'N', sub: 'smooth', cat: 'teal', text: 'Smooth shading: faces that meet at a shallow angle share their normals.' },
       m: { cap: 'M', sub: 'place', cat: 'red', text: 'Puts a prism down at the cross (or shoots one into empty space).', solo: 'In isolated mode the prism is a bullet: where it lands it carves A−B out of the surface; if it misses it disappears.' },
@@ -3926,7 +4053,7 @@
           for (const q of o.mesh.positions) q.forEach((c, i) => ((lo[i] = Math.min(lo[i], c)), (hi[i] = Math.max(hi[i], c))));
           return { name: o.name, faces: o.mesh.faces.map((f) => [f.color, f.mat]), lo, hi, nf: o.mesh.faces.length };
         }),
-        edit: () => ({ mode: emode, sel: { kind: sel.kind, n: sel.items.length }, xf: xf ? { kind: xf.kind, lock: xf.lock, typed: xf.typed } : null, editing: editing?.name ?? null, bench: Boolean(bench) }),
+        edit: () => ({ mode: emode, sel: { kind: sel.kind, n: sel.items.length }, xf: xf ? { kind: xf.kind, lock: xf.lock, typed: xf.typed } : null, editing: editing?.name ?? null, bench: Boolean(bench), wire: editing?.wire?.length ?? 0, lines: editing?.lines?.length ?? 0 }),
         // screen position (stage pixels) of a point on the edited object: its face centre / vertex / edge middle
         screen: (kind, i) => {
           const m = editing.mesh;
