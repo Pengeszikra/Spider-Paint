@@ -713,7 +713,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@73e3b315ab6be36d8b216c1ade6642e80b76eb5f/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@af8e00eaf72ef9578a69d91fe1a0d7312df84040/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1360,10 +1360,11 @@
       const dist = Math.hypot(...eye0.map((e, i) => e - fit.center[i]));
       // flying = an eye in the scene: a wider lens, like standing in a room; the lens and the backing off ease to their goals
       const FOV0 = (35 * Math.PI) / 180;
-      const ease1 = 1 - Math.exp(-(Math.min(0.1, (performance.now() - lastDraw) / 1000)) * 9);
+      const dtDraw = Math.min(0.1, (performance.now() - lastDraw) / 1000);
+      const ease1 = 1 - Math.exp(-dtDraw * 9);
       lastDraw = performance.now();
       const fovGoal = fly ? INSIDE_FOV : FOV0;
-      fovNow += (fovGoal - fovNow) * ease1;
+      fovNow += (fovGoal - fovNow) * (fly ? 1 - Math.exp(-dtDraw * 2.2) : ease1); // the lens opens slowly: a quick zoom-out looks like a jump
       if (Math.abs(fovGoal - fovNow) < 1e-3) fovNow = fovGoal;
       else queued || redraw();
       const inside = fovNow !== FOV0 ? { fov: fovNow } : {};
