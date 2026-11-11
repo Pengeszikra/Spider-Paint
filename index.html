@@ -713,7 +713,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@af8e00eaf72ef9578a69d91fe1a0d7312df84040/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@c85481ba649c7fd3325ad5b28f49a4488387d5d3/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -3140,10 +3140,12 @@
       for (const q of o.mesh.positions) q.forEach((c, i) => ((lo[i] = Math.min(lo[i], c)), (hi[i] = Math.max(hi[i], c))));
       return [(lo[0] + hi[0]) / 2, lo[1], (lo[2] + hi[2]) / 2];
     };
+    let wasEmpty = false; // the scene was empty when the edit began (the first cube): coming back must frame the cube, not the empty stage
     const enterEdit = () => {
       let o = (hit && owner(hit.face)) ?? lockedObject() ?? null;
       if (!o) {
         // nothing under the cross and no target: a new 1 x 1 x 1 m cube of the selected material, standing on the bench
+        wasEmpty = !scene.positions.length;
         const m = materials[current];
         const c = fit.center; // in front of the eye (or the middle of the view); the cube stands with its base middle there
         const mesh = box({ size: [1, 1, 1], at: [c[0], c[1] + 0.5, c[2]], color: m.color });
@@ -3151,7 +3153,8 @@
         const made = create(`prism-${shortId()}`, mesh);
         o = live(made) ?? made;
       }
-      bench = { seen: [o.id], origin: benchOrigin(o), base: history.length, cam: { center: [...fit.center], radius: fit.radius, dist: fit.dist, yaw, pitch } };
+      bench = { fresh: wasEmpty, seen: [o.id], origin: benchOrigin(o), base: history.length, cam: { center: [...fit.center], radius: fit.radius, dist: fit.dist, yaw, pitch } };
+      wasEmpty = false;
       gizmo = null;
       locked = null;
       editing = live(o) ?? o;
@@ -3174,7 +3177,8 @@
       xf = null;
       emode = 'draw';
       bench = null;
-      if (b) goTo({ ...b.cam });
+      if (b?.fresh) focused = false;
+      if (b) goTo(b.fresh ? { ...overview(), yaw: b.cam.yaw, pitch: b.cam.pitch } : { ...b.cam });
       rebuild();
       showBar();
       redraw();
