@@ -716,7 +716,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@50e142355087fa4d1b91d2bf1b9537d272c3e4ae/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@bd668c4d930888967cef383e864f40d9cca96f29/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -4039,7 +4039,12 @@
       pointer = null;
       redraw();
     });
-    stage.addEventListener('dblclick', (e) => (e.ctrlKey || e.metaKey || (shiftOn && !editing) ? undefined : reset())); // (Ctrl + double click is counted in pointerdown)
+    stage.addEventListener('dblclick', (e) => {
+      if (e.ctrlKey || e.metaKey || (shiftOn && !editing)) return; // (Ctrl + double click is counted in pointerdown)
+      const t = !editing && !xf ? pointedObject() : null;
+      if (t?.text !== undefined) return askText({ fix: t, text: t.text }); // a double click on a text model: change its words
+      reset();
+    });
     stage.addEventListener('contextmenu', (e) => {
       if (!editing && !e.ctrlKey) return;
       e.preventDefault(); // a right click cancels a grab / scale; Ctrl+click (a Mac right click) paints
@@ -4380,7 +4385,7 @@
       w: { cap: 'W', sub: 'fwd', cat: 'cream', text: 'Fly forward. Every press is one speed step; S slows down and reverses.', target: 'Closer to the target (stops at its surface).', edit: 'Only with Shift while editing.' },
       e: { cap: 'E', sub: 'edges', cat: 'cream', text: 'Edges and points on or off.', edit: 'Extrude the selection and grab it at once: a point (1) becomes a line, a line (2) becomes a face, a face (3) is pushed out along its normal. Move the pointer, or type metres; X Y Z lock an axis.' },
       r: { cap: 'R', sub: 'up', cat: 'cream', text: 'Fly up (speed steps).', target: 'Swing up over the target.', edit: 'Rotate the selection: about the middle of points or faces; with a selected line the line is the axis. X, Y or Z turns about that world axis, a typed number is degrees. (Shift+R flies up.)' },
-      t: { cap: 'T', sub: 'target', cat: 'teal', text: 'Target the object under the cross: the camera turns to it and keeps looking at it. Over empty space: the nearest object.', target: 'Another object re-targets; the target itself or empty space brings the camera back onto the target.', edit: 'Text: with a face selected (3), asks for the words and puts them on it as a new model; the face gives the first letter\'s corner, direction and height. On a text model: fix the words.' },
+      t: { cap: 'T', sub: 'target', cat: 'teal', text: 'Target the object under the cross: the camera turns to it and keeps looking at it. Over empty space: the nearest object.', target: 'Another object re-targets; the target itself or empty space brings the camera back onto the target.', edit: 'Text: with a face selected (3), asks for the words and puts them on it as a new model; the face gives the first letter\'s corner, direction and height. On a text model: fix the words (a double click on it does the same outside edit mode).' },
       8: { cap: '8', sub: 'vr', cat: 'teal', text: 'VR: two eyes side by side for a phone in a headset holder. The phone turns the view, a tap speeds up, a double tap stops, a long press (or 8, Esc) leaves.' },
       u: { cap: 'U', sub: 'undo', cat: 'slate', text: 'Undo the last change. Backspace does the same.' },
       i: { cap: 'I', sub: 'pick', cat: 'red', text: 'Pick the material under the cross (then Ctrl/Cmd+click paints with it).' },
