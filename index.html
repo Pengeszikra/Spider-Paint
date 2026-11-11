@@ -682,7 +682,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@47e4f46257aa214069cea093a6d43c395e94dd9d/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@9c41bf3ab7b12166c984e1a3b4511de48bc29978/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1331,6 +1331,8 @@
         const bg = getComputedStyle(document.documentElement).getPropertyValue('--panel').trim();
         const rgb = /^#[0-9a-f]{6}$/i.test(bg) ? [1, 3, 5].map((i) => parseInt(bg.slice(i, i + 2), 16) / 255) : undefined;
         const a = lightAngle;
+        const cur = getComputedStyle(stage).getPropertyValue('--cursor').trim();
+        const gpuMarks = marks.map((m) => (m.color ? m : { ...m, color: /^#[0-9a-f]{6}$/i.test(cur) ? cur : '#0b7285' }));
         renderGpu = (readback = false) =>
           gpu[readback ? 'pixels' : 'render'](scene, view, {
             palette: paletteMap,
@@ -1343,6 +1345,7 @@
             smooth: smooth ? 40 : 0,
             studio,
             edges: !stage.classList.contains('clean'),
+            marks: gpuMarks,
             light: { direction: [Math.sin(a) * 0.6, 0.8, Math.cos(a) * 0.6] },
           });
         if (vr) {
@@ -1365,7 +1368,7 @@
           for (const n of eyeNotes) n.textContent = [...flightEl.children].map((c) => c.textContent).filter(Boolean).join('  ');
         } else renderGpu();
         layer.className = 'over';
-        layer.innerHTML = vr ? '' : renderView(nothing, view, { size, fit: shown_fit, marks });
+        layer.innerHTML = ''; // the marks are drawn by the GPU itself
       } else {
         layer.className = '';
         layer.innerHTML = renderView(shown, view, { size, fit: shown_fit, marks, occlude: true, palette: paletteMap });
