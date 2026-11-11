@@ -93,7 +93,7 @@ Put the cross on an object and press **Q**. That object is the active one; every
 
 | Key | Action |
 |---|---|
-| 1 / 2 / 3 | Select points / lines / faces. Click selects, Shift+click adds or removes; a click on empty space clears the selection, but a drag there (orbiting) keeps it |
+| 1 / 2 / 3 | Select points / lines / faces (the grey points show only in points mode, 1). Click selects, Shift+click adds or removes; a click on empty space clears the selection, but a drag there (orbiting) keeps it |
 | A, A A | Select everything; two quick presses clear the selection |
 | G | Grab: move the selection with the pointer; X Y Z lock an axis; type metres; click or Enter confirms, Esc cancels |
 | S | Scale about the centre; X Y Z scale along an axis; type a factor |
