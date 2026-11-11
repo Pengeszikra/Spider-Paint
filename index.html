@@ -687,7 +687,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@3db930a16f4e932876deb54c418e93b50d03f7d2/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@6d364ddc42aee950f234852514d9d89242fe158e/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1250,7 +1250,7 @@
         const dot = (q) => [[q, q]]; // a zero-length line with round caps is a point
         const cross = (q, k = 1) => [[[q[0] - e * k, q[1], q[2]], [q[0] + e * k, q[1], q[2]]], [[q[0], q[1] - e * k, q[2]], [q[0], q[1] + e * k, q[2]]], [[q[0], q[1], q[2] - e * k], [q[0], q[1], q[2] + e * k]]];
         const wire = (editing.wire ?? []).filter(([a, b]) => a < P.length && b < P.length);
-        if (P.length <= 600) marks.push({ name: 'verts', color: '#aeb4bb', width: 4, lines: P.map(dot).flat() });
+        if (P.length <= 600) marks.push({ name: 'verts', color: '#aeb4bb', width: 2, lines: P.map(dot).flat() });
         if (wire.length) marks.push({ name: 'wire', color: '#ff4d3d', width: 2, lines: wire.map(([a, b]) => [P[a], P[b]]) });
         const ends = [...new Set(wire.flat())];
         if (ends.length) marks.push({ name: 'wire-ends', color: '#ff4d3d', width: 5, lines: ends.flatMap((i) => dot(P[i])) });
