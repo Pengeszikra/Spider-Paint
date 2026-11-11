@@ -131,6 +131,9 @@ The model keeps its words (a `text` attribute, saved in the scene file with the 
 ## Selecting faces from inside
 In edit mode the pointer also finds the far side of a face, so from inside a hull (a spaceship, a room) its walls can be selected with 3 like any other face.
 
+## Ctrl+B: bevel
+In edit mode select lines (**2**), then **Ctrl+B** (Cmd+B on a Mac): each line becomes a strip. Move the pointer away to set the width, the **wheel** or **↑ ↓** sets the number of segments (1 is a flat chamfer, more make a round edge), or type the width in metres. **Enter** or a click confirms, **Esc** cancels. Corners where several lines meet are filled. The width stops at what the faces allow.
+
 ## Ctrl+E: extrude with a back face
 In edit mode **E** pulls the selected faces out (open at the start side where they were part of the model). **Ctrl+E** (Cmd+E on a Mac) does the same but leaves a face on the starting side as well, so what you pull out is a closed shell: good for building a mass inward from a wall, and for sawing or boolean afterwards.
 

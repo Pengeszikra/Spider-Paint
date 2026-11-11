@@ -717,7 +717,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@08a1d4729a956459c735a8782e39ac057337fe00/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@ab5cb30869f1c60e6f4543a520de3d4b3a7d1240/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -3440,6 +3440,28 @@
         showBar();
         return redraw();
       }
+      if (x.kind === 'bevel') {
+        // the width follows the pointer away from where it started (on the plane facing the eye); a typed number is metres
+        const q = planePoint(x.p0);
+        const w = Math.max(1e-4, typed !== null ? Math.abs(typed) : q ? Math.hypot(...vsub(q, x.p0)) : 0);
+        try {
+          const r = bevel(x.mesh0, x.lines, w, x.segments);
+          x.obj.mesh = r.mesh;
+          x.obj.wire = (x.wire0 ?? []).map(([a, b]) => [r.remap.get(a), r.remap.get(b)]).filter(([a, b]) => a !== undefined && b !== undefined && a !== b);
+          x.changed = true;
+          x.width = r.width;
+          sel = emptySel();
+          rebuild();
+          barNote = `bevel · ${fmt(r.width)} m${r.width < w - 1e-9 ? ' (as wide as it can go)' : ''}${typed !== null ? '_' : ''} · ${x.segments} segment${x.segments > 1 ? 's' : ''} · wheel or ↑↓ for segments, type a width, ⏎ ok, Esc cancels`;
+        } catch (err) {
+          x.obj.mesh = x.mesh0;
+          x.changed = false;
+          rebuild();
+          barNote = `bevel: ${err.message}`;
+        }
+        showBar();
+        return redraw();
+      }
       let moves;
       let text;
       if (x.kind === 'grab') {
@@ -3528,7 +3550,7 @@
       if (!x) return;
       x.obj.mesh = x.orig;
       if (x.wire0) x.obj.wire = x.wire0;
-      if (x.kind === 'loop') sel = x.sel0;
+      if (x.kind === 'loop' || x.kind === 'bevel') sel = x.sel0;
       rebuild();
       noteEdit('cancelled');
       redraw();
@@ -3891,6 +3913,25 @@
       });
       return { mesh: { ...mesh, positions: P, faces }, cuts };
     };
+    // Ctrl+B: bevel the selected lines (Blender's): each becomes a strip of the given width and number of segments, the corners are filled.
+    // The pointer sets the width, the wheel or the arrows the segments.
+    const startBevel = () => {
+      if (sel.kind !== 'edge' || !sel.items.length) return noteEdit('Ctrl+B bevels lines: select them (2) first');
+      const P = editing.mesh.positions;
+      const lines = sel.items.filter(([a, b]) => a < P.length && b < P.length);
+      const c = lines.reduce((t, [a, b]) => t.map((v, k) => v + (P[a][k] + P[b][k]) / (2 * lines.length)), [0, 0, 0]);
+      startXf('bevel', { ids: [...new Set(lines.flat())], c, wire0: (editing.wire ?? []).map((w) => [...w]) });
+      if (xf) ((xf.lines = lines), (xf.segments = 1), xfUpdate());
+    };
+    const bevelSegments = (d) => {
+      if (xf?.kind !== 'bevel') return false;
+      xf.segments = Math.min(16, Math.max(1, xf.segments + d));
+      xfUpdate();
+      return true;
+    };
+    stage.addEventListener('wheel', (e) => {
+      if (xf?.kind === 'bevel') (e.preventDefault(), bevelSegments(e.deltaY < 0 ? 1 : -1));
+    }, { passive: false });
     const loopCut = () => {
       const [a0, b0] = sel.kind === 'edge' && sel.items.length ? sel.items[0] : [];
       if (a0 === undefined) return noteEdit('Ctrl+R cuts a loop: select a line (2) on the ring first');
@@ -4011,6 +4052,11 @@
         if (!e.repeat) loopCut();
         return true;
       }
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && !xf && e.key.toLowerCase() === 'b') {
+        e.preventDefault(); // Ctrl+B is the browser's bookmarks bar
+        if (!e.repeat) startBevel();
+        return true;
+      }
       if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && !xf && e.key.toLowerCase() === 'e') {
         e.preventDefault(); // Ctrl+E is the browser's search bar
         if (!e.repeat) extrude(true);
@@ -4023,6 +4069,8 @@
         const k = e.key.toLowerCase();
         if (e.key === 'Escape') xfCancel();
         else if (e.key === 'Enter') xfConfirm();
+        else if (e.key === 'ArrowUp' || e.key === 'PageUp') bevelSegments(1);
+        else if (e.key === 'ArrowDown' || e.key === 'PageDown') bevelSegments(-1);
         else if (k === 'x' || k === 'y' || k === 'z') ((xf.lock = xf.lock === k ? null : k), xfUpdate());
         else if (/^[0-9.]$/.test(e.key)) ((xf.typed += e.key), xfUpdate());
         else if (e.key === '-') ((xf.typed = xf.typed.startsWith('-') ? xf.typed.slice(1) : `-${xf.typed}`), xfUpdate());
