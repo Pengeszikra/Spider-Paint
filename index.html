@@ -713,7 +713,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@c85481ba649c7fd3325ad5b28f49a4488387d5d3/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@ac173d1789caf1619d2cc948f42d24b8ac02ce11/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1073,6 +1073,15 @@
     };
     const eyeNow = () => makeCamera(orbit({ yaw, pitch }), nothing, 100, fit).eye;
     const INSIDE_FOV = (80 * Math.PI) / 180;
+    let inMemo = { scene: null, c: [0, 0, 0], r: 0 };
+    const eyeInScene = () => {
+      if (!gcam?.eye) return false;
+      if (inMemo.scene !== scene) {
+        const o = overview();
+        inMemo = { scene, c: o.center, r: o.radius };
+      }
+      return Math.hypot(...gcam.eye.map((e, i) => e - inMemo.c[i])) < inMemo.r * 1.2;
+    };
     const STOP = 1.05; // the closest the camera comes: this many radii from the centre
     const SWING = 0.175; // rad/s per speed unit round the target
     const ZOOM = 0.09; // relative distance change per second per speed unit
@@ -1363,7 +1372,7 @@
       const dtDraw = Math.min(0.1, (performance.now() - lastDraw) / 1000);
       const ease1 = 1 - Math.exp(-dtDraw * 9);
       lastDraw = performance.now();
-      const fovGoal = fly ? INSIDE_FOV : FOV0;
+      const fovGoal = fly && eyeInScene() ? INSIDE_FOV : FOV0; // the wide lens only once the eye is really in the scene: starting a flight must not change the picture
       fovNow += (fovGoal - fovNow) * (fly ? 1 - Math.exp(-dtDraw * 2.2) : ease1); // the lens opens slowly: a quick zoom-out looks like a jump
       if (Math.abs(fovGoal - fovNow) < 1e-3) fovNow = fovGoal;
       else queued || redraw();
@@ -4589,7 +4598,7 @@
         },
         // put the eye at a point of the scene (fly view), looking along yaw / pitch (degrees)
         eye: (x, y, z, yawDeg, pitchDeg) => lookFrom([x, y, z], yawDeg, pitchDeg),
-        state: () => ({ solo: solo ? 1 : 0, faces: scene.faces.length, objects: allObjects().length, db: Boolean(col), palette: !paletteEl.hidden, cursor: getComputedStyle(stage).cursor, center: fit.center, dist: fit.dist, radius: fit.radius, level: { ...level }, yaw, pitch, eye: eyeNow(), shown: gcam?.eye, fly, placed: placed.length }),
+        state: () => ({ solo: solo ? 1 : 0, faces: scene.faces.length, objects: allObjects().length, db: Boolean(col), palette: !paletteEl.hidden, cursor: getComputedStyle(stage).cursor, center: fit.center, dist: fit.dist, radius: fit.radius, level: { ...level }, yaw, pitch, eye: eyeNow(), shown: gcam?.eye, fov: +(fovNow * 180 / Math.PI).toFixed(1), fly, placed: placed.length }),
         grab: async () => {
           const r = await renderGpu(true);
           const o = document.createElement('canvas');
