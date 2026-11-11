@@ -716,7 +716,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@3c3fa860365b985996f059aebe8b554a6f14c9fe/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@260d29f48409a6e32bede64f188663155e314899/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -3331,7 +3331,7 @@
       const c = extra.c ?? ids.reduce((t, i) => t.map((v, k) => v + P[i][k] / ids.length), [0, 0, 0]);
       const sc = project(gcam, c);
       const dist0 = Math.hypot(panelPointer.x - sc.x, panelPointer.y - sc.y);
-      xf = { kind, obj, mesh0: obj.mesh, orig: extra.orig ?? obj.mesh, ids, from: ids.map((i) => P[i]), c, p0: planePoint(c) ?? c, s0: { ...panelPointer }, sc: { x: sc.x, y: sc.y }, dist0, base: Math.max(dist0, 40), lock: null, axisVec: extra.axisVec ?? null, typed: '', changed: false, a0: Math.atan2(panelPointer.y - sc.y, panelPointer.x - sc.x), accum: 0, loop: extra.loop ?? null, sel0: sel, wire0: extra.wire0, fixFaces: extra.fixFaces ?? null };
+      xf = { kind, obj, mesh0: obj.mesh, orig: extra.orig ?? obj.mesh, ids, from: ids.map((i) => P[i]), c, p0: planePoint(c) ?? c, s0: { ...panelPointer }, sc: { x: sc.x, y: sc.y }, dist0, base: Math.max(dist0, 40), lock: null, axisVec: extra.axisVec ?? null, typed: '', changed: false, a0: Math.atan2(panelPointer.y - sc.y, panelPointer.x - sc.x), accum: 0, loop: extra.loop ?? null, sel0: sel, shells: extra.shells ?? null, eps: extra.eps ?? 0, wire0: extra.wire0, fixFaces: extra.fixFaces ?? null };
       xfUpdate();
     };
     // how far (in world units) the pointer has moved along an axis, measured on the screen
@@ -3421,7 +3421,17 @@
         const quads = x.fixFaces.map((i) => x.mesh0.faces[i]);
         moved = reshape({ ...x.mesh0, faces: x.mesh0.faces.filter((_, i) => !x.fixFaces.includes(i)) }, moves);
         moved = faceTheCamera({ ...moved, faces: [...moved.faces, ...quads] }, quads.map((_, k) => moved.faces.length + k));
-      } else moved = reshape(x.mesh0, moves);
+      } else {
+        let base0 = x.mesh0;
+        if (x.eps && x.axisVec && x.kind === 'grab' && moves.length && vdot(vsub(moves[0][1], x.from[0]), x.axisVec) < 0) {
+          // a closed shell pulled the other way (inward, against the face's normal) would be inside out: its faces are turned round
+          const flip = new Set((x.shells ?? []).flat());
+          // (and the pulled-out cap starts on the inner side, so the sides do not fold through zero height on the way)
+          const cap = new Set(x.ids);
+          base0 = { positions: base0.positions.map((q, i) => (cap.has(i) ? q.map((c, k) => c - 2 * x.eps * x.axisVec[k]) : q)), faces: base0.faces.map((f, i) => (flip.has(i) ? { ...f, v: [...f.v].reverse() } : f)) };
+        }
+        moved = reshape(base0, moves);
+      }
       x.obj.mesh = moved;
       rebuild();
       barNote = `${x.kind}${x.lock ? ` ${x.lock.toUpperCase()}` : x.kind === 'rotate' ? ' about its axis' : x.axisVec ? ' along the normal' : ''} · ${typed !== null ? `${x.typed}_` : text} · ⏎ ok, Esc cancels`;
@@ -3686,6 +3696,7 @@
       const eps = 1e-4 * (bounds(mesh).radius || 1);
       let axis = [0, 0, 0];
       const caps = [];
+      const shells = [];
       for (const key of sel.items) {
         const fi = mesh.faces.findIndex((f) => f.v.length === key.length && faceKey(f).join() === key.join());
         if (fi < 0) continue;
@@ -3697,8 +3708,12 @@
         const old = mesh.faces[fi];
         const edgeOf = (g, a, b) => g.v.some((x, k) => (x === a && g.v[(k + 1) % g.v.length] === b) || (x === b && g.v[(k + 1) % g.v.length] === a));
         const free = old.v.every((a, k) => !mesh.faces.some((g, gi) => gi !== fi && edgeOf(g, a, old.v[(k + 1) % old.v.length])));
+        const first = mesh.faces.length; // the quads of the sides come after the existing faces
         mesh = extrudeFace(mesh, fi, { distance: eps }).mesh;
-        if (free || keepBack) mesh = { ...mesh, faces: [...mesh.faces, { ...old, v: [...old.v].reverse() }] }; // Ctrl+E: the starting side keeps a face too
+        if (free || keepBack) {
+          mesh = { ...mesh, faces: [...mesh.faces, { ...old, v: [...old.v].reverse() }] }; // Ctrl+E: the starting side keeps a face too
+          shells.push([fi, ...Array.from({ length: mesh.faces.length - first }, (_, k) => first + k)]); // cap, sides, back: one closed shell
+        }
         caps.push(faceKey(mesh.faces[fi]));
       }
       if (!caps.length) return;
@@ -3707,7 +3722,7 @@
       editing.mesh = mesh;
       rebuild();
       sel = { kind: 'face', items: caps };
-      startXf('grab', { orig, axisVec: axis.map((c) => c / l) });
+      startXf('grab', { orig, axisVec: axis.map((c) => c / l), shells, eps });
     };
     // Ctrl+R: loop cut. The selected line's ring of four-sided faces is cut across: every face on the ring splits into strips, with
     // new points on the ring's lines. Then it is modal like G: move the pointer along the line to slide the cuts, type a number for how
@@ -4655,6 +4670,7 @@
     if (new URLSearchParams(location.search).has('debug')) {
       globalThis.__3draft = {
         load: (data) => applyScene(data),
+        meshes: () => allObjects().map((o) => o.mesh),
         objects: () => allObjects().map((o) => {
           const lo = [Infinity, Infinity, Infinity];
           const hi = [-Infinity, -Infinity, -Infinity];
