@@ -110,3 +110,7 @@ Put the cross on an object and press **Q**. That object is the active one; every
 ## Keys are data
 
 The program keeps two plain objects, `ACTIONS` (what it can do) and `KEYMAP` (which key does it), both reachable from the browser console. `bindKey('q', 'scene')` rebinds a key, `bindKey('q')` frees it.
+
+## Screen material
+
+A material with an `url` (the palette's url field; the built-in `monitor` has one) is a screen: on every four-cornered face made of it the page runs in an iframe. The iframe is a DOM layer over the picture (`#screens`), warped onto the face with a CSS `matrix3d` (a perspective map of the face's four corners, up is the world up, the face's own up when it lies flat). Limits: it is not part of the 3D picture (no depth against other objects, so something standing in front does not hide it, and no light), it does not show in a VR view, faces seen from behind or behind the eye are hidden, at most 6 screens at once, the pointer goes through it (no clicking inside yet), and sites that forbid framing (X-Frame-Options, CSP) stay blank. Only http(s) addresses are taken. Faces with another number of corners are plain surfaces.

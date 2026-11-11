@@ -118,6 +118,9 @@
     #stage.clean svg circle { display: none; }
     #stage, #stage:focus, #stage:focus-visible { outline: none; }
     #frame { position: relative; }
+    /* the pages of the screen materials (iframes warped onto four-cornered faces); the pointer goes through them to the 3D view */
+    #screens { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+    #screens iframe { position: absolute; left: 0; top: 0; border: 0; background: #fff; transform-origin: 0 0; pointer-events: none; }
     /* the small readout in the top left corner: what is under the cross, and the target state */
     #stage { position: relative; }
     #hud { position: absolute; left: 10px; top: 10px; z-index: 3; min-width: 150px; max-width: 46%; padding: 6px 9px; background: color-mix(in srgb, var(--panel) 82%, transparent); border: 1px solid var(--line); border-radius: 6px; font: 500 12px/1.45 var(--font-mono); color: var(--muted); pointer-events: none; }
@@ -534,7 +537,7 @@
     <p class="build" id="build" title="Build, YY.MM.DD.NNN">–</p>
   </header>
 
-  <main id="stage" tabindex="0" role="img" aria-label="Empty space for prisms. 9 switches between the SVG and the WebGPU view, L turns the light, C switches the filmic look, N smooth shading, K the studio light. Drag, or use the arrow keys, to rotate the view. The cross follows the surface under the pointer. M puts a prism down there, or shoots one into empty space; Space stops the movement. O marks an object, a second O on another one asks for a boolean operation (union, A minus B, B minus A, intersect). V joins two surface points with a thin bar (P over empty space forgets a pending first point), X deletes the object under the cross, W A S D R F fly, / shows only the model under the cross (/ again: the whole scene), P shows the material palette (Ctrl+click (Cmd on a Mac) paints a face, Ctrl+double click the whole model), T flies the camera to the object under the cross, H puts the move gizmo (helper) on the object under the cross with the world axes, the next H switches to the object's own axes, the third takes it off; drag an arrow to move the object; E toggles edges and points, U or Backspace takes the last one back."><div id="frame"><canvas id="gpu" hidden></canvas><div id="layer"></div></div><div id="hud" aria-hidden="true"></div></main>
+  <main id="stage" tabindex="0" role="img" aria-label="Empty space for prisms. 9 switches between the SVG and the WebGPU view, L turns the light, C switches the filmic look, N smooth shading, K the studio light. Drag, or use the arrow keys, to rotate the view. The cross follows the surface under the pointer. M puts a prism down there, or shoots one into empty space; Space stops the movement. O marks an object, a second O on another one asks for a boolean operation (union, A minus B, B minus A, intersect). V joins two surface points with a thin bar (P over empty space forgets a pending first point), X deletes the object under the cross, W A S D R F fly, / shows only the model under the cross (/ again: the whole scene), P shows the material palette (Ctrl+click (Cmd on a Mac) paints a face, Ctrl+double click the whole model), T flies the camera to the object under the cross, H puts the move gizmo (helper) on the object under the cross with the world axes, the next H switches to the object's own axes, the third takes it off; drag an arrow to move the object; E toggles edges and points, U or Backspace takes the last one back."><div id="frame"><canvas id="gpu" hidden></canvas><div id="layer"></div><div id="screens"></div></div><div id="hud" aria-hidden="true"></div></main>
 
   <div id="editbar" hidden><b id="editText"></b><button id="editHelp" type="button" title="Show / hide the edit help" aria-pressed="false" hidden>?</button><span id="editHelpText" hidden>V: sketch lines (nothing happens yet) · 1 / 2 / 3: select points / lines / faces (click; Shift+click adds or takes away; A selects all, A A clears) · G: grab the selection (X / Y / Z lock the axis, type metres, click or Enter confirms, Esc cancels) · S: scale (same keys) · E: extrude the selected faces · 4: the saw: V puts 2 points on one face = a cut square to the face, or 3 points = a cut through the triangle; Enter cuts · Shift+W A S D R F fly · Ctrl/Cmd+click paints · Shift+X deletes the object under the cross · U undo · Esc back, then leave · Q leave</span></div>
 
@@ -566,6 +569,7 @@
     <label>rough <input type="range" id="p-rough" min="0" max="1" step="0.05" /><span id="v-rough"></span></label>
     <label>alpha <input type="range" id="p-alpha" min="0" max="1" step="0.05" /><span id="v-alpha"></span></label>
     <label>emit <input type="range" id="p-emit" min="0" max="5" step="0.1" /><span id="v-emit"></span></label>
+    <label class="url" title="A screen: this page is shown on every four-cornered face of the material (an iframe over the picture; sites that forbid framing stay blank)">url <input type="text" id="p-url" placeholder="https://… (empty: no screen)" spellcheck="false" autocapitalize="off" style="grid-column:2 / 4;width:100%;box-sizing:border-box;min-width:0;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:2px 6px;font:inherit" /></label>
     <label title="Soft, skin-like light: it wraps round the form, with a warm scattered band at the shade edge">soft <input type="range" id="p-soft" min="0" max="1" step="0.05" /><span id="v-soft"></span></label>
     <div class="picker" id="picker">
       <div class="sv" id="pickSV" aria-label="Saturation and brightness"><i id="pickDot"></i></div>
@@ -687,7 +691,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@dff5966d22a3c0666ff98eb20cda4dde1669ae35/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@ad43e0ecf25f2b5849266405e532ed615bce47b3/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1156,6 +1160,91 @@
 
     let shiftOn = false; // the Shift button of the touch pad (sticky)
     const fabMode = document.getElementById('fabMode');
+    // ---- Screens: a material with an `url` shows that page on every four-cornered face made of it. The page is an iframe in a DOM layer
+    // over the picture, warped onto the face with a CSS matrix3d (a perspective map of the face's four corners). It is not part of the 3D
+    // picture: no depth against other objects, no light, and not in a VR view. Faces seen from behind or behind the eye are hidden.
+    const screensEl = document.getElementById('screens');
+    const screenFrames = new Map(); // key -> { el, url }
+    const homography = (q, w, h) => {
+      // maps (0,0) (w,0) (w,h) (0,h) onto the four points q (x, y): the 8 unknowns of a projective map, by Gaussian elimination
+      const src = [[0, 0], [w, 0], [w, h], [0, h]];
+      const M = [];
+      src.forEach(([x, y], i) => {
+        const [u, v] = q[i];
+        M.push([x, y, 1, 0, 0, 0, -u * x, -u * y, u], [0, 0, 0, x, y, 1, -v * x, -v * y, v]);
+      });
+      for (let c = 0; c < 8; c++) {
+        let p = c;
+        for (let r = c + 1; r < 8; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+        [M[c], M[p]] = [M[p], M[c]];
+        if (Math.abs(M[c][c]) < 1e-12) return null;
+        for (let r = 0; r < 8; r++) {
+          if (r === c) continue;
+          const f = M[r][c] / M[c][c];
+          for (let k = c; k < 9; k++) M[r][k] -= f * M[c][k];
+        }
+      }
+      const [a, b, c, d, e, f, g, hh] = M.map((row, i) => row[8] / row[i]);
+      return `matrix3d(${a},${d},0,${g},${b},${e},0,${hh},0,0,1,0,${c},${f},0,1)`;
+    };
+    const drawScreens = (size) => {
+      const wanted = new Set();
+      if (gcam) {
+        const pal = paletteMap;
+        let used = 0;
+        scene.faces.forEach((face, fi) => {
+          const url = face.mat !== undefined ? pal[face.mat]?.url : undefined;
+          if (!url || face.v.length !== 4 || used >= 6) return;
+          const o = owner(fi);
+          const P = face.v.map((k) => scene.positions[k]);
+          const c = [0, 1, 2].map((a) => (P[0][a] + P[1][a] + P[2][a] + P[3][a]) / 4);
+          let n = faceNormal(P);
+          const nl = Math.hypot(...n) || 1;
+          n = n.map((x) => x / nl);
+          const mid = o ? bounds(o.mesh).center : c;
+          if (vdot(n, vsub(c, mid)) < 0) n = n.map((x) => -x); // the side that looks away from the middle of its object
+          const key = `${o?.id ?? ''}:${fi - (owners.find((w) => w.obj === o)?.start ?? 0)}`;
+          wanted.add(key);
+          let rec = screenFrames.get(key);
+          if (!rec) {
+            const el = document.createElement('iframe');
+            el.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups');
+            el.setAttribute('referrerpolicy', 'no-referrer');
+            el.setAttribute('title', 'Screen');
+            screensEl.append(el);
+            rec = { el, url: '' };
+            screenFrames.set(key, rec);
+          }
+          if (rec.url !== url) ((rec.url = url), (rec.el.src = url));
+          used++;
+          const facing = vdot(n, vsub(gcam.eye, c)) > 0;
+          const pr = P.map((p) => project(gcam, p));
+          if (!facing || pr.some((p) => p.depth <= 0.05)) return void (rec.el.style.display = 'none');
+          // which corner is which: up is the world up (the face's own up when it lies flat), right = up x normal, as the viewer sees it
+          let up = [0, 1, 0];
+          if (Math.abs(n[1]) > 0.9) up = [0, 0, -1];
+          const rt = [up[1] * n[2] - up[2] * n[1], up[2] * n[0] - up[0] * n[2], up[0] * n[1] - up[1] * n[0]];
+          const uv = P.map((p) => [vdot(vsub(p, c), rt), vdot(vsub(p, c), up)]);
+          const pick4 = (f) => uv.reduce((best, q, i) => (f(q) < f(uv[best]) ? i : best), 0);
+          const idx = [pick4((q) => q[0] - q[1]), pick4((q) => -(q[0] + q[1])), pick4((q) => -(q[0] - q[1])), pick4((q) => q[0] + q[1])]; // TL TR BR BL
+          const order = new Set(idx).size === 4 ? idx : [0, 1, 2, 3];
+          const dist = (a, b) => Math.hypot(...vsub(P[a], P[b]));
+          const w = 800;
+          const h = Math.max(120, Math.min(2400, Math.round((w * dist(order[0], order[3])) / Math.max(1e-9, dist(order[0], order[1])))));
+          const m = homography(order.map((i) => [pr[i].x, pr[i].y]), w, h);
+          if (!m) return void (rec.el.style.display = 'none');
+          rec.el.style.width = `${w}px`;
+          rec.el.style.height = `${h}px`;
+          rec.el.style.transform = m;
+          rec.el.style.display = '';
+        });
+      }
+      for (const [key, rec] of screenFrames) {
+        if (wanted.has(key)) continue;
+        rec.el.remove();
+        screenFrames.delete(key);
+      }
+    };
     const draw = () => {
       queued = false;
       stepTravel(performance.now());
@@ -1381,6 +1470,7 @@
         layer.className = '';
         layer.innerHTML = renderView(shown, view, { size, fit: shown_fit, marks, occlude: true, palette: paletteMap });
       }
+      drawScreens(size);
       fabMode.classList.toggle('on', mode === 'gpu' && Boolean(gpu));
       document.getElementById('editSw').classList.toggle('on', Boolean(editing));
       speedEl.textContent = `${level.f}·${level.r}·${level.u}`;
@@ -2183,6 +2273,7 @@
       { name: 'gold', color: '#d9b04a', metal: 1, rough: 0.25, alpha: 1, emit: 0 },
       { name: 'glass', color: '#a9d3e8', metal: 0.2, rough: 0.05, alpha: 0.3, emit: 0 },
       { name: 'lamp', color: '#ffd36b', metal: 0, rough: 0.5, alpha: 1, emit: 1 },
+      { name: 'monitor', color: '#101418', metal: 0.1, rough: 0.3, alpha: 1, emit: 0.3, url: 'https://example.com' },
     ];
     let materials = MATERIALS.map((m) => ({ ...m }));
     const toMap = () => Object.fromEntries(materials.map(({ name, ...m }) => [name, m]));
@@ -2222,6 +2313,7 @@
         document.getElementById(`p-${k}`).value = m[k] ?? 0;
         document.getElementById(`v-${k}`).textContent = (m[k] ?? 0).toFixed(2);
       }
+      document.getElementById('p-url').value = m.url ?? '';
     };
     for (const k of PROPS) {
       document.getElementById(`p-${k}`).addEventListener('input', (e) => {
@@ -2232,6 +2324,21 @@
       });
       document.getElementById(`p-${k}`).addEventListener('change', () => saveMaterial(materials[current]));
     }
+    const urlEl = document.getElementById('p-url');
+    const cleanUrl = (v) => {
+      const t = v.trim();
+      if (!t) return '';
+      return /^https?:\/\//i.test(t) ? t : /^[a-z][a-z0-9+.-]*:/i.test(t) ? '' : `https://${t}`; // only http(s): no javascript: or data:
+    };
+    urlEl.addEventListener('input', () => {
+      const m = materials[current];
+      const u = cleanUrl(urlEl.value);
+      if (u) m.url = u;
+      else delete m.url;
+      syncPalette();
+    });
+    urlEl.addEventListener('change', () => saveMaterial(materials[current]));
+    urlEl.addEventListener('keydown', (e) => e.stopPropagation()); // typing an address is not a command
     document.getElementById('custom').addEventListener('input', (e) => {
       if (!/^#[0-9a-f]{6}$/i.test(e.target.value)) return; // a half-typed colour waits
       materials[current].color = e.target.value;
