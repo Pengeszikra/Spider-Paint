@@ -25,9 +25,9 @@ const steps = [
   ['table scene', "      if (name === 'table') return { objects: [{ name: 'table', mesh: table }] };\n", ''],
   ['example path', 'fetch(`../examples/${name}.scene.json`)', 'fetch(`./models/${name}.scene.json`)'],
   // the bridge and the globe are shipped (the scene starts with the globe)
-  ['example list', /(<option value="">\+ scene<\/option>\n)[\s\S]*?(\s*<optgroup id="savedGroup")/, (_, head, tail) => `${head}        <option value="bridge">Stone bridge</option>\n        <option value="globe">Globe</option>\n        <option value="stars">Stars (500 nearest)</option>\n        <option value="milkyway">Milky Way (30 000 super-stars)</option>\n        <option value="stars-plain">Stars (300) + 100 galaxies (point glow)</option>\n        <option value="ex27">EX-27 expedition module</option>\n        <option value="human">Low poly human</option>\n        <option value="tr74">TR-74 expedition module</option>${tail}`],
+  ['example list', /(<option value="">\+ scene<\/option>\n)[\s\S]*?(\s*<optgroup id="savedGroup")/, (_, head, tail) => `${head}        <option value="bridge">Stone bridge</option>\n        <option value="globe">Globe</option>\n        <option value="stars">Stars (500 nearest)</option>\n        <option value="milkyway">Milky Way (30 000 super-stars)</option>\n        <option value="stars-plain">Stars (300) + 100 galaxies (point glow)</option>\n        <option value="ex27">EX-27 expedition module</option>\n        <option value="human">Low poly human</option>\n        <option value="betterman">Betterman (pose him: J)</option>\n        <option value="tr74">TR-74 expedition module</option>${tail}`],
   // the phone's Exa menu gets the low poly human too (its model lives only in this repo)
-  ['exa menu', "['empty', 'globe', 'stars', 'stars-plain', 'milkyway', 'ex27']", "['empty', 'globe', 'stars', 'stars-plain', 'milkyway', 'ex27', 'human', 'tr74']"],
+  ['exa menu', "['empty', 'globe', 'stars', 'stars-plain', 'milkyway', 'ex27']", "['empty', 'globe', 'stars', 'stars-plain', 'milkyway', 'ex27', 'human', 'betterman', 'tr74']"],
   // no MCP server here: the live link is opt-in (?live), so a static server is not polled for /events
   ['live link', "if (!EMBED && ['localhost', '127.0.0.1'].includes(location.hostname) && typeof EventSource", "if (!EMBED && new URLSearchParams(location.search).has('live') && typeof EventSource"],
   // installable on a phone: manifest, icons and theme colour (the files are in this repo, sync does not touch them)
@@ -68,5 +68,7 @@ writeFileSync(join(here, 'models/stars.scene.json'), readFileSync(join(src, 'exa
 writeFileSync(join(here, 'models/milkyway.scene.json'), readFileSync(join(src, 'examples/milkyway.scene.json')));
 writeFileSync(join(here, 'models/stars-plain.scene.json'), readFileSync(join(src, 'examples/stars-plain.scene.json')));
 writeFileSync(join(here, 'models/ex27.scene.json'), readFileSync(join(src, 'examples/ex27.scene.json')));
+// betterman: the figure pose mode (J) is made for
+writeFileSync(join(here, 'models/betterman.scene.json'), readFileSync(join(src, 'examples/betterman.scene.json')));
 // models/human.scene.json (the low poly human) and models/tr74.scene.json (the TR-74 module) live only in this repo: sync leaves them alone
 console.log(`Spider Paint <- 3Draft ${commit}`);

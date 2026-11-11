@@ -62,6 +62,7 @@ With a **target**, W A S D R F move the camera round and towards the target inst
 | V | Spider bar: join two surface points with a thin bar |
 | O | Boolean: mark an object, then a second one, then choose 1 union, 2 A−B, 3 B−A, 4 intersect, 5 cancel |
 | H | Move gizmo: world axes, its own axes, off |
+| J | Pose mode on the figure under the cross or the target (see Pose mode) |
 | P | The material palette |
 | I | Pick the material under the cross |
 | Ctrl+click (Cmd on a Mac) | Paint the face under the cross; Ctrl+double click paints the whole object |
@@ -144,3 +145,17 @@ Edit mode: select a face (3), press **6**. The face's plane is the drawing board
 
 ## L in edit mode: select the loop
 **L** no longer switches the light while you edit (the LIGHT button still does; outside edit mode L is the light switch as before). With a line selected (2), **L** selects all the lines of its loop: the lines a loop cut (Ctrl+R) would cross, round and round until the loop closes or ends. With a face selected (3), **L** selects the faces of its loop; one face has two loops (two ways round), **L** again takes the other, and two touching faces go the way of their shared line.
+
+## Pose mode (J)
+Put the cross on a figure (or target it with T) and press **J**. The figure must stand on two feet, look to +z and let its arms hang; its skeleton is read off its shape, so nothing has to be prepared, and what it wears (hair, a hat: objects inside its box) moves with it. The skeleton is drawn over it, and the console shows the **pose** panel:
+
+| Key | Action |
+|---|---|
+| 1 | Rest: as it was made |
+| 2 3 4 5 | T pose, wave, sit, look at a phone |
+| 6 | Walk on the spot; again: stand still in that step |
+| 7 | Run on the spot; again: stand still in that step |
+| Enter | Keep the pose: the figure becomes this shape (one U takes it back) |
+| J, Esc | Leave: the figure goes back as it was |
+
+Flying, targeting and the view switches work as usual; freeze (;) holds the walk. Keys that would change the figure (Q, G, M, O, U, Shift+X) wait until you leave. A kept pose is a new shape: posing it again reads a new skeleton off it, which works while the arms still hang and the feet are still the lowest points. If the object is not a figure, a note says what is missing. The **Betterman** example is made for this.

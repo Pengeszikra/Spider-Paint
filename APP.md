@@ -10,7 +10,7 @@ Branch: `master` (the 2015 original is kept untouched in branch `2015-sept-11`).
 |---|---|
 | `index.html` | **generated**, never edit by hand |
 | `help.md` | copied from `3Draft/app/help.md` by the sync |
-| `models/*.scene.json` | example scenes the page fetches. `bridge` is copied from 3Draft by the sync; `globe, stars, stars-plain, milkyway, ex27, human, tr74` live only here |
+| `models/*.scene.json` | example scenes the page fetches. `bridge` and `betterman` (the figure for pose mode, `J`) are copied from 3Draft by the sync, as are `globe, stars, stars-plain, milkyway, ex27`; `human, tr74` live only here |
 | `scripts/sync.mjs` | the generator (see below) |
 | `sw.js` | service worker: caches page, models, icons and the pinned engine so the app works offline |
 | `manifest.webmanifest`, `icons/`, `favicon.svg` | PWA install files (sync does not touch them) |

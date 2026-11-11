@@ -512,6 +512,10 @@
       footer.console .only-edit { display: none; }
       body.editing footer.console .only-edit { display: inline-flex; }
       body.editing footer.console .only-build { display: none; }
+      /* a third panel: posing a figure */
+      footer.console .only-pose { display: none; }
+      body.posing footer.console .only-pose { display: inline-flex; }
+      body.posing footer.console .only-build, body.posing footer.console .only-edit { display: none; }
       body.zen footer.console, body.zen header.bar { display: none; }
       body:not(.pwa) #stage svg text { display: none; }
       @media (max-width: 1100px) {
@@ -668,6 +672,21 @@
           <button type="button" class="slate" data-key="x" data-shift="1" title="Delete the object under the cross (Shift+X)"><b>⇧X</b>del</button>
         </span>
       </span>
+      <span class="grp only-pose rows" data-label="pose">
+        <span class="row">
+          <button type="button" class="cream" data-key="1" title="The figure as it was made (1)"><b>1</b>rest</button>
+          <button type="button" class="cream" data-key="2" title="Arms out (2)"><b>2</b>T</button>
+          <button type="button" class="cream" data-key="3" title="Wave (3)"><b>3</b>wave</button>
+          <button type="button" class="cream" data-key="4" title="Sit (4)"><b>4</b>sit</button>
+          <button type="button" class="cream" data-key="5" title="Look at a phone (5)"><b>5</b>phone</button>
+        </span>
+        <span class="row">
+          <button type="button" class="red" data-key="6" title="Walk on the spot; again: stand still in that step (6)"><b>6</b>walk</button>
+          <button type="button" class="red" data-key="7" title="Run on the spot; again: stand still in that step (7)"><b>7</b>run</button>
+          <button type="button" class="teal" data-key="Enter" title="Keep the pose: the figure becomes this shape, one U takes it back (Enter)"><b>⏎</b>keep</button>
+          <button type="button" class="slate" data-key="j" title="Leave pose mode; the figure goes back as it was (J or Esc)"><b>J</b>done</button>
+        </span>
+      </span>
       <span class="grp only-build rows" data-label="scene">
         <span class="row">
           <select id="examples" aria-label="Add an example or a saved scene to the scene" title="Add an example or a saved scene to the scene">
@@ -679,6 +698,7 @@
         <option value="stars-plain">Stars (300) + 100 galaxies (point glow)</option>
         <option value="ex27">EX-27 expedition module</option>
         <option value="human">Low poly human</option>
+        <option value="betterman">Betterman (pose him: J)</option>
         <option value="tr74">TR-74 expedition module</option>
         <optgroup id="savedGroup" label="saved here" hidden></optgroup></select>
           <button id="mergeSw" type="button" class="sw on" title="Loading a scene (the list, file ↑): on adds it to what is there, off clears the scene first and loads it alone"><i></i>merge</button>
@@ -717,7 +737,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@664bf38f1117bcbfb1b5f7b04e9b309255dd2260/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@d3930fec5850d5ddb80f8f8f804916f0947da6fa/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1459,6 +1479,13 @@
         marks.push({ name: 'bench', color: '#6b7280', width: 1, opacity: 0.28, lines: grid });
         marks.push({ name: 'bench-x', color: '#e03131', width: 2, opacity: 0.7, lines: [[[ox - E, oy, oz], [ox + E, oy, oz]]] });
         marks.push({ name: 'bench-z', color: '#1c7ed6', width: 2, opacity: 0.7, lines: [[[ox, oy, oz - E], [ox, oy, oz + E]]] });
+      }
+      if (posing) {
+        // the skeleton over the figure: bones and joints
+        const J = posing.joints;
+        const at = Object.fromEntries(posing.rig.joints.map((j, i) => [j.name, J[i]]));
+        marks.push({ name: 'bones', color: '#2fb8c0', width: 2, opacity: 0.85, lines: posing.rig.joints.filter((j) => j.parent).map((j) => [at[j.parent], at[j.name]]) });
+        marks.push({ name: 'joints', color: '#ffd43b', width: 6, lines: J.map((q) => [q, q]) });
       }
       if (editing && has(editing)) {
         const P = editing.mesh.positions;
@@ -3091,6 +3118,8 @@
     const bar = document.getElementById('editbar');
     const barText = document.getElementById('editText');
     let barNote = '';
+    let posing = null; // pose mode (J): { objs, bind: [mesh], rig, name, anim: 'walk' | 'run' | null, phase, last, joints: [Vec3] }
+    let poseHint = ''; // a note of pose mode, or why J did nothing
     const noteEdit = (text) => {
       barNote = text;
       showBar();
@@ -3103,8 +3132,15 @@
       helpBtn.setAttribute('aria-pressed', String(!helpText.hidden));
     });
     const showBar = () => {
-      bar.hidden = !editing && !xf;
+      bar.hidden = !editing && !xf && !posing && !poseHint;
       document.body.classList.toggle('editing', Boolean(editing));
+      if (!editing && !xf && (posing || poseHint)) {
+        // pose mode: what the figure does now and the keys; outside it, why J did nothing
+        barText.innerHTML = posing
+          ? `pose ${hudText(posing.objs[0].name ?? '')} · ${hudText(posing.anim ?? posing.name)} · <span class="note">${hudText(poseHint || '1–5 pose · 6 walk · 7 run · ⏎ keep · J done')}</span>`
+          : `<span class="note">${hudText(poseHint)}</span>`;
+        return;
+      }
       if (!editing) {
         if (xf) barText.innerHTML = `move ${hudText(xf.obj.name ?? '')}${barNote ? `<span class="note">${hudText(barNote)}</span>` : ''}`; // G outside edit mode
         return;
@@ -3942,6 +3978,128 @@
       const len = Math.hypot(...d) || 1;
       startXf('loop', { ids: [a0], c: P[a0].map((q, i) => (q + P[b0][i]) / 2), loop: { ring, dir: d.map((q) => q / len), len } });
     };
+    // ---- Pose mode (J). A figure is moved by the skeleton the engine reads off its shape (humanoidRig): nothing is stored in the
+    // model, so a figure edited here, or loaded from anywhere, can be posed. While the mode is on the pose is only a picture (the
+    // objects carry the moved meshes, nothing is written); Enter keeps it (one write per object, one undo step), J / Esc puts the
+    // figure back as it was.
+    let poseHintTimer = 0;
+    const hintPose = (text) => {
+      poseHint = text;
+      clearTimeout(poseHintTimer);
+      if (text) poseHintTimer = setTimeout(() => ((poseHint = ''), showBar()), 5000);
+      showBar();
+    };
+    const POSE_KEYS = { 1: 'bind', 2: 'tpose', 3: 'wave', 4: 'sit', 5: 'phone' };
+    // the body and what it wears: the other objects that lie inside its box (hair, a hat, glasses)
+    const figureOf = (body) => {
+      const boxOf = (m) => {
+        const lo = [Infinity, Infinity, Infinity];
+        const hi = [-Infinity, -Infinity, -Infinity];
+        for (const q of m.positions) q.forEach((c, i) => ((lo[i] = Math.min(lo[i], c)), (hi[i] = Math.max(hi[i], c))));
+        return { lo, hi };
+      };
+      const b = boxOf(body.mesh);
+      const pad = 0.12 * (b.hi[1] - b.lo[1]);
+      const worn = allObjects().filter((o) => {
+        if (o.id === body.id || !o.mesh.positions.length || o.inst) return false;
+        const w = boxOf(o.mesh);
+        return [0, 1, 2].every((i) => w.lo[i] >= b.lo[i] - pad && w.hi[i] <= b.hi[i] + pad);
+      });
+      return [body, ...worn];
+    };
+    const showPose = (pose) => {
+      const p = posing;
+      const lowest = (meshes) => Math.min(...meshes.flatMap((m) => m.positions.map((q) => q[1])));
+      const free = posed(p.bind, p.rig, pose);
+      const lift = lowest(p.bind) - lowest(free); // the feet stay on the floor the figure stands on
+      p.objs = p.objs.map((o) => live(o) ?? o); // a db snapshot hands out new instances
+      p.objs.forEach((o, i) => (o.mesh = lift ? { ...free[i], positions: free[i].positions.map((q) => [q[0], q[1] + lift, q[2]]) } : free[i]));
+      p.joints = posedJoints(p.rig, pose).map((q) => [q[0], q[1] + lift, q[2]]);
+      rebuild();
+      redraw();
+    };
+    const poseTick = (now) => {
+      const p = posing;
+      if (!p?.anim) return;
+      if (!frozen) {
+        const run = p.anim === 'run';
+        p.phase = (p.phase + (now - p.last) / (run ? 700 : 1100)) % 1;
+        showPose(walkPose(p.phase, run ? { run: true, stride: 0.9 } : {}));
+      }
+      p.last = now;
+      requestAnimationFrame(poseTick);
+    };
+    const enterPose = () => {
+      if (posing) return;
+      if (editing || xf) return hintPose('J poses a figure: leave edit mode (Q) first');
+      const body = pointedObject();
+      if (!body) return hintPose('J poses a figure: put the cross on it, or target it (T), first');
+      const objs = figureOf(body);
+      let rig;
+      try {
+        rig = humanoidRig(objs.map((o) => o.mesh));
+      } catch (err) {
+        return hintPose(`J: ${String(err?.message ?? err)}`);
+      }
+      posing = { objs, bind: objs.map((o) => o.mesh), rig, name: 'bind', anim: null, phase: 0, last: 0, joints: rig.joints.map((j) => j.at) };
+      document.body.classList.add('posing');
+      hintPose('');
+      redraw();
+    };
+    const leavePose = (keep) => {
+      const p = posing;
+      if (!p) return;
+      posing = null;
+      const objs = p.objs.map((o) => live(o) ?? o);
+      const final = objs.map((o) => o.mesh);
+      objs.forEach((o, i) => (o.mesh = p.bind[i]));
+      if (keep && final.some((m, i) => m !== p.bind[i])) {
+        asOneStep(() =>
+          objs.forEach((o, i) => {
+            change(o, final[i]);
+            history.push(() => has(o) && change(o, p.bind[i]));
+          }),
+        );
+      } else rebuild();
+      document.body.classList.remove('posing');
+      hintPose('');
+      redraw();
+    };
+    const poseKey = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return false;
+      const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      const p = posing;
+      const done = () => (e.preventDefault(), true);
+      if (POSE_KEYS[k]) {
+        if (!e.repeat) {
+          p.anim = null;
+          p.name = POSE_KEYS[k];
+          showPose(HUMANOID_POSES[p.name]);
+          showBar();
+        }
+        return done();
+      }
+      if (k === '6' || k === '7') {
+        if (!e.repeat) {
+          const want = k === '6' ? 'walk' : 'run';
+          const going = Boolean(p.anim);
+          p.name = `${want}, standing still`;
+          p.anim = p.anim === want ? null : want; // again: stand still in that step
+          p.last = performance.now();
+          if (p.anim && !going) requestAnimationFrame(poseTick);
+          showBar();
+        }
+        return done();
+      }
+      if (k === 'Enter') return leavePose(true), done();
+      if (k === 'Escape' || k === 'j') return leavePose(false), done();
+      // what would change the figure under the pose waits until the mode is left
+      if (['q', 'u', 'Backspace', 'g', 'x', 'Delete', 'm', 'o', 'v', 'h'].includes(k)) {
+        if (!e.repeat) hintPose('pose mode: ⏎ keeps the pose, J or Esc leaves it, then that key works again');
+        return done();
+      }
+      return false;
+    };
     // G outside edit mode: grab the target (T) or the object under the cross, whole. Ctrl+D: a copy (a new model, not an instance) that is
     // grabbed at once.
     const grabObject = (o, copied = false) => {
@@ -4274,8 +4432,9 @@
       clean: { run: () => (stage.classList.toggle('clean'), syncLines(), redraw()) },
       undo: { run: () => undo() },
       delete: { run: () => remove() },
+      pose: { run: () => enterPose(), once: true, plain: true },
     };
-    const KEYMAP = { '?': 'help', z: 'zen', '/': 'isolate', p: 'palette', 7: 'scene', 9: 'view', i: 'pick', c: 'filmic', n: 'smooth', k: 'studio', l: 'light', t: 'target', h: 'gizmo', e: 'clean', u: 'undo', Backspace: 'undo' };
+    const KEYMAP = { '?': 'help', z: 'zen', '/': 'isolate', p: 'palette', 7: 'scene', 9: 'view', i: 'pick', c: 'filmic', n: 'smooth', k: 'studio', l: 'light', t: 'target', h: 'gizmo', e: 'clean', u: 'undo', Backspace: 'undo', j: 'pose' };
     const bindKey = (key, action) => (action ? (KEYMAP[key] = action) : delete KEYMAP[key]);
     const boundAction = (e) => {
       const a = ACTIONS[KEYMAP[e.key.length === 1 ? e.key.toLowerCase() : e.key]];
@@ -4292,6 +4451,7 @@
         return void toggleVr(false);
       }
       if (xf && e.key === 'Tab') return e.preventDefault();
+      if (posing && poseKey(e)) return;
       if (e.key === 'Tab') {
         e.preventDefault(); // Tab is the target key: the next object (with no target yet: the one under the cross, like T)
         if (!e.repeat) locked ? nextTarget(e.shiftKey) : travelTo();
@@ -4488,7 +4648,7 @@
         swap.textContent = document.body.classList.contains('split') ? 'close store' : 'store';
       });
       box.append(swap);
-      for (const name of ['empty', 'globe', 'stars', 'stars-plain', 'milkyway', 'ex27', 'human', 'tr74']) {
+      for (const name of ['empty', 'globe', 'stars', 'stars-plain', 'milkyway', 'ex27', 'human', 'betterman', 'tr74']) {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'cream';
@@ -4597,6 +4757,7 @@
       f: { cap: 'F', sub: 'down', cat: 'cream', text: 'Fly down (speed steps).', target: 'Swing down under the target.', edit: 'Fill: the selected points (or the points of the selected lines) become one new face. (Shift+F flies down.)' },
       g: { cap: 'G', sub: 'grab', cat: 'red', text: 'Grab the target (T) or the object under the cross with the pointer; X, Y or Z locks it to a world axis, a typed number is metres. Click or Enter confirms, Esc cancels. Ctrl+D first makes a copy and grabs that.', edit: 'Grab: moves the selection with the pointer; X, Y or Z locks it to a world axis, a typed number is metres. Click or Enter confirms, Esc cancels.' },
       9: { cap: '9', sub: 'gpu', cat: 'teal', text: 'Switch between the SVG view and the WebGPU view.' },
+      j: { cap: 'J', sub: 'pose', cat: 'red', text: 'Pose mode on the figure under the cross (or the target): 1 rest, 2 T, 3 wave, 4 sit, 5 phone, 6 walk, 7 run; Enter keeps the pose (one U takes it back), J or Esc leaves and the figure goes back as it was.' },
       h: { cap: 'H', sub: 'gizmo', cat: 'red', text: 'Move gizmo on the object under the cross: 1st H world axes, 2nd H its own axes, 3rd H off. Drag an arrow to move it.' },
       ';': { cap: ';', sub: 'freeze', title: '; (é on a Hungarian keyboard)', cat: 'teal', text: 'Freeze: everything that moves stands still (flying, orbiting, dragging the view), so the cursor can work. The speed is kept; the key again carries on with it.' },
       k: { cap: 'K', sub: 'studio', cat: 'teal', text: 'Studio light: key, fill and rim light that follow the camera.' },
@@ -4619,7 +4780,7 @@
     const KEY_ROWS = [
       ['escape', '1', '2', '3', '4', '5', '7', '8', '9', '/', '?', 'backspace'],
       ['tab', 'q', 'w', 'e', 'r', 't', 'u', 'i', 'o', 'p'],
-      [1.9, 'a', 's', 'd', 'f', 'g', 'h', 'k', 'l', ';', 'enter'],
+      [1.9, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', 'enter'],
       ['shift', 'z', 'x', 'c', 'v', 'n', 'm', 0.4, 'arrowleft', 'arrowdown', 'arrowup', 'arrowright'],
       [' '],
     ];
@@ -4842,6 +5003,8 @@
     if (new URLSearchParams(location.search).has('debug')) {
       globalThis.__3draft = {
         load: (data) => applyScene(data),
+        pose: () => (posing ? { name: posing.name, anim: posing.anim, objects: posing.objs.map((o) => o.name), joints: posing.joints } : null),
+        hint: () => poseHint,
         meshes: () => allObjects().map((o) => o.mesh),
         objects: () => allObjects().map((o) => {
           const lo = [Infinity, Infinity, Infinity];
