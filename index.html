@@ -120,6 +120,9 @@
     #frame { position: relative; }
     /* the pages of the screen materials (iframes warped onto four-cornered faces); the pointer goes through them to the 3D view */
     #screens { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+    #screenExit { position: fixed; top: 52px; left: 50%; transform: translateX(-50%); z-index: 8; font: 600 11px/1 var(--font-mono); letter-spacing: 0.08em; padding: 7px 14px; border-radius: 14px; border: 1px solid var(--teal, #2fb8c0); background: color-mix(in srgb, #0b0b0a 88%, transparent); color: #fff; cursor: pointer; }
+    #screenExit[hidden] { display: none; }
+    #screens iframe.live { outline: 2px solid var(--teal, #2fb8c0); outline-offset: 2px; }
     #screens iframe { position: absolute; left: 0; top: 0; border: 0; background: #fff; transform-origin: 0 0; pointer-events: none; }
     /* the small readout in the top left corner: what is under the cross, and the target state */
     #stage { position: relative; }
@@ -537,7 +540,7 @@
     <p class="build" id="build" title="Build, YY.MM.DD.NNN">–</p>
   </header>
 
-  <main id="stage" tabindex="0" role="img" aria-label="Empty space for prisms. 9 switches between the SVG and the WebGPU view, L turns the light, C switches the filmic look, N smooth shading, K the studio light. Drag, or use the arrow keys, to rotate the view. The cross follows the surface under the pointer. M puts a prism down there, or shoots one into empty space; Space stops the movement. O marks an object, a second O on another one asks for a boolean operation (union, A minus B, B minus A, intersect). V joins two surface points with a thin bar (P over empty space forgets a pending first point), X deletes the object under the cross, W A S D R F fly, / shows only the model under the cross (/ again: the whole scene), P shows the material palette (Ctrl+click (Cmd on a Mac) paints a face, Ctrl+double click the whole model), T flies the camera to the object under the cross, H puts the move gizmo (helper) on the object under the cross with the world axes, the next H switches to the object's own axes, the third takes it off; drag an arrow to move the object; E toggles edges and points, U or Backspace takes the last one back."><div id="frame"><canvas id="gpu" hidden></canvas><div id="layer"></div><div id="screens"></div></div><div id="hud" aria-hidden="true"></div></main>
+  <main id="stage" tabindex="0" role="img" aria-label="Empty space for prisms. 9 switches between the SVG and the WebGPU view, L turns the light, C switches the filmic look, N smooth shading, K the studio light. Drag, or use the arrow keys, to rotate the view. The cross follows the surface under the pointer. M puts a prism down there, or shoots one into empty space; Space stops the movement. O marks an object, a second O on another one asks for a boolean operation (union, A minus B, B minus A, intersect). V joins two surface points with a thin bar (P over empty space forgets a pending first point), X deletes the object under the cross, W A S D R F fly, / shows only the model under the cross (/ again: the whole scene), P shows the material palette (Ctrl+click (Cmd on a Mac) paints a face, Ctrl+double click the whole model), T flies the camera to the object under the cross, H puts the move gizmo (helper) on the object under the cross with the world axes, the next H switches to the object's own axes, the third takes it off; drag an arrow to move the object; E toggles edges and points, U or Backspace takes the last one back."><div id="frame"><canvas id="gpu" hidden></canvas><div id="layer"></div><div id="screens"></div></div><div id="hud" aria-hidden="true"></div><button id="screenExit" type="button" hidden>← back to 3D (click outside, Esc)</button></main>
 
   <div id="editbar" hidden><b id="editText"></b><button id="editHelp" type="button" title="Show / hide the edit help" aria-pressed="false" hidden>?</button><span id="editHelpText" hidden>V: sketch lines (nothing happens yet) · 1 / 2 / 3: select points / lines / faces (click; Shift+click adds or takes away; A selects all, A A clears) · G: grab the selection (X / Y / Z lock the axis, type metres, click or Enter confirms, Esc cancels) · S: scale (same keys) · E: extrude the selected faces · 4: the saw: V puts 2 points on one face = a cut square to the face, or 3 points = a cut through the triangle; Enter cuts · Shift+W A S D R F fly · Ctrl/Cmd+click paints · Shift+X deletes the object under the cross · U undo · Esc back, then leave · Q leave</span></div>
 
@@ -691,7 +694,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@ad43e0ecf25f2b5849266405e532ed615bce47b3/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@c338fc5f3c7948ba8ba7484a0df7609f9f234d56/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1164,7 +1167,54 @@
     // over the picture, warped onto the face with a CSS matrix3d (a perspective map of the face's four corners). It is not part of the 3D
     // picture: no depth against other objects, no light, and not in a VR view. Faces seen from behind or behind the eye are hidden.
     const screensEl = document.getElementById('screens');
-    const screenFrames = new Map(); // key -> { el, url }
+    const screenFrames = new Map(); // key -> { el, url, poly, info }
+    let screenCtl = null; // a screen the page controls: { key, saved } (the camera that comes back)
+    const screenExit = document.getElementById('screenExit');
+    const inPoly = (poly, x, y) => {
+      let inside = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const [xi, yi] = poly[i];
+        const [xj, yj] = poly[j];
+        if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+      }
+      return inside;
+    };
+    const exitScreen = () => {
+      if (!screenCtl) return;
+      const saved = screenCtl.saved;
+      screenCtl = null;
+      screenExit.hidden = true;
+      if (document.activeElement instanceof HTMLIFrameElement) document.activeElement.blur();
+      stage.focus();
+      goTo({ ...saved });
+      redraw();
+    };
+    const enterScreen = (x, y) => {
+      for (const [key, rec] of screenFrames) {
+        if (!rec.poly || !rec.info || !inPoly(rec.poly, x, y)) continue;
+        const { c, n, diag } = rec.info;
+        screenCtl = { key, saved: { center: [...fit.center], radius: fit.radius, dist: fit.dist, yaw, pitch } };
+        // the camera goes in front of the screen, looking straight at it
+        goTo({ center: [...c], radius: (diag / 2) * 0.95, yaw: Math.atan2(-n[0], n[2]), pitch: Math.asin(Math.max(-0.99, Math.min(0.99, n[1]))) });
+        screenExit.hidden = false;
+        redraw();
+        return true;
+      }
+      return false;
+    };
+    screenExit.addEventListener('click', exitScreen);
+    // while a page has the control, a press anywhere outside it hands the control back (and does nothing else)
+    stage.addEventListener('pointerdown', (e) => {
+      if (!screenCtl) return;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      exitScreen();
+    }, true);
+    window.addEventListener('keydown', (e) => e.key === 'Escape' && screenCtl && exitScreen(), true);
+    stage.addEventListener('dblclick', (e) => {
+      if (screenCtl || !drawing) return;
+      if (enterScreen(e.clientX - drawing.left, e.clientY - drawing.top)) e.stopImmediatePropagation();
+    }, true);
     const homography = (q, w, h) => {
       // maps (0,0) (w,0) (w,h) (0,h) onto the four points q (x, y): the 8 unknowns of a projective map, by Gaussian elimination
       const src = [[0, 0], [w, 0], [w, h], [0, h]];
@@ -1217,6 +1267,8 @@
           }
           if (rec.url !== url) ((rec.url = url), (rec.el.src = url));
           used++;
+          rec.info = null;
+          rec.poly = null;
           const facing = vdot(n, vsub(gcam.eye, c)) > 0;
           const pr = P.map((p) => project(gcam, p));
           if (!facing || pr.some((p) => p.depth <= 0.05)) return void (rec.el.style.display = 'none');
@@ -1237,6 +1289,12 @@
           rec.el.style.height = `${h}px`;
           rec.el.style.transform = m;
           rec.el.style.display = '';
+          rec.poly = pr.map((p) => [p.x, p.y]); // for the double click that hands the control to the page
+          const diag = Math.hypot(...vsub(P[order[0]], P[order[2]]));
+          rec.info = { c, n, diag };
+          rec.el.style.pointerEvents = screenCtl?.key === key ? 'auto' : 'none';
+          rec.el.classList.toggle('live', screenCtl?.key === key);
+          rec.key = key;
         });
       }
       for (const [key, rec] of screenFrames) {
