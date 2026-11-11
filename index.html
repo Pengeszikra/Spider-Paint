@@ -641,7 +641,7 @@
           <button id="freeze" type="button" class="sw red" title="Freeze: everything that moves stands still (; — é on a Hungarian keyboard)"><i></i>freeze</button>
           <button id="gpuBtn" type="button" class="sw" title="The view now: SVG, WebGPU or WebGL2 (9 switches)"><i></i><span>SVG</span></button>
           <button id="lines" type="button" class="sw" title="Edges and points (E)"><i></i>edges</button>
-          <button id="light" type="button" class="sw" title="Turn the light: every press turns the sun a step (L); on while it is turned from its start"><i></i>light</button>
+          <button id="light" type="button" class="sw on" title="Light (L): on lights the scene, off leaves no light at all: only emitting surfaces (lamps, windows) and the edge lines show"><i></i>light</button>
           <button id="paletteBtn" type="button" class="sw" title="The material palette: paint with Ctrl+click (P)"><i></i>palette</button>
         </span>
         <span class="row">
@@ -649,6 +649,7 @@
           <button id="smooth" type="button" class="sw" title="Smooth shading: faces that meet at a shallow angle share their normals (N)"><i></i>smooth</button>
           <button id="studio" type="button" class="sw" title="Studio light: key, fill and rim light that follow the camera (K)"><i></i>studio</button>
           <button id="filmic" type="button" class="sw" title="Filmic look: HDR light, glowing emission, tone mapping (C)"><i></i>filmic</button>
+          <button id="editSw" type="button" class="sw red" title="Edit mode on the object under the cross or the target (Q); red while editing"><i></i>edit</button>
         </span>
       </span>
       <span class="grp only-build" data-label="scene">
@@ -682,7 +683,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@904c831f2faaca939386c9efd6c0f78d6494542d/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@72f1d47377d9727dc45eee456f17d3bdabe117f4/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1345,6 +1346,7 @@
             smooth: smooth ? 40 : 0,
             studio,
             edges: !stage.classList.contains('clean'),
+            unlit: !lightOn,
             marks: gpuMarks,
             light: { direction: [Math.sin(a) * 0.6, 0.8, Math.cos(a) * 0.6] },
           });
@@ -1359,7 +1361,7 @@
             gpu.render(scene, view, {
               palette: paletteMap, parts: sceneParts, instances: { mesh: PROTO, data: instances(now, flights.length > 0) },
               size: square, dpr: 1, fit: { ...fit, center: fit.center.map((c, i) => c + cam0.r[i] * shift) },
-              background: [0.02, 0.02, 0.03], tonemap: filmic, smooth: smooth ? 40 : 0, studio,
+              unlit: !lightOn, background: [0.02, 0.02, 0.03], tonemap: filmic, smooth: smooth ? 40 : 0, studio,
               light: { direction: [Math.sin(a) * 0.6, 0.8, Math.cos(a) * 0.6] },
             });
             if (cv.width !== half || cv.height !== H) ((cv.width = half), (cv.height = H));
@@ -1374,6 +1376,7 @@
         layer.innerHTML = renderView(shown, view, { size, fit: shown_fit, marks, occlude: true, palette: paletteMap });
       }
       fabMode.classList.toggle('on', mode === 'gpu' && Boolean(gpu));
+      document.getElementById('editSw').classList.toggle('on', Boolean(editing));
       speedEl.textContent = `${level.f}·${level.r}·${level.u}`;
       // the 3D speed vector in the middle (the installed app): right, up and forward as a cabinet projection, stairs dashed
       if (inApp) {
@@ -1553,9 +1556,10 @@
       document.getElementById('studio').classList.toggle('on', studio);
       redraw();
     };
+    let lightOn = true;
     const turnLight = () => {
-      lightAngle = (lightAngle + Math.PI / 4) % (Math.PI * 2);
-      document.getElementById('light').classList.toggle('on', Math.abs(lightAngle) > 1e-6);
+      lightOn = !lightOn;
+      document.getElementById('light').classList.toggle('on', lightOn);
       redraw();
     };
     // Glow without a mesh: stars whose instance has a `glow` radius (world units) get a soft additive sprite on a 2D canvas over the
@@ -3868,6 +3872,11 @@
         document.dispatchEvent(new KeyboardEvent('keyup', init));
       });
     }
+    document.getElementById('editSw').addEventListener('click', () => {
+      const init = { key: 'q', bubbles: true, cancelable: true };
+      document.dispatchEvent(new KeyboardEvent('keydown', init));
+      document.dispatchEvent(new KeyboardEvent('keyup', init));
+    });
     document.getElementById('place').addEventListener('click', place);
     document.getElementById('delete').addEventListener('click', remove);
     document.getElementById('travel').addEventListener('click', travelTo);
@@ -4047,7 +4056,7 @@
       h: { cap: 'H', sub: 'gizmo', cat: 'red', text: 'Move gizmo on the object under the cross: 1st H world axes, 2nd H its own axes, 3rd H off. Drag an arrow to move it.' },
       ';': { cap: ';', sub: 'freeze', title: '; (é on a Hungarian keyboard)', cat: 'teal', text: 'Freeze: everything that moves stands still (flying, orbiting, dragging the view), so the cursor can work. The speed is kept; the key again carries on with it.' },
       k: { cap: 'K', sub: 'studio', cat: 'teal', text: 'Studio light: key, fill and rim light that follow the camera.' },
-      l: { cap: 'L', sub: 'light', cat: 'teal', text: 'Turn the sun (the light direction) in steps.' },
+      l: { cap: 'L', sub: 'light', cat: 'teal', text: 'Light on / off. Off: no light in the scene at all, only emitting surfaces and the edge lines show.' },
       enter: { cap: 'Enter', sub: 'cut', cat: 'red', w: 2.2, title: 'Enter', text: '', edit: 'Saw: cuts along the marked plane.' },
       shift: { cap: 'Shift', sub: 'paint', cat: 'slate', w: 2.4, title: 'Shift', text: 'Shift+Tab: previous target. Painting is Ctrl+click (Cmd on a Mac).', edit: 'Shift+click adds to the selection or takes from it. Shift+W A S D R F fly (plain, they are edit keys).', run: false },
       z: { cap: 'Z', sub: 'zen', cat: 'slate', text: 'Zen: hide everything but the model. Z or Esc brings the panels back.' },

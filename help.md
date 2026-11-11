@@ -26,7 +26,8 @@ A minimal 3D scene builder. Fly through a scene, build with solid prisms, and ed
 | Smooth | Smooth shading (N): edges are rounded only on materials with soft above 0 (soft 0 keeps every edge hard; from 0.5 up the full 40° crease is smoothed) |
 | Studio | Key, fill and rim light that follow the camera (K) |
 | Freeze | Everything that moves stands still (`;`, which is `é` on a Hungarian keyboard) |
-| Light | Turn the sun in steps (L) |
+| Light | Light on or off (L). Off: no light in the scene at all, only emitting surfaces (lamps, windows) and the edge lines show |
+| Edit | Edit mode on or off (Q); red while editing |
 | + example | Add an example scene |
 | Clear | Remove every object (U brings them back) |
 | Undo, Reset view, Zen | Take the last change back; frame the scene; hide all but the model (Z) |
