@@ -196,7 +196,7 @@
     #editbar .modes { display: inline-flex; gap: 4px; margin-left: 10px; vertical-align: middle; }
     #editbar .modes i { font-style: normal; padding: 1px 7px; border-radius: 9px; border: 1px solid rgba(255,255,255,.28); opacity: .55; }
     #editbar .modes i.on { opacity: 1; background: #fff; color: #111; border-color: #fff; text-shadow: none; }
-    #editbar .note { margin-left: 10px; opacity: .85; }
+    #editbar .note { margin-left: 0; opacity: .85; }
     #editbar button { pointer-events: auto; cursor: pointer; font: inherit; line-height: 1; padding: 2px 8px; border-radius: 10px; border: 1px solid var(--line); background: none; color: var(--muted); }
     #editbar button.on { color: #fff; border-color: #fff; }
     #editbar #editHelpText { flex-basis: 100%; }
@@ -536,7 +536,7 @@
 
   <main id="stage" tabindex="0" role="img" aria-label="Empty space for prisms. 9 switches between the SVG and the WebGPU view, L turns the light, C switches the filmic look, N smooth shading, K the studio light. Drag, or use the arrow keys, to rotate the view. The cross follows the surface under the pointer. M puts a prism down there, or shoots one into empty space; Space stops the movement. O marks an object, a second O on another one asks for a boolean operation (union, A minus B, B minus A, intersect). V joins two surface points with a thin bar (P over empty space forgets a pending first point), X deletes the object under the cross, W A S D R F fly, / shows only the model under the cross (/ again: the whole scene), P shows the material palette (Ctrl+click (Cmd on a Mac) paints a face, Ctrl+double click the whole model), T flies the camera to the object under the cross, H puts the move gizmo (helper) on the object under the cross with the world axes, the next H switches to the object's own axes, the third takes it off; drag an arrow to move the object; E toggles edges and points, U or Backspace takes the last one back."><div id="frame"><canvas id="gpu" hidden></canvas><div id="layer"></div></div><div id="hud" aria-hidden="true"></div></main>
 
-  <div id="editbar" hidden><b id="editText"></b><button id="editHelp" type="button" title="Show / hide the edit help" aria-pressed="false">?</button><span id="editHelpText" hidden>V: sketch lines (nothing happens yet) · 1 / 2 / 3: select points / lines / faces (click; Shift+click adds or takes away; A selects all, A A clears) · G: grab the selection (X / Y / Z lock the axis, type metres, click or Enter confirms, Esc cancels) · S: scale (same keys) · E: extrude the selected faces · 4: the saw: V puts 2 points on one face = a cut square to the face, or 3 points = a cut through the triangle; Enter cuts · Shift+W A S D R F fly · Ctrl/Cmd+click paints · Shift+X deletes the object under the cross · U undo · Esc back, then leave · Q leave</span></div>
+  <div id="editbar" hidden><b id="editText"></b><button id="editHelp" type="button" title="Show / hide the edit help" aria-pressed="false" hidden>?</button><span id="editHelpText" hidden>V: sketch lines (nothing happens yet) · 1 / 2 / 3: select points / lines / faces (click; Shift+click adds or takes away; A selects all, A A clears) · G: grab the selection (X / Y / Z lock the axis, type metres, click or Enter confirms, Esc cancels) · S: scale (same keys) · E: extrude the selected faces · 4: the saw: V puts 2 points on one face = a cut square to the face, or 3 points = a cut through the triangle; Enter cuts · Shift+W A S D R F fly · Ctrl/Cmd+click paints · Shift+X deletes the object under the cross · U undo · Esc back, then leave · Q leave</span></div>
 
   <aside id="boolq" hidden aria-label="Boolean operation">
     <span id="boolText"></span>
@@ -687,7 +687,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@6d364ddc42aee950f234852514d9d89242fe158e/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@bf4aaee7abbc0cf571a2ef05b9cdae2f43355234/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -764,7 +764,9 @@
     let gcam = null; // the camera of every frame (cam only exists while the pointer is over the view)
     let drawing = { left: 0, top: 0 }; // where the square drawing starts, in client pixels
     let solo = null; // `/` isolates one object: its id, null shows everything
-    const benchRadius = () => Math.max(editing && has(editing) ? bounds(editing.mesh).radius * 1.3 : 0, 1e-3);
+    const benchRadius = () => Math.max(editing && has(editing) ? bounds(editing.mesh).radius * 1.4 : 0, 1e-3);
+    // the edit camera looks at the middle of the whole model (the bench grid stays at its base), so all of it is in view
+    const benchLook = () => (editing && has(editing) && editing.mesh.positions.length ? [...bounds(editing.mesh).center] : [...bench.origin]);
     // The workbench (edit mode): every object stays where it is and stays visible. The object being edited is the active one: its
     // local origin (the middle of its base) carries the grid (the plane under it) and the camera looks at that point.
     let bench = null; // { origin: [x, y, z], base: history length at the start, cam: the view to return to }
@@ -1775,7 +1777,7 @@
       redraw();
     };
     const reset = () => {
-      if (bench) return goTo({ center: [...bench.origin], radius: benchRadius(), yaw: START.yaw, pitch: START.pitch });
+      if (bench) return goTo({ center: benchLook(), radius: benchRadius(), yaw: START.yaw, pitch: START.pitch });
       focused = false;
       goTo({ ...overview(), yaw: START.yaw, pitch: START.pitch });
     };
@@ -2812,8 +2814,9 @@
         if (xf) barText.innerHTML = `move ${hudText(xf.obj.name ?? '')}${barNote ? `<span class="note">${hudText(barNote)}</span>` : ''}`; // G outside edit mode
         return;
       }
-      const chips = Object.entries(MODES).map(([k, label]) => `<i class="${k === emode ? 'on' : ''}">${label}</i>`).join('');
-      barText.innerHTML = `edit ${hudText(editing.name ?? '')}<span class="modes">${chips}</span>${barNote ? `<span class="note">${hudText(barNote)}</span>` : ''}`;
+      // in edit mode the bar only carries notes (why a key did nothing); the console shows the mode
+      bar.hidden = !barNote;
+      barText.innerHTML = barNote ? `<span class="note">${hudText(barNote)}</span>` : '';
     };
     const vsub = (a, b) => a.map((c, i) => c - b[i]);
     const vdot = (a, b) => a.reduce((t, c, i) => t + c * b[i], 0);
@@ -2896,7 +2899,7 @@
       xf = null;
       emode = 'draw';
       barNote = '';
-      goTo({ center: [...bench.origin], radius: benchRadius(), yaw, pitch });
+      goTo({ center: benchLook(), radius: benchRadius(), yaw, pitch });
       showBar();
       redraw();
     };
