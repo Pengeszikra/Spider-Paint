@@ -616,6 +616,22 @@
     </p>
     <textarea id="gpuerr" readonly hidden rows="4" aria-label="WebGPU error text (select and copy)" style="width:100%;box-sizing:border-box;font:12px/1.4 var(--font-mono);background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:6px"></textarea>
     <span class="actions">
+      <span class="grp rows" data-label="view">
+        <span class="row">
+          <button id="freeze" type="button" class="sw red" title="Freeze: everything that moves stands still (; — é on a Hungarian keyboard)"><i></i>freeze</button>
+          <button id="gpuBtn" type="button" class="sw" title="The view now: SVG, WebGPU or WebGL2 (9 switches)"><i></i><span>SVG</span></button>
+          <button id="lines" type="button" class="sw" title="Edges and points (E)"><i></i>edges</button>
+          <button id="light" type="button" class="sw on" title="Light (L): on lights the scene, off leaves no light at all: only emitting surfaces (lamps, windows) and the edge lines show"><i></i>light</button>
+          <button id="paletteBtn" type="button" class="sw" title="The material palette: paint with Ctrl+click (P)"><i></i>palette</button>
+        </span>
+        <span class="row">
+          <button id="sceneBtn" type="button" class="sw" title="Open or close the store, a second 3D view beside the build (7)"><i></i><span>store</span></button>
+          <button id="smooth" type="button" class="sw" title="Smooth shading: faces that meet at a shallow angle share their normals (N)"><i></i>smooth</button>
+          <button id="studio" type="button" class="sw" title="Studio light: key, fill and rim light that follow the camera (K)"><i></i>studio</button>
+          <button id="filmic" type="button" class="sw" title="Glow: emitting materials light their surroundings as local lights, without shadows (C)"><i></i>glow</button>
+          <button id="editSw" type="button" class="sw red" title="Edit mode on the object under the cross or the target (Q); red while editing"><i></i>edit</button>
+        </span>
+      </span>
       <span class="grp only-build" data-label="make" style="display:none">
         <button id="place" type="button" class="red ic" title="Place a prism (M)" aria-label="Place a prism"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12L4 7.5M12 12v9"/></svg></button>
         <button id="brush" type="button" class="chip" hidden title="The model M puts down; click to go back to the prism"></button>
@@ -638,22 +654,6 @@
           <button type="button" class="cream" data-key="e" title="Extrude the selected faces (E)"><b>E</b>ex</button>
           <button type="button" class="cream" data-key="f" title="Fill: make a face of the selected points (F)"><b>F</b>fill</button>
           <button type="button" class="slate" data-key="x" data-shift="1" title="Delete the object under the cross (Shift+X)"><b>⇧X</b>del</button>
-        </span>
-      </span>
-      <span class="grp rows" data-label="view">
-        <span class="row">
-          <button id="freeze" type="button" class="sw red" title="Freeze: everything that moves stands still (; — é on a Hungarian keyboard)"><i></i>freeze</button>
-          <button id="gpuBtn" type="button" class="sw" title="The view now: SVG, WebGPU or WebGL2 (9 switches)"><i></i><span>SVG</span></button>
-          <button id="lines" type="button" class="sw" title="Edges and points (E)"><i></i>edges</button>
-          <button id="light" type="button" class="sw on" title="Light (L): on lights the scene, off leaves no light at all: only emitting surfaces (lamps, windows) and the edge lines show"><i></i>light</button>
-          <button id="paletteBtn" type="button" class="sw" title="The material palette: paint with Ctrl+click (P)"><i></i>palette</button>
-        </span>
-        <span class="row">
-          <button id="sceneBtn" type="button" class="sw" title="Open or close the store, a second 3D view beside the build (7)"><i></i><span>store</span></button>
-          <button id="smooth" type="button" class="sw" title="Smooth shading: faces that meet at a shallow angle share their normals (N)"><i></i>smooth</button>
-          <button id="studio" type="button" class="sw" title="Studio light: key, fill and rim light that follow the camera (K)"><i></i>studio</button>
-          <button id="filmic" type="button" class="sw" title="Glow: emitting materials light their surroundings as local lights, without shadows (C)"><i></i>glow</button>
-          <button id="editSw" type="button" class="sw red" title="Edit mode on the object under the cross or the target (Q); red while editing"><i></i>edit</button>
         </span>
       </span>
       <span class="grp only-build" data-label="scene">
@@ -687,7 +687,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@b0d3e975c0a376ec2e530a691d8b400bb23b83fa/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@23d5fe96d03cae07c6c6c87b36ae51f7ca5b2c51/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
