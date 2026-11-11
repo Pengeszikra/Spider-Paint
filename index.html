@@ -716,7 +716,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@af26c3300a2419acb4820c9b000182d1849bc43b/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@8459b65536dd8c84deb8ba9f54b20e226c55ce09/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1402,7 +1402,9 @@
         const x = pointer.x - r.left - (r.width - size) / 2;
         const y = pointer.y - r.top - (r.height - size) / 2;
         cam = makeCamera(view, scene, size, shown_fit);
-        hit = kernel ? kernel.pick(scene, cam, x, y) : pick(scene, cam, x, y);
+        // editing sees the far side of a face too: from inside a hull its walls face away, and they must still be selectable
+        const cull = !editing;
+        hit = kernel ? kernel.pick(scene, cam, x, y, { cull }) : pick(scene, cam, x, y, { cull });
         cam.at = { x, y };
         panelPointer = { x, y };
         if (hit) lastHitId = owner(hit.face)?.id ?? lastHitId;
