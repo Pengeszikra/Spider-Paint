@@ -122,3 +122,8 @@ The `scene` panel has one list for adding a scene: the examples, and under `save
 **View in the scene file.** A scene is saved with its view: `view: { edges, light, glow, smooth, studio, cam }` (the switches and the camera). It is applied when the scene stands alone (`merge` off, or nothing was in the scene); a merged scene keeps the view you have. The edges start off.
 
 **`?ply=name`** opens the scene saved here under that name at once, alone, with its view, in zen. Without such a saved scene the page starts as usual.
+
+## Text
+In edit mode, select a face (3) and press **T**: type the words and press Enter. The text becomes a **new model**, standing out of that face in the **active material**. The face sets where the first letter starts (its lower left corner), the reading direction and the letter height; the text runs on to the right, so a long text goes past the face. The font is a minimalist blocky stroke font (A–Z, 0–9, `. , : ! ? - _ + / '` and the Hungarian accents); lower case is drawn as upper case. The stroke, and the depth the letters stand out, is 20 % of the letter height.
+
+The model keeps its words (a `text` attribute, saved in the scene file with the frame it stands in), so to fix them: edit the text model (Q on it) and press **T** again.

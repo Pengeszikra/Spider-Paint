@@ -395,6 +395,8 @@
     /* labels are not selectable (the error box stays copyable) */
     body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
     #gpuerr, #gpuerr * { -webkit-user-select: text; user-select: text; }
+    #textBox { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 30; width: min(360px, 80vw); box-sizing: border-box; background: #14160f; color: var(--cream); border: 1px solid var(--cream); border-radius: 8px; padding: 9px 12px; font: 600 14px/1 var(--font-mono); }
+    #textBox[hidden] { display: none; }
     input[type=text], input[type=search], textarea { -webkit-user-select: text; user-select: text; }
 
     /* no frame round the 3D view, and the target readout floats without a box */
@@ -543,6 +545,7 @@
 
   <main id="stage" tabindex="0" role="img" aria-label="Empty space for prisms. 9 switches between the SVG and the WebGPU view, L turns the light, C switches the filmic look, N smooth shading, K the studio light. Drag, or use the arrow keys, to rotate the view. The cross follows the surface under the pointer. M puts a prism down there, or shoots one into empty space; Space stops the movement. O marks an object, a second O on another one asks for a boolean operation (union, A minus B, B minus A, intersect). V joins two surface points with a thin bar (P over empty space forgets a pending first point), X deletes the object under the cross, W A S D R F fly, / shows only the model under the cross (/ again: the whole scene), P shows the material palette (Ctrl+click (Cmd on a Mac) paints a face, Ctrl+double click the whole model), T flies the camera to the object under the cross, H puts the move gizmo (helper) on the object under the cross with the world axes, the next H switches to the object's own axes, the third takes it off; drag an arrow to move the object; E toggles edges and points, U or Backspace takes the last one back."><div id="frame"><canvas id="gpu" hidden></canvas><div id="layer"></div><div id="screens"></div></div><div id="hud" aria-hidden="true"></div></main>
 
+  <input id="textBox" type="text" placeholder="text (Enter: make it, Esc: cancel)" maxlength="80" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="The words to put on the face" hidden>
   <div id="editbar" hidden><b id="editText"></b><button id="editHelp" type="button" title="Show / hide the edit help" aria-pressed="false" hidden>?</button><span id="editHelpText" hidden>V: sketch lines (nothing happens yet) · 1 / 2 / 3: select points / lines / faces (click; Shift+click adds or takes away; A selects all, A A clears) · G: grab the selection (X / Y / Z lock the axis, type metres, click or Enter confirms, Esc cancels) · S: scale (same keys) · E: extrude the selected faces · 4: the saw: V puts 2 points on one face = a cut square to the face, or 3 points = a cut through the triangle; Enter cuts · Shift+W A S D R F fly · Ctrl/Cmd+click paints · Shift+X deletes the object under the cross · U undo · Esc back, then leave · Q leave</span></div>
 
   <aside id="boolq" hidden aria-label="Boolean operation">
@@ -713,7 +716,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@ac173d1789caf1619d2cc948f42d24b8ac02ce11/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@c60041bfee0f00cdf1546844de62757f74b56e33/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2155,7 +2158,8 @@
     };
     const save = (obj, op) => col && enqueue(op, () => unsaved.delete(obj.id));
     // the stored document of an object; the lines drawn on it ride along
-    const docOf = (o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}) });
+    const textPart = (o) => (o.text !== undefined ? { text: o.text, textFrame: o.textFrame } : {}); // a text model keeps its words and where they stand, so they can be fixed
+    const docOf = (o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}), ...textPart(o) });
     const shortId = () => Math.random().toString(36).slice(2, 6).padEnd(4, '0'); // prism-{id}
     const uid = (name) => `${name}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
     const create = (name, mesh) => {
@@ -2332,6 +2336,7 @@
         objects.forEach((o) => {
           const mesh = dx ? { ...o.mesh, positions: o.mesh.positions.map(([x, y, z]) => [x + dx, y, z]) } : o.mesh;
           const made = create(o.name, mesh);
+          if (o.text !== undefined) Object.assign(live(made) ?? made, { text: o.text, textFrame: o.textFrame && { ...o.textFrame, origin: o.textFrame.origin.map((c, i) => (i === 0 ? c + dx : c)) } });
           if (o.inst) (live(made) ?? made).inst = { ...o.inst, at: [o.inst.at[0] + dx, o.inst.at[1], o.inst.at[2]], level: -1 };
         }),
       );
@@ -3820,6 +3825,52 @@
       redraw();
     };
     // the keys of edit mode that are not modes (a few of them are fly keys outside it: those need Shift here)
+    // T in edit mode: text. With a face selected, a new model stands out of that face (the face's lower left corner, height and
+    // direction say where the first letter goes and how big it is; the active material). On a text model: fix the words.
+    const textBox = document.getElementById('textBox');
+    let textJob = null;
+    const askText = (job) => {
+      textJob = job;
+      textBox.value = job.text;
+      textBox.hidden = false;
+      textBox.focus();
+      textBox.select();
+    };
+    const closeText = () => {
+      textJob = null;
+      textBox.hidden = true;
+      textBox.blur();
+    };
+    const startText = () => {
+      const o = editing;
+      if (!o) return;
+      if (o.text !== undefined) return askText({ fix: o, text: o.text });
+      if (sel.kind !== 'face' || !sel.items.length) return noteEdit('select a face with 3 first: it sets where the text starts and how big it is, then T');
+      askText({ frame: faceFrame(o.mesh, faceAt(sel.items[0])), text: '' });
+    };
+    const putText = () => {
+      const job = textJob;
+      const text = textBox.value.trim();
+      closeText();
+      if (!job || !text) return;
+      const m = materials[current];
+      if (job.fix) {
+        const o = live(job.fix) ?? job.fix;
+        const before = { mesh: o.mesh, text: o.text };
+        change(o, textMesh(text, o.textFrame, { mat: m.name, color: m.color }));
+        o.text = text;
+        history.push(() => has(o) && (change(o, before.mesh), (o.text = before.text)));
+      } else {
+        const made = create(`text-${shortId()}`, textMesh(text, job.frame, { mat: m.name, color: m.color }));
+        Object.assign(live(made) ?? made, { text, textFrame: job.frame });
+      }
+      redraw();
+    };
+    textBox.addEventListener('keydown', (e) => {
+      e.stopPropagation(); // typing words is not a command
+      if (e.key === 'Enter') putText();
+      else if (e.key === 'Escape') closeText();
+    });
     const editKey = (e) => {
       if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && !xf && e.key.toLowerCase() === 'r') {
         e.preventDefault(); // Ctrl+R would reload the page
@@ -3847,6 +3898,11 @@
         const t = performance.now();
         if (t - lastA < 400) ((sel = emptySel()), (lastA = 0), redraw()); // A A: nothing selected
         else ((lastA = t), selectAll());
+        return true;
+      }
+      if (k === 't') {
+        e.preventDefault();
+        if (!e.repeat) startText();
         return true;
       }
       if (k === 'g' || k === 's' || k === 'e') {
@@ -4324,7 +4380,7 @@
       w: { cap: 'W', sub: 'fwd', cat: 'cream', text: 'Fly forward. Every press is one speed step; S slows down and reverses.', target: 'Closer to the target (stops at its surface).', edit: 'Only with Shift while editing.' },
       e: { cap: 'E', sub: 'edges', cat: 'cream', text: 'Edges and points on or off.', edit: 'Extrude the selection and grab it at once: a point (1) becomes a line, a line (2) becomes a face, a face (3) is pushed out along its normal. Move the pointer, or type metres; X Y Z lock an axis.' },
       r: { cap: 'R', sub: 'up', cat: 'cream', text: 'Fly up (speed steps).', target: 'Swing up over the target.', edit: 'Rotate the selection: about the middle of points or faces; with a selected line the line is the axis. X, Y or Z turns about that world axis, a typed number is degrees. (Shift+R flies up.)' },
-      t: { cap: 'T', sub: 'target', cat: 'teal', text: 'Target the object under the cross: the camera turns to it and keeps looking at it. Over empty space: the nearest object.', target: 'Another object re-targets; the target itself or empty space brings the camera back onto the target.' },
+      t: { cap: 'T', sub: 'target', cat: 'teal', text: 'Target the object under the cross: the camera turns to it and keeps looking at it. Over empty space: the nearest object.', target: 'Another object re-targets; the target itself or empty space brings the camera back onto the target.', edit: 'Text: with a face selected (3), asks for the words and puts them on it as a new model; the face gives the first letter\'s corner, direction and height. On a text model: fix the words.' },
       8: { cap: '8', sub: 'vr', cat: 'teal', text: 'VR: two eyes side by side for a phone in a headset holder. The phone turns the view, a tap speeds up, a double tap stops, a long press (or 8, Esc) leaves.' },
       u: { cap: 'U', sub: 'undo', cat: 'slate', text: 'Undo the last change. Backspace does the same.' },
       i: { cap: 'I', sub: 'pick', cat: 'red', text: 'Pick the material under the cross (then Ctrl/Cmd+click paints with it).' },
@@ -4487,7 +4543,7 @@
         name,
         palette: materials.filter((m) => used.has(m.name)).map((m) => ({ ...m })),
         view: viewOf(),
-        objects: allObjects().map((o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}) })),
+        objects: allObjects().map((o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}), ...textPart(o) })),
       };
     };
     const showSaved = () => {
