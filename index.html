@@ -687,7 +687,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@23d5fe96d03cae07c6c6c87b36ae51f7ca5b2c51/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@3db930a16f4e932876deb54c418e93b50d03f7d2/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1250,29 +1250,29 @@
         const dot = (q) => [[q, q]]; // a zero-length line with round caps is a point
         const cross = (q, k = 1) => [[[q[0] - e * k, q[1], q[2]], [q[0] + e * k, q[1], q[2]]], [[q[0], q[1] - e * k, q[2]], [q[0], q[1] + e * k, q[2]]], [[q[0], q[1], q[2] - e * k], [q[0], q[1], q[2] + e * k]]];
         const wire = (editing.wire ?? []).filter(([a, b]) => a < P.length && b < P.length);
-        if (P.length <= 600) marks.push({ name: 'verts', color: '#aeb4bb', width: 7, lines: P.map(dot).flat() });
-        if (wire.length) marks.push({ name: 'wire', color: '#ff4d3d', width: 3, lines: wire.map(([a, b]) => [P[a], P[b]]) });
+        if (P.length <= 600) marks.push({ name: 'verts', color: '#aeb4bb', width: 4, lines: P.map(dot).flat() });
+        if (wire.length) marks.push({ name: 'wire', color: '#ff4d3d', width: 2, lines: wire.map(([a, b]) => [P[a], P[b]]) });
         const ends = [...new Set(wire.flat())];
-        if (ends.length) marks.push({ name: 'wire-ends', color: '#ff4d3d', width: 8, lines: ends.flatMap((i) => dot(P[i])) });
-        if (editing.lines?.length) marks.push({ name: 'sketch', color: '#ff4d3d', width: 3, lines: editing.lines });
+        if (ends.length) marks.push({ name: 'wire-ends', color: '#ff4d3d', width: 5, lines: ends.flatMap((i) => dot(P[i])) });
+        if (editing.lines?.length) marks.push({ name: 'sketch', color: '#ff4d3d', width: 2, lines: editing.lines });
         if (sketchFrom) {
           const to = sawHere()?.p;
-          marks.push({ name: 'sketch-start', color: '#2f9e44', width: 10, lines: dot(sketchFrom) });
+          marks.push({ name: 'sketch-start', color: '#2f9e44', width: 6, lines: dot(sketchFrom) });
           if (to) marks.push({ name: 'sketch-rubber', color: '#ff4d3d', width: 1.5, lines: [[sketchFrom, to]] });
         }
         if (emode === 'saw' && sawPts.length) {
           const pts = sawPts.map((q) => q.p);
-          marks.push({ name: 'saw-pts', color: '#ff4d3d', width: 11, lines: pts.flatMap((q) => dot(q)) });
+          marks.push({ name: 'saw-pts', color: '#ff4d3d', width: 6, lines: pts.flatMap((q) => dot(q)) });
           const lines = pts.slice(1).map((q, k) => [pts[k], q]);
           if (pts.length === 3) lines.push([pts[2], pts[0]]);
-          if (lines.length) marks.push({ name: 'saw-line', color: '#ff4d3d', width: 3, lines });
+          if (lines.length) marks.push({ name: 'saw-line', color: '#ff4d3d', width: 2, lines });
           if (pts.length < 3) {
             const to = sawHere()?.p;
             if (to) marks.push({ name: 'saw-rubber', color: '#ff4d3d', width: 1.5, lines: [[pts.at(-1), to]] });
           }
           try {
             const plane = sawPlane();
-            if (plane) marks.push({ name: 'saw-cut', color: '#e8590c', width: 4, lines: sectionSegments(editing.mesh, plane) });
+            if (plane) marks.push({ name: 'saw-cut', color: '#e8590c', width: 2, lines: sectionSegments(editing.mesh, plane) });
           } catch {
             // no plane yet: the note on the bar says why
           }
@@ -1288,7 +1288,7 @@
               if (fi >= 0) lines.push(...outline(editing.mesh.faces[fi].v));
             }
           }
-          marks.push({ name: 'selected', color: '#e8590c', width: sel.kind === 'vertex' ? 11 : 4, lines });
+          marks.push({ name: 'selected', color: '#e8590c', width: sel.kind === 'vertex' ? 6 : 1.5, lines });
         }
         if (xf) {
           // the axis the move or scale is locked to: a long line through the centre of the selection
@@ -1298,9 +1298,9 @@
             marks.push({ name: 'xf-axis', color: xf.lock ? ['#e03131', '#2f9e44', '#1c7ed6']['xyz'.indexOf(xf.lock)] : '#ffffff', width: 2, lines: [[xf.c.map((c, i) => c - A[i] * L), xf.c.map((c, i) => c + A[i] * L)]] });
           }
         }
-        if (snapV >= 0 && snapV < P.length && !xf) marks.push({ name: 'snap', color: '#ffffff', width: 11, lines: dot(P[snapV]) });
-        if (snapE && !xf) marks.push({ name: 'snap-edge', color: '#ffffff', width: 4, lines: [[P[snapE[0]], P[snapE[1]]]] });
-        if (snapF >= 0 && !xf && editing.mesh.faces[snapF]) marks.push({ name: 'snap-face', color: '#ffffff', width: 3, lines: outline(editing.mesh.faces[snapF].v) });
+        if (snapV >= 0 && snapV < P.length && !xf) marks.push({ name: 'snap', color: '#ffffff', width: 6, lines: dot(P[snapV]) });
+        if (snapE && !xf) marks.push({ name: 'snap-edge', color: '#ffffff', width: 2, lines: [[P[snapE[0]], P[snapE[1]]]] });
+        if (snapF >= 0 && !xf && editing.mesh.faces[snapF]) marks.push({ name: 'snap-face', color: '#ffffff', width: 1.5, lines: outline(editing.mesh.faces[snapF].v) });
       }
       if (lockedObj) {
         const lo = [Infinity, Infinity, Infinity];
