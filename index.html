@@ -713,7 +713,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@7cb1175f6a5da8ecb29414706ce5e86ccba738ef/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@73e3b315ab6be36d8b216c1ade6642e80b76eb5f/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1018,14 +1018,18 @@
     const stop = () => {
       if (!frozen) level.f = level.r = level.u = 0;
     };
+    let backoff = 1; // how far the eye is backed off for a wide stage right now (eases to its goal, so nothing jumps)
+    let fovNow = (35 * Math.PI) / 180; // the lens: wide while flying inside the scene, eased both ways
     const enterFly = () => {
       if (fly && !travel) return;
       travel = null;
-      const c = makeCamera(orbit({ yaw, pitch }), nothing, 100, fit); // where the eye is now
-      const away = c.eye.map((e, i) => e - fit.center[i]);
+      // where the eye is now: the one drawn (the view backs off on a wide stage; the plain fit would put the eye closer and the picture would jump)
+      const eye = gcam?.eye ? [...gcam.eye] : makeCamera(orbit({ yaw, pitch }), nothing, 100, fit).eye;
+      const away = eye.map((e, i) => e - fit.center[i]);
       const len = Math.hypot(...away) || 1;
-      fit.center = c.eye.map((e, i) => e - (away[i] / len) * FLY_DIST); // the eye stays, the pivot comes to it
+      fit.center = eye.map((e, i) => e - (away[i] / len) * FLY_DIST); // the eye stays, the pivot comes to it
       fit.dist = FLY_DIST;
+      backoff = 1; // the eye is already where it is drawn
       fly = true;
       focused = true;
     };
@@ -1337,6 +1341,7 @@
         screenFrames.delete(key);
       }
     };
+    let lastDraw = performance.now();
     const draw = () => {
       queued = false;
       stepTravel(performance.now());
@@ -1353,9 +1358,21 @@
       const base = Math.max(160, Math.min(900, Math.floor(Math.min(r.width, r.height) * (touchy && !inApp ? 1.12 : 1))));
       const eye0 = makeCamera(view, nothing, 100, fit).eye;
       const dist = Math.hypot(...eye0.map((e, i) => e - fit.center[i]));
-      const inside = fly ? { fov: INSIDE_FOV } : {}; // flying = an eye in the scene: a wider lens, like standing in a room
-      // a targeted or flown view keeps the true eye (the backing off below would drift it with the distance to the target)
-      const shown_fit = size > base && !focused && !fly ? { ...fit, ...inside, dist: dist * (size / base) } : { ...fit, ...inside };
+      // flying = an eye in the scene: a wider lens, like standing in a room; the lens and the backing off ease to their goals
+      const FOV0 = (35 * Math.PI) / 180;
+      const ease1 = 1 - Math.exp(-(Math.min(0.1, (performance.now() - lastDraw) / 1000)) * 9);
+      lastDraw = performance.now();
+      const fovGoal = fly ? INSIDE_FOV : FOV0;
+      fovNow += (fovGoal - fovNow) * ease1;
+      if (Math.abs(fovGoal - fovNow) < 1e-3) fovNow = fovGoal;
+      else queued || redraw();
+      const inside = fovNow !== FOV0 ? { fov: fovNow } : {};
+      // a targeted or flown view keeps the true eye (the backing off would drift it with the distance to the target)
+      const backGoal = size > base && !focused && !fly ? size / base : 1;
+      backoff += (backGoal - backoff) * ease1;
+      if (Math.abs(backGoal - backoff) < 1e-3) backoff = backGoal;
+      else queued || redraw();
+      const shown_fit = backoff !== 1 ? { ...fit, ...inside, dist: dist * backoff } : { ...fit, ...inside };
 
       gcam = makeCamera(view, nothing, size, shown_fit);
       applyLod(); // finer or coarser meshes for the instances, by their size on screen (before anything reads `scene`)
@@ -1953,6 +1970,7 @@
       const f = makeCamera(orbit({ yaw, pitch }), nothing, 100, { center: [0, 0, 0], radius: 1, dist: FLY_DIST }).f;
       fit.center = eye.map((c, i) => c + f[i] * FLY_DIST);
       fit.dist = FLY_DIST;
+      backoff = 1;
       travel = null; // a turn still under way (the reset of a Clear) must not pull the eye away again
       fly = true;
       focused = true;
