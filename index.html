@@ -677,6 +677,7 @@
         <option value="human">Low poly human</option>
         <option value="tr74">TR-74 expedition module</option>
         <optgroup id="savedGroup" label="saved here" hidden></optgroup></select>
+          <button id="mergeSw" type="button" class="sw on" title="Loading a scene (the list, file ↑): on adds it to what is there, off clears the scene first and loads it alone"><i></i>merge</button>
           <button id="clear" type="button" class="slate ic" title="Remove every object (U brings them back)" aria-label="Clear"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M8 7V5h8v2M7 7l1 12h8l1-12"/></svg></button>
         </span>
         <span class="row">
@@ -712,7 +713,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@3b7c240f5e55d60eb567a831a4c1efd940c4e7c6/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@7f5b06b939b834bc25dcced7367753e48a828110/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2250,7 +2251,16 @@
       }
       if (changed) rebuild();
     };
-    const addExample = async (name) => addScene(await sceneOf(name));
+    // merge on: a loaded scene is added to what is there; off: the scene is cleared first (one U brings it back) and the loaded one stands alone
+    let mergeOn = true;
+    try {
+      mergeOn = localStorage.getItem('3draft.merge') !== '0';
+    } catch {}
+    const loadScene = async (data) => {
+      if (!mergeOn && allObjects().length) clearScene();
+      return addScene(data);
+    };
+    const addExample = async (name) => loadScene(await sceneOf(name));
     const addScene = async ({ objects: raw, palette: extra, prototypes, start, cloud: points, cloudProtos }) => {
       const objects = raw.map((o) => (o.proto ? { name: o.name, inst: { ...o, proto: prototypes[o.proto] }, mesh: instantiate(prototypes[o.proto].lods.at(-1), placement(o)) } : o));
       // a scene may bring its own materials; the ones the palette lacks are added (and saved with a db)
@@ -4486,10 +4496,19 @@
         const data = JSON.parse(await f.text());
         if (!Array.isArray(data?.objects) || data.format === '3draft-recording') throw new Error('this is not a scene file');
         if (data.name) nameEl.value = data.name;
-        await addScene(data);
+        await loadScene(data);
       } catch (e) {
         sceneNote(`file: ${e.message}`);
       }
+    });
+    const mergeSw = document.getElementById('mergeSw');
+    mergeSw.classList.toggle('on', mergeOn);
+    mergeSw.addEventListener('click', () => {
+      mergeOn = !mergeOn;
+      mergeSw.classList.toggle('on', mergeOn);
+      try {
+        localStorage.setItem('3draft.merge', mergeOn ? '1' : '0');
+      } catch {}
     });
     nameEl.addEventListener('keydown', (e) => e.stopPropagation()); // typing a name is not a command
     showSaved();
