@@ -22,7 +22,7 @@ A minimal 3D scene builder. Fly through a scene, build with solid prisms, and ed
 | Store / Build | Open / close the store (7) |
 | Edges | Edges and points on or off (E). The marks (points, selection, gizmo, cross) are drawn by the GPU in these views, not by an SVG layer. In the WebGPU and WebGL2 views the edges are fine 1-pixel lines, hidden where the surface hides them |
 | View | SVG, WebGPU or WebGL2 (9) |
-| Filmic | HDR light, glow, tone mapping (C) |
+| Glow | Emitting materials light their surroundings as local lights, no shadows (C). With Light off only they light the scene |
 | Smooth | Smooth shading (N): edges are rounded only on materials with soft above 0 (soft 0 keeps every edge hard; from 0.5 up the full 40° crease is smoothed) |
 | Studio | Key, fill and rim light that follow the camera (K) |
 | Freeze | Everything that moves stands still (`;`, which is `é` on a Hungarian keyboard) |
@@ -77,7 +77,7 @@ Click a swatch to select it. The sliders change **metal**, **rough**, **alpha**,
 
 **rec** (in the *sys* group of the console) starts a recording: the scene is cleared first (you are asked if there is something in it), then everything you do — mouse, keys, wheel, palette clicks — is written down with its time. Press **rec** again to stop: a `3draft-rec-….json` file is downloaded.
 
-**play** asks for such a file, clears the scene and does everything again by itself, in real time (long pauses are cut to 3 s). It starts from the palette and the switches (freeze, smooth, studio, filmic) of the recording and fixes the random numbers, so the same names and colours come out. While it plays your own mouse and keys are ignored; press **play** again to stop. Positions are scaled to the window, so the same window size gives the same result.
+**play** asks for such a file, clears the scene and does everything again by itself, in real time (long pauses are cut to 3 s). It starts from the palette and the switches (freeze, smooth, studio, glow) of the recording and fixes the random numbers, so the same names and colours come out. While it plays your own mouse and keys are ignored; press **play** again to stop. Positions are scaled to the window, so the same window size gives the same result.
 
 `?play=<url of a recording>` plays one as soon as the page is up. In code (and for Claude): `rec.start()`, `rec.stop()` returns the recording object, `rec.play(object or JSON text)`, `rec.scene()` is a short fingerprint of the scene (compare two runs).
 

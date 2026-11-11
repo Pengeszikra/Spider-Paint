@@ -648,7 +648,7 @@
           <button id="sceneBtn" type="button" class="sw" title="Open or close the store, a second 3D view beside the build (7)"><i></i><span>store</span></button>
           <button id="smooth" type="button" class="sw" title="Smooth shading: faces that meet at a shallow angle share their normals (N)"><i></i>smooth</button>
           <button id="studio" type="button" class="sw" title="Studio light: key, fill and rim light that follow the camera (K)"><i></i>studio</button>
-          <button id="filmic" type="button" class="sw" title="Filmic look: HDR light, glowing emission, tone mapping (C)"><i></i>filmic</button>
+          <button id="filmic" type="button" class="sw" title="Glow: emitting materials light their surroundings as local lights, without shadows (C)"><i></i>glow</button>
           <button id="editSw" type="button" class="sw red" title="Edit mode on the object under the cross or the target (Q); red while editing"><i></i>edit</button>
         </span>
       </span>
@@ -683,7 +683,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@72f1d47377d9727dc45eee456f17d3bdabe117f4/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@8187aab347e6d5857f4879f2ec0c71086829fd0b/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1342,7 +1342,7 @@
             size,
             fit: shown_fit,
             background: rgb,
-            tonemap: filmic,
+            glow: filmic,
             smooth: smooth ? 40 : 0,
             studio,
             edges: !stage.classList.contains('clean'),
@@ -1361,7 +1361,7 @@
             gpu.render(scene, view, {
               palette: paletteMap, parts: sceneParts, instances: { mesh: PROTO, data: instances(now, flights.length > 0) },
               size: square, dpr: 1, fit: { ...fit, center: fit.center.map((c, i) => c + cam0.r[i] * shift) },
-              unlit: !lightOn, background: [0.02, 0.02, 0.03], tonemap: filmic, smooth: smooth ? 40 : 0, studio,
+              unlit: !lightOn, background: [0.02, 0.02, 0.03], glow: filmic, smooth: smooth ? 40 : 0, studio,
               light: { direction: [Math.sin(a) * 0.6, 0.8, Math.cos(a) * 0.6] },
             });
             if (cv.width !== half || cv.height !== H) ((cv.width = half), (cv.height = H));
@@ -4061,7 +4061,7 @@
       shift: { cap: 'Shift', sub: 'paint', cat: 'slate', w: 2.4, title: 'Shift', text: 'Shift+Tab: previous target. Painting is Ctrl+click (Cmd on a Mac).', edit: 'Shift+click adds to the selection or takes from it. Shift+W A S D R F fly (plain, they are edit keys).', run: false },
       z: { cap: 'Z', sub: 'zen', cat: 'slate', text: 'Zen: hide everything but the model. Z or Esc brings the panels back.' },
       x: { cap: 'X', sub: 'del', cat: 'red', text: 'Shift+X deletes the object under the cross, in every mode (U brings it back). Alone, during G / S / R, X locks the axis to x.', edit: 'Shift+X deletes the selected points, lines or faces (a point takes its faces, a line the faces on it); with nothing selected, the object under the cross. During G / S: locks the axis to x.' },
-      c: { cap: 'C', sub: 'filmic', cat: 'teal', text: 'Filmic look: HDR light, glowing emission, tone mapping.' },
+      c: { cap: 'C', sub: 'glow', cat: 'teal', text: 'Glow: emitting materials light their surroundings as local lights (no shadows). With the light off, only they light the scene.' },
       v: { cap: 'V', sub: 'bar', cat: 'red', text: 'Spider bar: joins two surface points with a thin bar.', edit: 'Sketches a line from point to point on the surface (sketch mode, 5; Enter then makes faces and lines of the drawing). In saw mode (4): puts a saw point (two on one face: a cut square to it; three: a cut through the triangle).' },
       7: { cap: '7', sub: 'store', cat: 'teal', text: 'Open or close the store: a second 3D view on the left (a third of the width) with the loose objects (timber stock). The keys go to the view the pointer is over. In the store: target one (T) and press M, and it becomes the model M puts down in the build view.' },
       n: { cap: 'N', sub: 'smooth', cat: 'teal', text: 'Smooth shading: faces that meet at a shallow angle share their normals.' },
