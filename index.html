@@ -713,7 +713,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@7f5b06b939b834bc25dcced7367753e48a828110/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@7cb1175f6a5da8ecb29414706ce5e86ccba738ef/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2256,9 +2256,30 @@
     try {
       mergeOn = localStorage.getItem('3draft.merge') !== '0';
     } catch {}
-    const loadScene = async (data) => {
-      if (!mergeOn && allObjects().length) clearScene();
-      return addScene(data);
+    // a saved scene also keeps the view: the switches (edges, light, glow, smooth, studio) and the camera. They come back when the scene
+    // stands alone (merge off, or nothing was there); a merged scene keeps the view you have.
+    const viewOf = () => ({
+      edges: !stage.classList.contains('clean'),
+      light: lightOn,
+      glow: filmic,
+      smooth,
+      studio,
+      cam: { center: [...fit.center], radius: fit.radius, ...(fit.dist !== undefined ? { dist: fit.dist } : {}), yaw, pitch },
+    });
+    const applyView = (v) => {
+      if (typeof v.edges === 'boolean' && v.edges === stage.classList.contains('clean')) (stage.classList.toggle('clean'), syncLines());
+      if (typeof v.light === 'boolean' && v.light !== lightOn) turnLight();
+      if (typeof v.glow === 'boolean' && v.glow !== filmic) toggleFilmic();
+      if (typeof v.smooth === 'boolean' && v.smooth !== smooth) toggleSmooth();
+      if (typeof v.studio === 'boolean' && v.studio !== studio) toggleStudio();
+      if (Array.isArray(v.cam?.center) && Number.isFinite(v.cam.radius)) jumpTo(v.cam);
+      redraw();
+    };
+    const loadScene = async (data, replace = false) => {
+      const had = allObjects().length > 0;
+      if ((replace || !mergeOn) && had) clearScene();
+      await addScene(data);
+      if (data.view && (replace || !mergeOn || !had)) applyView(data.view);
     };
     const addExample = async (name) => loadScene(await sceneOf(name));
     const addScene = async ({ objects: raw, palette: extra, prototypes, start, cloud: points, cloudProtos }) => {
@@ -4252,6 +4273,7 @@
     const linesBtn = document.getElementById('lines');
     const syncLines = () => linesBtn.classList.toggle('on', !stage.classList.contains('clean'));
     linesBtn.addEventListener('click', () => (stage.classList.toggle('clean'), syncLines(), redraw()));
+    stage.classList.add('clean'); // the edges and points start off
     syncLines();
     // ?: the key explainer, a keyboard drawn from data. Hover or tap a key to read it, press a real key to see it light up,
     // "run" does what the key does. Colours: teal = target / look, red = editing and making, cream = flying and viewing, slate = system.
@@ -4432,6 +4454,7 @@
         version: 1,
         name,
         palette: materials.filter((m) => used.has(m.name)).map((m) => ({ ...m })),
+        view: viewOf(),
         objects: allObjects().map((o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}) })),
       };
     };
@@ -4512,6 +4535,11 @@
     });
     nameEl.addEventListener('keydown', (e) => e.stopPropagation()); // typing a name is not a command
     showSaved();
+    // ?ply=name: a scene saved here under that name opens in zen at once, standing alone (nothing found: the page starts as usual)
+    const plyName = (() => {
+      const n = new URLSearchParams(location.search).get('ply');
+      return n && readSaved()[n] ? n : null;
+    })();
     document.getElementById('undo').addEventListener('click', undo);
     document.getElementById('reset').addEventListener('click', reset);
     new ResizeObserver(redraw).observe(stage);
@@ -4934,9 +4962,13 @@
     if (EMBED) seedStore();
     draw();
     window.__ready = true;
-    if (!EMBED && !globalThis.claude?.use) addExample('globe'); // the starting scene (the store pane has its own stock)
+    if (!EMBED && !globalThis.claude?.use && !plyName) addExample('globe'); // the starting scene (the store pane has its own stock)
     // works offline once opened (not in an artifact, nor from a file)
     if (!EMBED && 'serviceWorker' in navigator && location.protocol.startsWith('http') && !globalThis.claude?.use) navigator.serviceWorker.register('sw.js').catch(() => {}); // the engine and the page script both ran (the watchdog below looks at this)
+    if (plyName && !EMBED) {
+      nameEl.value = plyName;
+      loadScene(readSaved()[plyName], true).then(() => toggleZen(true)).catch((e) => sceneNote(`ply: ${e.message}`));
+    }
   </script>
   <script>
     // If the module script above never ran (the engine did not load: no network, or an outdated cache), say so instead of staying blank.
