@@ -433,6 +433,7 @@
     #exaBtn { display: none; }
     body.pwa #exaBtn { display: block; position: fixed; z-index: 6; top: max(8px, env(safe-area-inset-top, 0px)); right: max(8px, env(safe-area-inset-right, 0px)); width: calc(var(--k, 44px) * 0.9); height: calc(var(--k, 44px) * 0.8); padding: 0; border-radius: 12px; font-size: 12px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; opacity: 0.92; }
     #stage.frozen::after { content: ''; position: absolute; inset: 5px; border: 3px dashed #4aa3ff; border-radius: 0; pointer-events: none; z-index: 4; }
+    #editSw.on,
     #freeze.on { background: var(--red); color: #1b0803; box-shadow: 0 3px 0 #8a2a0f, 0 6px 10px #0009; }
     #pad button.freeze.on { background: var(--red); color: #1b0803; box-shadow: 0 3px 0 #8a2a0f, 0 6px 10px #0009; }
     #loader { display: none; position: fixed; inset: 0; z-index: 8; align-items: center; justify-content: center; flex-direction: column; gap: 14px; background: #000a; color: var(--cream); font: 600 14px var(--font-mono); letter-spacing: 0.1em; }
@@ -473,6 +474,8 @@
       footer.console .grp::before { content: attr(data-label); position: absolute; top: 0; left: 1px; font: 500 7px/1 var(--font-mono); letter-spacing: 0.24em; text-transform: uppercase; color: #6c7062; }
       footer.console .grp.rows { flex-direction: column; align-items: flex-start; row-gap: 5px; }
       footer.console .grp.rows .row { display: flex; align-items: center; gap: 6px; }
+      /* the view switches sit on a grid: five equal columns, so a longer label does not push its neighbours */
+      footer.console .grp[data-label="view"] .row { display: grid; grid-template-columns: repeat(5, 86px); gap: 6px 4px; }
       footer.console .grp + .grp { padding-left: 14px; border-left: 1px solid #262922; }
       footer.console .grp:nth-child(3n+1)::after { content: ''; position: absolute; top: 1px; right: 0; width: 3px; height: 3px; border-radius: 50%; background: #2fb8c0; opacity: 0.7; animation: blink 3.4s steps(2) infinite; }
       @keyframes blink { 50% { opacity: 0.15; } }
@@ -508,6 +511,7 @@
         footer.console .grp + .grp { padding-left: 10px; }
         footer.console .actions { gap: 6px 10px; }
         footer.console button.sw { font-size: 8px; gap: 4px; letter-spacing: 0.08em; }
+        footer.console .grp[data-label="view"] .row { grid-template-columns: repeat(5, 66px); gap: 4px 2px; }
         footer.console { padding-top: 12px; }
       }
       /* modals and the edit bar sit above the console */
@@ -683,7 +687,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@8187aab347e6d5857f4879f2ec0c71086829fd0b/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@b0d3e975c0a376ec2e530a691d8b400bb23b83fa/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
