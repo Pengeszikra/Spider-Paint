@@ -716,7 +716,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@bd668c4d930888967cef383e864f40d9cca96f29/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@af26c3300a2419acb4820c9b000182d1849bc43b/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2176,6 +2176,11 @@
     const change = (stale, mesh, wire = stale.wire) => {
       const obj = live(stale) ?? stale;
       delete obj.inst; // an edited instance is an ordinary object from now on
+      if (obj.textFrame && obj.mesh.positions.length === mesh.positions.length && mesh.positions.length) {
+        // a text model that is only moved takes the place its words stand in along
+        const d = mesh.positions[0].map((c, i) => c - obj.mesh.positions[0][i]);
+        if (mesh.positions.every((q, k) => q.every((c, i) => Math.abs(c - obj.mesh.positions[k][i] - d[i]) < 1e-9))) obj.textFrame = { ...obj.textFrame, origin: obj.textFrame.origin.map((c, i) => c + d[i]) };
+      }
       obj.mesh = mesh;
       obj.wire = wire;
       if (obj.host) save(obj, () => col.doc(obj.id).set(docOf(obj)));
@@ -3790,6 +3795,7 @@
       const m = src.mesh;
       const copy = create(`${src.name.replace(/-[a-z0-9]{4}$/, '')}-${shortId()}`, { ...m, positions: m.positions.map((q) => [...q]), faces: m.faces.map((f) => ({ ...f, v: [...f.v] })) });
       if (src.wire?.length) change(copy, copy.mesh, structuredClone(src.wire));
+      if (src.text !== undefined) Object.assign(live(copy) ?? copy, { text: src.text, textFrame: structuredClone(src.textFrame) }); // a copy of a text model is a text model
       grabObject(copy, true);
     };
     // Shift+X in edit mode with something selected deletes just that: a point takes the faces and lines that use it, a line the faces on
