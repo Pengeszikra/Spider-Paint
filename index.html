@@ -682,7 +682,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@9c41bf3ab7b12166c984e1a3b4511de48bc29978/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@904c831f2faaca939386c9efd6c0f78d6494542d/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -3594,7 +3594,9 @@
     let lastCtrlPaint = 0;
     let carryFrozen = false;
     const carryTell = (type, e) => parent.postMessage({ type, x: e.clientX, y: e.clientY, ...(type === 'drag-start' ? { name: carry.name, mesh: carry.mesh } : {}) }, location.origin);
+    let clearOnUp = null;
     stage.addEventListener('pointerdown', (e) => {
+      clearOnUp = null;
       pointer = { x: e.clientX, y: e.clientY };
       if (EMBED && e.altKey && !editing && hit && owner(hit.face)) {
         e.preventDefault();
@@ -3626,7 +3628,7 @@
         const add = e.shiftKey || shiftOn;
         const item = emode === 'vertex' ? (snapV >= 0 ? snapV : null) : emode === 'edge' ? (snapE ? [...snapE].sort((a, b) => a - b) : null) : snapF >= 0 && editing.mesh.faces[snapF] ? faceKey(editing.mesh.faces[snapF]) : null;
         if (item !== null) toggleSel(emode, item, add);
-        else if (!add) sel = emptySel();
+        else if (!add) clearOnUp = { x: e.clientX, y: e.clientY }; // an empty press may start an orbit: the selection goes only when the pointer did not travel
         redraw();
       }
       if (picking) {
@@ -3678,7 +3680,12 @@
     stage.addEventListener('pointerup', (e) => carryEnd(e, true));
     stage.addEventListener('pointercancel', (e) => carryEnd(e, false));
     window.addEventListener('keydown', (e) => e.key === 'Escape' && carryEnd({ clientX: 0, clientY: 0 }, false));
-    const release = () => {
+    const release = (e) => {
+      if (clearOnUp && e?.type === 'pointerup' && Math.hypot(e.clientX - clearOnUp.x, e.clientY - clearOnUp.y) < 5 && editing) {
+        sel = emptySel();
+        redraw();
+      }
+      clearOnUp = null;
       dropGizmo();
       last = null;
       stage.classList.remove('drag');
