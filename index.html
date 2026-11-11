@@ -717,7 +717,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@89dab7c504b528748984d296ffa1a689fa373f4b/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@08a1d4729a956459c735a8782e39ac057337fe00/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -3828,6 +3828,40 @@
       walk([a0, b0]);
       return ring;
     };
+    // L: select the loop. A selected line takes all the lines of its ring (the lines the loop cut would cross, round and round until it
+    // closes or ends); a selected face takes the faces of its ring. One face has two rings (two ways round): L again takes the other one;
+    // two faces that touch go the way their shared line says.
+    const selectLoop = () => {
+      const m = editing.mesh;
+      if (sel.kind === 'edge' && sel.items.length) {
+        const lines = new Map();
+        for (const [a, b] of sel.items)
+          for (const r of loopRing(m, a, b) ?? [])
+            for (const e of [[r.A, r.B], [r.A2, r.B2]]) {
+              const k = [...e].sort((x, y) => x - y);
+              lines.set(k.join(), k);
+            }
+        if (!lines.size) return noteEdit('L: no loop here (it runs through four-sided faces)');
+        sel = { kind: 'edge', items: [...lines.values()] };
+        noteEdit(`loop: ${lines.size} lines`);
+      } else if (sel.kind === 'face' && sel.items.length) {
+        const f0 = m.faces[faceAt(sel.items[0])];
+        if (!f0 || f0.v.length !== 4) return noteEdit('L: the loop runs through four-sided faces');
+        let tries = [[f0.v[0], f0.v[1]], [f0.v[1], f0.v[2]]];
+        if (sel.items.length > 1) {
+          const f1 = m.faces[faceAt(sel.items[1])];
+          const shared = f1 && f0.v.map((v, i) => [v, f0.v[(i + 1) % 4]]).find(([a, b]) => f1.v.some((x, j) => (x === a && f1.v[(j + 1) % f1.v.length] === b) || (x === b && f1.v[(j + 1) % f1.v.length] === a)));
+          if (shared) tries = [shared];
+        }
+        const now = new Set(sel.items.map((k) => k.join()));
+        const rings = tries.map((e) => loopRing(m, e[0], e[1]) ?? []).map((r) => r.map((x) => faceKey(m.faces[x.fi])));
+        const pick = rings.find((r) => r.length && !(r.length === now.size && r.every((k) => now.has(k.join())))) ?? rings[0];
+        if (!pick?.length) return noteEdit('L: no loop here');
+        sel = { kind: 'face', items: pick };
+        noteEdit(`loop: ${pick.length} faces${tries.length > 1 ? ' (L again: the other way round)' : ''}`);
+      } else return noteEdit('L selects the loop: select a line (2) or a face (3) first');
+      redraw();
+    };
     const loopMesh = (mesh, ring, n, slide) => {
       const P = mesh.positions.map((q) => [...q]);
       const ts = Array.from({ length: n }, (_, k) => (k + 1) / (n + 1) + slide);
@@ -4003,6 +4037,11 @@
         const t = performance.now();
         if (t - lastA < 400) ((sel = emptySel()), (lastA = 0), redraw()); // A A: nothing selected
         else ((lastA = t), selectAll());
+        return true;
+      }
+      if (k === 'l') {
+        e.preventDefault();
+        if (!e.repeat) selectLoop();
         return true;
       }
       if (k === 't') {
@@ -4513,7 +4552,7 @@
       h: { cap: 'H', sub: 'gizmo', cat: 'red', text: 'Move gizmo on the object under the cross: 1st H world axes, 2nd H its own axes, 3rd H off. Drag an arrow to move it.' },
       ';': { cap: ';', sub: 'freeze', title: '; (é on a Hungarian keyboard)', cat: 'teal', text: 'Freeze: everything that moves stands still (flying, orbiting, dragging the view), so the cursor can work. The speed is kept; the key again carries on with it.' },
       k: { cap: 'K', sub: 'studio', cat: 'teal', text: 'Studio light: key, fill and rim light that follow the camera.' },
-      l: { cap: 'L', sub: 'light', cat: 'teal', text: 'Light on / off. Off: no light in the scene at all, only emitting surfaces and the edge lines show.' },
+      l: { cap: 'L', sub: 'light', cat: 'teal', text: 'Light on / off. Off: no light in the scene at all, only emitting surfaces and the edge lines show.', edit: 'Loop: a selected line (2) takes the lines of its loop, a selected face (3) the faces of its loop (L again: the other way round). The light switch stays on its button.' },
       enter: { cap: 'Enter', sub: 'cut', cat: 'red', w: 2.2, title: 'Enter', text: '', edit: 'Saw: cuts along the marked plane.' },
       shift: { cap: 'Shift', sub: 'paint', cat: 'slate', w: 2.4, title: 'Shift', text: 'Shift+Tab: previous target. Painting is Ctrl+click (Cmd on a Mac).', edit: 'Shift+click adds to the selection or takes from it. Shift+W A S D R F fly (plain, they are edit keys).', run: false },
       z: { cap: 'Z', sub: 'zen', cat: 'slate', text: 'Zen: hide everything but the model. Z or Esc brings the panels back.' },

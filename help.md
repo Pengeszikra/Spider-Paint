@@ -138,3 +138,6 @@ Pulled the other way (against the face's normal, e.g. building a mass inward fro
 
 ## Lathe (6)
 Edit mode: select a face (3), press **6**. The face's plane is the drawing board and its **bottom line is the axis** (green). **V** puts the points of a contour above the axis (near the axis counts as on it: a tip); Esc takes the last point back. **Enter** ends the contour and asks for the **number of segments** (4 or more); **Enter again** takes 7. The contour is turned round the axis into a **new model**, independent of the one being edited, in the active material, with both ends closed (a flat disc where the contour does not end on the axis).
+
+## L in edit mode: select the loop
+**L** no longer switches the light while you edit (the LIGHT button still does; outside edit mode L is the light switch as before). With a line selected (2), **L** selects all the lines of its loop: the lines a loop cut (Ctrl+R) would cross, round and round until the loop closes or ends. With a face selected (3), **L** selects the faces of its loop; one face has two loops (two ways round), **L** again takes the other, and two touching faces go the way of their shared line.
