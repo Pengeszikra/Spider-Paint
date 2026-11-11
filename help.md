@@ -20,7 +20,7 @@ A minimal 3D scene builder. Fly through a scene, build with solid prisms, and ed
 | Bin | Delete the object under the cross (X) |
 | Target | Target the object under the cross (T) |
 | Store / Build | Open / close the store (7) |
-| Edges | Edges and points on or off (E) |
+| Edges | Edges and points on or off (E). In the WebGPU and WebGL2 views the edges are fine 1-pixel lines, hidden where the surface hides them |
 | View | SVG, WebGPU or WebGL2 (9) |
 | Filmic | HDR light, glow, tone mapping (C) |
 | Smooth | Smooth shading (N): edges are rounded only on materials with soft above 0 (soft 0 keeps every edge hard; from 0.5 up the full 40° crease is smoothed) |
