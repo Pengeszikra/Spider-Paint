@@ -471,7 +471,8 @@
       footer.console .actions { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 18px; padding: 0; }
       footer.console .grp { position: relative; display: inline-flex; align-items: center; gap: 6px; padding-top: 11px; }
       footer.console .grp::before { content: attr(data-label); position: absolute; top: 0; left: 1px; font: 500 7px/1 var(--font-mono); letter-spacing: 0.24em; text-transform: uppercase; color: #6c7062; }
-      footer.console .grp[data-label=view] { flex-wrap: wrap; max-width: 340px; row-gap: 5px; }
+      footer.console .grp[data-label=view] { flex-direction: column; align-items: flex-start; row-gap: 5px; }
+      footer.console .grp[data-label=view] .row { display: flex; align-items: center; gap: 6px; }
       footer.console .grp + .grp { padding-left: 14px; border-left: 1px solid #262922; }
       footer.console .grp:nth-child(3n+1)::after { content: ''; position: absolute; top: 1px; right: 0; width: 3px; height: 3px; border-radius: 50%; background: #2fb8c0; opacity: 0.7; animation: blink 3.4s steps(2) infinite; }
       @keyframes blink { 50% { opacity: 0.15; } }
@@ -602,12 +603,11 @@
     </p>
     <textarea id="gpuerr" readonly hidden rows="4" aria-label="WebGPU error text (select and copy)" style="width:100%;box-sizing:border-box;font:12px/1.4 var(--font-mono);background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:6px"></textarea>
     <span class="actions">
-      <span class="grp only-build" data-label="make">
+      <span class="grp only-build" data-label="make" style="display:none">
         <button id="place" type="button" class="red ic" title="Place a prism (M)" aria-label="Place a prism"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12L4 7.5M12 12v9"/></svg></button>
         <button id="brush" type="button" class="chip" hidden title="The model M puts down; click to go back to the prism"></button>
         <button id="delete" type="button" class="slate ic" title="Delete the object under the cross (Shift+X)" aria-label="Delete"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
         <button id="travel" type="button" class="teal ic" title="Target the object under the cross (T)" aria-label="Target"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
-        <button id="sceneBtn" type="button" class="teal" title="Open or close the store, a second 3D view beside the build (7)">Store</button>
       </span>
       <span class="grp only-edit" data-label="edit">
         <button type="button" class="red" data-key="1" title="Select points (1)"><b>1</b>pt</button>
@@ -624,13 +624,19 @@
         <button type="button" class="teal" data-key="q" title="Leave edit mode (Q)"><b>Q</b>done</button>
       </span>
       <span class="grp" data-label="view">
-        <button id="freeze" type="button" class="sw red" title="Freeze: everything that moves stands still (; — é on a Hungarian keyboard)"><i></i>freeze</button>
-        <button id="gpuBtn" type="button" class="sw" title="The view now: SVG, WebGPU or WebGL2 (9 switches)"><i></i><span>SVG</span></button>
-        <button id="lines" type="button" class="sw" title="Edges and points (E)"><i></i>edges</button>
-        <button id="filmic" type="button" class="sw" title="Filmic look: HDR light, glowing emission, tone mapping (C)"><i></i>filmic</button>
-        <button id="smooth" type="button" class="sw" title="Smooth shading: faces that meet at a shallow angle share their normals (N)"><i></i>smooth</button>
-        <button id="studio" type="button" class="sw" title="Studio light: key, fill and rim light that follow the camera (K)"><i></i>studio</button>
-        <button id="light" type="button" class="slate" title="Turn the light (L)">light</button>
+        <span class="row">
+          <button id="freeze" type="button" class="sw red" title="Freeze: everything that moves stands still (; — é on a Hungarian keyboard)"><i></i>freeze</button>
+          <button id="gpuBtn" type="button" class="sw" title="The view now: SVG, WebGPU or WebGL2 (9 switches)"><i></i><span>SVG</span></button>
+          <button id="lines" type="button" class="sw" title="Edges and points (E)"><i></i>edges</button>
+          <button id="paletteBtn" type="button" class="sw" title="The material palette: paint with Ctrl+click (P)"><i></i>palette</button>
+        </span>
+        <span class="row">
+          <button id="sceneBtn" type="button" class="sw" title="Open or close the store, a second 3D view beside the build (7)"><i></i><span>store</span></button>
+          <button id="smooth" type="button" class="sw" title="Smooth shading: faces that meet at a shallow angle share their normals (N)"><i></i>smooth</button>
+          <button id="studio" type="button" class="sw" title="Studio light: key, fill and rim light that follow the camera (K)"><i></i>studio</button>
+          <button id="light" type="button" class="slate" title="Turn the light (L)">light</button>
+          <button id="filmic" type="button" class="sw" title="Filmic look: HDR light, glowing emission, tone mapping (C)"><i></i>filmic</button>
+        </span>
       </span>
       <span class="grp only-build" data-label="scene">
         <select id="examples" aria-label="Add an example model to the scene" title="Add an example model to the scene">
@@ -659,7 +665,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@edb8614b939a06c7a737a64d624d74b4d90f44a2/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@67465089777fbdc6852b21dfde41d82bf7148d17/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2330,6 +2336,10 @@
       e.preventDefault();
       toggleKeys(true); // the keyboard map is a modal over the page
     });
+    const paletteBtn = document.getElementById('paletteBtn');
+    new MutationObserver(() => paletteBtn.classList.toggle('on', !paletteEl.hidden)).observe(paletteEl, { attributes: true, attributeFilter: ['hidden'] });
+    paletteBtn.classList.toggle('on', !paletteEl.hidden);
+    paletteBtn.addEventListener('click', () => togglePalette());
     const togglePalette = () => {
       openSide(paletteEl);
       if (!paletteEl.hidden) showPalette();
@@ -2435,8 +2445,9 @@
           focusPane(false);
         } else if (d.type === 'brush' && Array.isArray(d.mesh?.positions) && Array.isArray(d.mesh?.faces)) {
           useBrush({ name: String(d.name).slice(0, 40), mesh: d.mesh });
-          sceneBtn.textContent = `M: ${brush.name}`;
-          setTimeout(() => (sceneBtn.textContent = 'Store'), 1400);
+          const label = sceneBtn.querySelector('span');
+          label.textContent = `M: ${brush.name}`;
+          setTimeout(() => (label.textContent = 'store'), 1400);
         }
       });
     } else {
