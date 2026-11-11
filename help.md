@@ -135,3 +135,6 @@ In edit mode the pointer also finds the far side of a face, so from inside a hul
 In edit mode **E** pulls the selected faces out (open at the start side where they were part of the model). **Ctrl+E** (Cmd+E on a Mac) does the same but leaves a face on the starting side as well, so what you pull out is a closed shell: good for building a mass inward from a wall, and for sawing or boolean afterwards.
 
 Pulled the other way (against the face's normal, e.g. building a mass inward from a wall), Ctrl+E keeps the shell's normals outward, so it stays a proper solid; the sides of an inward E stay whole four-sided faces.
+
+## Lathe (6)
+Edit mode: select a face (3), press **6**. The face's plane is the drawing board and its **bottom line is the axis** (green). **V** puts the points of a contour above the axis (near the axis counts as on it: a tip); Esc takes the last point back. **Enter** ends the contour and asks for the **number of segments** (4 or more); **Enter again** takes 7. The contour is turned round the axis into a **new model**, independent of the one being edited, in the active material, with both ends closed (a flat disc where the contour does not end on the axis).

@@ -546,7 +546,7 @@
   <main id="stage" tabindex="0" role="img" aria-label="Empty space for prisms. 9 switches between the SVG and the WebGPU view, L turns the light, C switches the filmic look, N smooth shading, K the studio light. Drag, or use the arrow keys, to rotate the view. The cross follows the surface under the pointer. M puts a prism down there, or shoots one into empty space; Space stops the movement. O marks an object, a second O on another one asks for a boolean operation (union, A minus B, B minus A, intersect). V joins two surface points with a thin bar (P over empty space forgets a pending first point), X deletes the object under the cross, W A S D R F fly, / shows only the model under the cross (/ again: the whole scene), P shows the material palette (Ctrl+click (Cmd on a Mac) paints a face, Ctrl+double click the whole model), T flies the camera to the object under the cross, H puts the move gizmo (helper) on the object under the cross with the world axes, the next H switches to the object's own axes, the third takes it off; drag an arrow to move the object; E toggles edges and points, U or Backspace takes the last one back."><div id="frame"><canvas id="gpu" hidden></canvas><div id="layer"></div><div id="screens"></div></div><div id="hud" aria-hidden="true"></div></main>
 
   <input id="textBox" type="text" placeholder="text (Enter: make it, Esc: cancel)" maxlength="80" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="The words to put on the face" hidden>
-  <div id="editbar" hidden><b id="editText"></b><button id="editHelp" type="button" title="Show / hide the edit help" aria-pressed="false" hidden>?</button><span id="editHelpText" hidden>V: sketch lines (nothing happens yet) · 1 / 2 / 3: select points / lines / faces (click; Shift+click adds or takes away; A selects all, A A clears) · G: grab the selection (X / Y / Z lock the axis, type metres, click or Enter confirms, Esc cancels) · S: scale (same keys) · E: extrude the selected faces · 4: the saw: V puts 2 points on one face = a cut square to the face, or 3 points = a cut through the triangle; Enter cuts · Shift+W A S D R F fly · Ctrl/Cmd+click paints · Shift+X deletes the object under the cross · U undo · Esc back, then leave · Q leave</span></div>
+  <div id="editbar" hidden><b id="editText"></b><button id="editHelp" type="button" title="Show / hide the edit help" aria-pressed="false" hidden>?</button><span id="editHelpText" hidden>V: sketch lines (nothing happens yet) · 6: the lathe (select a face first; V draws a contour on it above its bottom line, the axis; Enter, then the number of segments, Enter again = 7) · 1 / 2 / 3: select points / lines / faces (click; Shift+click adds or takes away; A selects all, A A clears) · G: grab the selection (X / Y / Z lock the axis, type metres, click or Enter confirms, Esc cancels) · S: scale (same keys) · E: extrude the selected faces · 4: the saw: V puts 2 points on one face = a cut square to the face, or 3 points = a cut through the triangle; Enter cuts · Shift+W A S D R F fly · Ctrl/Cmd+click paints · Shift+X deletes the object under the cross · U undo · Esc back, then leave · Q leave</span></div>
 
   <aside id="boolq" hidden aria-label="Boolean operation">
     <span id="boolText"></span>
@@ -656,6 +656,7 @@
           <button type="button" class="red" data-key="3" title="Select faces (3)"><b>3</b>fc</button>
           <button type="button" class="red" data-key="4" title="Saw (4, then V)"><b>4</b>saw</button>
           <button type="button" class="red" data-key="5" title="Sketch (5): V draws on the surface, Enter makes faces and lines of it"><b>5</b>sketch</button>
+          <button type="button" class="red" data-key="6" title="Lathe (6): select a face first; V draws the contour on its plane, the face's bottom line is the axis, Enter turns it into a new model"><b>6</b>lathe</button>
           <button type="button" class="teal" data-key="q" title="Leave edit mode (Q)"><b>Q</b>done</button>
         </span>
         <span class="row">
@@ -716,7 +717,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@260d29f48409a6e32bede64f188663155e314899/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@89dab7c504b528748984d296ffa1a689fa373f4b/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1469,6 +1470,17 @@
         if (wire.length) marks.push({ name: 'wire', color: '#ff4d3d', width: 2, lines: wire.map(([a, b]) => [P[a], P[b]]) });
         const ends = [...new Set(wire.flat())];
         if (ends.length) marks.push({ name: 'wire-ends', color: '#ff4d3d', width: 5, lines: ends.flatMap((i) => dot(P[i])) });
+        if (emode === 'lathe' && lathePlan) {
+          const { frame, axisLen, pts } = lathePlan;
+          const at = (u, r) => lathePoint([u, r]);
+          marks.push({ name: 'lathe-axis', color: '#2f9e44', width: 3, lines: [[at(0, 0), at(axisLen, 0)]] });
+          const cs = pts.map(lathePoint);
+          if (cs.length) marks.push({ name: 'lathe-pts', color: '#ff4d3d', width: 6, lines: cs.flatMap((q) => dot(q)) });
+          if (cs.length > 1) marks.push({ name: 'lathe-line', color: '#ff4d3d', width: 2, lines: cs.slice(1).map((q, k) => [cs[k], q]) });
+          const to = latheHere();
+          if (to && cs.length && !textJob) marks.push({ name: 'lathe-rubber', color: '#ff4d3d', width: 1.5, lines: [[cs.at(-1), lathePoint(to)]] });
+          void frame;
+        }
         if (editing.lines?.length) marks.push({ name: 'sketch', color: '#ff4d3d', width: 2, lines: editing.lines });
         if (sketchFrom) {
           const to = sawHere()?.p;
@@ -3039,7 +3051,7 @@
     let snapV = -1; // the vertex the pointer snaps to (drawing, moving points)
     let snapE = null; // the edge under the pointer (moving lines)
     let snapF = -1; // the face under the pointer (moving faces)
-    const MODES = { draw: 'sketch (5)', vertex: 'points (1)', edge: 'lines (2)', face: 'faces (3)', saw: 'saw (4)' };
+    const MODES = { lathe: 'lathe (6)', draw: 'sketch (5)', vertex: 'points (1)', edge: 'lines (2)', face: 'faces (3)', saw: 'saw (4)' };
     // The selection, as in Blender: points, lines or faces (the mode keys 1 2 3); Shift+click adds or takes one away.
     // vertex: an index · edge: [a, b] with a < b · face: its vertex indices, sorted (so it survives a re-triangulation).
     let sel = { kind: null, items: [] };
@@ -3226,6 +3238,65 @@
     };
     // Draw mode (the default): V sketches lines on the surface, as many as you like. They are only marks for now: the mesh does
     // not change and the lines are not saved. A point is a vertex (the pointer snaps to it) or a spot on the surface.
+    // 6: the lathe. With a face selected, 6 makes its plane the drawing board and its bottom line the axis. V puts the points of a contour
+    // (the pointer is followed onto the plane), Enter ends the contour and asks for the segments (4 or more; Enter again = 7), and the
+    // contour is turned round the axis into a new, closed model (both ends closed), independent of the one being edited.
+    let lathePlan = null; // { frame, axisLen, pts: [[u, r]] }
+    const lathePoint = ([u, r]) => lathePlan.frame.origin.map((c, i) => c + lathePlan.frame.right[i] * u + lathePlan.frame.up[i] * r);
+    const latheHere = () => {
+      if (!lathePlan || !gcam || !panelPointer) return null;
+      const { frame } = lathePlan;
+      const r = ray(gcam, panelPointer.x, panelPointer.y);
+      const den = vdot(r.dir, frame.normal);
+      if (Math.abs(den) < 1e-6) return null;
+      const q = r.origin.map((c, i) => c + r.dir[i] * (vdot(vsub(frame.origin, r.origin), frame.normal) / den));
+      const d = vsub(q, frame.origin);
+      const rr = vdot(d, frame.up);
+      return [vdot(d, frame.right), rr < frame.height * 0.03 ? 0 : rr]; // near the axis is on it (a tip); below it is on it too
+    };
+    const startLathe = () => {
+      if (sel.kind !== 'face' || !sel.items.length) return noteEdit('lathe: select a face with 3 first (its plane is the drawing board, its bottom line the axis), then 6');
+      const fr = faceFrame(editing.mesh, faceAt(sel.items[0]));
+      const P = editing.mesh.positions;
+      const f = editing.mesh.faces[faceAt(sel.items[0])];
+      const axisLen = Math.max(...f.v.map((i) => vdot(vsub(P[i], fr.origin), fr.right)));
+      lathePlan = { frame: fr, axisLen: Math.max(axisLen, fr.height), pts: [] };
+      emode = 'lathe';
+      sel = emptySel();
+      sawPts = [];
+      sketchFrom = null;
+      noteEdit('lathe: V puts the contour points on the face plane above its bottom line (the green axis), Enter ends it, Esc takes the last point back');
+      showBar();
+      redraw();
+    };
+    const addLathePoint = () => {
+      const q = latheHere();
+      if (!q) return noteEdit('lathe: look at the plane from the side to draw on it');
+      lathePlan.pts = [...lathePlan.pts, q];
+      noteEdit(`lathe: ${lathePlan.pts.length} point${lathePlan.pts.length === 1 ? '' : 's'}${lathePlan.pts.length > 1 ? ' · Enter ends the contour' : ''}`);
+      redraw();
+    };
+    const latheEnter = () => {
+      if (!lathePlan || lathePlan.pts.length < 2) return noteEdit('lathe: V puts at least 2 points first');
+      askText({ lathe: true, text: '' });
+    };
+    const buildLathe = (n) => {
+      const plan = lathePlan;
+      const m = materials[current];
+      let mesh;
+      try {
+        mesh = lathe(plan.pts, plan.frame, n, { mat: m.name, color: m.color });
+      } catch (err) {
+        return noteEdit(`lathe: ${err.message}`);
+      }
+      const made = create(`lathe-${shortId()}`, mesh);
+      lathePlan = null;
+      emode = 'draw';
+      showBar();
+      noteEdit(`lathe: ${n} segments, ${mesh.faces.length} faces`);
+      redraw();
+      return made;
+    };
     const sketch = () => {
       const q = sawHere()?.p;
       if (!q) return (sketchFrom = null), redraw();
@@ -3854,6 +3925,7 @@
     let textJob = null;
     const askText = (job) => {
       textJob = job;
+      textBox.placeholder = job.lathe ? 'segments: 4 or more (Enter again = 7)' : 'text (Enter: make it, Esc: cancel)';
       textBox.value = job.text;
       textBox.hidden = false;
       textBox.focus();
@@ -3875,6 +3947,11 @@
       const job = textJob;
       const text = textBox.value.trim();
       closeText();
+      if (job?.lathe) {
+        const n = text === '' ? 7 : Number(text);
+        if (!Number.isInteger(n) || n < 4) return noteEdit('lathe: the segments are a whole number, 4 or more (Enter on its own = 7)'), askText({ lathe: true, text: '' });
+        return void buildLathe(n);
+      }
       if (!job || !text) return;
       const m = materials[current];
       if (job.fix) {
@@ -4197,6 +4274,10 @@
         e.preventDefault();
         if (emode === 'saw') applySaw();
         else if (emode === 'draw') buildSketch();
+        else if (emode === 'lathe') latheEnter();
+      } else if (editing && e.key === '6') {
+        e.preventDefault();
+        if (!e.repeat) startLathe();
       } else if (editing && /^[12345]$/.test(e.key)) {
         e.preventDefault();
         if (e.key === '5' && emode === 'draw' && editing.lines?.length) return void buildSketch(); // 5 again builds what is drawn
@@ -4209,7 +4290,10 @@
         redraw();
       } else if (editing && e.key === 'Escape') {
         if (sawPts.length) ((sawPts = []), noteEdit(''), redraw());
-        else if (sketchFrom) ((sketchFrom = null), redraw());
+        else if (emode === 'lathe') {
+          if (lathePlan?.pts.length) ((lathePlan.pts = lathePlan.pts.slice(0, -1)), redraw());
+          else ((lathePlan = null), (emode = 'draw'), showBar(), redraw());
+        } else if (sketchFrom) ((sketchFrom = null), redraw());
         else if (emode !== 'draw') ((emode = 'draw'), (sel = emptySel()), showBar(), redraw());
         else leaveEdit();
       } else if (e.key === 'x') {
@@ -4219,7 +4303,8 @@
       } else if (e.key === 'v' || e.key === 'V') {
         e.preventDefault();
         if (!e.repeat) {
-          if (editing && emode === 'saw') addSawPoint(); // only in the saw mode (4) does V saw
+          if (editing && emode === 'lathe') addLathePoint();
+          else if (editing && emode === 'saw') addSawPoint(); // only in the saw mode (4) does V saw
           else if (editing) {
             // any other mode: V sketches a line (nothing is selected, nothing moves)
             if (emode !== 'draw') ((emode = 'draw'), (sel = emptySel()), showBar());
@@ -4434,7 +4519,7 @@
       z: { cap: 'Z', sub: 'zen', cat: 'slate', text: 'Zen: hide everything but the model. Z or Esc brings the panels back.' },
       x: { cap: 'X', sub: 'del', cat: 'red', text: 'Shift+X deletes the object under the cross, in every mode (U brings it back). Alone, during G / S / R, X locks the axis to x.', edit: 'Shift+X deletes the selected points, lines or faces (a point takes its faces, a line the faces on it); with nothing selected, the object under the cross. During G / S: locks the axis to x.' },
       c: { cap: 'C', sub: 'glow', cat: 'teal', text: 'Glow: emitting materials light their surroundings as local lights (no shadows). With the light off, only they light the scene.' },
-      v: { cap: 'V', sub: 'bar', cat: 'red', text: 'Spider bar: joins two surface points with a thin bar.', edit: 'Sketches a line from point to point on the surface (sketch mode, 5; Enter then makes faces and lines of the drawing). In saw mode (4): puts a saw point (two on one face: a cut square to it; three: a cut through the triangle).' },
+      v: { cap: 'V', sub: 'bar', cat: 'red', text: 'Spider bar: joins two surface points with a thin bar.', edit: 'In the lathe (6): puts a contour point on the face plane. Sketches a line from point to point on the surface (sketch mode, 5; Enter then makes faces and lines of the drawing). In saw mode (4): puts a saw point (two on one face: a cut square to it; three: a cut through the triangle).' },
       7: { cap: '7', sub: 'store', cat: 'teal', text: 'Open or close the store: a second 3D view on the left (a third of the width) with the loose objects (timber stock). The keys go to the view the pointer is over. In the store: target one (T) and press M, and it becomes the model M puts down in the build view.' },
       n: { cap: 'N', sub: 'smooth', cat: 'teal', text: 'Smooth shading: faces that meet at a shallow angle share their normals.' },
       m: { cap: 'M', sub: 'place', cat: 'red', text: 'Puts a prism down at the cross (or shoots one into empty space).', solo: 'In isolated mode the prism is a bullet: where it lands it carves A−B out of the surface; if it misses it disappears.' },
