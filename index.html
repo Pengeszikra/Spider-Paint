@@ -480,6 +480,7 @@
       footer.console .grp::before { content: attr(data-label); position: absolute; top: 0; left: 1px; font: 500 7px/1 var(--font-mono); letter-spacing: 0.24em; text-transform: uppercase; color: #6c7062; }
       footer.console .grp.rows { flex-direction: column; align-items: flex-start; row-gap: 5px; }
       footer.console .grp.rows .row { display: flex; align-items: center; gap: 6px; }
+      footer.console #sceneName { width: 92px; box-sizing: border-box; background: #14160f; color: var(--cream); border: 1px solid #2a2d26; border-radius: 8px; padding: 6px 8px; font: 500 10px/1 var(--font-mono); }
       /* the view switches sit on a grid: five equal columns, so a longer label does not push its neighbours */
       footer.console .grp[data-label="view"] .row { display: grid; grid-template-columns: repeat(5, 86px); gap: 6px 4px; }
       footer.console .grp + .grp { padding-left: 14px; border-left: 1px solid #262922; }
@@ -663,9 +664,10 @@
           <button type="button" class="slate" data-key="x" data-shift="1" title="Delete the object under the cross (Shift+X)"><b>⇧X</b>del</button>
         </span>
       </span>
-      <span class="grp only-build" data-label="scene">
-        <select id="examples" aria-label="Add an example model to the scene" title="Add an example model to the scene">
-          <option value="">+ example</option>
+      <span class="grp only-build rows" data-label="scene">
+        <span class="row">
+          <select id="examples" aria-label="Add an example or a saved scene to the scene" title="Add an example or a saved scene to the scene">
+          <option value="">+ scene</option>
         <option value="bridge">Stone bridge</option>
         <option value="globe">Globe</option>
         <option value="stars">Stars (500 nearest)</option>
@@ -674,8 +676,17 @@
         <option value="ex27">EX-27 expedition module</option>
         <option value="human">Low poly human</option>
         <option value="tr74">TR-74 expedition module</option>
-        </select>
-        <button id="clear" type="button" class="slate ic" title="Remove every object (U brings them back)" aria-label="Clear"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M8 7V5h8v2M7 7l1 12h8l1-12"/></svg></button>
+        <optgroup id="savedGroup" label="saved here" hidden></optgroup></select>
+          <button id="clear" type="button" class="slate ic" title="Remove every object (U brings them back)" aria-label="Clear"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M8 7V5h8v2M7 7l1 12h8l1-12"/></svg></button>
+        </span>
+        <span class="row">
+          <input id="sceneName" type="text" placeholder="name" maxlength="40" spellcheck="false" autocapitalize="off" aria-label="Name of the scene to save" title="The name a scene is saved under here (empty: a dated name)">
+          <button id="sceneSave" type="button" class="cream" title="Save the scene on this computer (this browser) under that name; it then shows in the list">save</button>
+          <button id="sceneDown" type="button" class="cream" title="Download the scene as a .json file">file ↓</button>
+          <button id="sceneOpen" type="button" class="cream" title="Add a scene from a .json file">file ↑</button>
+          <button id="sceneForget" type="button" class="slate" title="Forget the saved scene with the name in the box">✕</button>
+          <input id="sceneFile" type="file" accept=".json,application/json" hidden>
+        </span>
       </span>
       <span class="grp rows" data-label="sys">
         <span class="row">
@@ -701,7 +712,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@ca037ab3535eed02f633412e2bd056f96197a62c/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, renderView, version, displayVersion } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@3b7c240f5e55d60eb567a831a4c1efd940c4e7c6/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2188,7 +2199,21 @@
       reset();
     };
     // Example models: added next to what is already there (to its +x side), as one undo step.
+    const SAVED_KEY = '3draft.scenes';
+    const readSaved = () => {
+      try {
+        const o = JSON.parse(localStorage.getItem(SAVED_KEY) ?? '{}');
+        return o && typeof o === 'object' ? o : {};
+      } catch {
+        return {};
+      }
+    };
     const sceneOf = async (name) => {
+      if (name.startsWith('saved:')) {
+        const data = readSaved()[name.slice(6)];
+        if (!data) throw new Error('no such saved scene');
+        return data;
+      }
       return globalThis.__EXAMPLES?.[name] ?? (await fetch(`./models/${name}.scene.json`)).json();
     };
     const spanOf = (meshes) => {
@@ -2225,8 +2250,8 @@
       }
       if (changed) rebuild();
     };
-    const addExample = async (name) => {
-      const { objects: raw, palette: extra, prototypes, start, cloud: points, cloudProtos } = await sceneOf(name);
+    const addExample = async (name) => addScene(await sceneOf(name));
+    const addScene = async ({ objects: raw, palette: extra, prototypes, start, cloud: points, cloudProtos }) => {
       const objects = raw.map((o) => (o.proto ? { name: o.name, inst: { ...o, proto: prototypes[o.proto] }, mesh: instantiate(prototypes[o.proto].lods.at(-1), placement(o)) } : o));
       // a scene may bring its own materials; the ones the palette lacks are added (and saved with a db)
       for (const m of extra ?? []) {
@@ -4386,12 +4411,88 @@
     document.getElementById('studio').classList.add('on');
     document.getElementById('clear').addEventListener('click', clearScene);
     const exampleEl = document.getElementById('examples');
+    const savedGroup = document.getElementById('savedGroup');
+    const nameEl = document.getElementById('sceneName');
+    // The scene file: { format: '3draft-scene', version: 1, name, palette: [the materials the faces use], objects: [{ name, mesh, wire? }] }.
+    // The same shape as an example scene, so it loads through the same door: the list holds the examples and what was saved here.
+    const sceneFile = (name) => {
+      const used = new Set(allObjects().flatMap((o) => o.mesh.faces.map((f) => f.mat)).filter(Boolean));
+      return {
+        format: '3draft-scene',
+        version: 1,
+        name,
+        palette: materials.filter((m) => used.has(m.name)).map((m) => ({ ...m })),
+        objects: allObjects().map((o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}) })),
+      };
+    };
+    const showSaved = () => {
+      const names = Object.keys(readSaved()).sort();
+      savedGroup.hidden = !names.length;
+      savedGroup.replaceChildren(...names.map((n) => Object.assign(document.createElement('option'), { value: `saved:${n}`, textContent: n })));
+    };
+    const sceneNote = (text) => {
+      liveEl.textContent = text;
+    };
+    const nameOrDate = () => nameEl.value.trim() || `scene-${new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-')}`;
     exampleEl.addEventListener('change', async () => {
       const name = exampleEl.value;
       exampleEl.value = '';
       exampleEl.blur(); // so the shortcuts (U, ...) work right away
-      if (name) await addExample(name);
+      if (name.startsWith('saved:')) nameEl.value = name.slice(6);
+      if (name) await addExample(name).catch((e) => sceneNote(`scene: ${e.message}`));
     });
+    document.getElementById('sceneSave').addEventListener('click', () => {
+      if (!allObjects().length) return sceneNote('nothing to save: the scene is empty');
+      const name = nameOrDate();
+      try {
+        const all = readSaved();
+        all[name] = sceneFile(name);
+        localStorage.setItem(SAVED_KEY, JSON.stringify(all));
+        nameEl.value = name;
+        showSaved();
+        sceneNote(`saved "${name}" here (${allObjects().length} objects)`);
+      } catch (e) {
+        sceneNote('could not save here (the browser storage is full or blocked): use file ↓');
+      }
+    });
+    document.getElementById('sceneForget').addEventListener('click', () => {
+      const name = nameEl.value.trim();
+      const all = readSaved();
+      if (!(name in all)) return sceneNote(`no saved scene called "${name}"`);
+      delete all[name];
+      try {
+        localStorage.setItem(SAVED_KEY, JSON.stringify(all));
+      } catch {}
+      showSaved();
+      sceneNote(`forgot "${name}"`);
+    });
+    document.getElementById('sceneDown').addEventListener('click', () => {
+      if (!allObjects().length) return sceneNote('nothing to save: the scene is empty');
+      const name = nameOrDate();
+      const url = URL.createObjectURL(new Blob([JSON.stringify(sceneFile(name))], { type: 'application/json' }));
+      const a = Object.assign(document.createElement('a'), { href: url, download: `${name.replace(/[^\w.-]+/g, '-')}.json` });
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+    const sceneFileEl = document.getElementById('sceneFile');
+    document.getElementById('sceneOpen').addEventListener('click', () => sceneFileEl.click());
+    sceneFileEl.addEventListener('change', async () => {
+      const f = sceneFileEl.files?.[0];
+      sceneFileEl.value = '';
+      if (!f) return;
+      try {
+        const data = JSON.parse(await f.text());
+        if (!Array.isArray(data?.objects) || data.format === '3draft-recording') throw new Error('this is not a scene file');
+        if (data.name) nameEl.value = data.name;
+        await addScene(data);
+      } catch (e) {
+        sceneNote(`file: ${e.message}`);
+      }
+    });
+    nameEl.addEventListener('keydown', (e) => e.stopPropagation()); // typing a name is not a command
+    showSaved();
     document.getElementById('undo').addEventListener('click', undo);
     document.getElementById('reset').addEventListener('click', reset);
     new ResizeObserver(redraw).observe(stage);
