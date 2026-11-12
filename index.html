@@ -743,7 +743,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@7c972c8a058f3d6603b8668db98137c268084f7b/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@db875dc0445f7cd6eb7ce2f78a9e4d40ea2dfd27/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1551,6 +1551,7 @@
         // editing sees the far side of a face too: from inside a hull its walls face away, and they must still be selectable
         const cull = !editing;
         hit = kernel ? kernel.pick(scene, cam, x, y, { cull }) : pick(scene, cam, x, y, { cull });
+        if (placing && hit && owner(hit.face)?.id === placing.obj.id) hit = null; // the pointer sees through the model being placed
         cam.at = { x, y };
         panelPointer = { x, y };
         if (hit) lastHitId = owner(hit.face)?.id ?? lastHitId;
@@ -2956,6 +2957,8 @@
           const over = d.type === 'drag-end' && stage.getBoundingClientRect().left <= d.x && d.x <= innerWidth && d.y >= stage.getBoundingClientRect().top;
           dropBrush(d.x, d.y, over);
           focusPane(false);
+        } else if (d.type === 'brush-place' && Array.isArray(d.mesh?.positions) && Array.isArray(d.mesh?.faces)) {
+          placeBrush({ name: String(d.name).slice(0, 40), mesh: d.mesh }); // gg in the store: a copy floats here, to be stuck down
         } else if (d.type === 'brush' && Array.isArray(d.mesh?.positions) && Array.isArray(d.mesh?.faces)) {
           useBrush({ name: String(d.name).slice(0, 40), mesh: d.mesh });
           const label = sceneBtn.querySelector('span');
@@ -3017,7 +3020,11 @@
       if (over && brush) {
         draw(); // the surface under the drop point
         const put = putBrush();
-        if (put?.obj) startPlace(put.obj, put.foot, put.n, brush.name);
+        if (put?.obj) {
+          startPlace(put.obj, { foot: put.foot, n: put.n, dist: Math.max(0.05, Math.hypot(...vsub(put.foot, gcam.eye))), created: true, name: brush.name });
+          placing.phase = 'stick'; // it landed on a surface: it sticks there
+          placeRun('grab');
+        }
       }
       if (!xf?.place) pointer = null; // (placing: the pointer is over the build and carries on from here)
       redraw();
@@ -3325,7 +3332,7 @@
         return;
       }
       if (!editing) {
-        if (xf) barText.innerHTML = `move ${hudText(xf.obj.name ?? '')}${barNote ? `<span class="note">${hudText(barNote)}</span>` : ''}`; // G outside edit mode
+        if (xf) barText.innerHTML = xf.place ? hudText(barNote) : `move ${hudText(xf.obj.name ?? '')}${barNote ? `<span class="note">${hudText(barNote)}</span>` : ''}`; // G outside edit mode (placing: its own line)
         return;
       }
       // in edit mode the bar only carries notes (why a key did nothing); the console shows the mode
@@ -3698,8 +3705,15 @@
         } else {
           // a placed model sticks to the surfaces: its foot goes to the surface under the pointer and its up turns to the normal there
           // (round a ball it keeps turning, as it slides); off every surface it slides on the plane it was last on
-          const on = x.place && gcam && panelPointer ? pick(x.place.rest, gcam, panelPointer.x, panelPointer.y) : null;
-          if (on && typed === null) {
+          const floating = x.place?.phase === 'float';
+          const on = x.place && !floating && gcam && panelPointer ? pick(x.place.rest, gcam, panelPointer.x, panelPointer.y) : null;
+          if (floating) {
+            // in front of the eye, its foot on the pointer's ray
+            const q = rayPoint(x.place.dist);
+            delta = q ? vsub(q, x.c) : [0, 0, 0];
+            text = 'floating, click sticks it';
+            x.turnN = null;
+          } else if (on && typed === null) {
             const turn = turnBetween(x.place.n, on.normal);
             x.delta = vsub(on.point, x.c);
             x.turnN = on.normal;
@@ -3767,7 +3781,7 @@
       x.obj.mesh = moved;
       rebuild();
       barNote = x.place
-        ? `place ${x.place.name} · ${x.kind === 'grab' ? 'move' : x.kind === 'rotate' ? 'turn' : 'size'}${x.lock ? ` ${x.lock.toUpperCase()}` : x.kind === 'grab' ? ' on the surface' : x.kind === 'rotate' ? ' round its foot' : ''} · ${typed !== null ? `${x.typed}_` : text} · G move, R turn, S size, X Y Z, a number · ⏎ keeps, Esc puts it back where it fell`
+        ? `place ${x.place.name} · ${x.kind === 'grab' ? (x.place.phase === 'float' ? 'float' : 'stuck') : x.kind === 'rotate' ? 'turn' : 'size'}${x.lock ? ` ${x.lock.toUpperCase()}` : x.kind === 'grab' ? ' on the surface' : x.kind === 'rotate' ? ' round its foot' : ''} · ${typed !== null ? `${x.typed}_` : text} · click ${x.kind !== 'grab' ? 'takes it' : x.place.phase === 'float' ? 'sticks' : 'unsticks'} · G R S, X Y Z, a number · Ctrl+D copy · ⏎ keeps, Esc step back`
         : `${x.kind}${x.lock ? ` ${x.lock.toUpperCase()}` : x.kind === 'rotate' ? ' about its axis' : x.axisVec ? ' along the normal' : ''} · ${typed !== null ? `${x.typed}_` : text} · ⏎ ok, Esc cancels`;
       showBar();
       redraw();
@@ -3776,6 +3790,7 @@
       const x = xf;
       xf = null;
       if (!x) return;
+      if (x.place && placing === x.place) placing = null; // (place mode ended some other way)
       const final = x.obj.mesh;
       x.obj.mesh = x.orig;
       if (x.changed && final !== x.orig) {
@@ -3789,6 +3804,7 @@
       const x = xf;
       xf = null;
       if (!x) return;
+      if (x.place && placing === x.place) placing = null; // (place mode ended some other way)
       x.obj.mesh = x.orig;
       if (x.wire0) x.obj.wire = x.wire0;
       if (x.kind === 'loop' || x.kind === 'bevel') sel = x.sel0;
@@ -4344,15 +4360,127 @@
       if (copied) barNote = 'copy · ' + barNote;
       showBar();
     };
-    // Placing (a model dropped from the store): it does not stick where it fell but waits, like a grab, until Enter keeps it (or Esc
-    // puts it back where it fell). Meanwhile G slides it on the surface it fell on, R turns it round the axis through its foot along that
-    // surface's normal, S sizes it from its foot; X Y Z lock an axis, a number gives the amount. Every switch starts from where it is.
-    const startPlace = (o, foot, n, name) => {
+    // ---- Place mode (gg on an object, gg in the store, Ctrl+D while placing). The model first FLOATS in front of the eye with its foot
+    // on the pointer's ray (the pointer sees through it); a click STICKS it to the surface under the pointer: its foot goes there and
+    // its up turns to the normal, and as the pointer moves it slides over the surfaces, following them (round a ball too); another click
+    // unsticks it, it floats again and a new target can be chosen. G R S (X Y Z, a number) work all along, R turning round its foot.
+    // Esc takes back the last step (the last click or G R S switch; with none left it puts the model back, a new one goes);
+    // Enter keeps it (one undo step); Ctrl+D keeps it and carries on with a floating copy.
+    let placing = null; // { obj, orig, created, steps, foot, n, phase: 'float' | 'stick', dist, name, rest }
+    let lastG = null; // the last G outside edit mode: { t, id, point, normal } (two quickly: place mode)
+    const placeRest = (o) => ({ positions: scene.positions, faces: scene.faces.filter((_, i) => owner(i)?.id !== o.id) });
+    // the point at distance d along the pointer's ray (the middle of the view while the pointer is elsewhere)
+    const rayPoint = (d) => {
+      if (!gcam) return null;
+      const p = panelPointer ?? { x: gcam.size / 2, y: gcam.size / 2 };
+      const r = ray(gcam, p.x, p.y);
+      return r.origin.map((c, i) => c + r.dir[i] * d);
+    };
+    // (re)start the operation in progress from the model as it is now
+    const placeRun = (kind = 'grab') => {
+      const pl = placing;
+      const o = live(pl.obj) ?? pl.obj;
+      pl.obj = o;
+      xf = null;
+      startXf(kind, { obj: o, ids: o.mesh.positions.map((_, i) => i), c: pl.foot, orig: pl.orig, place: pl, axisVec: kind === 'rotate' ? pl.n : null });
+      if (xf) xfUpdate();
+    };
+    const startPlace = (o, { foot, n, dist, created = false, name }) => {
       if (!o) return;
-      const ids = o.mesh.positions.map((_, i) => i);
-      // everything else in the scene: the surfaces it can slide on (not itself)
-      const rest = { positions: scene.positions, faces: scene.faces.filter((_, i) => owner(i)?.id !== o.id) };
-      startXf('grab', { obj: o, ids, c: foot, place: { foot, n, name, rest } });
+      if (xf) xfCancel();
+      placing = { obj: o, orig: o.mesh, created, steps: [], foot, n, phase: 'float', dist, name: name ?? o.name.replace(/-[a-z0-9]{4}$/, ''), rest: placeRest(o) };
+      placeRun('grab');
+    };
+    // where gg grabbed it: the foot is the point of the bounding box opposite the grabbed point (through the box along the axis
+    // nearest the surface normal there), the up points from the foot to the grabbed side
+    const footOf = (mesh, point, normal) => {
+      const lo = [0, 1, 2].map((a) => Math.min(...mesh.positions.map((q) => q[a])));
+      const hi = [0, 1, 2].map((a) => Math.max(...mesh.positions.map((q) => q[a])));
+      const k = [0, 1, 2].reduce((m, a) => (Math.abs(normal[a]) > Math.abs(normal[m]) ? a : m), 0);
+      const sgn = normal[k] >= 0 ? 1 : -1;
+      const foot = [...point];
+      foot[k] = sgn > 0 ? lo[k] : hi[k];
+      const n = [0, 0, 0];
+      n[k] = sgn;
+      return { foot, n };
+    };
+    const placeGrabbed = (o, point, normal) => {
+      const { foot, n } = footOf(o.mesh, point, normal);
+      startPlace(o, { foot, n, dist: Math.max(0.05, Math.hypot(...vsub(point, gcam.eye))) });
+    };
+    // the state the operation in progress leaves behind (where the foot went, which way is up now)
+    const placeCarry = () => {
+      const x = xf;
+      const pl = placing;
+      pl.steps.push({ mesh: x.mesh0, foot: pl.foot, n: pl.n, phase: pl.phase, dist: pl.dist, kind: x.kind });
+      if (x.kind === 'grab' && x.delta) pl.foot = vadd(x.c, x.delta);
+      if (x.kind === 'grab' && x.turnN && pl.phase === 'stick') pl.n = x.turnN;
+    };
+    const placeStep = (k) => {
+      if (!placing || !xf) return;
+      placeCarry();
+      placeRun(k === 'g' ? 'grab' : k === 'r' ? 'rotate' : 'scale');
+    };
+    // a click: G R S in progress -> taken, back to the slide; sliding -> floats / sticks
+    const placeClick = () => {
+      if (!placing || !xf) return;
+      const kind = xf.kind;
+      placeCarry();
+      if (kind === 'grab') {
+        placing.phase = placing.phase === 'float' ? 'stick' : 'float';
+        if (placing.phase === 'float') placing.dist = Math.max(0.05, Math.hypot(...vsub(placing.foot, gcam.eye)));
+      }
+      placeRun('grab');
+    };
+    // Esc: the last step back; none left: the model goes back where it was (a new one goes away)
+    const placeUndo = () => {
+      const pl = placing;
+      if (!pl || !xf) return;
+      const s = pl.steps.pop();
+      if (s) {
+        const o = live(pl.obj) ?? pl.obj;
+        xf = null;
+        o.mesh = s.mesh;
+        rebuild();
+        Object.assign(pl, { foot: s.foot, n: s.n, phase: s.phase, dist: s.dist });
+        return placeRun(s.kind === 'grab' ? 'grab' : s.kind);
+      }
+      xfCancel();
+      placing = null;
+      if (pl.created) {
+        erase(pl.obj);
+        history.pop(); // (its create step)
+      }
+      noteEdit('placing cancelled');
+      redraw();
+    };
+    // Enter: kept as it is (one undo step)
+    const placeDone = () => {
+      if (!placing || !xf) return;
+      const pl = placing;
+      xf.orig = pl.orig;
+      xf.changed = true;
+      placing = null;
+      xfConfirm();
+      return pl;
+    };
+    // Ctrl+D: kept, and a copy of it floats on
+    const placeCopy = () => {
+      if (!placing || !xf) return;
+      placeCarry();
+      const pl = placeDone();
+      const src = live(pl.obj) ?? pl.obj;
+      const m = src.mesh;
+      const copy = create(`${pl.name}-${shortId()}`, { ...m, positions: m.positions.map((q) => [...q]), faces: m.faces.map((f) => ({ ...f, v: [...f.v] })) });
+      startPlace(copy, { foot: pl.foot, n: pl.n, dist: Math.max(0.05, Math.hypot(...vsub(pl.foot, gcam.eye))), created: true, name: pl.name });
+    };
+    // a model chosen in the store with gg (its foot at the origin, up +y): a copy floats in the build
+    const placeBrush = (b) => {
+      useBrush(b);
+      const dist = Math.max(0.5, Math.hypot(...vsub(fit.center, gcam?.eye ?? [0, 0, 5])) * 0.6);
+      const at = rayPoint(dist) ?? [...fit.center];
+      const copy = create(`${b.name}-${shortId()}`, shifted(b.mesh, at));
+      startPlace(copy, { foot: at, n: [0, 1, 0], dist, created: true, name: b.name });
     };
     // the shortest turn that takes the unit vector a to b (about a x b); half a turn when they point opposite ways
     const turnBetween = (a, b) => {
@@ -4373,15 +4501,6 @@
         const d = vdot(u, v) * (1 - cs);
         return v.map((c, i) => c * cs + cr[i] * sn + u[i] * d);
       };
-    };
-    const placeStep = (k) => {
-      const x = xf;
-      if (!x?.place) return;
-      const foot = x.kind === 'grab' && x.delta ? x.place.foot.map((c, i) => c + x.delta[i]) : x.place.foot;
-      const place = { ...x.place, foot, n: (x.kind === 'grab' && x.turnN) || x.place.n }; // (it may have slid onto a slope)
-      const kind = k === 'g' ? 'grab' : k === 'r' ? 'rotate' : 'scale';
-      xf = null;
-      startXf(kind, { obj: x.obj, ids: x.ids, c: foot, orig: x.orig, place, axisVec: kind === 'rotate' ? place.n : null });
     };
     const pointedObject = () => lockedObject() ?? (hit && owner(hit.face)) ?? null;
     const duplicate = () => {
@@ -4480,6 +4599,11 @@
       else if (e.key === 'Escape') closeText();
     });
     const editKey = (e) => {
+      if (xf?.place && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault(); // (not the browser's bookmark)
+        if (!e.repeat) placeCopy();
+        return true;
+      }
       if (e.altKey && !e.ctrlKey && !e.metaKey && !xf && e.code === 'KeyN') {
         e.preventDefault(); // (on a Mac Option+N types a ˜)
         if (!e.repeat) flipNormals();
@@ -4505,9 +4629,25 @@
         e.preventDefault();
         if (e.repeat && e.key !== 'Backspace') return true;
         const k = e.key.toLowerCase();
-        if (e.key === 'Escape') xfCancel();
+        if (xf.place && e.key === 'Escape') placeUndo();
+        else if (xf.place && e.key === 'Enter') placeDone();
+        else if (e.key === 'Escape') xfCancel();
         else if (e.key === 'Enter') xfConfirm();
         else if (xf.place && (k === 'g' || k === 'r' || k === 's')) placeStep(k);
+        else if (k === 'g' && !xf.place && xf.kind === 'grab' && lastG && performance.now() - lastG.t < 450 && xf.obj.id === lastG.id) {
+          // gg: the grab becomes place mode (in the store: the model goes to the build to be placed there)
+          const o = xf.obj;
+          const g = lastG;
+          lastG = null;
+          xfCancel();
+          if (EMBED) {
+            const { foot, n } = footOf(o.mesh, g.point, g.normal);
+            const turn = turnBetween(n, [0, 1, 0]);
+            const mesh = { ...o.mesh, positions: o.mesh.positions.map((q) => turn(vsub(q, foot))) };
+            parent.postMessage({ type: 'brush-place', name: o.name.replace(/-[a-z0-9]{4}$/, ''), mesh }, location.origin);
+            noteEdit(`${o.name}: place it in the build`);
+          } else placeGrabbed(o, g.point, g.normal);
+        }
         else if (e.key === 'ArrowUp' || e.key === 'PageUp') bevelSegments(1);
         else if (e.key === 'ArrowDown' || e.key === 'PageDown') bevelSegments(-1);
         else if (k === 'x' || k === 'y' || k === 'z') ((xf.lock = xf.lock === k ? null : k), xfUpdate());
@@ -4571,14 +4711,10 @@
     stage.addEventListener('pointerdown', (e) => {
       clearOnUp = null;
       pointer = { x: e.clientX, y: e.clientY };
-      if (EMBED && e.altKey && !editing && hit && owner(hit.face)) {
+      if (xf?.place) {
+        // placing: a click sticks / unsticks it (or takes G R S), the right button takes the last step back
         e.preventDefault();
-        carry = brushOf(owner(hit.face), [hit.point[0], 0, hit.point[2]]); // the grabbed point, dropped to the floor, is the new origin
-        carryFrozen = frozen;
-        if (!frozen) toggleFreeze(); // the store stands still while the model is carried away
-        stage.setPointerCapture(e.pointerId);
-        stage.classList.add('drag');
-        return carryTell('drag-start', e);
+        return e.button === 2 ? placeUndo() : placeClick();
       }
       if (xf) {
         // a grab / scale is under way: the left button confirms it, the right one cancels it
@@ -4758,7 +4894,10 @@
       }
       if (e.key === 'g' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && !editing) {
         e.preventDefault();
-        if (!e.repeat) grabObject(pointedObject());
+        if (e.repeat) return;
+        const o = pointedObject();
+        lastG = o && hit && owner(hit.face)?.id === o.id ? { t: performance.now(), id: o.id, point: [...hit.point], normal: [...hit.normal] } : null;
+        grabObject(o);
         return;
       }
       if ((e.key === 'X' && !e.ctrlKey && !e.metaKey && !e.altKey) || e.key === 'Delete') {
@@ -5285,7 +5424,9 @@
       globalThis.__3draft = {
         load: (data) => applyScene(data),
         open: (data) => loadScene(data, true),
-        drop: (name, mesh, x, y) => (useBrush({ name, mesh }), dropBrush(x, y)), // like letting a model go over the build from the store // like opening a scene file: its palette (screens, scene screens) comes too
+        drop: (name, mesh, x, y) => (useBrush({ name, mesh }), dropBrush(x, y)), // (the old drag and drop's landing)
+        placeBrush: (name, mesh) => placeBrush({ name, mesh }), // like gg on a model in the store
+        place: () => placing && { phase: placing.phase, steps: placing.steps.length, kind: xf?.kind, foot: placing.foot.map((v) => +v.toFixed(3)), n: placing.n.map((v) => +v.toFixed(3)), name: placing.name }, // like opening a scene file: its palette (screens, scene screens) comes too
         screens: () => ({ mode, gpu: Boolean(gpu), kind: activeKind, iframes: screenFrames.size, spots: [...sceneSpots].map(([addr, s]) => ({ addr, ready: s.ready, error: s.error })) }),
         pose: () => (posing ? { name: posing.name, anim: posing.anim, objects: posing.objs.map((o) => o.name), joints: posing.joints, skinned: skinned(), rigPx: rigPixels(posing.joints), sceneFaces: scene.faces.length } : null),
         hint: () => poseHint,

@@ -68,7 +68,7 @@ With a **target**, W A S D R F move the camera round and towards the target inst
 | Ctrl+click (Cmd on a Mac) | Paint the face under the cross; Ctrl+double click paints the whole object |
 | Alt+Ctrl (Alt+Cmd) + move | With the palette open: no click, every face the pointer passes over takes the selected material (edit mode too). One stroke is one undo step |
 | 7 | Open / close the store (second 3D view on the left) |
-| Alt + drag | In the store: drag the object under the pointer over the build and let go, a copy is put down there, the point you grabbed (dropped straight to the floor of the store) on the surface and its up along the surface normal; that point is the new object's origin (Esc cancels). The store stands still while you drag. Let go and it **waits in place mode**: **G** slides it on the surfaces: its foot goes to the surface under the pointer and its up follows the normal there (on a ball it keeps turning as it slides; off every surface it slides on the plane it was last on), **R** turns it round the axis through its foot along that surface's normal, **S** sizes it from its foot; **X Y Z** lock an axis, a number gives the amount (metres, degrees, times). Switch between G R S as often as you like; **Enter** (or a click) keeps it, **Esc** puts it back where it fell |
+| G G | **Place mode** (G twice quickly on an object): the object **floats** in front of the eye under the pointer (the pointer sees through it), its foot being the point of its bounding box opposite the point you grabbed. A **click sticks** it to the surface under the pointer: its foot goes there, its up turns to the normal, and as you move it slides over the surfaces following them (round a ball too). **Another click unsticks** it: it floats again, choose a new target. **G R S** work all along (R turns it round its foot, S sizes it from there; **X Y Z**, a number), a click takes them. **Ctrl+D** leaves it where it is and a copy floats on. **Esc** takes back the last step (the last click or G R S; with none left it goes back where it was, a new copy goes away), **Enter** keeps it (one U step). **In the store** G G picks the model: move to the build and a copy of it floats there, to be stuck down the same way |
 
 ## Materials (the palette)
 
@@ -82,11 +82,11 @@ Click a swatch to select it. The sliders change **metal**, **rough**, **alpha**,
 
 `?play=<url of a recording>` plays one as soon as the page is up. In code (and for Claude): `rec.start()`, `rec.stop()` returns the recording object, `rec.play(object or JSON text)`, `rec.scene()` is a short fingerprint of the scene (compare two runs).
 
-The store pane (drag and drop from it) is not recorded.
+The store pane (and G G from it) is not recorded.
 
 ## Two views: build and store
 
-**7** or the **store** switch (VIEW group, second row) opens the store as a second 3D view on the left, a third of the width (the build keeps two thirds); 7 again closes it. They are two separate engines, each with its own objects, undo steps and camera. The keys go to the view the pointer is over (a teal frame marks it). The *store* holds loose objects (timber stock: lath, board, plank, beam, plywood). In the store, **target** an object (**T**) and press **M**: it becomes the model of **M** in the build. Move the pointer over the build and **M** puts a copy of that model down at the cross, every time (the brush chip names it; click the chip to go back to the plain prism). Or **drag and drop**: hold **Alt**, press an object in the store, drag it over the build and let go. It then waits in place mode (G slide on the surfaces, following them, R turn round its foot, S size, X Y Z, a number) until Enter keeps it.
+**7** or the **store** switch (VIEW group, second row) opens the store as a second 3D view on the left, a third of the width (the build keeps two thirds); 7 again closes it. They are two separate engines, each with its own objects, undo steps and camera. The keys go to the view the pointer is over (a teal frame marks it). The *store* holds loose objects (timber stock: lath, board, plank, beam, plywood). In the store, **target** an object (**T**) and press **M**: it becomes the model of **M** in the build. Move the pointer over the build and **M** puts a copy of that model down at the cross, every time (the brush chip names it; click the chip to go back to the plain prism). Or press **G G** on an object in the store: a copy of it floats in the build under the pointer, a click sticks it to a surface (place mode, see G G above), Enter keeps it.
 
 ## Edit mode
 
