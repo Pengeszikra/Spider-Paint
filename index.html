@@ -677,6 +677,7 @@
           <button type="button" class="cream" data-key="r" title="Rotate the selection (R)"><b>R</b>rot</button>
           <button type="button" class="cream" data-key="e" title="Extrude the selected faces (E)"><b>E</b>ex</button>
           <button type="button" class="cream" data-key="f" title="Fill: make a face of the selected points (F)"><b>F</b>fill</button>
+          <button type="button" class="cream" data-key="m" title="Mirror the selection (M, then - for the minus side, then X Y or Z; move the plane, Enter welds)"><b>M</b>mir</button>
           <button type="button" class="slate" data-key="x" data-shift="1" title="Delete the object under the cross (Shift+X)"><b>⇧X</b>del</button>
         </span>
       </span>
@@ -747,7 +748,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@0d6b3f129b5dc11d28590557dc7ba9db2e69aa55/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@24ad3b10dc63c914dc43a633572db8cd792d7499/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1596,6 +1597,25 @@
           edges.push([c(a, b, 0), c(a, b, 1)], [c(a, 0, b), c(a, 1, b)], [c(0, a, b), c(1, a, b)]);
         }
         marks.push({ name: 'bool', color, width: 3, lines: edges });
+      }
+      if (xf?.kind === 'mirror' && xf.mirror) {
+        // the mirror plane: a square through the plane round the selection
+        const { k, d } = xf.mirror;
+        const lo = [0, 1, 2].map((a) => Math.min(...xf.from.map((q) => q[a])));
+        const hi = [0, 1, 2].map((a) => Math.max(...xf.from.map((q) => q[a])));
+        const mid = lo.map((c, a) => (c + hi[a]) / 2);
+        const half = Math.max(...[0, 1, 2].filter((a) => a !== k).map((a) => hi[a] - lo[a]), 1e-3) * 0.75;
+        const [u, v] = [0, 1, 2].filter((a) => a !== k);
+        const pt = (su, sv) => {
+          const q = [...mid];
+          q[k] = d;
+          q[u] = mid[u] + su * half;
+          q[v] = mid[v] + sv * half;
+          return q;
+        };
+        const sq = [pt(-1, -1), pt(1, -1), pt(1, 1), pt(-1, 1)];
+        marks.push({ name: 'mirror', color: '#d6336c', width: 2, opacity: 0.9, lines: sq.map((q, i) => [q, sq[(i + 1) % 4]]) });
+        marks.push({ name: 'mirror-x', color: '#d6336c', width: 1, opacity: 0.5, lines: [[sq[0], sq[2]], [sq[1], sq[3]]] });
       }
       if (bench && editing) {
         // the workbench: a plane under the edited object (a grid, 12 cells either way) and the two axes through its local origin
@@ -3646,6 +3666,116 @@
     const AXIS = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
     let xf = null; // { kind, obj, mesh0, orig, ids, from, c, p0, s0, sc, dist0, base, lock, axisVec, typed, changed }
     const fmt = (v) => (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(3));
+    // ---- M in edit mode: mirror. M, then (- for the minus side) X, Y or Z: the selected faces (and lines) get a mirrored copy across a
+    // plane square to that axis, which starts at the selection's edge on that side; moving the pointer (or a number) shifts the plane.
+    // Enter welds what meets: copied points that land on points of the object become those points, faces that end up on top of each
+    // other (a face lying in the plane and its mirror) go. What does not close is left for editing.
+    let mirrorWait = null; // { neg } after M, until the axis key
+    const startMirror = (k, neg) => {
+      const m = editing.mesh;
+      const ids = selVerts().filter((i) => i < m.positions.length);
+      const on = new Set(ids);
+      const faces = m.faces.map((f, i) => (f.v.every((v) => on.has(v)) ? i : -1)).filter((i) => i >= 0);
+      const wire = (editing.wire ?? []).filter(([a, b]) => on.has(a) && on.has(b));
+      if (!faces.length && !wire.length) return noteEdit('mirror: nothing whole is selected (select faces, or the lines and points of a shape)');
+      const coord = ids.map((i) => m.positions[i][k]);
+      const d0 = neg ? Math.min(...coord) : Math.max(...coord);
+      const c = ids.reduce((t, i) => t.map((v, j) => v + m.positions[i][j] / ids.length), [0, 0, 0]);
+      c[k] = d0;
+      const axis = [0, 0, 0];
+      axis[k] = 1;
+      startXf('mirror', { ids, c, axisVec: axis, wire0: (editing.wire ?? []).map((w) => [...w]), mirror: { k, neg, d0, d: d0, faces, wire } });
+    };
+    const mirrorPreview = (x, d) => {
+      const { k, faces, wire } = x.mirror;
+      const m = x.mesh0;
+      const n0 = m.positions.length;
+      const map = new Map();
+      const extra = [];
+      const at = (i) => {
+        if (!map.has(i)) {
+          map.set(i, n0 + extra.length);
+          const q = [...m.positions[i]];
+          q[k] = 2 * d - q[k];
+          extra.push(q);
+        }
+        return map.get(i);
+      };
+      const copies = faces.map((fi) => {
+        const f = m.faces[fi];
+        return { ...f, v: f.v.map(at).reverse() }; // a mirror turns the winding round: reversed, it faces out again
+      });
+      const lines = wire.map(([a, b]) => [at(a), at(b)]);
+      return { mesh: { positions: [...m.positions, ...extra], faces: [...m.faces, ...copies] }, wire: [...(x.wire0 ?? []), ...lines] };
+    };
+    // Enter: points on top of each other become one, faces on top of each other (back to back) go, unused points are dropped
+    const mirrorWeld = (mesh, wire, k, d) => {
+      const P = mesh.positions;
+      const R = Math.max(bounds(mesh).radius, 1e-9);
+      const eps = R * 1e-6;
+      const key = (q) => q.map((c) => Math.round(c / eps)).join();
+      const seen = new Map();
+      const same = P.map((q, i) => {
+        // (nearby cells too: two points a hair apart can round into neighbouring cells)
+        const r = q.map((c) => Math.round(c / eps));
+        for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) {
+          const j = seen.get([r[0] + dx, r[1] + dy, r[2] + dz].join());
+          if (j !== undefined) return j;
+        }
+        seen.set(key(q), i);
+        return i;
+      });
+      let faces = mesh.faces
+        .map((f) => ({ ...f, v: f.v.map((v) => same[v]).filter((v, i, a) => v !== a[(i + 1) % a.length]) }))
+        .filter((f) => new Set(f.v).size >= 3);
+      const sets = new Map();
+      faces.forEach((f, i) => {
+        const s = [...f.v].sort((a, b) => a - b).join();
+        sets.set(s, [...(sets.get(s) ?? []), i]);
+      });
+      const gone = new Set([...sets.values()].filter((l) => l.length > 1).flat()); // a face and its mirror on the plane: inside now
+      faces = faces.filter((_, i) => !gone.has(i));
+      const lines = wire.map(([a, b]) => [same[a], same[b]]).filter(([a, b]) => a !== b);
+      // drop the points nothing uses any more
+      const used = new Set([...faces.flatMap((f) => f.v), ...lines.flat()]);
+      const keep = P.map((_, i) => i).filter((i) => used.has(i));
+      const re = new Map(keep.map((i, n) => [i, n]));
+      const welded = P.length - new Set(same).size;
+      let out = { positions: keep.map((i) => P[i]), faces: faces.map((f) => ({ ...f, v: f.v.map((v) => re.get(v)) })) };
+      let outWire = lines.map(([a, b]) => [re.get(a), re.get(b)]);
+      // a face and its mirror lying in one plane and meeting on the mirror plane become one face (a split top joins up again)
+      const onPlane = (i) => Math.abs(out.positions[i][k] - d) <= eps * 10;
+      const before = out.faces.length;
+      out = mergeFlat(out, { edge: (u, v) => onPlane(u) && onPlane(v) });
+      const joined = before - out.faces.length;
+      if (joined) {
+        // and a point left in the middle of a straight side, on the plane, used by nothing else, goes
+        const users = new Map();
+        out.faces.forEach((f, fi) => f.v.forEach((v) => users.set(v, [...(users.get(v) ?? []), fi])));
+        const lineUse = new Set(outWire.flat());
+        const straight = (f, i) => {
+          const a = out.positions[f.v[(i + f.v.length - 1) % f.v.length]];
+          const b = out.positions[f.v[i]];
+          const c = out.positions[f.v[(i + 1) % f.v.length]];
+          const u = vsub(b, a);
+          const w = vsub(c, b);
+          const cr = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]];
+          return Math.hypot(...cr) <= 1e-9 * (Math.hypot(...u) * Math.hypot(...w) + 1e-30) && vdot(u, w) > 0;
+        };
+        const drop = new Set(
+          [...users].filter(([v, fs]) => onPlane(v) && !lineUse.has(v) && fs.every((fi) => straight(out.faces[fi], out.faces[fi].v.indexOf(v)))).map(([v]) => v),
+        );
+        if (drop.size) {
+          const faces2 = out.faces.map((f) => ({ ...f, v: f.v.filter((v) => !drop.has(v)) }));
+          const used2 = new Set([...faces2.flatMap((f) => f.v), ...outWire.flat()]);
+          const keep2 = out.positions.map((_, i) => i).filter((i) => used2.has(i));
+          const re2 = new Map(keep2.map((i, n) => [i, n]));
+          out = { positions: keep2.map((i) => out.positions[i]), faces: faces2.map((f) => ({ ...f, v: f.v.map((v) => re2.get(v)) })) };
+          outWire = outWire.map(([a, b]) => [re2.get(a), re2.get(b)]);
+        }
+      }
+      return { mesh: out, wire: outWire, welded, dropped: gone.size, joined };
+    };
     // ---- Selected objects (B box, B B lasso): G, G G, R, S then move them together. A group is a stand-in object (`groupObj`) whose
     // mesh is all of theirs; the transform moves its points rigidly and spreads them back to each object.
     let picked = []; // ids of the selected objects, in the order they were taken
@@ -3744,7 +3874,7 @@
             return g;
           })
         : null;
-      xf = { group, kind, obj, mesh0: obj.mesh, orig: extra.orig ?? obj.mesh, ids, from: ids.map((i) => P[i]), c, p0: planePoint(c, extra.place?.n) ?? c, place: extra.place ?? null, s0: { ...panelPointer }, sc: { x: sc.x, y: sc.y }, dist0, base: Math.max(dist0, 40), lock: null, axisVec: extra.axisVec ?? null, typed: '', changed: false, a0: Math.atan2(panelPointer.y - sc.y, panelPointer.x - sc.x), accum: 0, loop: extra.loop ?? null, sel0: sel, shells: extra.shells ?? null, eps: extra.eps ?? 0, wire0: extra.wire0, fixFaces: extra.fixFaces ?? null };
+      xf = { group, mirror: extra.mirror ?? null, kind, obj, mesh0: obj.mesh, orig: extra.orig ?? obj.mesh, ids, from: ids.map((i) => P[i]), c, p0: planePoint(c, extra.place?.n) ?? c, place: extra.place ?? null, s0: { ...panelPointer }, sc: { x: sc.x, y: sc.y }, dist0, base: Math.max(dist0, 40), lock: null, axisVec: extra.axisVec ?? null, typed: '', changed: false, a0: Math.atan2(panelPointer.y - sc.y, panelPointer.x - sc.x), accum: 0, loop: extra.loop ?? null, sel0: sel, shells: extra.shells ?? null, eps: extra.eps ?? 0, wire0: extra.wire0, fixFaces: extra.fixFaces ?? null };
       xfUpdate();
     };
     // how far (in world units) the pointer has moved along an axis, measured on the screen
@@ -3779,6 +3909,20 @@
         emode = 'edge';
         rebuild();
         barNote = `loop cut · ${n} cut${n > 1 ? 's' : ''}${typed === null ? '' : '_'} · slide ${Math.round(slide * 100)}% · type a number, move along the line, ⏎ ok, Esc cancels`;
+        showBar();
+        return redraw();
+      }
+      if (x.kind === 'mirror') {
+        const typed = x.typed === '' || x.typed === '-' ? null : Number(x.typed);
+        const shift = typed ?? axisDistance(x, x.axisVec);
+        const d = x.mirror.d0 + shift;
+        x.mirror.d = d;
+        const r = mirrorPreview(x, d);
+        x.obj.mesh = r.mesh;
+        x.obj.wire = r.wire;
+        x.changed = true;
+        rebuild();
+        barNote = `mirror ${x.mirror.neg ? '−' : '+'}${'XYZ'[x.mirror.k]} · plane at ${'xyz'[x.mirror.k]} = ${fmt(d)}${typed !== null ? ` (${x.typed}_)` : ''} · move it, or type a shift · ⏎ welds, Esc cancels`;
         showBar();
         return redraw();
       }
@@ -3917,13 +4061,22 @@
         noteEdit('');
         return redraw();
       }
+      let weldNote = '';
+      if (x.kind === 'mirror' && x.changed) {
+        const w = mirrorWeld(x.obj.mesh, x.obj.wire ?? [], x.mirror.k, x.mirror.d);
+        x.obj.mesh = w.mesh;
+        x.obj.wire = w.wire;
+        const v = validate(w.mesh);
+        weldNote = `mirrored · ${w.welded} point${w.welded === 1 ? '' : 's'} welded${w.dropped ? `, ${w.dropped} inner faces gone` : ''}${w.joined ? `, ${w.joined} faces joined` : ''}${v.closed ? ' · closed' : ' · not closed: edit on (F fills a hole)'}`;
+        sel = emptySel();
+      }
       const final = x.obj.mesh;
       x.obj.mesh = x.orig;
       if (x.changed && final !== x.orig) {
         change(x.obj, final); // one write, one undo step
         history.push(() => has(x.obj) && change(x.obj, x.orig, x.wire0 ?? x.obj.wire));
       } else rebuild();
-      noteEdit('');
+      noteEdit(weldNote);
       redraw();
     };
     const xfCancel = () => {
@@ -4754,6 +4907,29 @@
       else if (e.key === 'Escape') closeText();
     });
     const editKey = (e) => {
+      if (editing && mirrorWait && !xf && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        // after M: an optional - (the copy goes to the minus side), then the axis
+        const k = e.key.toLowerCase();
+        e.preventDefault();
+        if (e.key === '-') {
+          mirrorWait.neg = !mirrorWait.neg;
+          noteEdit(`mirror ${mirrorWait.neg ? '−' : '+'}: X, Y or Z · Esc`);
+          return true;
+        }
+        const neg = mirrorWait.neg;
+        mirrorWait = null;
+        if (k === 'x' || k === 'y' || k === 'z') startMirror('xyz'.indexOf(k), neg);
+        else noteEdit('');
+        return true;
+      }
+      if (editing && !xf && !e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'm' || e.key === 'M')) {
+        e.preventDefault();
+        if (e.repeat) return true;
+        if (!['vertex', 'edge', 'face'].includes(emode) || !sel.items.length) return (noteEdit('M mirrors what is selected: select points, lines or faces (1 2 3) first'), true);
+        mirrorWait = { neg: false };
+        noteEdit('mirror: X, Y or Z (- first: to the minus side) · Esc');
+        return true;
+      }
       if (xf?.place && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'd') {
         e.preventDefault(); // (not the browser's bookmark)
         if (!e.repeat) placeCopy();
