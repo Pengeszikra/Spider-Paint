@@ -737,7 +737,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@d3930fec5850d5ddb80f8f8f804916f0947da6fa/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@ea590ea1d5fa4f0886625b5c05e1a2c62dd24f5b/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -827,6 +827,7 @@
       let objs = allObjects();
       if (solo && !objs.some((o) => o.id === solo)) solo = null;
       if (solo) objs = objs.filter((o) => o.id === solo);
+      if (skinned()) objs = objs.filter((o) => !posing.ids.has(o.id)); // the posed figure is drawn as a GPU skin, not from the scene
       let n = 0;
       owners = objs.map((o) => ({ obj: o, start: n, end: (n += o.mesh.faces.length) }));
       sceneParts = objs.map((o) => o.mesh);
@@ -1606,6 +1607,7 @@
             edges: !stage.classList.contains('clean'),
             unlit: !lightOn,
             marks: gpuMarks,
+            skin: skinNow(),
             light: { direction: [Math.sin(a) * 0.6, 0.8, Math.cos(a) * 0.6] },
           });
         if (vr) {
@@ -1619,7 +1621,7 @@
             gpu.render(scene, view, {
               palette: paletteMap, parts: sceneParts, instances: { mesh: PROTO, data: instances(now, flights.length > 0) },
               size: square, dpr: 1, fit: { ...fit, center: fit.center.map((c, i) => c + cam0.r[i] * shift) },
-              unlit: !lightOn, background: [0.02, 0.02, 0.03], glow: filmic, smooth: smooth ? 40 : 0, studio,
+              unlit: !lightOn, background: [0.02, 0.02, 0.03], glow: filmic, smooth: smooth ? 40 : 0, studio, skin: skinNow(),
               light: { direction: [Math.sin(a) * 0.6, 0.8, Math.cos(a) * 0.6] },
             });
             if (cv.width !== half || cv.height !== H) ((cv.width = half), (cv.height = H));
@@ -1750,6 +1752,7 @@
           modeEl.textContent = `svg (${kind} lost)`;
           modeEl.title = String(info.message ?? info.reason);
           backends[kind] = null;
+          if (posing) showPose(posing.pose);
           redraw();
         });
         return entry;
@@ -1792,6 +1795,7 @@
         btn.querySelector('span').textContent = mode !== 'gpu' ? 'SVG' : activeKind === 'webgpu' ? 'WebGPU' : 'WebGL2'; // the switch names the view that is on
         btn.classList.toggle('on', mode === 'gpu');
       }
+      if (posing) showPose(posing.pose); // the figure moves over to a GPU skin, or back to CPU-bent meshes
       redraw();
     };
     // G / the button: svg -> webgpu -> webgl2 -> svg (without WebGPU: svg -> webgl2 -> svg)
@@ -3118,7 +3122,11 @@
     const bar = document.getElementById('editbar');
     const barText = document.getElementById('editText');
     let barNote = '';
-    let posing = null; // pose mode (J): { objs, bind: [mesh], rig, name, anim: 'walk' | 'run' | null, phase, last, joints: [Vec3] }
+    let posing = null; // pose mode (J): { objs, ids, bind: [mesh], rig, name, pose, lift, bones, anim: 'walk' | 'run' | null, phase, last, joints: [Vec3] }
+    // In a GPU view the posed figure is a skin: its bind meshes are uploaded once and bent by the GPU (only the joints' matrices change
+    // per frame); the scene leaves it out. In the SVG view the bent meshes are made on the CPU (posed) and put on the objects.
+    const skinned = () => Boolean(posing && mode === 'gpu' && gpu);
+    const skinNow = () => (skinned() ? { meshes: posing.bind, weights: posing.rig.skin, bones: posing.bones } : undefined);
     let poseHint = ''; // a note of pose mode, or why J did nothing
     const noteEdit = (text) => {
       barNote = text;
@@ -4009,14 +4017,28 @@
     };
     const showPose = (pose) => {
       const p = posing;
-      const lowest = (meshes) => Math.min(...meshes.flatMap((m) => m.positions.map((q) => q[1])));
-      const free = posed(p.bind, p.rig, pose);
-      const lift = lowest(p.bind) - lowest(free); // the feet stay on the floor the figure stands on
+      p.pose = pose;
+      p.lift = poseLift(p.bind, p.rig, pose); // the feet stay on the floor the figure stands on
+      p.bones = boneMatrices(p.rig, pose, { move: [0, p.lift, 0] });
+      p.joints = posedJoints(p.rig, pose, { move: [0, p.lift, 0] });
       p.objs = p.objs.map((o) => live(o) ?? o); // a db snapshot hands out new instances
-      p.objs.forEach((o, i) => (o.mesh = lift ? { ...free[i], positions: free[i].positions.map((q) => [q[0], q[1] + lift, q[2]]) } : free[i]));
-      p.joints = posedJoints(p.rig, pose).map((q) => [q[0], q[1] + lift, q[2]]);
-      rebuild();
+      if (skinned()) {
+        // the GPU bends the figure: the objects keep their bind meshes, nothing is rebuilt
+        if (p.objs.some((o, i) => o.mesh !== p.bind[i])) (p.objs.forEach((o, i) => (o.mesh = p.bind[i])), rebuild());
+        else if (p.skinScene !== placedVer) rebuild();
+        p.skinScene = placedVer;
+      } else {
+        p.objs.forEach((o, i) => (o.mesh = posedMesh(i)));
+        p.skinScene = -1;
+        rebuild();
+      }
       redraw();
+    };
+    // the CPU's bent meshes (the SVG view, and what Enter keeps)
+    const posedMesh = (i) => {
+      const p = posing;
+      if (p.cpu?.pose !== p.pose) p.cpu = { pose: p.pose, meshes: posed(p.bind, p.rig, p.pose, { move: [0, p.lift, 0] }) };
+      return p.cpu.meshes[i];
     };
     const poseTick = (now) => {
       const p = posing;
@@ -4041,17 +4063,18 @@
       } catch (err) {
         return hintPose(`J: ${String(err?.message ?? err)}`);
       }
-      posing = { objs, bind: objs.map((o) => o.mesh), rig, name: 'bind', anim: null, phase: 0, last: 0, joints: rig.joints.map((j) => j.at) };
+      posing = { objs, ids: new Set(objs.map((o) => o.id)), bind: objs.map((o) => o.mesh), rig, name: 'bind', pose: HUMANOID_POSES.bind ?? {}, lift: 0, bones: null, cpu: null, skinScene: -1, anim: null, phase: 0, last: 0, joints: rig.joints.map((j) => j.at) };
       document.body.classList.add('posing');
+      showPose(posing.pose);
       hintPose('');
       redraw();
     };
     const leavePose = (keep) => {
       const p = posing;
       if (!p) return;
-      posing = null;
       const objs = p.objs.map((o) => live(o) ?? o);
-      const final = objs.map((o) => o.mesh);
+      const final = keep ? objs.map((_, i) => posedMesh(i)) : p.bind;
+      posing = null;
       objs.forEach((o, i) => (o.mesh = p.bind[i]));
       if (keep && final.some((m, i) => m !== p.bind[i])) {
         asOneStep(() =>
@@ -5003,7 +5026,7 @@
     if (new URLSearchParams(location.search).has('debug')) {
       globalThis.__3draft = {
         load: (data) => applyScene(data),
-        pose: () => (posing ? { name: posing.name, anim: posing.anim, objects: posing.objs.map((o) => o.name), joints: posing.joints } : null),
+        pose: () => (posing ? { name: posing.name, anim: posing.anim, objects: posing.objs.map((o) => o.name), joints: posing.joints, skinned: skinned(), sceneFaces: scene.faces.length } : null),
         hint: () => poseHint,
         meshes: () => allObjects().map((o) => o.mesh),
         objects: () => allObjects().map((o) => {
