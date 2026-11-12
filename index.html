@@ -749,7 +749,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@8e48de893d89b95a109046ada38a66ba4503e909/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@1f69a86fc8b217aab4d17b743b9e895c4b2966df/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -3804,7 +3804,8 @@
       else selecting = { kind: 'box', pts: [], add: false };
       lastB = t;
       stage.classList.add('selecting');
-      noteObj(selecting.kind === 'box' ? 'B: drag a box round objects (Shift adds) · B again: lasso · Esc' : 'B B: draw round objects with the lasso (Shift adds) · Esc');
+      const what = editing ? { vertex: 'points', edge: 'lines', face: 'faces' }[emode] : 'objects';
+      (editing ? noteEdit : noteObj)(selecting.kind === 'box' ? `B: drag a box round ${what} (Shift adds) · B again: lasso · Esc` : `B B: draw round ${what} with the lasso (Shift adds) · Esc`);
       drawSelect();
     };
     const drawSelect = () => {
@@ -3830,12 +3831,43 @@
       selecting = null;
       stage.classList.remove('selecting');
       selEl.innerHTML = '';
-      noteObj('');
+      (editing ? noteEdit : noteObj)('');
       if (!sl || !sh || sl.pts.length < 2 || !gcam) return redraw();
       let poly = sl.pts.map((q) => ({ x: q.x - drawing.left, y: q.y - drawing.top })); // (panel pixels, like project())
       if (sl.kind === 'box') {
         const [a, b] = [poly[0], poly[poly.length - 1]];
         poly = [{ x: a.x, y: a.y }, { x: b.x, y: a.y }, { x: b.x, y: b.y }, { x: a.x, y: b.y }];
+      }
+      if (editing && has(editing)) {
+        // points inside; a line with both ends inside; a face whose middle is inside (through the model, like an x-ray)
+        const m = editing.mesh;
+        const sp = m.positions.map((q) => project(gcam, q));
+        const isIn = (i) => sp[i].depth > 0 && insidePoly(poly, sp[i]);
+        let items = [];
+        if (emode === 'vertex') items = m.positions.map((_, i) => i).filter(isIn);
+        else if (emode === 'edge') {
+          const seen = new Set();
+          const pairs = [...m.faces.flatMap((f) => f.v.map((a, i) => [a, f.v[(i + 1) % f.v.length]])), ...(editing.wire ?? [])];
+          for (const [a, b] of pairs) {
+            const e = a < b ? [a, b] : [b, a];
+            const k = e.join();
+            if (seen.has(k)) continue;
+            seen.add(k);
+            if (isIn(a) && isIn(b)) items.push(e);
+          }
+        } else
+          items = m.faces
+            .filter((f) => {
+              const c = f.v.reduce((t, v) => t.map((x, j) => x + m.positions[v][j] / f.v.length), [0, 0, 0]);
+              const pr = project(gcam, c);
+              return pr.depth > 0 && insidePoly(poly, pr);
+            })
+            .map((f) => faceKey(f));
+        const keep = sh.add && sel.kind === emode ? sel.items : [];
+        const have = new Set(keep.map(itemKey));
+        sel = { kind: emode, items: [...keep, ...items.filter((it) => !have.has(itemKey(it)))] };
+        noteEdit(sel.items.length ? `${sel.items.length} selected` : '');
+        return redraw();
       }
       const took = allObjects().filter((o) => {
         if (!o.mesh?.positions?.length) return false;
@@ -4908,6 +4940,19 @@
       else if (e.key === 'Escape') closeText();
     });
     const editKey = (e) => {
+      if (editing && selecting && e.key === 'Escape') {
+        e.preventDefault();
+        endSelect(null);
+        return true;
+      }
+      if (editing && !xf && !e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'b' || e.key === 'B')) {
+        // B in edit mode: a box (B B: a lasso) round points, lines or faces, whichever 1 2 3 is on
+        e.preventDefault();
+        if (e.repeat) return true;
+        if (!['vertex', 'edge', 'face'].includes(emode)) return (noteEdit('B selects points, lines or faces: press 1, 2 or 3 first'), true);
+        startSelect();
+        return true;
+      }
       if (editing && mirrorWait && !xf && !e.ctrlKey && !e.metaKey && !e.altKey) {
         // after M: an optional - (the copy goes to the minus side), then the axis
         const k = e.key.toLowerCase();
