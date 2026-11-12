@@ -60,7 +60,8 @@ With a **target**, W A S D R F move the camera round and towards the target inst
 | Ctrl+D | Duplicate: a copy (a new model, not an instance) that is grabbed at once, so you can move it right away |
 | U, Backspace | Undo |
 | V | Spider bar: join two surface points with a thin bar |
-| O | Boolean: mark an object, then a second one, then choose 1 union, 2 A−B, 3 B−A, 4 intersect, 5 cancel |
+| B | **Select objects:** B, then drag a box round them (B twice quickly: draw a lasso). An object is taken when its middle is inside; Shift adds to the selection, Esc clears it. Selected objects get a teal box, and **G**, **G G**, **R**, **S** move, place, turn (round the vertical axis) and size them together (Shift+R / Shift+S still fly) |
+| bool button | **Boolean:** select two objects (B; the first taken is A, orange, the second B, green), press **bool** in the SYS group, then choose 1 union, 2 A−B, 3 B−A, 4 intersect, 5 cancel |
 | H | Move gizmo: world axes, its own axes, off |
 | J | Pose mode on the figure under the cross or the target (see Pose mode) |
 | P | The material palette |

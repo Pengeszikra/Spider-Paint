@@ -118,6 +118,9 @@
     #stage.clean svg circle { display: none; }
     #stage, #stage:focus, #stage:focus-visible { outline: none; }
     #frame { position: relative; isolation: isolate; }
+    #selArea { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
+    #stage #selArea path { fill: rgba(34, 184, 207, 0.12) !important; stroke: #22b8cf !important; stroke-width: 1.5px !important; stroke-dasharray: 5 4; opacity: 1 !important; }
+    #stage.selecting { cursor: crosshair; }
     /* in a GPU view the pages sit BEHIND the canvas, which is see-through only where a screen face shows (a depth-tested hole), so
        whatever stands in front of a screen hides it; a page that has the control comes to the front */
     #stage.gpu #screens { z-index: -1; }
@@ -552,7 +555,7 @@
     <p class="build" id="build" title="Build, YY.MM.DD.NNN">–</p>
   </header>
 
-  <main id="stage" tabindex="0" role="img" aria-label="Empty space for prisms. 9 switches between the SVG and the WebGPU view, L turns the light, C switches the filmic look, N smooth shading, K the studio light. Drag, or use the arrow keys, to rotate the view. The cross follows the surface under the pointer. M puts a prism down there, or shoots one into empty space; Space stops the movement. O marks an object, a second O on another one asks for a boolean operation (union, A minus B, B minus A, intersect). V joins two surface points with a thin bar (P over empty space forgets a pending first point), X deletes the object under the cross, W A S D R F fly, / shows only the model under the cross (/ again: the whole scene), P shows the material palette (Ctrl+click (Cmd on a Mac) paints a face, Ctrl+double click the whole model), T flies the camera to the object under the cross, H puts the move gizmo (helper) on the object under the cross with the world axes, the next H switches to the object's own axes, the third takes it off; drag an arrow to move the object; E toggles edges and points, U or Backspace takes the last one back."><div id="frame"><canvas id="gpu" hidden></canvas><div id="layer"></div><div id="screens"></div></div><div id="hud" aria-hidden="true"></div></main>
+  <main id="stage" tabindex="0" role="img" aria-label="Empty space for prisms. 9 switches between the SVG and the WebGPU view, L turns the light, C switches the filmic look, N smooth shading, K the studio light. Drag, or use the arrow keys, to rotate the view. The cross follows the surface under the pointer. M puts a prism down there, or shoots one into empty space; Space stops the movement. B drags a box round objects to select them (B twice: a lasso), then G, R, S move, turn and size them together; the bool button asks for a boolean operation on two selected objects (union, A minus B, B minus A, intersect). V joins two surface points with a thin bar (P over empty space forgets a pending first point), X deletes the object under the cross, W A S D R F fly, / shows only the model under the cross (/ again: the whole scene), P shows the material palette (Ctrl+click (Cmd on a Mac) paints a face, Ctrl+double click the whole model), T flies the camera to the object under the cross, H puts the move gizmo (helper) on the object under the cross with the world axes, the next H switches to the object's own axes, the third takes it off; drag an arrow to move the object; E toggles edges and points, U or Backspace takes the last one back."><div id="frame"><canvas id="gpu" hidden></canvas><div id="layer"></div><div id="screens"></div><svg id="selArea" aria-hidden="true"></svg></div><div id="hud" aria-hidden="true"></div></main>
 
   <input id="textBox" type="text" placeholder="text (Enter: make it, Esc: cancel)" maxlength="80" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="The words to put on the face" hidden>
   <div id="editbar" hidden><b id="editText"></b><button id="editHelp" type="button" title="Show / hide the edit help" aria-pressed="false" hidden>?</button><span id="editHelpText" hidden>V: sketch lines (nothing happens yet) · 6: the lathe (select a face first; V draws a contour on it above its bottom line, the axis; Enter, then the number of segments, Enter again = 7) · 1 / 2 / 3: select points / lines / faces (click; Shift+click adds or takes away; A selects all, A A clears) · G: grab the selection (X / Y / Z lock the axis, type metres, click or Enter confirms, Esc cancels) · S: scale (same keys) · E: extrude the selected faces · 4: the saw: V puts 2 points on one face = a cut square to the face, or 3 points = a cut through the triangle; Enter cuts · Shift+W A S D R F fly · Ctrl/Cmd+click paints · Shift+X deletes the object under the cross · U undo · Esc back, then leave · Q leave</span></div>
@@ -724,6 +727,7 @@
           <button id="undo" type="button" class="slate ic" title="Undo (U)" aria-label="Undo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7L4 12l5 5"/><path d="M4 12h10a6 6 0 0 1 0 12" transform="translate(0 -5)"/></svg></button>
           <button id="reset" type="button" class="slate ic" title="Reset the view" aria-label="Reset view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><circle cx="12" cy="12" r="2.5"/></svg></button>
           <button id="zen" type="button" class="slate ic" title="Zen: only the model (Z)" aria-label="Zen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+          <button id="boolBtn" type="button" class="slate" title="Boolean: select two objects (B), then this; the first taken is A, the second B">bool</button>
           <button id="keys" type="button" class="teal ic" title="Help: every mode and key (?)" aria-label="Help"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.1 1-1.1 1.8M12 17h.01"/></svg></button>
         </span>
         <span class="row">
@@ -743,7 +747,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@1f8a31d0a6256f428b75e56e8d2250a1b7ed8d01/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@0d6b3f129b5dc11d28590557dc7ba9db2e69aa55/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1551,7 +1555,7 @@
         // editing sees the far side of a face too: from inside a hull its walls face away, and they must still be selectable
         const cull = !editing;
         hit = kernel ? kernel.pick(scene, cam, x, y, { cull }) : pick(scene, cam, x, y, { cull });
-        if (placing && hit && owner(hit.face)?.id === placing.obj.id) hit = null; // the pointer sees through the model being placed
+        if (placing && hit && placing.ids.has(owner(hit.face)?.id)) hit = null; // the pointer sees through the model being placed
         cam.at = { x, y };
         panelPointer = { x, y };
         if (hit) lastHitId = owner(hit.face)?.id ?? lastHitId;
@@ -1581,7 +1585,7 @@
         return Math.min(fit.radius * 0.07, away * 0.03, Math.max(own * 0.5, away * 0.004));
       };
       const marks = hit ? [{ name: 'cursor', lines: crosshair(scene, hit, crossRadius()) }] : [];
-      for (const [o, color] of [[boolFrom, '#e8590c'], [boolPair?.b, '#2f9e44']]) {
+      for (const [o, color] of [[boolFrom, '#e8590c'], [boolPair?.b, '#2f9e44'], ...pickedObjs().filter((o) => o !== boolFrom && o !== boolPair?.b).map((o) => [o, '#22b8cf'])]) {
         if (!o || !has(o)) continue;
         const lo = [Infinity, Infinity, Infinity];
         const hi = [-Infinity, -Infinity, -Infinity];
@@ -2618,6 +2622,18 @@
       liveEl.title = '';
       redraw();
     };
+    // the bool button: the two selected objects (the first taken is A) are asked about
+    document.getElementById('boolBtn').addEventListener('click', () => {
+      const two = pickedObjs();
+      if (two.length !== 2) {
+        return noteObj('bool: select exactly two objects first (B, drag a box; Shift adds), the first taken is A');
+      }
+      boolFrom = two[0];
+      boolPair = { a: two[0], b: two[1] };
+      boolText.textContent = `A = ${two[0].name} (orange), B = ${two[1].name} (green): which operation?`;
+      boolEl.hidden = false;
+      redraw();
+    });
     boolEl.addEventListener('click', (e) => {
       const b = e.target instanceof HTMLElement && e.target.closest('button');
       if (!b) return;
@@ -3310,6 +3326,11 @@
     const skinned = () => Boolean(posing && mode === 'gpu' && gpu);
     const skinNow = () => (skinned() ? { meshes: posing.bind, weights: posing.rig.skin, bones: posing.bones } : undefined);
     let poseHint = ''; // a note of pose mode, or why J did nothing
+    let objNote = ''; // a line for the object selection (outside edit mode)
+    const noteObj = (text) => {
+      objNote = text;
+      showBar();
+    };
     const noteEdit = (text) => {
       barNote = text;
       showBar();
@@ -3322,7 +3343,7 @@
       helpBtn.setAttribute('aria-pressed', String(!helpText.hidden));
     });
     const showBar = () => {
-      bar.hidden = !editing && !xf && !posing && !poseHint;
+      bar.hidden = !editing && !xf && !posing && !poseHint && !objNote;
       document.body.classList.toggle('editing', Boolean(editing));
       if (!editing && !xf && (posing || poseHint)) {
         // pose mode: what the figure does now and the keys; outside it, why J did nothing
@@ -3331,6 +3352,7 @@
           : `<span class="note">${hudText(poseHint)}</span>`;
         return;
       }
+      if (!editing && !xf && objNote) return void (barText.innerHTML = `<span class="note">${hudText(objNote)}</span>`); // selecting objects, the bool button
       if (!editing) {
         if (xf) barText.innerHTML = xf.place ? hudText(barNote) : `move ${hudText(xf.obj.name ?? '')}${barNote ? `<span class="note">${hudText(barNote)}</span>` : ''}`; // G outside edit mode (placing: its own line)
         return;
@@ -3624,6 +3646,85 @@
     const AXIS = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
     let xf = null; // { kind, obj, mesh0, orig, ids, from, c, p0, s0, sc, dist0, base, lock, axisVec, typed, changed }
     const fmt = (v) => (Math.abs(v) >= 100 ? v.toFixed(0) : Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(3));
+    // ---- Selected objects (B box, B B lasso): G, G G, R, S then move them together. A group is a stand-in object (`groupObj`) whose
+    // mesh is all of theirs; the transform moves its points rigidly and spreads them back to each object.
+    let picked = []; // ids of the selected objects, in the order they were taken
+    const pickedObjs = () => picked.map((id) => allObjects().find((o) => o.id === id)).filter(Boolean);
+    const groupObj = (objs) => ({ id: 'group', name: `${objs.length} objects`, mesh: merge(...objs.map((o) => o.mesh)), members: objs });
+    const movedRigid = (mesh, moves) => {
+      const at = new Map(moves);
+      return { ...mesh, positions: mesh.positions.map((q, i) => at.get(i) ?? q) };
+    };
+    const spreadGroup = (group, mesh) => {
+      for (const g of group) {
+        const o = live(g.obj) ?? g.obj;
+        g.obj = o;
+        o.mesh = { ...g.mesh0, positions: mesh.positions.slice(g.start, g.start + g.n) };
+      }
+    };
+    // B: drag a box round objects; B B: draw a lasso. An object is taken when the middle of its bounding box falls inside (on screen).
+    // A plain drag replaces the selection, with Shift it adds; a drag that takes nothing clears it. Esc stops, or clears the selection.
+    let selecting = null; // { kind: 'box' | 'lasso', pts: [{ x, y }] (client), add }
+    let lastB = 0;
+    const selEl = document.getElementById('selArea');
+    const startSelect = () => {
+      const t = performance.now();
+      if (selecting && !selecting.pts.length && t - lastB < 450) selecting.kind = 'lasso';
+      else selecting = { kind: 'box', pts: [], add: false };
+      lastB = t;
+      stage.classList.add('selecting');
+      noteObj(selecting.kind === 'box' ? 'B: drag a box round objects (Shift adds) · B again: lasso · Esc' : 'B B: draw round objects with the lasso (Shift adds) · Esc');
+      drawSelect();
+    };
+    const drawSelect = () => {
+      if (!selecting || !selecting.pts.length) return void (selEl.innerHTML = '');
+      const r = selEl.getBoundingClientRect();
+      const P = selecting.pts.map((q) => ({ x: q.x - r.left, y: q.y - r.top }));
+      if (selecting.kind === 'box') {
+        const [a, b] = [P[0], P[P.length - 1]];
+        selEl.innerHTML = `<path d="M${a.x},${a.y}H${b.x}V${b.y}H${a.x}Z"/>`; // (a path: the stage hides svg rects in a GPU view)
+      } else selEl.innerHTML = `<path d="M${P.map((q) => `${q.x.toFixed(1)},${q.y.toFixed(1)}`).join('L')}Z"/>`;
+    };
+    const insidePoly = (poly, q) => {
+      let c = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const a = poly[i];
+        const b = poly[j];
+        if (a.y > q.y !== b.y > q.y && q.x < ((b.x - a.x) * (q.y - a.y)) / (b.y - a.y) + a.x) c = !c;
+      }
+      return c;
+    };
+    const endSelect = (sh) => {
+      const sl = selecting;
+      selecting = null;
+      stage.classList.remove('selecting');
+      selEl.innerHTML = '';
+      noteObj('');
+      if (!sl || !sh || sl.pts.length < 2 || !gcam) return redraw();
+      let poly = sl.pts.map((q) => ({ x: q.x - drawing.left, y: q.y - drawing.top })); // (panel pixels, like project())
+      if (sl.kind === 'box') {
+        const [a, b] = [poly[0], poly[poly.length - 1]];
+        poly = [{ x: a.x, y: a.y }, { x: b.x, y: a.y }, { x: b.x, y: b.y }, { x: a.x, y: b.y }];
+      }
+      const took = allObjects().filter((o) => {
+        if (!o.mesh?.positions?.length) return false;
+        const lo = [0, 1, 2].map((k) => Math.min(...o.mesh.positions.map((q) => q[k])));
+        const hi = [0, 1, 2].map((k) => Math.max(...o.mesh.positions.map((q) => q[k])));
+        const pr = project(gcam, lo.map((c, k) => (c + hi[k]) / 2));
+        return pr.depth > 0 && insidePoly(poly, pr);
+      });
+      const ids = took.map((o) => o.id);
+      picked = sh.add ? [...picked, ...ids.filter((id) => !picked.includes(id))] : ids;
+      noteObj(picked.length ? `${picked.length} selected · G, G G, R, S move them together · Esc clears` : '');
+      redraw();
+    };
+    const startGroup = (kind) => {
+      const objs = pickedObjs();
+      if (!objs.length) return false;
+      const fake = groupObj(objs);
+      startXf(kind, { obj: fake, ids: fake.mesh.positions.map((_, i) => i), group: objs, axisVec: kind === 'rotate' ? [0, 1, 0] : null }); // (R turns round the up axis)
+      return true;
+    };
     const startXf = (kind, extra = {}) => {
       const obj = extra.obj ?? editing; // outside edit mode G grabs a whole object
       if (!obj || !gcam) return;
@@ -3634,7 +3735,16 @@
       const c = extra.c ?? ids.reduce((t, i) => t.map((v, k) => v + P[i][k] / ids.length), [0, 0, 0]);
       const sc = project(gcam, c);
       const dist0 = Math.hypot(panelPointer.x - sc.x, panelPointer.y - sc.y);
-      xf = { kind, obj, mesh0: obj.mesh, orig: extra.orig ?? obj.mesh, ids, from: ids.map((i) => P[i]), c, p0: planePoint(c, extra.place?.n) ?? c, place: extra.place ?? null, s0: { ...panelPointer }, sc: { x: sc.x, y: sc.y }, dist0, base: Math.max(dist0, 40), lock: null, axisVec: extra.axisVec ?? null, typed: '', changed: false, a0: Math.atan2(panelPointer.y - sc.y, panelPointer.x - sc.x), accum: 0, loop: extra.loop ?? null, sel0: sel, shells: extra.shells ?? null, eps: extra.eps ?? 0, wire0: extra.wire0, fixFaces: extra.fixFaces ?? null };
+      // a group (several selected objects) is moved as one stand-in object whose mesh is all of theirs; every update spreads it back
+      let offset = 0;
+      const group = extra.group
+        ? extra.group.map((o) => {
+            const g = { obj: o, orig: extra.groupOrig?.get(o.id) ?? o.mesh, mesh0: o.mesh, start: offset, n: o.mesh.positions.length };
+            offset += g.n;
+            return g;
+          })
+        : null;
+      xf = { group, kind, obj, mesh0: obj.mesh, orig: extra.orig ?? obj.mesh, ids, from: ids.map((i) => P[i]), c, p0: planePoint(c, extra.place?.n) ?? c, place: extra.place ?? null, s0: { ...panelPointer }, sc: { x: sc.x, y: sc.y }, dist0, base: Math.max(dist0, 40), lock: null, axisVec: extra.axisVec ?? null, typed: '', changed: false, a0: Math.atan2(panelPointer.y - sc.y, panelPointer.x - sc.x), accum: 0, loop: extra.loop ?? null, sel0: sel, shells: extra.shells ?? null, eps: extra.eps ?? 0, wire0: extra.wire0, fixFaces: extra.fixFaces ?? null };
       xfUpdate();
     };
     // how far (in world units) the pointer has moved along an axis, measured on the screen
@@ -3776,12 +3886,13 @@
           const cap = new Set(x.ids);
           base0 = { positions: base0.positions.map((q, i) => (cap.has(i) ? q.map((c, k) => c - 2 * x.eps * x.axisVec[k]) : q)), faces: base0.faces.map((f, i) => (flip.has(i) ? { ...f, v: [...f.v].reverse() } : f)) };
         }
-        moved = reshape(base0, moves);
+        moved = x.group ? movedRigid(base0, moves) : reshape(base0, moves);
       }
       x.obj.mesh = moved;
+      if (x.group) spreadGroup(x.group, moved);
       rebuild();
       barNote = x.place
-        ? `place ${x.place.name} · ${x.kind === 'grab' ? (x.place.phase === 'float' ? 'float' : 'stuck') : x.kind === 'rotate' ? 'turn' : 'size'}${x.lock ? ` ${x.lock.toUpperCase()}` : x.kind === 'grab' ? ' on the surface' : x.kind === 'rotate' ? ' round its foot' : ''} · ${typed !== null ? `${x.typed}_` : text} · click ${x.kind !== 'grab' ? 'takes it' : x.place.phase === 'float' ? 'sticks' : 'unsticks'} · G R S, X Y Z, a number · Ctrl+D copy · ⏎ keeps, Esc step back`
+        ? `place ${x.place.name} · ${x.kind === 'grab' ? (x.place.phase === 'float' ? 'float' : 'stuck') : x.kind === 'rotate' ? 'turn' : 'size'}${x.lock ? ` ${x.lock.toUpperCase()}` : x.kind === 'rotate' ? ' round its foot' : ''} · ${typed !== null ? `${x.typed}_` : text} · click ${x.kind !== 'grab' ? 'takes it' : x.place.phase === 'float' ? 'sticks' : 'unsticks'} · G R S, X Y Z, a number · Ctrl+D copy · ⏎ keeps, Esc step back`
         : `${x.kind}${x.lock ? ` ${x.lock.toUpperCase()}` : x.kind === 'rotate' ? ' about its axis' : x.axisVec ? ' along the normal' : ''} · ${typed !== null ? `${x.typed}_` : text} · ⏎ ok, Esc cancels`;
       showBar();
       redraw();
@@ -3791,6 +3902,21 @@
       xf = null;
       if (!x) return;
       if (x.place && placing === x.place) placing = null; // (place mode ended some other way)
+      if (x.group) {
+        // one undo step for the whole group
+        const done = x.group.map((g) => ({ g, o: live(g.obj) ?? g.obj }));
+        if (x.changed) {
+          done.forEach(({ g, o }) => {
+            const final = o.mesh;
+            o.mesh = g.orig;
+            if (final !== g.orig) change(o, final);
+          });
+          history.push(() => done.forEach(({ g, o }) => has(o) && change(o, g.orig)));
+        }
+        rebuild();
+        noteEdit('');
+        return redraw();
+      }
       const final = x.obj.mesh;
       x.obj.mesh = x.orig;
       if (x.changed && final !== x.orig) {
@@ -3805,6 +3931,7 @@
       xf = null;
       if (!x) return;
       if (x.place && placing === x.place) placing = null; // (place mode ended some other way)
+      if (x.group) x.group.forEach((g) => ((live(g.obj) ?? g.obj).mesh = g.orig));
       x.obj.mesh = x.orig;
       if (x.wire0) x.obj.wire = x.wire0;
       if (x.kind === 'loop' || x.kind === 'bevel') sel = x.sel0;
@@ -4368,7 +4495,26 @@
     // Enter keeps it (one undo step); Ctrl+D keeps it and carries on with a floating copy.
     let placing = null; // { obj, orig, created, steps, foot, n, phase: 'float' | 'stick', dist, name, rest }
     let lastG = null; // the last G outside edit mode: { t, id, point, normal } (two quickly: place mode)
-    const placeRest = (o) => ({ positions: scene.positions, faces: scene.faces.filter((_, i) => owner(i)?.id !== o.id) });
+    const placeIds = (o) => new Set(o.members ? o.members.map((m) => m.id) : [o.id]);
+    const placeRest = (o) => {
+      const ids = placeIds(o);
+      return { positions: scene.positions, faces: scene.faces.filter((_, i) => !ids.has(owner(i)?.id)) };
+    };
+    // the model being placed takes this mesh (a group: spread back to its members)
+    const setPlaced = (pl, mesh) => {
+      pl.obj.mesh = mesh;
+      if (pl.obj.members) {
+        let at = 0;
+        pl.obj.members = pl.obj.members.map((m) => {
+          const o = live(m) ?? m;
+          const n = o.mesh.positions.length;
+          o.mesh = { ...o.mesh, positions: mesh.positions.slice(at, at + n) };
+          at += n;
+          return o;
+        });
+      }
+      rebuild();
+    };
     // the point at distance d along the pointer's ray (the middle of the view while the pointer is elsewhere)
     const rayPoint = (d) => {
       if (!gcam) return null;
@@ -4379,16 +4525,17 @@
     // (re)start the operation in progress from the model as it is now
     const placeRun = (kind = 'grab') => {
       const pl = placing;
-      const o = live(pl.obj) ?? pl.obj;
+      if (pl.obj.members) pl.obj = groupObj(pl.obj.members.map((m) => live(m) ?? m)); // (a fresh stand-in from the members as they are)
+      const o = pl.obj.members ? pl.obj : live(pl.obj) ?? pl.obj;
       pl.obj = o;
       xf = null;
-      startXf(kind, { obj: o, ids: o.mesh.positions.map((_, i) => i), c: pl.foot, orig: pl.orig, place: pl, axisVec: kind === 'rotate' ? pl.n : null });
+      startXf(kind, { obj: o, ids: o.mesh.positions.map((_, i) => i), c: pl.foot, orig: pl.orig, place: pl, axisVec: kind === 'rotate' ? pl.n : null, group: o.members, groupOrig: pl.groupOrig });
       if (xf) xfUpdate();
     };
     const startPlace = (o, { foot, n, dist, created = false, name }) => {
       if (!o) return;
       if (xf) xfCancel();
-      placing = { obj: o, orig: o.mesh, created, steps: [], foot, n, phase: 'float', dist, name: name ?? o.name.replace(/-[a-z0-9]{4}$/, ''), rest: placeRest(o) };
+      placing = { obj: o, orig: o.mesh, groupOrig: o.members ? new Map(o.members.map((m) => [m.id, m.mesh])) : null, ids: placeIds(o), created, steps: [], foot, n, phase: 'float', dist, name: name ?? o.name.replace(/-[a-z0-9]{4}$/, ''), rest: placeRest(o) };
       placeRun('grab');
     };
     // where gg grabbed it: the foot is the point of the bounding box opposite the grabbed point (through the box along the axis
@@ -4438,18 +4585,19 @@
       if (!pl || !xf) return;
       const s = pl.steps.pop();
       if (s) {
-        const o = live(pl.obj) ?? pl.obj;
         xf = null;
-        o.mesh = s.mesh;
-        rebuild();
+        if (!pl.obj.members) pl.obj = live(pl.obj) ?? pl.obj;
+        setPlaced(pl, s.mesh);
         Object.assign(pl, { foot: s.foot, n: s.n, phase: s.phase, dist: s.dist });
         return placeRun(s.kind === 'grab' ? 'grab' : s.kind);
       }
       xfCancel();
       placing = null;
       if (pl.created) {
-        erase(pl.obj);
-        history.pop(); // (its create step)
+        for (const o of pl.obj.members ?? [pl.obj]) {
+          erase(o);
+          history.pop(); // (its create step)
+        }
       }
       noteEdit('placing cancelled');
       redraw();
@@ -4469,9 +4617,16 @@
       if (!placing || !xf) return;
       placeCarry();
       const pl = placeDone();
-      const src = live(pl.obj) ?? pl.obj;
-      const m = src.mesh;
-      const copy = create(`${pl.name}-${shortId()}`, { ...m, positions: m.positions.map((q) => [...q]), faces: m.faces.map((f) => ({ ...f, v: [...f.v] })) });
+      const copyOf = (src) => {
+        const m = src.mesh;
+        return create(`${src.name.replace(/-[a-z0-9]{4}$/, '')}-${shortId()}`, { ...m, positions: m.positions.map((q) => [...q]), faces: m.faces.map((f) => ({ ...f, v: [...f.v] })) });
+      };
+      let copy;
+      if (pl.obj.members) {
+        const copies = pl.obj.members.map((m) => copyOf(live(m) ?? m));
+        picked = copies.map((c) => c.id);
+        copy = groupObj(copies);
+      } else copy = copyOf(live(pl.obj) ?? pl.obj);
       startPlace(copy, { foot: pl.foot, n: pl.n, dist: Math.max(0.05, Math.hypot(...vsub(pl.foot, gcam.eye))), created: true, name: pl.name });
     };
     // a model chosen in the store with gg (its foot at the origin, up +y): a copy floats in the build
@@ -4635,12 +4790,12 @@
         else if (e.key === 'Enter') xfConfirm();
         else if (xf.place && (k === 'g' || k === 'r' || k === 's')) placeStep(k);
         else if (k === 'g' && !xf.place && xf.kind === 'grab' && lastG && performance.now() - lastG.t < 450 && xf.obj.id === lastG.id) {
-          // gg: the grab becomes place mode (in the store: the model goes to the build to be placed there)
-          const o = xf.obj;
+          // gg: the grab becomes place mode (in the store: the model goes to the build to be placed there); a group is placed as one
+          const o = xf.obj.members ? groupObj(xf.obj.members) : xf.obj;
           const g = lastG;
           lastG = null;
           xfCancel();
-          if (EMBED) {
+          if (EMBED && !o.members) {
             const { foot, n } = footOf(o.mesh, g.point, g.normal);
             const turn = turnBetween(n, [0, 1, 0]);
             const mesh = { ...o.mesh, positions: o.mesh.positions.map((q) => turn(vsub(q, foot))) };
@@ -4711,6 +4866,13 @@
     stage.addEventListener('pointerdown', (e) => {
       clearOnUp = null;
       pointer = { x: e.clientX, y: e.clientY };
+      if (selecting) {
+        e.preventDefault();
+        selecting.pts = [{ x: e.clientX, y: e.clientY }];
+        selecting.add = e.shiftKey;
+        stage.setPointerCapture(e.pointerId);
+        return drawSelect();
+      }
       if (xf?.place) {
         // placing: a click on a surface sticks / unsticks it (or takes G R S), the right button takes the last step back; a press on
         // empty space (nothing to stick to) turns the view as always
@@ -4775,6 +4937,11 @@
       pointer = { x: e.clientX, y: e.clientY };
       scrubWant = e.altKey && (e.ctrlKey || e.metaKey) && !paletteEl.hidden; // Alt+Ctrl with the palette open: the faces the pointer passes are painted
       if (carry) return carryTell('drag-move', e);
+      if (selecting?.pts.length) {
+        if (selecting.kind === 'box') selecting.pts[1] = { x: e.clientX, y: e.clientY };
+        else selecting.pts.push({ x: e.clientX, y: e.clientY });
+        return drawSelect();
+      }
       if (xf && !(xf.place && last)) return xfUpdate(); // (placing and dragging on empty space: the view turns, the model waits)
       if (gdrag) return dragGizmo(e);
       if (!last) {
@@ -4798,6 +4965,7 @@
     stage.addEventListener('pointercancel', (e) => carryEnd(e, false));
     window.addEventListener('keydown', (e) => e.key === 'Escape' && carryEnd({ clientX: 0, clientY: 0 }, false));
     const release = (e) => {
+      if (selecting?.pts.length) return endSelect({ add: selecting.add || e.shiftKey });
       if (clearOnUp && e?.type === 'pointerup' && Math.hypot(e.clientX - clearOnUp.x, e.clientY - clearOnUp.y) < 5 && editing) {
         sel = emptySel();
         redraw();
@@ -4904,6 +5072,13 @@
         e.preventDefault();
         if (e.repeat) return;
         const o = pointedObject();
+        const under = hit && owner(hit.face);
+        if (picked.length && pickedObjs().length) {
+          // the selection moves together (G G: placed together, held where the pointer is on one of them)
+          lastG = under && picked.includes(under.id) ? { t: performance.now(), id: 'group', point: [...hit.point], normal: [...hit.normal] } : null;
+          startGroup('grab');
+          return;
+        }
         lastG = o && hit && owner(hit.face)?.id === o.id ? { t: performance.now(), id: o.id, point: [...hit.point], normal: [...hit.normal] } : null;
         grabObject(o);
         return;
@@ -4911,6 +5086,23 @@
       if ((e.key === 'X' && !e.ctrlKey && !e.metaKey && !e.altKey) || e.key === 'Delete') {
         e.preventDefault(); // delete is Shift+X everywhere
         if (!e.repeat) (editing && selOn() ? deleteSelection() : remove());
+        return;
+      }
+      if (!editing && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && picked.length && (e.key === 'r' || e.key === 's')) {
+        // with a selection R and S turn and size it (Shift+R / Shift+S still fly)
+        e.preventDefault();
+        if (!e.repeat) startGroup(e.key === 'r' ? 'rotate' : 'scale');
+        return;
+      }
+      if (!editing && !e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'b' || e.key === 'B')) {
+        e.preventDefault();
+        if (!e.repeat) startSelect();
+        return;
+      }
+      if (!editing && e.key === 'Escape' && (selecting || picked.length)) {
+        e.preventDefault();
+        if (selecting) endSelect(null);
+        else ((picked = []), noteObj(''), redraw());
         return;
       }
       const fk = !e.ctrlKey && !e.metaKey && !e.altKey && (!editing || e.shiftKey) && FLY_KEYS[e.key.toLowerCase()];
@@ -4933,9 +5125,6 @@
       } else if (boolPair && e.key === 'Escape') {
         closeBool();
         redraw();
-      } else if (e.key === 'o' || e.key === 'O') {
-        e.preventDefault();
-        if (!e.repeat) pickBool();
       } else if (e.key === '8' && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
         if (!e.repeat) toggleVr();
@@ -5434,6 +5623,7 @@
         open: (data) => loadScene(data, true),
         drop: (name, mesh, x, y) => (useBrush({ name, mesh }), dropBrush(x, y)), // (the old drag and drop's landing)
         placeBrush: (name, mesh) => placeBrush({ name, mesh }), // like gg on a model in the store
+        select: (names) => ((picked = allObjects().filter((o) => names.includes(o.name)).map((o) => o.id)), redraw(), picked.length), // like B round those objects
         place: () => placing && { phase: placing.phase, steps: placing.steps.length, kind: xf?.kind, foot: placing.foot.map((v) => +v.toFixed(3)), n: placing.n.map((v) => +v.toFixed(3)), name: placing.name }, // like opening a scene file: its palette (screens, scene screens) comes too
         screens: () => ({ mode, gpu: Boolean(gpu), kind: activeKind, iframes: screenFrames.size, spots: [...sceneSpots].map(([addr, s]) => ({ addr, ready: s.ready, error: s.error })) }),
         pose: () => (posing ? { name: posing.name, anim: posing.anim, objects: posing.objs.map((o) => o.name), joints: posing.joints, skinned: skinned(), rigPx: rigPixels(posing.joints), sceneFaces: scene.faces.length } : null),
