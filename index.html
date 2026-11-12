@@ -117,7 +117,11 @@
     #stage.clean svg polygon { stroke: none; }
     #stage.clean svg circle { display: none; }
     #stage, #stage:focus, #stage:focus-visible { outline: none; }
-    #frame { position: relative; }
+    #frame { position: relative; isolation: isolate; }
+    /* in a GPU view the pages sit BEHIND the canvas, which is see-through only where a screen face shows (a depth-tested hole), so
+       whatever stands in front of a screen hides it; a page that has the control comes to the front */
+    #stage.gpu #screens { z-index: -1; }
+    #stage.gpu #screens.ctl { z-index: 2; }
     /* the pages of the screen materials (iframes warped onto four-cornered faces); the pointer goes through them to the 3D view */
     #screens { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
     footer.console .grp[hidden] { display: none; }
@@ -739,7 +743,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@c08e0931c381b40e78ee1b7b351251daad713bfd/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@cefb67b618154872e9c4c0996e5fdc1afbc9a3c8/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1357,8 +1361,22 @@
       const out = [];
       const drawn = new Set();
       const pal = paletteMap;
+      let pages = 0;
       scene.faces.forEach((face, fi) => {
-        const file = face.mat !== undefined ? pal[face.mat]?.scene : undefined;
+        const m = face.mat !== undefined ? pal[face.mat] : undefined;
+        if (m?.url && face.v.length === 4) {
+          // a page screen: the same faces drawScreens gives an iframe (the first 6), here a hole for it in the canvas
+          if (++pages > 6) return;
+          const o = owner(fi);
+          if (screenOff.has(screenKey(fi, o))) return;
+          const P = face.v.map((k) => scene.positions[k]);
+          const { order, n, c } = screenCorners(P, o ? bounds(o.mesh).center : P[0]);
+          if (vdot(n, vsub(gcam.eye, c)) <= 0 || P.some((p) => project(gcam, p).depth <= 0.05)) return;
+          const eps = 0.002 * Math.hypot(...vsub(P[order[0]], P[order[2]]));
+          out.push({ corners: order.map((i) => P[i].map((x, k) => x + n[k] * eps)), hole: true });
+          return;
+        }
+        const file = m?.scene;
         if (!file || face.v.length !== 4 || out.length >= 8) return;
         const spot = sceneSpot(file);
         if (!spot?.ready) return;
@@ -1384,9 +1402,10 @@
         const uv = a >= 1 ? [0, 0.5 - 0.5 / a, 1, 0.5 + 0.5 / a] : [0.5 - 0.5 * a, 0, 0.5 + 0.5 * a, 1];
         out.push({ corners, source: spot.canvas, uv });
       });
-      if (out.length) redraw(); // it turns: the next frame comes
+      if (out.some((x) => !x.hole)) redraw(); // a scene turns: the next frame comes
       return out;
     };
+    const screenKey = (fi, o) => `${o?.id ?? ''}:${fi - (owners.find((w) => w.obj === o)?.start ?? 0)}`;
     const homography = (q, w, h) => {
       // maps (0,0) (w,0) (w,h) (0,h) onto the four points q (x, y): the 8 unknowns of a projective map, by Gaussian elimination
       const src = [[0, 0], [w, 0], [w, h], [0, h]];
@@ -1427,7 +1446,7 @@
           n = n.map((x) => x / nl);
           const mid = o ? bounds(o.mesh).center : c;
           if (vdot(n, vsub(c, mid)) < 0) n = n.map((x) => -x); // the side that looks away from the middle of its object
-          const key = `${o?.id ?? ''}:${fi - (owners.find((w) => w.obj === o)?.start ?? 0)}`;
+          const key = screenKey(fi, o);
           wanted.add(key);
           let rec = screenFrames.get(key);
           if (!rec) {
@@ -1473,6 +1492,7 @@
           rec.key = key;
         });
       }
+      screensEl.classList.toggle('ctl', Boolean(screenCtl));
       for (const [key, rec] of screenFrames) {
         if (wanted.has(key)) continue;
         rec.el.remove();
