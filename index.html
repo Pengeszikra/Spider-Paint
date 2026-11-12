@@ -753,7 +753,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@6a9c0a624d6ec2ca43a289b913730bdfe583adb8/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@9237169dd842e77072f119d18c78af81cf4e7de7/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -4592,10 +4592,26 @@
     stage.addEventListener('wheel', (e) => {
       e.preventDefault(); // (and a trackpad pinch, which comes as a wheel with Ctrl, does not zoom the page)
       if (xf?.kind === 'bevel') return bevelSegments(e.deltaY < 0 ? 1 : -1);
-      const step = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return orbitPointer(e.deltaX * unit * 0.005); // sideways: round the point under the cursor
+      const step = e.deltaY * unit;
       zoomGoal = Math.min(30, Math.max(0.25, zoomGoal * Math.exp(-step * (e.ctrlKey ? 0.01 : 0.0015))));
       redraw();
     }, { passive: false });
+    // the sideways wheel: the whole view turns round the vertical line through the point under the cursor (like A / D round a
+    // target, but no target is needed); that point stays under the cursor. Over empty space it turns round the middle of the view.
+    const orbitPointer = (a) => {
+      if (frozen || !a) return;
+      travel = null;
+      const pivot = hit?.point ?? fit.center;
+      const cs = Math.cos(a);
+      const sn = Math.sin(a);
+      const dx = fit.center[0] - pivot[0];
+      const dz = fit.center[2] - pivot[2];
+      fit.center = [pivot[0] + dx * cs - dz * sn, fit.center[1], pivot[2] + dx * sn + dz * cs];
+      yaw += a;
+      redraw();
+    };
     const resetZoom = () => {
       zoomGoal = 1;
       redraw();
