@@ -737,7 +737,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@ea590ea1d5fa4f0886625b5c05e1a2c62dd24f5b/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@eec1c0abb53e5a649d39fc3c6a4816ba43a8581b/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1483,10 +1483,16 @@
       }
       if (posing) {
         // the skeleton over the figure: bones and joints
+        // Its size follows the figure's height on the screen; a small, far figure shows no skeleton at all
         const J = posing.joints;
-        const at = Object.fromEntries(posing.rig.joints.map((j, i) => [j.name, J[i]]));
-        marks.push({ name: 'bones', color: '#2fb8c0', width: 2, opacity: 0.85, lines: posing.rig.joints.filter((j) => j.parent).map((j) => [at[j.parent], at[j.name]]) });
-        marks.push({ name: 'joints', color: '#ffd43b', width: 6, lines: J.map((q) => [q, q]) });
+        const tall = rigPixels(J);
+        if (tall >= RIG_HIDE_PX) {
+          const at = Object.fromEntries(posing.rig.joints.map((j, i) => [j.name, J[i]]));
+          const dot = Math.min(6, Math.max(2, tall / 90));
+          const bone = Math.min(2, Math.max(0.75, tall / 300));
+          marks.push({ name: 'bones', color: '#2fb8c0', width: bone, opacity: 0.85, lines: posing.rig.joints.filter((j) => j.parent).map((j) => [at[j.parent], at[j.name]]) });
+          marks.push({ name: 'joints', color: '#ffd43b', width: dot, lines: J.map((q) => [q, q]) });
+        }
       }
       if (editing && has(editing)) {
         const P = editing.mesh.positions;
@@ -3125,6 +3131,17 @@
     let posing = null; // pose mode (J): { objs, ids, bind: [mesh], rig, name, pose, lift, bones, anim: 'walk' | 'run' | null, phase, last, joints: [Vec3] }
     // In a GPU view the posed figure is a skin: its bind meshes are uploaded once and bent by the GPU (only the joints' matrices change
     // per frame); the scene leaves it out. In the SVG view the bent meshes are made on the CPU (posed) and put on the objects.
+    // how tall the skeleton is on the screen (CSS pixels); under RIG_HIDE_PX the skeleton is not drawn
+    const RIG_HIDE_PX = 180;
+    const rigPixels = (J) => {
+      if (!gcam || !J?.length) return Infinity;
+      let lo = Infinity;
+      let hi = -Infinity;
+      const c = [0, 0, 0];
+      for (const q of J) ((lo = Math.min(lo, q[1])), (hi = Math.max(hi, q[1])), q.forEach((v, k) => (c[k] += v / J.length)));
+      const dist = gcam.ortho ? 1 : Math.max(1e-6, vdot(vsub(c, gcam.eye), gcam.f));
+      return ((hi - lo) * gcam.k) / dist;
+    };
     const skinned = () => Boolean(posing && mode === 'gpu' && gpu);
     const skinNow = () => (skinned() ? { meshes: posing.bind, weights: posing.rig.skin, bones: posing.bones } : undefined);
     let poseHint = ''; // a note of pose mode, or why J did nothing
@@ -5026,7 +5043,7 @@
     if (new URLSearchParams(location.search).has('debug')) {
       globalThis.__3draft = {
         load: (data) => applyScene(data),
-        pose: () => (posing ? { name: posing.name, anim: posing.anim, objects: posing.objs.map((o) => o.name), joints: posing.joints, skinned: skinned(), sceneFaces: scene.faces.length } : null),
+        pose: () => (posing ? { name: posing.name, anim: posing.anim, objects: posing.objs.map((o) => o.name), joints: posing.joints, skinned: skinned(), rigPx: rigPixels(posing.joints), sceneFaces: scene.faces.length } : null),
         hint: () => poseHint,
         meshes: () => allObjects().map((o) => o.mesh),
         objects: () => allObjects().map((o) => {

@@ -147,7 +147,7 @@ Edit mode: select a face (3), press **6**. The face's plane is the drawing board
 **L** no longer switches the light while you edit (the LIGHT button still does; outside edit mode L is the light switch as before). With a line selected (2), **L** selects all the lines of its loop: the lines a loop cut (Ctrl+R) would cross, round and round until the loop closes or ends. With a face selected (3), **L** selects the faces of its loop; one face has two loops (two ways round), **L** again takes the other, and two touching faces go the way of their shared line.
 
 ## Pose mode (J)
-Put the cross on a figure (or target it with T) and press **J**. The figure must stand on two feet, look to +z and let its arms hang; its skeleton is read off its shape, so nothing has to be prepared, and what it wears (hair, a hat: objects inside its box) moves with it. The skeleton is drawn over it, and the console shows the **pose** panel:
+Put the cross on a figure (or target it with T) and press **J**. The figure must stand on two feet, look to +z and let its arms hang; its skeleton is read off its shape, so nothing has to be prepared, and what it wears (hair, a hat: objects inside its box) moves with it. The skeleton is drawn over it (smaller as the figure gets smaller on the screen, and not at all when it is small and far), and the console shows the **pose** panel:
 
 | Key | Action |
 |---|---|
