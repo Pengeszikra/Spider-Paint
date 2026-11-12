@@ -139,6 +139,9 @@ The model keeps its words (a `text` attribute, saved in the scene file with the 
 ## Selecting faces from inside
 In edit mode the pointer also finds the far side of a face, so from inside a hull (a spaceship, a room) its walls can be selected with 3 like any other face.
 
+## Loading
+While a scene is fetched and built (the list, file ↑, a saved scene, the starting scene) a small turning ring with its name shows over the view.
+
 ## Leaving by accident
 Once there is anything in the scene (or anything to undo), closing the tab, reloading or typing another address makes the browser ask first. The back button, the back swipe and the phone's back key need pressing **twice within two seconds** (the first one only says "back again to leave"), and a sideways swipe on a trackpad does not page back.
 

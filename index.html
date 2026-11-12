@@ -119,6 +119,10 @@
     #stage.clean svg circle { display: none; }
     #stage, #stage:focus, #stage:focus-visible { outline: none; }
     #frame { position: relative; isolation: isolate; }
+    #loader { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 6; display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 999px; background: rgba(17, 17, 17, 0.82); color: var(--cream, #efe6cf); font: 12px/1 var(--font-mono, monospace); letter-spacing: 0.08em; pointer-events: none; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35); }
+    #loader[hidden] { display: none; }
+    #loader i { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(47, 184, 192, 0.25); border-top-color: #2fb8c0; animation: loaderTurn 0.8s linear infinite; }
+    @keyframes loaderTurn { to { transform: rotate(360deg); } }
     #selArea { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
     #stage #selArea path { fill: rgba(34, 184, 207, 0.12) !important; stroke: #22b8cf !important; stroke-width: 1.5px !important; stroke-dasharray: 5 4; opacity: 1 !important; }
     #stage.selecting { cursor: crosshair; }
@@ -556,7 +560,7 @@
     <p class="build" id="build" title="Build, YY.MM.DD.NNN">–</p>
   </header>
 
-  <main id="stage" tabindex="0" role="img" aria-label="Empty space for prisms. 9 switches between the SVG and the WebGPU view, L turns the light, C switches the filmic look, N smooth shading, K the studio light. Drag, or use the arrow keys, to rotate the view. The cross follows the surface under the pointer. M puts a prism down there, or shoots one into empty space; Space stops the movement. B drags a box round objects to select them (B twice: a lasso), then G, R, S move, turn and size them together; the bool button asks for a boolean operation on two selected objects (union, A minus B, B minus A, intersect). V joins two surface points with a thin bar (P over empty space forgets a pending first point), X deletes the object under the cross, W A S D R F fly, / shows only the model under the cross (/ again: the whole scene), P shows the material palette (Ctrl+click (Cmd on a Mac) paints a face, Ctrl+double click the whole model), T flies the camera to the object under the cross, H puts the move gizmo (helper) on the object under the cross with the world axes, the next H switches to the object's own axes, the third takes it off; drag an arrow to move the object; E toggles edges and points, U or Backspace takes the last one back."><div id="frame"><canvas id="gpu" hidden></canvas><div id="layer"></div><div id="screens"></div><svg id="selArea" aria-hidden="true"></svg></div><div id="hud" aria-hidden="true"></div></main>
+  <main id="stage" tabindex="0" role="img" aria-label="Empty space for prisms. 9 switches between the SVG and the WebGPU view, L turns the light, C switches the filmic look, N smooth shading, K the studio light. Drag, or use the arrow keys, to rotate the view. The cross follows the surface under the pointer. M puts a prism down there, or shoots one into empty space; Space stops the movement. B drags a box round objects to select them (B twice: a lasso), then G, R, S move, turn and size them together; the bool button asks for a boolean operation on two selected objects (union, A minus B, B minus A, intersect). V joins two surface points with a thin bar (P over empty space forgets a pending first point), X deletes the object under the cross, W A S D R F fly, / shows only the model under the cross (/ again: the whole scene), P shows the material palette (Ctrl+click (Cmd on a Mac) paints a face, Ctrl+double click the whole model), T flies the camera to the object under the cross, H puts the move gizmo (helper) on the object under the cross with the world axes, the next H switches to the object's own axes, the third takes it off; drag an arrow to move the object; E toggles edges and points, U or Backspace takes the last one back."><div id="frame"><canvas id="gpu" hidden></canvas><div id="layer"></div><div id="screens"></div><svg id="selArea" aria-hidden="true"></svg></div><div id="hud" aria-hidden="true"></div><div id="loader" hidden role="status"><i></i><span>loading…</span></div></main>
 
   <input id="textBox" type="text" placeholder="text (Enter: make it, Esc: cancel)" maxlength="80" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="The words to put on the face" hidden>
   <div id="editbar" hidden><b id="editText"></b><button id="editHelp" type="button" title="Show / hide the edit help" aria-pressed="false" hidden>?</button><span id="editHelpText" hidden>V: sketch lines (nothing happens yet) · 6: the lathe (select a face first; V draws a contour on it above its bottom line, the axis; Enter, then the number of segments, Enter again = 7) · 1 / 2 / 3: select points / lines / faces (click; Shift+click adds or takes away; A selects all, A A clears) · G: grab the selection (X / Y / Z lock the axis, type metres, click or Enter confirms, Esc cancels) · S: scale (same keys) · E: extrude the selected faces · 4: the saw: V puts 2 points on one face = a cut square to the face, or 3 points = a cut through the triangle; Enter cuts · Shift+W A S D R F fly · Ctrl/Cmd+click paints · Shift+X deletes the object under the cross · U undo · Esc back, then leave · Q leave</span></div>
@@ -749,7 +753,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@b179d0e2ca474292e56b206a373d5945bdf17919/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@89d00b7708e8418f62a3e94661c872d97ec4f5ae/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2531,13 +2535,29 @@
       if (Array.isArray(v.cam?.center) && Number.isFinite(v.cam.radius)) jumpTo(v.cam);
       redraw();
     };
-    const loadScene = async (data, replace = false) => {
-      const had = allObjects().length > 0;
-      if ((replace || !mergeOn) && had) clearScene();
-      await addScene(data);
-      if (data.view && (replace || !mergeOn || !had)) applyView(data.view);
+    // the loader: a turning ring and the scene's name over the view while a scene is fetched and built (nested loads show it once)
+    const loaderEl = document.getElementById('loader');
+    let loading = 0;
+    const withLoader = async (label, run) => {
+      if (SHOW) return run();
+      loading++;
+      if (label) loaderEl.querySelector('span').textContent = `loading ${label}…`;
+      loaderEl.hidden = false;
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); // painted before the heavy part starts
+      try {
+        return await run();
+      } finally {
+        if (--loading <= 0) ((loading = 0), (loaderEl.hidden = true));
+      }
     };
-    const addExample = async (name) => loadScene(await sceneOf(name));
+    const loadScene = async (data, replace = false) =>
+      withLoader(data?.name ?? 'scene', async () => {
+        const had = allObjects().length > 0;
+        if ((replace || !mergeOn) && had) clearScene();
+        await addScene(data);
+        if (data.view && (replace || !mergeOn || !had)) applyView(data.view);
+      });
+    const addExample = async (name) => withLoader(name.replace(/^saved:/, ''), async () => loadScene(await sceneOf(name)));
     const addScene = async ({ objects: raw, palette: extra, prototypes, start, cloud: points, cloudProtos }) => {
       const objects = raw.map((o) => (o.proto ? { name: o.name, inst: { ...o, proto: prototypes[o.proto] }, mesh: instantiate(prototypes[o.proto].lods.at(-1), placement(o)) } : o));
       // a scene may bring its own materials; the ones the palette lacks are added (and saved with a db)
