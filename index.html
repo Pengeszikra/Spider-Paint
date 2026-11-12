@@ -58,6 +58,7 @@
     }
 
     html, body { height: 100%; }
+    html, body { overscroll-behavior: none; } /* a sideways swipe on a trackpad does not page back out of the program */
     body {
       box-sizing: border-box;
       display: flex;
@@ -748,7 +749,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@24ad3b10dc63c914dc43a633572db8cd792d7499/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@8e48de893d89b95a109046ada38a66ba4503e909/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -6221,6 +6222,29 @@
     if (!EMBED && !SHOW && !globalThis.claude?.use && !plyName) addExample('globe'); // the starting scene (the store pane has its own stock)
     // works offline once opened (not in an artifact, nor from a file)
     if (!EMBED && 'serviceWorker' in navigator && location.protocol.startsWith('http') && !globalThis.claude?.use) navigator.serviceWorker.register('sw.js').catch(() => {}); // the engine and the page script both ran (the watchdog below looks at this)
+    // Leaving by accident: the browser asks first (closing the tab, reloading, typing another address) once something has been made
+    // or changed here, and the back button / back gesture (the phone app's back key too) needs pressing twice within two seconds.
+    if (!EMBED && !SHOW) {
+      window.addEventListener('beforeunload', (e) => {
+        if (!history.length && !allObjects().length) return; // nothing here to lose
+        e.preventDefault();
+        e.returnValue = ''; // (older browsers want it set)
+      });
+      let backAt = 0;
+      try {
+        window.history.pushState({ stay: true }, '');
+      } catch {}
+      window.addEventListener('popstate', () => {
+        const t = performance.now();
+        if (t - backAt < 2000) return void window.history.back(); // the second back within two seconds: really leave
+        backAt = t;
+        try {
+          window.history.pushState({ stay: true }, '');
+        } catch {}
+        noteObj('back again to leave');
+        setTimeout(() => objNote.startsWith('back again') && noteObj(''), 2000);
+      });
+    }
     if (SHOW) {
       // a scene screen: the scene file, framed whole, then the turntable (see SHOW_SPIN in draw)
       fetch(SHOW)
