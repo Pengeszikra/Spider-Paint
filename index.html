@@ -743,7 +743,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@7b7ba984082dff6cdf69fa1d30b954e930ee76b2/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e6bcdbbb1642c798370fea1171517b8cb393b886/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2480,9 +2480,11 @@
     try {
       mergeOn = localStorage.getItem('3draft.merge') !== '0';
     } catch {}
-    // a saved scene also keeps the view: the switches (edges, light, glow, smooth, studio) and the camera. They come back when the scene
+    // a saved scene also keeps the view: the switches (the view's renderer, edges, light, glow, smooth, studio; not freeze, store,
+    // palette and edit, which are about the work, not the look) and the camera. They come back when the scene
     // stands alone (merge off, or nothing was there); a merged scene keeps the view you have.
     const viewOf = () => ({
+      render: mode === 'gpu' ? activeKind : 'svg', // 'webgpu' | 'webgl2' | 'svg'
       edges: !stage.classList.contains('clean'),
       light: lightOn,
       glow: filmic,
@@ -2491,6 +2493,10 @@
       cam: { center: [...fit.center], radius: fit.radius, ...(fit.dist !== undefined ? { dist: fit.dist } : {}), yaw, pitch },
     });
     const applyView = (v) => {
+      // the renderer: a GPU view falls back to WebGL2 (or SVG) where the asked one is missing; the installed app stays on the GPU
+      const want = { svg: 'svg', webgl2: 'gl', webgpu: 'gpu' }[v.render];
+      const now = mode === 'gpu' ? (activeKind === 'webgl2' ? 'gl' : 'gpu') : 'svg';
+      if (want && want !== now && !(want === 'svg' && document.body.classList.contains('pwa')) && !SHOW) setMode(want);
       if (typeof v.edges === 'boolean' && v.edges === stage.classList.contains('clean')) (stage.classList.toggle('clean'), syncLines());
       if (typeof v.light === 'boolean' && v.light !== lightOn) turnLight();
       if (typeof v.glow === 'boolean' && v.glow !== filmic) toggleFilmic();
