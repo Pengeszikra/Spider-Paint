@@ -749,7 +749,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@1f69a86fc8b217aab4d17b743b9e895c4b2966df/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@b179d0e2ca474292e56b206a373d5945bdf17919/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -3687,27 +3687,74 @@
       axis[k] = 1;
       startXf('mirror', { ids, c, axisVec: axis, wire0: (editing.wire ?? []).map((w) => [...w]), mirror: { k, neg, d0, d: d0, faces, wire } });
     };
+    // the preview (and the result before welding): the selected faces are cut at the plane first, so nothing reaches over it (what
+    // was over it is gone); the kept part is copied across, its points on the plane shared by both halves, so the halves meet exactly
     const mirrorPreview = (x, d) => {
-      const { k, faces, wire } = x.mirror;
+      const { k, neg, faces, wire } = x.mirror;
       const m = x.mesh0;
-      const n0 = m.positions.length;
+      const P = m.positions.map((q) => [...q]);
+      const R = Math.max(bounds(m).radius, 1e-9);
+      const eps = R * 1e-7;
+      const side = (q) => (neg ? d - q[k] : q[k] - d); // > 0: over the plane (the copy's side), cut away
+      const cut = new Map(); // edge "a,b" -> the new point on the plane
+      const at = (a, b) => {
+        const key = a < b ? `${a},${b}` : `${b},${a}`;
+        if (!cut.has(key)) {
+          const sa = side(P[a]);
+          const sb = side(P[b]);
+          const t = sa / (sa - sb);
+          const q = P[a].map((c, j) => c + (P[b][j] - c) * t);
+          q[k] = d;
+          cut.set(key, P.push(q) - 1);
+        }
+        return cut.get(key);
+      };
+      const sel = new Set(faces);
+      const kept = [];
+      const outFaces = [];
+      m.faces.forEach((f, fi) => {
+        if (!sel.has(fi)) return void outFaces.push(f);
+        // Sutherland-Hodgman against one plane: keep the side under it
+        const out = [];
+        f.v.forEach((a, i) => {
+          const b = f.v[(i + 1) % f.v.length];
+          const sa = side(P[a]);
+          const sb = side(P[b]);
+          if (sa <= eps) out.push(a);
+          if ((sa < -eps && sb > eps) || (sa > eps && sb < -eps)) out.push(at(a, b));
+        });
+        const v = out.filter((x, i) => x !== out[(i + 1) % out.length]);
+        if (new Set(v).size >= 3) {
+          const nf = { ...f, v };
+          outFaces.push(nf);
+          kept.push(nf);
+        }
+      });
+      // lines: the part under the plane
+      const keptWire = [];
+      for (const [a, b] of wire) {
+        const sa = side(P[a]);
+        const sb = side(P[b]);
+        if (sa <= eps && sb <= eps) keptWire.push([a, b]);
+        else if (sa <= eps) keptWire.push([a, at(a, b)]);
+        else if (sb <= eps) keptWire.push([at(a, b), b]);
+      }
+      // the copy: points on the plane stay themselves (shared), the rest are mirrored
       const map = new Map();
-      const extra = [];
-      const at = (i) => {
+      const twin = (i) => {
+        if (Math.abs(P[i][k] - d) <= eps) return i;
         if (!map.has(i)) {
-          map.set(i, n0 + extra.length);
-          const q = [...m.positions[i]];
+          const q = [...P[i]];
           q[k] = 2 * d - q[k];
-          extra.push(q);
+          map.set(i, P.push(q) - 1);
         }
         return map.get(i);
       };
-      const copies = faces.map((fi) => {
-        const f = m.faces[fi];
-        return { ...f, v: f.v.map(at).reverse() }; // a mirror turns the winding round: reversed, it faces out again
-      });
-      const lines = wire.map(([a, b]) => [at(a), at(b)]);
-      return { mesh: { positions: [...m.positions, ...extra], faces: [...m.faces, ...copies] }, wire: [...(x.wire0 ?? []), ...lines] };
+      const copies = kept.map((f) => ({ ...f, v: f.v.map(twin).reverse() })); // reversed: a mirror turns the winding, so it faces out again
+      const lines = keptWire.map(([a, b]) => [twin(a), twin(b)]);
+      const keptSet = new Set(wire.map(([a, b]) => `${a},${b}`));
+      const otherWire = (x.wire0 ?? []).filter(([a, b]) => !keptSet.has(`${a},${b}`));
+      return { mesh: { positions: P, faces: [...outFaces, ...copies] }, wire: [...otherWire, ...keptWire, ...lines] };
     };
     // Enter: points on top of each other become one, faces on top of each other (back to back) go, unused points are dropped
     const mirrorWeld = (mesh, wire, k, d) => {
