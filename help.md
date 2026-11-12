@@ -139,6 +139,9 @@ The model keeps its words (a `text` attribute, saved in the scene file with the 
 ## Selecting faces from inside
 In edit mode the pointer also finds the far side of a face, so from inside a hull (a spaceship, a room) its walls can be selected with 3 like any other face.
 
+## Zoom
+The **mouse wheel** (or a trackpad pinch) zooms in and out: the lens narrows or widens, the eye stays where it is. **=** (the **ó** key on a Hungarian keyboard) puts the zoom back.
+
 ## Loading
 While a scene is fetched and built (the list, file ↑, a saved scene, the starting scene) a small turning ring with its name shows over the view.
 
