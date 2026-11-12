@@ -743,7 +743,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e6bcdbbb1642c798370fea1171517b8cb393b886/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@9e9e5dfc7c144cc3d4715939869325515443f879/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2954,13 +2954,7 @@
         } else if (d.type === 'drag-end' || d.type === 'drag-cancel') {
           document.body.classList.remove('dropping');
           const over = d.type === 'drag-end' && stage.getBoundingClientRect().left <= d.x && d.x <= innerWidth && d.y >= stage.getBoundingClientRect().top;
-          pointer = { x: d.x, y: d.y };
-          if (over) {
-            draw(); // the surface under the drop point
-            putBrush();
-          }
-          pointer = null;
-          redraw();
+          dropBrush(d.x, d.y, over);
           focusPane(false);
         } else if (d.type === 'brush' && Array.isArray(d.mesh?.positions) && Array.isArray(d.mesh?.faces)) {
           useBrush({ name: String(d.name).slice(0, 40), mesh: d.mesh });
@@ -3012,7 +3006,20 @@
         };
         mesh = { ...mesh, positions: mesh.positions.map(turn) };
       }
-      create(`${brush.name}-${shortId()}`, shifted(mesh, at ?? [...fit.center]));
+      const foot = at ?? [...fit.center];
+      const made = create(`${brush.name}-${shortId()}`, shifted(mesh, foot));
+      redraw();
+      return { obj: made, foot, n: n && Math.hypot(...n) > 0.5 ? n.map((c) => c / Math.hypot(...n)) : [0, 1, 0] };
+    };
+    // a model let go over the build (from the store): it is put down under the pointer and waits in place mode (G R S, Enter keeps it)
+    const dropBrush = (x, y, over = true) => {
+      pointer = { x, y };
+      if (over && brush) {
+        draw(); // the surface under the drop point
+        const put = putBrush();
+        if (put?.obj) startPlace(put.obj, put.foot, put.n, brush.name);
+      }
+      if (!xf?.place) pointer = null; // (placing: the pointer is over the build and carries on from here)
       redraw();
     };
     sceneBtn.addEventListener('click', () => toggleStore());
@@ -3328,12 +3335,17 @@
     const vsub = (a, b) => a.map((c, i) => c - b[i]);
     const vdot = (a, b) => a.reduce((t, c, i) => t + c * b[i], 0);
     // where the pointer ray meets the plane through p0 that faces the camera: free drawing in the air, vertex dragging
-    const planePoint = (p0) => {
+    // where the pointer's ray meets the plane through p0 (the plane facing the eye, or the one with the normal n: a surface a placed
+    // model slides on; seen almost edge on, that falls back to the plane facing the eye)
+    const planePoint = (p0, n = null) => {
       if (!gcam || !panelPointer) return null;
       const r = ray(gcam, panelPointer.x, panelPointer.y);
-      const den = vdot(r.dir, gcam.f);
+      let m = n ?? gcam.f;
+      if (n && Math.abs(vdot(r.dir, n)) < 0.12) m = gcam.f;
+      const den = vdot(r.dir, m);
       if (Math.abs(den) < 1e-6) return null;
-      const t = vdot(vsub(p0, r.origin), gcam.f) / den;
+      const t = vdot(vsub(p0, r.origin), m) / den;
+      if (n && t <= 0) return null;
       return r.origin.map((c, i) => c + r.dir[i] * t);
     };
     // the vertex of the edited object near the pointer (the visible ones: not far behind the surface under it)
@@ -3614,7 +3626,7 @@
       const c = extra.c ?? ids.reduce((t, i) => t.map((v, k) => v + P[i][k] / ids.length), [0, 0, 0]);
       const sc = project(gcam, c);
       const dist0 = Math.hypot(panelPointer.x - sc.x, panelPointer.y - sc.y);
-      xf = { kind, obj, mesh0: obj.mesh, orig: extra.orig ?? obj.mesh, ids, from: ids.map((i) => P[i]), c, p0: planePoint(c) ?? c, s0: { ...panelPointer }, sc: { x: sc.x, y: sc.y }, dist0, base: Math.max(dist0, 40), lock: null, axisVec: extra.axisVec ?? null, typed: '', changed: false, a0: Math.atan2(panelPointer.y - sc.y, panelPointer.x - sc.x), accum: 0, loop: extra.loop ?? null, sel0: sel, shells: extra.shells ?? null, eps: extra.eps ?? 0, wire0: extra.wire0, fixFaces: extra.fixFaces ?? null };
+      xf = { kind, obj, mesh0: obj.mesh, orig: extra.orig ?? obj.mesh, ids, from: ids.map((i) => P[i]), c, p0: planePoint(c, extra.place?.n) ?? c, place: extra.place ?? null, s0: { ...panelPointer }, sc: { x: sc.x, y: sc.y }, dist0, base: Math.max(dist0, 40), lock: null, axisVec: extra.axisVec ?? null, typed: '', changed: false, a0: Math.atan2(panelPointer.y - sc.y, panelPointer.x - sc.x), accum: 0, loop: extra.loop ?? null, sel0: sel, shells: extra.shells ?? null, eps: extra.eps ?? 0, wire0: extra.wire0, fixFaces: extra.fixFaces ?? null };
       xfUpdate();
     };
     // how far (in world units) the pointer has moved along an axis, measured on the screen
@@ -3683,10 +3695,12 @@
           delta = A.map((c) => c * v);
           text = `${fmt(v)} m`;
         } else {
-          const q = planePoint(x.p0);
+          // (a placed model slides on the surface it was put on)
+          const q = planePoint(x.p0, x.place?.n);
           delta = q ? vsub(q, x.p0) : [0, 0, 0];
           text = `${fmt(Math.hypot(...delta))} m`;
         }
+        x.delta = delta;
         moves = x.ids.map((i, k) => [i, x.from[k].map((c, j) => c + delta[j])]);
       } else if (x.kind === 'rotate') {
         // the angle follows the pointer round the pivot on the screen (clockwise on screen is the right-hand turn about an axis pointing
@@ -3739,7 +3753,9 @@
       }
       x.obj.mesh = moved;
       rebuild();
-      barNote = `${x.kind}${x.lock ? ` ${x.lock.toUpperCase()}` : x.kind === 'rotate' ? ' about its axis' : x.axisVec ? ' along the normal' : ''} · ${typed !== null ? `${x.typed}_` : text} · ⏎ ok, Esc cancels`;
+      barNote = x.place
+        ? `place ${x.place.name} · ${x.kind === 'grab' ? 'move' : x.kind === 'rotate' ? 'turn' : 'size'}${x.lock ? ` ${x.lock.toUpperCase()}` : x.kind === 'grab' ? ' on the surface' : x.kind === 'rotate' ? ' round its foot' : ''} · ${typed !== null ? `${x.typed}_` : text} · G move, R turn, S size, X Y Z, a number · ⏎ keeps, Esc puts it back where it fell`
+        : `${x.kind}${x.lock ? ` ${x.lock.toUpperCase()}` : x.kind === 'rotate' ? ' about its axis' : x.axisVec ? ' along the normal' : ''} · ${typed !== null ? `${x.typed}_` : text} · ⏎ ok, Esc cancels`;
       showBar();
       redraw();
     }
@@ -4315,6 +4331,23 @@
       if (copied) barNote = 'copy · ' + barNote;
       showBar();
     };
+    // Placing (a model dropped from the store): it does not stick where it fell but waits, like a grab, until Enter keeps it (or Esc
+    // puts it back where it fell). Meanwhile G slides it on the surface it fell on, R turns it round the axis through its foot along that
+    // surface's normal, S sizes it from its foot; X Y Z lock an axis, a number gives the amount. Every switch starts from where it is.
+    const startPlace = (o, foot, n, name) => {
+      if (!o) return;
+      const ids = o.mesh.positions.map((_, i) => i);
+      startXf('grab', { obj: o, ids, c: foot, place: { foot, n, name } });
+    };
+    const placeStep = (k) => {
+      const x = xf;
+      if (!x?.place) return;
+      const foot = x.kind === 'grab' && x.delta ? x.place.foot.map((c, i) => c + x.delta[i]) : x.place.foot;
+      const place = { ...x.place, foot };
+      const kind = k === 'g' ? 'grab' : k === 'r' ? 'rotate' : 'scale';
+      xf = null;
+      startXf(kind, { obj: x.obj, ids: x.ids, c: foot, orig: x.orig, place, axisVec: kind === 'rotate' ? place.n : null });
+    };
     const pointedObject = () => lockedObject() ?? (hit && owner(hit.face)) ?? null;
     const duplicate = () => {
       const src = editing ?? pointedObject();
@@ -4439,6 +4472,7 @@
         const k = e.key.toLowerCase();
         if (e.key === 'Escape') xfCancel();
         else if (e.key === 'Enter') xfConfirm();
+        else if (xf.place && (k === 'g' || k === 'r' || k === 's')) placeStep(k);
         else if (e.key === 'ArrowUp' || e.key === 'PageUp') bevelSegments(1);
         else if (e.key === 'ArrowDown' || e.key === 'PageDown') bevelSegments(-1);
         else if (k === 'x' || k === 'y' || k === 'z') ((xf.lock = xf.lock === k ? null : k), xfUpdate());
@@ -5215,7 +5249,8 @@
     if (new URLSearchParams(location.search).has('debug')) {
       globalThis.__3draft = {
         load: (data) => applyScene(data),
-        open: (data) => loadScene(data, true), // like opening a scene file: its palette (screens, scene screens) comes too
+        open: (data) => loadScene(data, true),
+        drop: (name, mesh, x, y) => (useBrush({ name, mesh }), dropBrush(x, y)), // like letting a model go over the build from the store // like opening a scene file: its palette (screens, scene screens) comes too
         screens: () => ({ mode, gpu: Boolean(gpu), kind: activeKind, iframes: screenFrames.size, spots: [...sceneSpots].map(([addr, s]) => ({ addr, ready: s.ready, error: s.error })) }),
         pose: () => (posing ? { name: posing.name, anim: posing.anim, objects: posing.objs.map((o) => o.name), joints: posing.joints, skinned: skinned(), rigPx: rigPixels(posing.joints), sceneFaces: scene.faces.length } : null),
         hint: () => poseHint,
@@ -5226,7 +5261,7 @@
           for (const q of o.mesh.positions) q.forEach((c, i) => ((lo[i] = Math.min(lo[i], c)), (hi[i] = Math.max(hi[i], c))));
           return { name: o.name, faces: o.mesh.faces.map((f) => [f.color, f.mat]), lo, hi, nf: o.mesh.faces.length };
         }),
-        edit: () => ({ mode: emode, sel: { kind: sel.kind, n: sel.items.length }, xf: xf ? { kind: xf.kind, lock: xf.lock, typed: xf.typed } : null, editing: editing?.name ?? null, bench: Boolean(bench), wire: editing?.wire?.length ?? 0, lines: editing?.lines?.length ?? 0 }),
+        edit: () => ({ mode: emode, sel: { kind: sel.kind, n: sel.items.length }, xf: xf ? { kind: xf.kind, lock: xf.lock, typed: xf.typed, place: Boolean(xf.place) } : null, editing: editing?.name ?? null, bench: Boolean(bench), wire: editing?.wire?.length ?? 0, lines: editing?.lines?.length ?? 0 }),
         // screen position (stage pixels) of a point on the edited object: its face centre / vertex / edge middle
         screen: (kind, i) => {
           const m = editing.mesh;
