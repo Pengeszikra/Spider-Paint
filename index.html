@@ -743,7 +743,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@cefb67b618154872e9c4c0996e5fdc1afbc9a3c8/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@5f536126c8404b9982228a36e5dd7473e0ae25e6/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1336,14 +1336,13 @@
         .catch((e) => ((spot.error = e.message), sceneNote(`scene screen ${file}: ${e.message}`)));
       return spot;
     };
-    // the corners of a four-cornered face as the screen wants them: top left, top right, bottom right, bottom left, seen from the side
-    // that looks away from its object's middle (up is the world up, the face's own up when it lies flat), and that side's normal
-    const screenCorners = (P, mid) => {
+    // the corners of a four-cornered face as the screen wants them: top left, top right, bottom right, bottom left, seen from its
+    // front (the side its winding faces; up is the world up, the face's own up when it lies flat), and that side's normal
+    const screenCorners = (P) => {
       const c = [0, 1, 2].map((a) => (P[0][a] + P[1][a] + P[2][a] + P[3][a]) / 4);
       let n = faceNormal(P);
       const nl = Math.hypot(...n) || 1;
       n = n.map((x) => x / nl);
-      if (vdot(n, vsub(c, mid)) < 0) n = n.map((x) => -x);
       let up = [0, 1, 0];
       if (Math.abs(n[1]) > 0.9) up = [0, 0, -1];
       const rt = [up[1] * n[2] - up[2] * n[1], up[2] * n[0] - up[0] * n[2], up[0] * n[1] - up[1] * n[0]];
@@ -1370,7 +1369,7 @@
           const o = owner(fi);
           if (screenOff.has(screenKey(fi, o))) return;
           const P = face.v.map((k) => scene.positions[k]);
-          const { order, n, c } = screenCorners(P, o ? bounds(o.mesh).center : P[0]);
+          const { order, n, c } = screenCorners(P);
           if (vdot(n, vsub(gcam.eye, c)) <= 0 || P.some((p) => project(gcam, p).depth <= 0.05)) return;
           const eps = 0.002 * Math.hypot(...vsub(P[order[0]], P[order[2]]));
           out.push({ corners: order.map((i) => P[i].map((x, k) => x + n[k] * eps)), hole: true });
@@ -1382,7 +1381,7 @@
         if (!spot?.ready) return;
         const o = owner(fi);
         const P = face.v.map((k) => scene.positions[k]);
-        const { order, n, c } = screenCorners(P, o ? bounds(o.mesh).center : P[0]);
+        const { order, n, c } = screenCorners(P);
         if (vdot(n, vsub(gcam.eye, c)) <= 0) return; // seen from behind
         const dist = (a, b) => Math.hypot(...vsub(P[a], P[b]));
         const aspect = dist(order[0], order[1]) / Math.max(1e-9, dist(order[0], order[3]));
@@ -1444,8 +1443,8 @@
           let n = faceNormal(P);
           const nl = Math.hypot(...n) || 1;
           n = n.map((x) => x / nl);
-          const mid = o ? bounds(o.mesh).center : c;
-          if (vdot(n, vsub(c, mid)) < 0) n = n.map((x) => -x); // the side that looks away from the middle of its object
+          // the side it faces is its winding's (faces go counterclockwise seen from outside): not the side away from its object's
+          // middle, which is wrong for a picture set back in a deep frame
           const key = screenKey(fi, o);
           wanted.add(key);
           let rec = screenFrames.get(key);
