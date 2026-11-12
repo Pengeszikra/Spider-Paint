@@ -366,6 +366,7 @@
     body.zen header.bar, body.zen footer.bar, body.zen #hud, body.zen #editbar, body.zen .fab { display: none; }
     body.zen #stage { position: fixed; inset: 0; border: 0; border-radius: 0; z-index: 1; }
     body.zen #zenOff { display: block; }
+    body.show #zenOff, body.show #flight, body.show #screens { display: none !important; }
 
     /* Phones, tablets and small windows: nothing leaves the screen */
     @media (pointer: coarse), (max-width: 640px) {
@@ -580,7 +581,7 @@
     <label>rough <input type="range" id="p-rough" min="0" max="1" step="0.05" /><span id="v-rough"></span></label>
     <label>alpha <input type="range" id="p-alpha" min="0" max="1" step="0.05" /><span id="v-alpha"></span></label>
     <label>emit <input type="range" id="p-emit" min="0" max="5" step="0.1" /><span id="v-emit"></span></label>
-    <label class="url" title="A screen: this page is shown on every four-cornered face of the material (an iframe over the picture; sites that forbid framing stay blank)">url <input type="text" id="p-url" placeholder="https://… (empty: no screen)" spellcheck="false" autocapitalize="off" style="grid-column:2 / 4;width:100%;box-sizing:border-box;min-width:0;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:2px 6px;font:inherit" /></label>
+    <label class="url" title="A screen: this page is shown on every four-cornered face of the material (an iframe over the picture; sites that forbid framing stay blank). A 3Draft scene file (.json) is played there instead, turning round its middle.">url <input type="text" id="p-url" placeholder="https://… or a scene .json (empty: no screen)" spellcheck="false" autocapitalize="off" style="grid-column:2 / 4;width:100%;box-sizing:border-box;min-width:0;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:2px 6px;font:inherit" /></label>
     <label title="Soft, skin-like light: it wraps round the form, with a warm scattered band at the shade edge">soft <input type="range" id="p-soft" min="0" max="1" step="0.05" /><span id="v-soft"></span></label>
     <div class="picker" id="picker">
       <div class="sv" id="pickSV" aria-label="Saturation and brightness"><i id="pickDot"></i></div>
@@ -700,6 +701,7 @@
         <option value="human">Low poly human</option>
         <option value="betterman">Betterman (pose him: J)</option>
         <option value="tr74">TR-74 expedition module</option>
+        <option value="station-screen">Station screen (a scene on a face)</option>
         <optgroup id="savedGroup" label="saved here" hidden></optgroup></select>
           <button id="mergeSw" type="button" class="sw on" title="Loading a scene (the list, file ↑): on adds it to what is there, off clears the scene first and loads it alone"><i></i>merge</button>
           <button id="clear" type="button" class="slate ic" title="Remove every object (U brings them back)" aria-label="Clear"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M8 7V5h8v2M7 7l1 12h8l1-12"/></svg></button>
@@ -737,7 +739,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@eec1c0abb53e5a649d39fc3c6a4816ba43a8581b/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@c75b08994401b686115bfe8b8732ac3abbc78be3/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -893,6 +895,7 @@
     // The eye-to-center distance a normal (orbit) framing of this radius has.
     const orbitDist = (radius) => Math.hypot(...makeCamera(orbit({}), nothing, 100, { center: [0, 0, 0], radius }).eye);
     let travel = null;
+    const SHOW_SPIN = 0.25; // radians per second of a scene screen's turntable
     let focused = false; // true while the camera sits on one object; scene updates then leave it alone
     const TRAVEL_MS = 900;
     const ease = (t) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2);
@@ -1285,6 +1288,17 @@
       if (screenCtl || !drawing) return;
       if (enterScreen(e.clientX - drawing.left, e.clientY - drawing.top)) e.stopImmediatePropagation();
     }, true);
+    // the address of the player of a scene screen: this page with ?show=<the scene file> (and the same backend)
+    const showUrl = (file) => {
+      try {
+        const u = new URL(location.pathname, location.href);
+        u.searchParams.set('show', new URL(file, location.href).href);
+        if (mode === 'gl') u.searchParams.set('gl', '');
+        return u.href;
+      } catch {
+        return undefined;
+      }
+    };
     const homography = (q, w, h) => {
       // maps (0,0) (w,0) (w,h) (0,h) onto the four points q (x, y): the 8 unknowns of a projective map, by Gaussian elimination
       const src = [[0, 0], [w, 0], [w, h], [0, h]];
@@ -1313,7 +1327,8 @@
         const pal = paletteMap;
         let used = 0;
         scene.faces.forEach((face, fi) => {
-          const url = face.mat !== undefined ? pal[face.mat]?.url : undefined;
+          const mat = face.mat !== undefined ? pal[face.mat] : undefined;
+          const url = mat?.url ?? (mat?.scene && !SHOW ? showUrl(mat.scene) : undefined); // a scene screen is this viewer as a player
           if (!url || face.v.length !== 4 || used >= 6) return;
           const o = owner(fi);
           const P = face.v.map((k) => scene.positions[k]);
@@ -1397,6 +1412,7 @@
       const dtDraw = Math.min(0.1, (performance.now() - lastDraw) / 1000);
       const ease1 = 1 - Math.exp(-dtDraw * 9);
       lastDraw = performance.now();
+      if (SHOW && !frozen && !travel && !fly) ((yaw += dtDraw * SHOW_SPIN), redraw()); // the turntable: round the model's middle, like A / D on a target
       const fovGoal = fly && eyeInScene() ? INSIDE_FOV : FOV0; // the wide lens only once the eye is really in the scene: starting a flight must not change the picture
       fovNow += (fovGoal - fovNow) * (fly ? 1 - Math.exp(-dtDraw * 2.2) : ease1); // the lens opens slowly: a quick zoom-out looks like a jump
       if (Math.abs(fovGoal - fovNow) < 1e-3) fovNow = fovGoal;
@@ -1717,6 +1733,16 @@
     // the installed app (or ?pwa) has no keyboard and is meant for small screens: no filmic look there
     const EMBED = /[?&]store\b/.test(location.search); // ?store: this page is the store pane of another one (its own engine, its own scene)
     if (EMBED) document.body.classList.add('embed');
+    // ?show=<scene file>: this page is a scene screen of another one (a material's `scene`): no panels, the scene turns round its middle
+    const SHOW = (() => {
+      const v = new URLSearchParams(location.search).get('show');
+      try {
+        return v && /^https?:$/.test(new URL(v, location.href).protocol) ? new URL(v, location.href).href : null;
+      } catch {
+        return null;
+      }
+    })();
+    if (SHOW) document.body.classList.add('zen', 'show');
     const isApp = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true || /[?&]pwa\b/.test(location.search);
     let filmic = false; // C: filmic look on the WebGPU view (linear light, tone mapping, glowing emission)
     let renderGpu = null;
@@ -2538,7 +2564,7 @@
         document.getElementById(`p-${k}`).value = m[k] ?? 0;
         document.getElementById(`v-${k}`).textContent = (m[k] ?? 0).toFixed(2);
       }
-      document.getElementById('p-url').value = m.url ?? '';
+      document.getElementById('p-url').value = m.url ?? m.scene ?? '';
     };
     for (const k of PROPS) {
       document.getElementById(`p-${k}`).addEventListener('input', (e) => {
@@ -2555,11 +2581,20 @@
       if (!t) return '';
       return /^https?:\/\//i.test(t) ? t : /^[a-z][a-z0-9+.-]*:/i.test(t) ? '' : `https://${t}`; // only http(s): no javascript: or data:
     };
+    // a .json address is a scene screen (a 3Draft scene played on the face, relative to the page is fine); anything else a page
+    const sceneAddr = (v) => {
+      const t = v.trim();
+      if (!/\.json(?:[?#].*)?$/i.test(t)) return '';
+      return /^[a-z][a-z0-9+.-]*:/i.test(t) && !/^https?:\/\//i.test(t) ? '' : t;
+    };
     urlEl.addEventListener('input', () => {
       const m = materials[current];
-      const u = cleanUrl(urlEl.value);
+      const sc = sceneAddr(urlEl.value);
+      const u = sc ? '' : cleanUrl(urlEl.value);
       if (u) m.url = u;
       else delete m.url;
+      if (sc) m.scene = sc;
+      else delete m.scene;
       syncPalette();
     });
     urlEl.addEventListener('change', () => saveMaterial(materials[current]));
@@ -4688,7 +4723,7 @@
         swap.textContent = document.body.classList.contains('split') ? 'close store' : 'store';
       });
       box.append(swap);
-      for (const name of ['empty', 'globe', 'stars', 'stars-plain', 'milkyway', 'ex27', 'human', 'betterman', 'tr74']) {
+      for (const name of ['empty', 'globe', 'stars', 'stars-plain', 'milkyway', 'ex27', 'human', 'betterman', 'tr74', 'station-screen']) {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'cream';
@@ -5043,6 +5078,7 @@
     if (new URLSearchParams(location.search).has('debug')) {
       globalThis.__3draft = {
         load: (data) => applyScene(data),
+        open: (data) => loadScene(data, true), // like opening a scene file: its palette (screens, scene screens) comes too
         pose: () => (posing ? { name: posing.name, anim: posing.anim, objects: posing.objs.map((o) => o.name), joints: posing.joints, skinned: skinned(), rigPx: rigPixels(posing.joints), sceneFaces: scene.faces.length } : null),
         hint: () => poseHint,
         meshes: () => allObjects().map((o) => o.mesh),
@@ -5088,7 +5124,7 @@
       return `${o.name}|${o.mesh.positions.length}|${o.mesh.faces.length}|${o.wire ? JSON.stringify(o.wire).length : 0}|${h}`;
     };
     const applyScene = (data) => {
-      if (EMBED) return; // the store has its own objects
+      if (EMBED || SHOW) return; // the store and a scene screen have their own objects
       const next = (data.objects ?? []).map((o, n) => ({ id: o.id ?? o.name ?? `o${n}`, name: o.name ?? `o${n}`, mesh: o.mesh, wire: o.wire, host: true }));
       // db snapshots hand out every document again (also the echo of our own write): an object whose content did not
       // change stays the same instance, so its mesh and its GPU vertices are kept, and an unchanged scene is not rebuilt
@@ -5122,7 +5158,7 @@
       liveEl.textContent = `${hostObjects.length + mine.length} object${hostObjects.length + mine.length === 1 ? '' : 's'} · ${data.rev}`;
       redraw();
     };
-    if (!EMBED && new URLSearchParams(location.search).has('live') && typeof EventSource !== 'undefined') {
+    if (!EMBED && !SHOW && new URLSearchParams(location.search).has('live') && typeof EventSource !== 'undefined') {
       const events = new EventSource('/events');
       events.addEventListener('scene', (e) => {
         try {
@@ -5140,7 +5176,7 @@
     // Published as a Claude artifact with the `db` capability: the objects live in the shared
     // collection "objects" (one document per object: { name, mesh }). Claude writes them with
     // its own tools and every open view shows them at once. Outside an artifact `claude` does not exist.
-    if (!EMBED && globalThis.claude?.use) {
+    if (!EMBED && !SHOW && globalThis.claude?.use) {
       globalThis.claude.use('db').then((db) => {
         if (!db) return;
         col = db.collection('objects');
@@ -5459,10 +5495,25 @@
     if (EMBED) seedStore();
     draw();
     window.__ready = true;
-    if (!EMBED && !globalThis.claude?.use && !plyName) addExample('globe'); // the starting scene (the store pane has its own stock)
+    if (!EMBED && !SHOW && !globalThis.claude?.use && !plyName) addExample('globe'); // the starting scene (the store pane has its own stock)
     // works offline once opened (not in an artifact, nor from a file)
     if (!EMBED && 'serviceWorker' in navigator && location.protocol.startsWith('http') && !globalThis.claude?.use) navigator.serviceWorker.register('sw.js').catch(() => {}); // the engine and the page script both ran (the watchdog below looks at this)
-    if (plyName && !EMBED) {
+    if (SHOW) {
+      // a scene screen: the scene file, framed whole, then the turntable (see SHOW_SPIN in draw)
+      fetch(SHOW)
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`${r.status} ${r.statusText}`))))
+        .then((data) => loadScene(data, true))
+        .then(() => {
+          // lit and without edge lines, whatever the file's view says (a screen has no switches), and framed tighter than the bounding ball
+          applyView({ light: true, edges: false });
+          fly = false;
+          focused = false;
+          const o = overview();
+          goTo({ center: o.center, radius: o.radius * 0.8, yaw, pitch: 0.25 });
+        })
+        .catch((e) => sceneNote(`show: ${e.message}`));
+    }
+    if (plyName && !EMBED && !SHOW) {
       nameEl.value = plyName;
       loadScene(readSaved()[plyName], true).then(() => toggleZen(true)).catch((e) => sceneNote(`ply: ${e.message}`));
     }
