@@ -753,7 +753,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@9237169dd842e77072f119d18c78af81cf4e7de7/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@63579e6272e1e961a5b4e296c12877bb46aace9e/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -3488,7 +3488,16 @@
         const made = create(`prism-${shortId()}`, mesh);
         o = live(made) ?? made;
       }
-      bench = { fresh: wasEmpty, seen: [o.id], origin: benchOrigin(o), base: history.length, cam: { center: [...fit.center], radius: fit.radius, dist: fit.dist, yaw, pitch } };
+      // an eye inside the object (in its bounding box, e.g. flying in a hull): the camera stays where it is, now and on leaving
+      const eye = eyeNow();
+      const P = o.mesh.positions;
+      const inside = P.length > 0 && [0, 1, 2].every((k) => {
+        let lo = Infinity;
+        let hi = -Infinity;
+        for (const q of P) ((lo = Math.min(lo, q[k])), (hi = Math.max(hi, q[k])));
+        return eye[k] >= lo && eye[k] <= hi;
+      });
+      bench = { fresh: wasEmpty, stay: inside, seen: [o.id], origin: benchOrigin(o), base: history.length, cam: { center: [...fit.center], radius: fit.radius, dist: fit.dist, yaw, pitch } };
       wasEmpty = false;
       gizmo = null;
       locked = null;
@@ -3499,7 +3508,7 @@
       xf = null;
       emode = 'draw';
       barNote = '';
-      goTo({ center: benchLook(), radius: benchRadius(), yaw, pitch });
+      if (!bench.stay) goTo({ center: benchLook(), radius: benchRadius(), yaw, pitch });
       showBar();
       redraw();
     };
@@ -3513,7 +3522,7 @@
       emode = 'draw';
       bench = null;
       if (b?.fresh) focused = false;
-      if (b) goTo(b.fresh ? { ...overview(), yaw: b.cam.yaw, pitch: b.cam.pitch } : { ...b.cam });
+      if (b && !b.stay) goTo(b.fresh ? { ...overview(), yaw: b.cam.yaw, pitch: b.cam.pitch } : { ...b.cam });
       rebuild();
       showBar();
       redraw();

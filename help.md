@@ -139,6 +139,9 @@ The model keeps its words (a `text` attribute, saved in the scene file with the 
 ## Selecting faces from inside
 In edit mode the pointer also finds the far side of a face, so from inside a hull (a spaceship, a room) its walls can be selected with 3 like any other face.
 
+## Editing from inside
+Pressing **Q** with the eye inside the object (inside its bounding box, e.g. flying in a hull) does not move the camera: you stay where you are, and leaving edit mode does not move it either.
+
 ## Zoom
 The **mouse wheel** (or a trackpad pinch) zooms in and out: the lens narrows or widens, the eye stays where it is. **=** (the **ó** key on a Hungarian keyboard) puts the zoom back. The **sideways wheel** (a trackpad swipe left or right, or a tilting wheel) turns the view round the point under the cursor, like A / D round a target but without one; the point stays under the cursor. Over empty space it turns round the middle of the view.
 
