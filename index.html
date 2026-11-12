@@ -739,7 +739,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@c75b08994401b686115bfe8b8732ac3abbc78be3/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@c08e0931c381b40e78ee1b7b351251daad713bfd/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1299,6 +1299,94 @@
         return undefined;
       }
     };
+    // ---- Scene screens on the GPU: a material's `scene` (a 3Draft scene file) is played on its four-cornered faces as a texture.
+    // Each scene file gets a small WebGL2 renderer on a canvas of its own (not in the page); every frame it draws the scene turning
+    // round its middle, and the main renderer copies that canvas onto the faces (`screens`), depth tested, so what stands in front
+    // hides it, and it shows in VR too. A scene used on several faces is drawn once.
+    const SCREEN_PX = 640;
+    const sceneSpots = new Map(); // absolute address -> { canvas, gl, mesh, palette, fit, yaw, ready, error }
+    const sceneSpot = (file) => {
+      let addr;
+      try {
+        addr = new URL(file, location.href).href;
+      } catch {
+        return null;
+      }
+      if (!/^https?:/.test(addr)) return null;
+      let spot = sceneSpots.get(addr);
+      if (spot) return spot;
+      const canvas = document.createElement('canvas');
+      spot = { canvas, gl: null, mesh: null, palette: undefined, fit: null, yaw: 0, ready: false, error: null, used: 0 };
+      sceneSpots.set(addr, spot);
+      Promise.all([createGl(canvas), fetch(addr).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`${r.status} ${r.statusText}`))))])
+        .then(([g, data]) => {
+          const meshes = (data.objects ?? []).filter((o) => o.mesh?.positions).map((o) => o.mesh);
+          spot.gl = g;
+          spot.mesh = merge(...meshes);
+          spot.palette = Object.fromEntries((data.palette ?? []).map(({ name, ...m }) => [name, m]));
+          const b = bounds(spot.mesh);
+          spot.fit = { center: b.center, radius: Math.max(b.radius * 0.7, 1e-3) };
+          spot.ready = true;
+          redraw();
+        })
+        .catch((e) => ((spot.error = e.message), sceneNote(`scene screen ${file}: ${e.message}`)));
+      return spot;
+    };
+    // the corners of a four-cornered face as the screen wants them: top left, top right, bottom right, bottom left, seen from the side
+    // that looks away from its object's middle (up is the world up, the face's own up when it lies flat), and that side's normal
+    const screenCorners = (P, mid) => {
+      const c = [0, 1, 2].map((a) => (P[0][a] + P[1][a] + P[2][a] + P[3][a]) / 4);
+      let n = faceNormal(P);
+      const nl = Math.hypot(...n) || 1;
+      n = n.map((x) => x / nl);
+      if (vdot(n, vsub(c, mid)) < 0) n = n.map((x) => -x);
+      let up = [0, 1, 0];
+      if (Math.abs(n[1]) > 0.9) up = [0, 0, -1];
+      const rt = [up[1] * n[2] - up[2] * n[1], up[2] * n[0] - up[0] * n[2], up[0] * n[1] - up[1] * n[0]];
+      const uv = P.map((p) => [vdot(vsub(p, c), rt), vdot(vsub(p, c), up)]);
+      const pick4 = (f) => uv.reduce((best, q, i) => (f(q) < f(uv[best]) ? i : best), 0);
+      const idx = [pick4((q) => q[0] - q[1]), pick4((q) => -(q[0] + q[1])), pick4((q) => -(q[0] - q[1])), pick4((q) => q[0] + q[1])];
+      return { order: new Set(idx).size === 4 ? idx : [0, 1, 2, 3], n, c };
+    };
+    let screenClock = performance.now();
+    const sceneScreens = () => {
+      if (SHOW || !(mode === 'gpu' && gpu) || !gcam) return undefined;
+      const now = performance.now();
+      const dt = Math.min(0.1, (now - screenClock) / 1000);
+      screenClock = now;
+      const out = [];
+      const drawn = new Set();
+      const pal = paletteMap;
+      scene.faces.forEach((face, fi) => {
+        const file = face.mat !== undefined ? pal[face.mat]?.scene : undefined;
+        if (!file || face.v.length !== 4 || out.length >= 8) return;
+        const spot = sceneSpot(file);
+        if (!spot?.ready) return;
+        const o = owner(fi);
+        const P = face.v.map((k) => scene.positions[k]);
+        const { order, n, c } = screenCorners(P, o ? bounds(o.mesh).center : P[0]);
+        if (vdot(n, vsub(gcam.eye, c)) <= 0) return; // seen from behind
+        const dist = (a, b) => Math.hypot(...vsub(P[a], P[b]));
+        const aspect = dist(order[0], order[1]) / Math.max(1e-9, dist(order[0], order[3]));
+        const eps = 0.002 * Math.hypot(...vsub(P[order[0]], P[order[2]])); // a hair in front of the face
+        const corners = order.map((i) => P[i].map((x, k) => x + n[k] * eps));
+        if (!drawn.has(spot)) {
+          // the picture is square; a wide face shows its middle band, so the scene is framed for that band
+          drawn.add(spot);
+          if (!frozen) spot.yaw += dt * SHOW_SPIN;
+          spot.gl.render(spot.mesh, orbit({ yaw: spot.yaw, pitch: 0.25 }), {
+            size: SCREEN_PX, dpr: 1, palette: spot.palette, smooth: 40, studio: true, background: [0.02, 0.02, 0.03],
+            fit: { center: spot.fit.center, radius: spot.fit.radius * Math.max(1, aspect) },
+          });
+          spot.aspect = aspect;
+        }
+        const a = spot.aspect;
+        const uv = a >= 1 ? [0, 0.5 - 0.5 / a, 1, 0.5 + 0.5 / a] : [0.5 - 0.5 * a, 0, 0.5 + 0.5 * a, 1];
+        out.push({ corners, source: spot.canvas, uv });
+      });
+      if (out.length) redraw(); // it turns: the next frame comes
+      return out;
+    };
     const homography = (q, w, h) => {
       // maps (0,0) (w,0) (w,h) (0,h) onto the four points q (x, y): the 8 unknowns of a projective map, by Gaussian elimination
       const src = [[0, 0], [w, 0], [w, h], [0, h]];
@@ -1328,7 +1416,8 @@
         let used = 0;
         scene.faces.forEach((face, fi) => {
           const mat = face.mat !== undefined ? pal[face.mat] : undefined;
-          const url = mat?.url ?? (mat?.scene && !SHOW ? showUrl(mat.scene) : undefined); // a scene screen is this viewer as a player
+          // a scene screen is drawn by the GPU (sceneScreens); in the SVG view it falls back to this viewer as a player in the iframe
+          const url = mat?.url ?? (mat?.scene && !SHOW && !(mode === 'gpu' && gpu) ? showUrl(mat.scene) : undefined);
           if (!url || face.v.length !== 4 || used >= 6) return;
           const o = owner(fi);
           const P = face.v.map((k) => scene.positions[k]);
@@ -1615,8 +1704,10 @@
         const a = lightAngle;
         const cur = getComputedStyle(stage).getPropertyValue('--cursor').trim();
         const gpuMarks = marks.map((m) => (m.color ? m : { ...m, color: /^#[0-9a-f]{6}$/i.test(cur) ? cur : '#0b7285' }));
+        const screens = sceneScreens();
         renderGpu = (readback = false) =>
           gpu[readback ? 'pixels' : 'render'](scene, view, {
+            screens,
             palette: paletteMap,
             parts: sceneParts,
             instances: { mesh: PROTO, data: instances(now, flights.length > 0) },
@@ -1643,7 +1734,7 @@
             gpu.render(scene, view, {
               palette: paletteMap, parts: sceneParts, instances: { mesh: PROTO, data: instances(now, flights.length > 0) },
               size: square, dpr: 1, fit: { ...fit, center: fit.center.map((c, i) => c + cam0.r[i] * shift) },
-              unlit: !lightOn, background: [0.02, 0.02, 0.03], glow: filmic, smooth: smooth ? 40 : 0, studio, skin: skinNow(),
+              unlit: !lightOn, background: [0.02, 0.02, 0.03], glow: filmic, smooth: smooth ? 40 : 0, studio, skin: skinNow(), screens,
               light: { direction: [Math.sin(a) * 0.6, 0.8, Math.cos(a) * 0.6] },
             });
             if (cv.width !== half || cv.height !== H) ((cv.width = half), (cv.height = H));
@@ -5079,6 +5170,7 @@
       globalThis.__3draft = {
         load: (data) => applyScene(data),
         open: (data) => loadScene(data, true), // like opening a scene file: its palette (screens, scene screens) comes too
+        screens: () => ({ mode, gpu: Boolean(gpu), kind: activeKind, iframes: screenFrames.size, spots: [...sceneSpots].map(([addr, s]) => ({ addr, ready: s.ready, error: s.error })) }),
         pose: () => (posing ? { name: posing.name, anim: posing.anim, objects: posing.objs.map((o) => o.name), joints: posing.joints, skinned: skinned(), rigPx: rigPixels(posing.joints), sceneFaces: scene.faces.length } : null),
         hint: () => poseHint,
         meshes: () => allObjects().map((o) => o.mesh),
