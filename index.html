@@ -743,7 +743,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@db875dc0445f7cd6eb7ce2f78a9e4d40ea2dfd27/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@1f8a31d0a6256f428b75e56e8d2250a1b7ed8d01/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -4712,9 +4712,17 @@
       clearOnUp = null;
       pointer = { x: e.clientX, y: e.clientY };
       if (xf?.place) {
-        // placing: a click sticks / unsticks it (or takes G R S), the right button takes the last step back
+        // placing: a click on a surface sticks / unsticks it (or takes G R S), the right button takes the last step back; a press on
+        // empty space (nothing to stick to) turns the view as always
         e.preventDefault();
-        return e.button === 2 ? placeUndo() : placeClick();
+        if (e.button === 2) return placeUndo();
+        const q = toPanel(e);
+        const empty = xf.kind === 'grab' && gcam && !pick(xf.place.rest, gcam, q.x, q.y);
+        if (!empty) return placeClick();
+        last = { x: e.clientX, y: e.clientY };
+        stage.setPointerCapture(e.pointerId);
+        stage.classList.add('drag');
+        return;
       }
       if (xf) {
         // a grab / scale is under way: the left button confirms it, the right one cancels it
@@ -4767,7 +4775,7 @@
       pointer = { x: e.clientX, y: e.clientY };
       scrubWant = e.altKey && (e.ctrlKey || e.metaKey) && !paletteEl.hidden; // Alt+Ctrl with the palette open: the faces the pointer passes are painted
       if (carry) return carryTell('drag-move', e);
-      if (xf) return xfUpdate();
+      if (xf && !(xf.place && last)) return xfUpdate(); // (placing and dragging on empty space: the view turns, the model waits)
       if (gdrag) return dragGizmo(e);
       if (!last) {
         const g = nearAxis(e);
