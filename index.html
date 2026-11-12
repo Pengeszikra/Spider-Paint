@@ -743,7 +743,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@9e9e5dfc7c144cc3d4715939869325515443f879/dist/index.js';
+    import { boolean, health, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@7c972c8a058f3d6603b8668db98137c268084f7b/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -3333,6 +3333,7 @@
       barText.innerHTML = barNote ? `<span class="note">${hudText(barNote)}</span>` : '';
     };
     const vsub = (a, b) => a.map((c, i) => c - b[i]);
+    const vadd = (a, b) => a.map((c, i) => c + b[i]);
     const vdot = (a, b) => a.reduce((t, c, i) => t + c * b[i], 0);
     // where the pointer ray meets the plane through p0 that faces the camera: free drawing in the air, vertex dragging
     // where the pointer's ray meets the plane through p0 (the plane facing the eye, or the one with the normal n: a surface a placed
@@ -3695,13 +3696,25 @@
           delta = A.map((c) => c * v);
           text = `${fmt(v)} m`;
         } else {
-          // (a placed model slides on the surface it was put on)
-          const q = planePoint(x.p0, x.place?.n);
-          delta = q ? vsub(q, x.p0) : [0, 0, 0];
-          text = `${fmt(Math.hypot(...delta))} m`;
+          // a placed model sticks to the surfaces: its foot goes to the surface under the pointer and its up turns to the normal there
+          // (round a ball it keeps turning, as it slides); off every surface it slides on the plane it was last on
+          const on = x.place && gcam && panelPointer ? pick(x.place.rest, gcam, panelPointer.x, panelPointer.y) : null;
+          if (on && typed === null) {
+            const turn = turnBetween(x.place.n, on.normal);
+            x.delta = vsub(on.point, x.c);
+            x.turnN = on.normal;
+            x.changed = true;
+            moves = x.ids.map((i, k) => [i, vadd(on.point, turn(vsub(x.from[k], x.c)))]);
+            text = `on the surface`;
+          } else {
+            const q = planePoint(x.p0, x.place?.n);
+            delta = q ? vsub(q, x.p0) : [0, 0, 0];
+            text = `${fmt(Math.hypot(...delta))} m`;
+            x.turnN = null;
+          }
         }
-        x.delta = delta;
-        moves = x.ids.map((i, k) => [i, x.from[k].map((c, j) => c + delta[j])]);
+        if (delta) x.delta = delta;
+        moves ??= x.ids.map((i, k) => [i, x.from[k].map((c, j) => c + delta[j])]);
       } else if (x.kind === 'rotate') {
         // the angle follows the pointer round the pivot on the screen (clockwise on screen is the right-hand turn about an axis pointing
         // away from the eye); a typed number is degrees
@@ -4337,13 +4350,35 @@
     const startPlace = (o, foot, n, name) => {
       if (!o) return;
       const ids = o.mesh.positions.map((_, i) => i);
-      startXf('grab', { obj: o, ids, c: foot, place: { foot, n, name } });
+      // everything else in the scene: the surfaces it can slide on (not itself)
+      const rest = { positions: scene.positions, faces: scene.faces.filter((_, i) => owner(i)?.id !== o.id) };
+      startXf('grab', { obj: o, ids, c: foot, place: { foot, n, name, rest } });
+    };
+    // the shortest turn that takes the unit vector a to b (about a x b); half a turn when they point opposite ways
+    const turnBetween = (a, b) => {
+      const k = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+      const sn = Math.hypot(...k);
+      const cs = vdot(a, b);
+      if (sn < 1e-9) {
+        if (cs > 0) return (v) => v;
+        const p = Math.abs(a[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+        const q = vsub(p, a.map((c) => c * vdot(p, a)));
+        const ql = Math.hypot(...q);
+        const u = q.map((c) => c / ql);
+        return (v) => vsub(u.map((c) => 2 * c * vdot(u, v)), v); // half a turn about u
+      }
+      const u = k.map((c) => c / sn);
+      return (v) => {
+        const cr = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+        const d = vdot(u, v) * (1 - cs);
+        return v.map((c, i) => c * cs + cr[i] * sn + u[i] * d);
+      };
     };
     const placeStep = (k) => {
       const x = xf;
       if (!x?.place) return;
       const foot = x.kind === 'grab' && x.delta ? x.place.foot.map((c, i) => c + x.delta[i]) : x.place.foot;
-      const place = { ...x.place, foot };
+      const place = { ...x.place, foot, n: (x.kind === 'grab' && x.turnN) || x.place.n }; // (it may have slid onto a slope)
       const kind = k === 'g' ? 'grab' : k === 'r' ? 'rotate' : 'scale';
       xf = null;
       startXf(kind, { obj: x.obj, ids: x.ids, c: foot, orig: x.orig, place, axisVec: kind === 'rotate' ? place.n : null });
