@@ -725,6 +725,11 @@
         <option value="station-screen">Station screen (a scene on a face)</option>
         <optgroup id="savedGroup" label="saved here" hidden></optgroup></select>
           <button id="mergeSw" type="button" class="sw on" title="Loading a scene (the list, file ↑): on adds it to what is there, off clears the scene first and loads it alone"><i></i>merge</button>
+          <select id="vehicle" aria-label="Vehicle: how the camera moves" title="Vehicle: how the camera moves in this scene. starship: T / Tab only turn the ship, it keeps its speed, brakes to the target's surface, 0 orbit / gravity. car: (coming; does nothing yet). A scene file may set it (vehicle)">
+          <option value="">– vehicle</option>
+          <option value="starship">starship</option>
+          <option value="car">car (soon)</option>
+          </select>
           <button id="clear" type="button" class="slate ic" title="Remove every object (U brings them back)" aria-label="Clear"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M8 7V5h8v2M7 7l1 12h8l1-12"/></svg></button>
         </span>
         <span class="row">
@@ -761,7 +766,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@3281d9eb9c5ca8738fcbb1970458c1eda2ffe990/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@8c48531733f860da5da4e222b032f082a7361f92/dist/index.js';
     const orbit_ = orbitView; // (the camera orbit helper; `orbit` is the space orbit state)
     const LEG = { base: 0.15 }; // the base of a placed prism
 
@@ -931,7 +936,6 @@
       if (skinned()) objs = objs.filter((o) => !posing.ids.has(o.id)); // the posed figure is drawn as a GPU skin, not from the scene
       let n = 0;
       owners = objs.map((o) => ({ obj: o, start: n, end: (n += o.mesh.faces.length) }));
-      spaceScene = Boolean(cloud) || objs.filter((o) => o.inst?.glow).length >= 50;
       sceneParts = objs.map((o) => o.mesh);
       scene = merge(nothing, ...sceneParts);
       placedVer++;
@@ -1055,8 +1059,28 @@
     // not slow down at the target either, it flies on past it; the lens stays the same (SPACE_FOV). While locked it keeps turning
     // towards the target as long as the target is ahead (within STEER_AHEAD); the first turn after T always goes all the way round.
     // A drag (the hand) stops the steering; T again starts it.
-    let spaceScene = false;
-    const space = () => spaceScene && !editing && !bench;
+    // The vehicle (the select under the scene list, or a scene file's `vehicle`): 'starship', 'car' (not yet doing anything), or
+    // null (the ordinary camera). A scene without the field gets a guess: a point cloud or 50+ glowing instances is a star map.
+    let vehicle = null;
+    const vehicleEl = document.getElementById('vehicle');
+    const setVehicle = (v) => {
+      vehicle = v === 'starship' || v === 'car' ? v : null;
+      if (vehicleEl) vehicleEl.value = vehicle ?? '';
+      if (vehicle !== 'starship') {
+        orbit = null;
+        gravity = null;
+        steer = null;
+        cruise = { f: 0, r: 0, u: 0 };
+        throttle = 1;
+        braking = false;
+      }
+      redraw();
+    };
+    vehicleEl?.addEventListener('change', () => {
+      setVehicle(vehicleEl.value);
+      vehicleEl.blur(); // so the keys work right away
+    });
+    const space = () => vehicle === 'starship' && !editing && !bench;
     const SPACE_FOV = (60 * Math.PI) / 180;
     const STEER_RATE = 3; // 1/s: how quickly the heading follows the target
     const STEER_AHEAD = (80 * Math.PI) / 180;
@@ -1586,7 +1610,7 @@
     // worker that dies or hangs is restarted (three times), and without a worker the picking stays on the main thread as before.
     const PICK_ASYNC_FACES = 4000;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@3281d9eb9c5ca8738fcbb1970458c1eda2ffe990/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@8c48531733f860da5da4e222b032f082a7361f92/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -2396,7 +2420,7 @@
           // the flight readout (top right): the speed is always there, the distance to the target only with a target.
           // In a star map one unit is one light year, so the speed is given as a multiple of the speed of light
           // (1 ly/s = 31 557 600 c) and the distance in light years.
-          const star = !editing && allObjects().length >= 100 && allObjects().some((o) => o.name === 'Sun');
+          const star = space(); // the starship flies in light years
           let v;
           let gapTo = null;
           if (lockedObj) {
@@ -3352,6 +3376,7 @@
     // Clear: every object goes; one U brings them all back.
     const clearScene = () => {
       setCloud(null);
+      setVehicle(null);
       redraw();
       const all = allObjects().slice();
       if (!all.length) return;
@@ -3499,7 +3524,7 @@
         if (data.view && (replace || !mergeOn || !had)) applyView(data.view);
       });
     const addExample = async (name) => ((startScene = startScene === name ? name : null), withLoader(name.replace(/^saved:/, ''), async () => loadScene(await sceneOf(name))));
-    const addScene = async ({ objects: raw, palette: extra, prototypes, start, cloud: points, cloudProtos }) => {
+    const addScene = async ({ objects: raw, palette: extra, prototypes, start, cloud: points, cloudProtos, vehicle: ride }) => {
       const objects = raw.map((o) => (o.proto ? { name: o.name, inst: { ...o, proto: prototypes[o.proto] }, mesh: instantiate(prototypes[o.proto].lods.at(-1), placement(o)), ...(o.pickable === false ? { pickable: false } : {}) } : o));
       // a scene may bring its own materials; the ones the palette lacks are added (and saved with a db)
       for (const m of extra ?? []) {
@@ -3526,6 +3551,9 @@
           if (o.pickable === false) (live(made) ?? made).pickable = false;
         }),
       );
+      // the vehicle: what the scene says; without it a guess (a star map is a starship) for a scene loaded on its own
+      if (ride !== undefined) setVehicle(ride);
+      else if (!have.length) setVehicle(points || raw.filter((o) => o.glow).length >= 50 ? 'starship' : null);
       // a scene may say where the eye starts (the stars: next to the Sun); otherwise the whole thing is framed
       if (start && !have.length) lookFrom(start.eye, start.yaw, start.pitch);
       else reset();
@@ -6821,6 +6849,7 @@
         name,
         palette: materials.filter((m) => used.has(m.name)).map((m) => ({ ...m })),
         view: viewOf(),
+        ...(vehicle ? { vehicle } : {}),
         objects: allObjects().map((o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}), ...textPart(o), ...(o.pickable === false ? { pickable: false } : {}) })),
       };
     };
@@ -6916,7 +6945,7 @@
       globalThis.__3draft = {
         load: (data) => applyScene(data),
         pickFault: () => (picker.worker?.postMessage({ type: 'pick', ver: picker.ver, cam: null, x: 0, y: 0, cull: true, key: 'fault' }), Boolean(picker.worker)), // (a test: a broken question)
-        flight: () => ({ orbit: orbit?.phase ?? null, gravity: gravity && { name: gravity.name }, cruise: { ...cruise }, space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
+        flight: () => ({ vehicle, orbit: orbit?.phase ?? null, gravity: gravity && { name: gravity.name }, cruise: { ...cruise }, space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
         aim: () => (aim ? { name: aim.obj.name, px: +aim.px.toFixed(1), depth: aim.depth } : null), under: () => hitObj()?.name ?? null, locked: () => lockedObject()?.name ?? null,
         picker: () => ({ ready: picker.ready, failed: picker.failed, busy: Boolean(picker.busy), ver: picker.ver, picks: picker.picks, ms: +picker.ms.toFixed(2), sceneMs: +picker.sceneMs.toFixed(1), restarts: picker.restarts, errors: [...picker.errors] }),
         sky: () => ({ live: liveSky.set.size, points: liveSky.n, cached: galaxyCache.size, cachedPoints, traced: traced.size, cloud: cloud?.n ?? 0, ms: +drawMs.toFixed(1), rebuilds, faces: scene.faces.length }),
