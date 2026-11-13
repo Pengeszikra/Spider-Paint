@@ -143,7 +143,7 @@ In edit mode the pointer also finds the far side of a face, so from inside a hul
 Pressing **Q** with the eye inside the object (inside its bounding box, e.g. flying in a hull) does not move the camera: you stay where you are, and leaving edit mode does not move it either.
 
 ## The black hole
-Sagittarius A* (in the Milky Way and the stars scenes) is drawn by a small ray tracer: the light bends round it, so the accretion disc shows above and below the black shadow, with a thin photon ring and the side turning towards you brighter. The disc is wide and thin, of clumpy glowing gas; stars between you and the hole still show in front of it, the ones behind it are hidden by its shadow. Only the area round it is computed, at half resolution.
+Sagittarius A* (in the Milky Way and the stars scenes) is drawn by a small ray tracer: the light bends round it, so the accretion disc shows above and below the black shadow, with a thin photon ring. The gas is coloured as very hot gas really looks: bluish-white; the side coming towards you is brighter and bluer, the side going away dimmer and redder (Doppler). The disc is wide and thin, of clumpy glowing gas; stars between you and the hole still show in front of it, the ones behind it are hidden by its shadow. Only the area round it is computed, at half resolution.
 
 ## Zoom
 The **mouse wheel** (or a trackpad pinch) zooms in and out: the lens narrows or widens, the eye stays where it is. **=** (the **ó** key on a Hungarian keyboard) puts the zoom back. The **sideways wheel** (a trackpad swipe left or right, or a tilting wheel) turns the view round the point under the cursor, like A / D round a target but without one; the point stays under the cursor. Over empty space it turns round the middle of the view.
