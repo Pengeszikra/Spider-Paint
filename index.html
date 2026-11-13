@@ -437,11 +437,12 @@
     #pad button.wide2 { grid-column: span 2; } #pad button.wide3 { grid-column: span 3; } #pad button.wide4 { grid-column: span 4; }
     #pad button.long { font-size: calc(var(--k) * 0.23); }
     #pad button.gap { visibility: hidden; pointer-events: none; }
-    #flight { position: fixed; z-index: 3; top: 96px; right: 28px; text-align: right; font: 500 12px/1.45 var(--font-mono); color: var(--muted); text-shadow: 0 0 4px #000, 0 0 2px #000; pointer-events: none; font-variant-numeric: tabular-nums; }
+    #flight { position: fixed; z-index: 3; top: 46px; right: 28px; text-align: right; font: 500 12px/1.45 var(--font-mono); color: var(--muted); text-shadow: 0 0 4px #000, 0 0 2px #000; pointer-events: none; font-variant-numeric: tabular-nums; }
     #flight b { color: var(--fg, inherit); font-weight: 600; }
     #flight .lock { color: #4dabf7; }
     #flight div { min-height: 1.45em; }
     body.zen #flight { display: none; }
+    @media (pointer: coarse), (max-width: 640px) { #flight { top: 96px; } } /* a phone has two buttons up there; a desktop has only the build stamp */
     body.pwa #flight { top: calc(max(8px, env(safe-area-inset-top, 0px)) + clamp(34px, min(10.5vw, 9.5dvh), 48px) * 0.8 + 8px); right: max(10px, env(safe-area-inset-right, 0px)); font-size: 12px; }
     #vrBtn { display: none; }
     body.pwa #vrBtn { display: block; position: fixed; z-index: 6; top: max(8px, env(safe-area-inset-top, 0px)); right: calc(max(8px, env(safe-area-inset-right, 0px)) + clamp(34px, min(10.5vw, 9.5dvh), 48px) * 0.9 + 6px); width: calc(clamp(34px, min(10.5vw, 9.5dvh), 48px) * 0.9); height: calc(clamp(34px, min(10.5vw, 9.5dvh), 48px) * 0.8); padding: 0; border-radius: 12px; font-size: 12px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; opacity: 0.92; }
@@ -754,7 +755,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@6cf4509da149324de849061ae1c3b7408970232b/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@4e675f628ee3f4224d1f65c3e46f3874fa7ec380/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1373,7 +1374,7 @@
     // worker that dies or hangs is restarted (three times), and without a worker the picking stays on the main thread as before.
     const PICK_ASYNC_FACES = 4000;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@6cf4509da149324de849061ae1c3b7408970232b/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@4e675f628ee3f4224d1f65c3e46f3874fa7ec380/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -6029,6 +6030,7 @@
       if (e.ctrlKey || e.metaKey || (shiftOn && !editing)) return; // (Ctrl + double click is counted in pointerdown)
       const t = !editing && !xf ? pointedObject() : null;
       if (t?.text !== undefined) return askText({ fix: t, text: t.text }); // a double click on a text model: change its words
+      if (space()) return travelTo(); // in a star map the whole-scene framing would throw the ship light years away: target instead
       reset();
     });
     stage.addEventListener('contextmenu', (e) => {
