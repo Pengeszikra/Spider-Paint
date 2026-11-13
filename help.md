@@ -43,6 +43,7 @@ A minimal 3D scene builder. Fly through a scene, build with solid prisms, and ed
 | T | Target the object under the cross; the camera keeps looking at it |
 | Tab / Shift+Tab | Next / previous target: first the objects in view, starting with the one nearest the middle of the screen, then the rest (nearest first) |
 | Esc | Let go of the target |
+| 0 / ö | In a star map: **orbit**. With a target the ship brakes hard to a stop, the target's ticks turn green, ORBIT blinks for a second, then W/S and A/D R/F move round the target. 0 again: a swing speed is kept and the ship goes into **gravity mode** round the target (it keeps circling; slowing the speed along the orbit, e.g. the opposite A/D, slows it down, and at zero it flies on straight). Without a target: no braking, the nearest object in view becomes the centre and your speed swings you round it. Space ends it |
 | ; (é) | Freeze |
 | / | Show only the object under the cross (again: everything) |
 | O | The object under the cross (or the target, or the selection) is no longer aimed at: the pointer sees through it, so you can work inside it, like inside water. O again brings it back, Shift+O brings every object back |

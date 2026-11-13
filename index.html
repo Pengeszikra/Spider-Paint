@@ -440,6 +440,11 @@
     #flight { position: fixed; z-index: 3; top: 46px; right: 28px; text-align: right; font: 500 12px/1.45 var(--font-mono); color: var(--muted); text-shadow: 0 0 4px #000, 0 0 2px #000; pointer-events: none; font-variant-numeric: tabular-nums; }
     #flight b { color: var(--fg, inherit); font-weight: 600; }
     #flight .lock { color: #4dabf7; }
+    #flight .orbit { color: #39ff14; font-weight: 600; letter-spacing: 0.12em; }
+    #flight .orbit.dim { opacity: 0.45; }
+    #flight .orbit.blink { animation: orbitBlink 0.25s steps(2) infinite; }
+    #flight .orbit.grav { color: #9be7ff; letter-spacing: 0.04em; font-weight: 500; }
+    @keyframes orbitBlink { 50% { opacity: 0.15; } }
     #flight div { min-height: 1.45em; }
     body.zen #flight { display: none; }
     @media (pointer: coarse), (max-width: 640px) { #flight { top: 96px; } } /* a phone has two buttons up there; a desktop has only the build stamp */
@@ -755,7 +760,8 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@c08a19596de4210371b152c876b7ffc1a935f27c/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@1e7f0fec376ef892aca79bb7215091c9f2f3a79c/dist/index.js';
+    const orbit_ = orbitView; // (the camera orbit helper; `orbit` is the space orbit state)
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -986,7 +992,7 @@
     // Travel: the camera glides to a target (what to look at, how close, from which side).
     // The view is an orbit around fit.center, so travelling means easing center, radius, yaw and pitch.
     // The eye-to-center distance a normal (orbit) framing of this radius has.
-    const orbitDist = (radius) => Math.hypot(...makeCamera(orbit({}), nothing, 100, { center: [0, 0, 0], radius }).eye);
+    const orbitDist = (radius) => Math.hypot(...makeCamera(orbit_({}), nothing, 100, { center: [0, 0, 0], radius }).eye);
     let travel = null;
     const SHOW_SPIN = 0.25; // radians per second of a scene screen's turntable
     let focused = false; // true while the camera sits on one object; scene updates then leave it alone
@@ -1030,7 +1036,7 @@
       pitch = mix(from.pitch, to.pitch);
       if (travel.pin) {
         // keep the eye on the spot: the orbit centre is placed so that this yaw/pitch/dist puts the eye there
-        const off = makeCamera(orbit({ yaw, pitch }), nothing, 100, { ...fit, center: [0, 0, 0] }).eye;
+        const off = makeCamera(orbit_({ yaw, pitch }), nothing, 100, { ...fit, center: [0, 0, 0] }).eye;
         fit.center = travel.pin.map((e, i) => e - off[i]);
       }
       if (t >= 1) {
@@ -1064,6 +1070,137 @@
     const BRAKE_HARD = 0.6; // s
     let throttle = 1;
     let braking = false;
+    // Orbit in space (0 / ö). With a target: the ship brakes hard to a stop (`orbit.phase` 'brake'), ORBIT blinks for ORBIT_ARM_MS
+    // ('arm'), then the old target orbit works ('on': stepTarget, W/S distance, A/D R/F swing round it). 0 again leaves it: a swing
+    // speed is kept as `cruise` (a speed of the ship in its own frame, ly/s, beside the levels) and the ship goes into gravity mode
+    // round the target's middle. Without a target there is no braking: the nearest object in view becomes the gravity origin and
+    // the ship's own speed swings it round there. Gravity mode (`gravity`: origin, orbit normal n): the heading (and with it the
+    // speed, which is in the ship's frame) turns round n at omega = (velocity along the orbit) / (distance to the origin), so the
+    // ship keeps circling at the same speed; only the part of the velocity along the orbit (perpendicular to the radius) feeds it:
+    // slowing that part down (S, the opposite A/D, or turning onto a target: the turn may feed it too) slows the spin, and at zero
+    // the ship leaves gravity mode and flies on straight. Space ends both and stops.
+    const ORBIT_ARM_MS = 1000;
+    const ORBIT_BRAKE = 6; // 1/s: the hard braking into the orbit
+    const ORBIT_GREEN = '#39ff14';
+    let orbit = null; // { phase: 'brake' | 'arm' | 'on', t0, armAt }
+    let gravity = null; // { origin, n, name }
+    let cruise = { f: 0, r: 0, u: 0 }; // ly/s in the ship's frame (forward, right, up)
+    const orbitOn = () => orbit?.phase === 'on';
+    const shipBasis = () => {
+      const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+      return { forward: [sy * cp, -sp, -cy * cp], right: [cy, 0, sy], up: [0, 1, 0] };
+    };
+    // the ship's velocity in the world, ly/s: the levels (with the braking program's throttle) and the cruise
+    const shipVelocity = () => {
+      const { forward, right, up } = shipBasis();
+      const a = pace(level.f) * UNIT * throttle + cruise.f, b = pace(level.r) * UNIT * throttle + cruise.r, c = pace(level.u) * UNIT * throttle + cruise.u;
+      return forward.map((x, i) => x * a + right[i] * b + up[i] * c);
+    };
+    // turns the heading by `angle` round the unit axis n, the eye staying where it is
+    const turnHeading = (n, angle) => {
+      const eye = eyeNow();
+      const { forward: f } = shipBasis();
+      const c = Math.cos(angle), sn = Math.sin(angle), d = n[0] * f[0] + n[1] * f[1] + n[2] * f[2];
+      const x = [n[1] * f[2] - n[2] * f[1], n[2] * f[0] - n[0] * f[2], n[0] * f[1] - n[1] * f[0]];
+      const g = f.map((v, i) => v * c + x[i] * sn + n[i] * d * (1 - c)); // Rodrigues
+      yaw = Math.atan2(g[0], -g[2]);
+      pitch = Math.max(-LIMIT, Math.min(LIMIT, -Math.asin(Math.max(-1, Math.min(1, g[1])))));
+      const f2 = makeCamera(orbit_({ yaw, pitch }), nothing, 100, { center: [0, 0, 0], radius: 1, dist: FLY_DIST }).f;
+      fit.center = eye.map((v, i) => v + f2[i] * FLY_DIST);
+    };
+    const cross3 = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+    const unit3 = (a) => { const l = Math.hypot(...a) || 1; return a.map((v) => v / l); };
+    const startGravity = (origin, name) => {
+      const rv = eyeNow().map((v, i) => v - origin[i]);
+      const V = shipVelocity();
+      const n = cross3(rv, V);
+      if (Math.hypot(...n) < 1e-12) return false; // no speed across the radius: nothing to swing
+      gravity = { origin: [...origin], n: unit3(n), name };
+      return true;
+    };
+    const stepGravity = (dt) => {
+      if (!gravity) return;
+      const rv = eyeNow().map((v, i) => v - gravity.origin[i]);
+      const r = Math.hypot(...rv);
+      const t = unit3(cross3(gravity.n, rv)); // along the orbit
+      const vt = shipVelocity().reduce((a, v, i) => a + v * t[i], 0);
+      if (r < 1e-9 || vt <= 1e-4) return void ((gravity = null), redraw()); // the spin is used up: on straight
+      turnHeading(gravity.n, (vt / r) * dt);
+      redraw();
+    };
+    // 0 / ö
+    const toggleOrbit = () => {
+      if (!space() || frozen) return;
+      const o = lockedObject();
+      if (orbit) {
+        // leaving: a swing round the target is kept as cruise, and gravity mode takes it on
+        const was = orbit;
+        orbit = null;
+        if (was.phase === 'on' && o) {
+          const dist = fit.dist ?? orbitDist(fit.radius);
+          const swingR = pace(level.r) * SWING * dist, swingU = pace(level.u) * SWING * dist;
+          level.f = level.r = level.u = 0;
+          enterFly();
+          if (swingR || swingU) {
+            cruise = { f: 0, r: swingR, u: swingU };
+            startGravity(ballOf(o).center, o.name ?? o.id);
+          }
+        }
+        return redraw();
+      }
+      if (o) {
+        orbit = { phase: 'brake', t0: performance.now() };
+        braking = false;
+        steer = steer ?? { all: true };
+        return redraw();
+      }
+      if (gravity) return void ((gravity = null), redraw()); // no target: 0 lets the gravity go
+      // no target: the nearest object in view is the origin; the ship's own speed swings it round there
+      const eye = eyeNow();
+      const near = tabOrder().filter((x) => {
+        const q = gcam && project(gcam, ballOf(x).center);
+        return q && q.depth > 0 && Math.abs(q.x - gcam.size / 2) <= gcam.size / 2 && Math.abs(q.y - gcam.size / 2) <= gcam.size / 2;
+      });
+      near.sort((a, b) => Math.hypot(...vsub(ballOf(a).center, eye)) - Math.hypot(...vsub(ballOf(b).center, eye)));
+      if (!near.length || !startGravity(ballOf(near[0]).center, near[0].name ?? near[0].id)) sceneNote('orbit: nothing in view to swing round, or no speed');
+      redraw();
+    };
+    // the hard braking into the orbit, then the blinking second, then the orbit itself
+    const stepOrbit = (dt, now) => {
+      if (!orbit) return;
+      const o = lockedObject();
+      if (!o) return void (orbit = null);
+      if (orbit.phase === 'brake') {
+        const k = Math.exp(-dt * ORBIT_BRAKE);
+        throttle *= k;
+        cruise = { f: cruise.f * k, r: cruise.r * k, u: cruise.u * k };
+        gravity = null;
+        if (Math.hypot(...shipVelocity()) < 0.005) {
+          level.f = level.r = level.u = 0;
+          throttle = 1;
+          cruise = { f: 0, r: 0, u: 0 };
+          orbit = { ...orbit, phase: 'arm', armAt: now };
+        }
+        redraw();
+      } else if (orbit.phase === 'arm') {
+        if (now - orbit.armAt >= ORBIT_ARM_MS) {
+          // the orbit proper: the target's sphere through the eye, the eye where it is
+          const eye = eyeNow();
+          const { center, radius } = ballOf(o);
+          const d = center.map((c, i) => c - eye[i]);
+          const len = Math.hypot(...d) || 1;
+          yaw = Math.atan2(d[0], -d[2]);
+          pitch = Math.max(-LIMIT, Math.min(LIMIT, -Math.asin(d[1] / len)));
+          fit.center = [...center];
+          fit.radius = Math.max(radius * 1.15, 0.12);
+          fit.dist = len;
+          fly = false;
+          steer = null;
+          orbit = { ...orbit, phase: 'on' };
+        }
+        redraw();
+      }
+    };
     // lowers the throttle while the ship closes in on the target (v: the velocity of the levels, in UNITs)
     const brake = (v, dt) => {
       const o = lockedObject();
@@ -1103,7 +1240,7 @@
       const eyeBefore = eye;
       yaw += (turnBy(yaw, wantYaw) - yaw) * k;
       pitch += (wantPitch - pitch) * k;
-      const f = makeCamera(orbit({ yaw, pitch }), nothing, 100, { center: [0, 0, 0], radius: 1, dist: FLY_DIST }).f;
+      const f = makeCamera(orbit_({ yaw, pitch }), nothing, 100, { center: [0, 0, 0], radius: 1, dist: FLY_DIST }).f;
       fit.center = eyeBefore.map((c, i) => c + f[i] * FLY_DIST);
       if (off < 0.01) steer.all = false;
       redraw();
@@ -1202,7 +1339,7 @@
       redraw();
     };
     const stop = () => {
-      if (!frozen) ((level.f = level.r = level.u = 0), (throttle = 1));
+      if (!frozen) ((level.f = level.r = level.u = 0), (throttle = 1), (cruise = { f: 0, r: 0, u: 0 }), (gravity = null), (orbit = null));
     };
     let backoff = 1; // how far the eye is backed off for a wide stage right now (eases to its goal, so nothing jumps)
     let fovNow = (35 * Math.PI) / 180; // the lens: wide while flying inside the scene, eased both ways
@@ -1213,7 +1350,7 @@
       if (fly && !travel) return;
       travel = null;
       // where the eye is now: the one drawn (the view backs off on a wide stage; the plain fit would put the eye closer and the picture would jump)
-      const eye = gcam?.eye ? [...gcam.eye] : makeCamera(orbit({ yaw, pitch }), nothing, 100, fit).eye;
+      const eye = gcam?.eye ? [...gcam.eye] : makeCamera(orbit_({ yaw, pitch }), nothing, 100, fit).eye;
       const away = eye.map((e, i) => e - fit.center[i]);
       const len = Math.hypot(...away) || 1;
       fit.center = eye.map((e, i) => e - (away[i] / len) * FLY_DIST); // the eye stays, the pivot comes to it
@@ -1226,7 +1363,7 @@
       if (frozen) return;
       throttle = 1; // the pilot takes over from the braking program
       braking = false;
-      if (!locked || space()) enterFly();
+      if (!locked || (space() && !orbitOn())) enterFly();
       level[axis] += d;
       redraw();
     };
@@ -1234,9 +1371,11 @@
       const dt = Math.min(0.05, (now - lastFrame) / 1000);
       lastFrame = now;
       if (frozen) return;
-      if (locked && !space()) return stepTarget(dt);
+      if (locked && (!space() || orbitOn())) return stepTarget(dt);
       if (locked) steerTo(dt);
+      stepOrbit(dt, now);
       if (!fly) return;
+      stepGravity(dt);
       const cy = Math.cos(yaw);
       const sy = Math.sin(yaw);
       const cp = Math.cos(pitch);
@@ -1245,8 +1384,10 @@
       const right = [cy, 0, sy];
       const v = forward.map((c, i) => c * pace(level.f) + right[i] * pace(level.r) + (i === 1 ? pace(level.u) : 0));
       if (locked && space() && braking) brake(v, dt);
-      fit.center = fit.center.map((c, i) => c + v[i] * UNIT * throttle * dt);
-      if (level.f || level.r || level.u) redraw();
+      const { forward: F, right: Rt } = shipBasis();
+      const cw = F.map((c, i) => c * cruise.f + Rt[i] * cruise.r + (i === 1 ? cruise.u : 0)); // the cruise, ly/s
+      fit.center = fit.center.map((c, i) => c + v[i] * UNIT * throttle * dt + cw[i] * dt);
+      if (level.f || level.r || level.u || cruise.f || cruise.r || cruise.u) redraw();
     };
 
     // Target mode (T): the camera locks onto one object and moves on an imaginary sphere around it, always looking at
@@ -1265,7 +1406,7 @@
       if (!b) ballCache.set(o.mesh, (b = bounds(o.mesh)));
       return b;
     };
-    const eyeNow = () => makeCamera(orbit({ yaw, pitch }), nothing, 100, fit).eye;
+    const eyeNow = () => makeCamera(orbit_({ yaw, pitch }), nothing, 100, fit).eye;
     const INSIDE_FOV = (80 * Math.PI) / 180;
     let inMemo = { scene: null, c: [0, 0, 0], r: 0 };
     const eyeInScene = () => {
@@ -1297,6 +1438,7 @@
       if (!locked) return false;
       locked = null;
       steer = null;
+      if (orbit) ((orbit = null), enterFly());
       redraw();
       return true;
     };
@@ -1330,6 +1472,7 @@
     const lookAt = (o, near = Infinity) => {
       if (space() && near === Infinity) {
         // a starship: it only turns onto the target, its place and speed stay
+        orbit = null;
         enterFly();
         travel = null;
         steer = { all: true };
@@ -1432,7 +1575,7 @@
     // worker that dies or hangs is restarted (three times), and without a worker the picking stays on the main thread as before.
     const PICK_ASYNC_FACES = 4000;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@c08a19596de4210371b152c876b7ffc1a935f27c/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@1e7f0fec376ef892aca79bb7215091c9f2f3a79c/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -1733,7 +1876,7 @@
           // the picture is square; a wide face shows its middle band, so the scene is framed for that band
           drawn.add(spot);
           if (!frozen) spot.yaw += dt * SHOW_SPIN;
-          spot.gl.render(spot.mesh, orbit({ yaw: spot.yaw, pitch: 0.25 }), {
+          spot.gl.render(spot.mesh, orbit_({ yaw: spot.yaw, pitch: 0.25 }), {
             size: SCREEN_PX, dpr: 1, palette: spot.palette, smooth: 40, studio: true, background: [0.02, 0.02, 0.03],
             fit: { center: spot.fit.center, radius: spot.fit.radius * Math.max(1, aspect) },
           });
@@ -1858,7 +2001,7 @@
       const cover = touchy && !inApp ? 1.12 : Math.max(r.width, r.height) / Math.max(1, Math.min(r.width, r.height));
       const size = Math.max(160, Math.min(1800, Math.floor(Math.min(r.width, r.height) * cover)));
       if (!pointer && touchy) pointer = { x: r.left + r.width / 2, y: r.top + r.height / 2 }; // no mouse: aim at the middle
-      const view = orbit({ yaw, pitch }); // the camera orbits, the scene stays in object space
+      const view = orbit_({ yaw, pitch }); // the camera orbits, the scene stays in object space
       const base = Math.max(160, Math.min(900, Math.floor(Math.min(r.width, r.height) * (touchy && !inApp ? 1.12 : 1))));
       const eye0 = makeCamera(view, nothing, 100, fit).eye;
       const dist = Math.hypot(...eye0.map((e, i) => e - fit.center[i]));
@@ -1944,23 +2087,28 @@
       };
       const marks = hit ? [{ name: 'cursor', lines: crosshair(scene, hit, crossRadius()) }] : [];
       // four short 45° ticks in the corners round a middle (R px on screen), drawn with the marks
-      const ticksAt = (point, px) => {
+      const ticksAt = (point, px, turn = 0) => {
         const depth = Math.max(vdot(vsub(point, gcam.eye), gcam.f), 1e-9);
         const w = (depth / gcam.k / zoomNow) * Math.SQRT1_2; // world size of one pixel along the diagonal
         const len = Math.max(4, Math.min(12, px * 0.7)); // a tick is short, also round a big target
         return [[1, 1], [-1, 1], [-1, -1], [1, -1]].map(([a, b]) => {
-          const p = (t) => point.map((c, i) => c + (gcam.r[i] * a + gcam.u[i] * b) * w * t);
-          return [p(px), p(px + len)];
+          // the tick along the diagonal, turned by `turn` (0..1 = 0..90°) round its own middle
+          const m = px + len / 2, ct = Math.cos((turn * Math.PI) / 2), st = Math.sin((turn * Math.PI) / 2);
+          const p = (t) => point.map((c, i) => c + (gcam.r[i] * a + gcam.u[i] * b) * w * m + ((gcam.r[i] * a + gcam.u[i] * b) * ct + (-gcam.r[i] * b + gcam.u[i] * a) * st) * w * t);
+          return [p(-len / 2), p(len / 2)];
         });
       };
-      if (aim && gcam) marks.push({ name: 'cursor', lines: ticksAt(aim.point, aim.px) });
-      if (lockedObj && gcam && space() && aim?.obj !== lockedObj) {
+      const targetTicks = lockedObj && gcam && space();
+      if (aim && gcam && !(targetTicks && aim.obj === lockedObj)) marks.push({ name: 'cursor', lines: ticksAt(aim.point, aim.px) });
+      if (targetTicks) {
         // in space the target (T, Tab) gets the same ticks, round its ball as seen on screen (instead of the box bracket)
         const b = ballOf(lockedObj);
         const depth = vdot(vsub(b.center, gcam.eye), gcam.f);
         if (depth > b.radius) {
           const px = (b.radius * gcam.k) / depth;
-          marks.push({ name: 'cursor', lines: ticksAt(b.center, isGalaxy(lockedObj.inst) ? Math.max(PICK_MIN, px) : Math.max(PICK_MIN, px < PICK_SOLID ? Math.min(PICK_MAX, px * 2) : px * 1.1)) });
+          const turn90 = orbit ? Math.min(1, (now - orbit.t0) / 600) : 0; // turns as the orbit begins
+          if (orbit && turn90 < 1) redraw();
+          marks.push({ name: orbit ? 'orbit' : 'cursor', ...(orbit ? { color: ORBIT_GREEN, width: 2 } : {}), lines: ticksAt(b.center, isGalaxy(lockedObj.inst) ? Math.max(PICK_MIN, px) : Math.max(PICK_MIN, px < PICK_SOLID ? Math.min(PICK_MAX, px * 2) : px * 1.1), turn90) });
         }
       }
       for (const [o, color] of [[boolFrom, '#e8590c'], [boolPair?.b, '#2f9e44'], ...pickedObjs().filter((o) => o !== boolFrom && o !== boolPair?.b).map((o) => [o, '#22b8cf'])]) {
@@ -2223,13 +2371,14 @@
             const b = ballOf(lockedObj);
             gapTo = Math.max(0, Math.hypot(...b.center.map((c, i) => c - eye[i])) - b.radius);
           }
-          if (lockedObj && !space()) {
+          if (lockedObj && (!space() || orbitOn())) {
             const dist = fit.dist ?? orbitDist(fit.radius);
             v = Math.hypot(pace(level.f) * ZOOM * dist, dist * SWING * Math.hypot(pace(level.r), pace(level.u)));
-          } else v = Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * (space() ? throttle : 1); // (the braking program's share)
+          } else v = space() ? Math.hypot(...shipVelocity()) : Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT; // (with the braking program's share and the cruise)
           const nice = (x) => (x >= 1e9 ? `${(x / 1e9).toFixed(1)}G` : x >= 1e6 ? `${(x / 1e6).toFixed(1)}M` : x >= 1e4 ? `${(x / 1e3).toFixed(1)}k` : x >= 100 ? x.toFixed(0) : x >= 1 ? x.toFixed(1) : x.toFixed(2));
           const speedText = star ? (v ? `${nice(v)} ly/s <small style="font-weight:400;opacity:.65">${nice(v * 31557600)} c</small>` : '0 ly/s') : `${v.toFixed(2)} ${editing ? 'm/s' : 'u/s'}`; // light years per second, with the multiple of the speed of light beside it
-          flightEl.innerHTML = `<div><b>${speedText}</b></div><div class="lock">${gapTo === null ? '' : star ? `${gapTo.toFixed(2)} ly` : `${gapTo.toFixed(2)}${editing ? ' m' : ''}`}</div>`;
+          const mode = !space() ? '' : orbit ? `<div class="orbit ${orbit.phase === 'arm' ? 'blink' : orbit.phase === 'brake' ? 'dim' : ''}">ORBIT</div>` : gravity ? `<div class="orbit grav">GRAVITY · ${hudText(gravity.name)}</div>` : '';
+          flightEl.innerHTML = `<div><b>${speedText}</b></div>${mode}<div class="lock">${gapTo === null ? '' : star ? `${gapTo.toFixed(2)} ly` : `${gapTo.toFixed(2)}${editing ? ' m' : ''}`}</div>`;
         }
       }
       drawCloud(size);
@@ -2927,7 +3076,7 @@
     const lookFrom = (eye, yawDeg, pitchDeg) => {
       yaw = (yawDeg * Math.PI) / 180;
       pitch = (pitchDeg * Math.PI) / 180;
-      const f = makeCamera(orbit({ yaw, pitch }), nothing, 100, { center: [0, 0, 0], radius: 1, dist: FLY_DIST }).f;
+      const f = makeCamera(orbit_({ yaw, pitch }), nothing, 100, { center: [0, 0, 0], radius: 1, dist: FLY_DIST }).f;
       fit.center = eye.map((c, i) => c + f[i] * FLY_DIST);
       fit.dist = FLY_DIST;
       backoff = 1;
@@ -6132,8 +6281,9 @@
       delete: { run: () => remove() },
       pose: { run: () => enterPose(), once: true, plain: true },
       pickable: { run: (e) => togglePickable(e?.shiftKey), once: true, plain: true },
+      orbit: { run: () => toggleOrbit(), once: true, plain: true },
     };
-    const KEYMAP = { '?': 'help', z: 'zen', '/': 'isolate', p: 'palette', 7: 'scene', 9: 'view', i: 'pick', c: 'filmic', n: 'smooth', k: 'studio', l: 'light', t: 'target', o: 'pickable', h: 'gizmo', e: 'clean', u: 'undo', Backspace: 'undo', j: 'pose' };
+    const KEYMAP = { '?': 'help', z: 'zen', '/': 'isolate', p: 'palette', 7: 'scene', 9: 'view', i: 'pick', c: 'filmic', n: 'smooth', k: 'studio', l: 'light', t: 'target', o: 'pickable', 0: 'orbit', 'ö': 'orbit', h: 'gizmo', e: 'clean', u: 'undo', Backspace: 'undo', j: 'pose' };
     const bindKey = (key, action) => (action ? (KEYMAP[key] = action) : delete KEYMAP[key]);
     const boundAction = (e) => {
       const a = ACTIONS[KEYMAP[e.key.length === 1 ? e.key.toLowerCase() : e.key]];
@@ -6732,7 +6882,7 @@
       globalThis.__3draft = {
         load: (data) => applyScene(data),
         pickFault: () => (picker.worker?.postMessage({ type: 'pick', ver: picker.ver, cam: null, x: 0, y: 0, cull: true, key: 'fault' }), Boolean(picker.worker)), // (a test: a broken question)
-        flight: () => ({ space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
+        flight: () => ({ orbit: orbit?.phase ?? null, gravity: gravity && { name: gravity.name }, cruise: { ...cruise }, space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
         aim: () => (aim ? { name: aim.obj.name, px: +aim.px.toFixed(1), depth: aim.depth } : null), under: () => hitObj()?.name ?? null, locked: () => lockedObject()?.name ?? null,
         picker: () => ({ ready: picker.ready, failed: picker.failed, busy: Boolean(picker.busy), ver: picker.ver, picks: picker.picks, ms: +picker.ms.toFixed(2), sceneMs: +picker.sceneMs.toFixed(1), restarts: picker.restarts, errors: [...picker.errors] }),
         sky: () => ({ live: liveSky.set.size, points: liveSky.n, cached: galaxyCache.size, cachedPoints, traced: traced.size, cloud: cloud?.n ?? 0, ms: +drawMs.toFixed(1), rebuilds, faces: scene.faces.length }),
