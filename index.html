@@ -452,7 +452,7 @@
     #driveTune { display: grid; grid-template-columns: auto auto; gap: 2px 10px; font: 500 9px/1 var(--font-mono, ui-monospace, monospace); color: #9a9d90; }
     #driveTune label { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
     #driveTune input { width: 64px; height: 12px; accent-color: #2fb8c0; }
-    #driveTune b { min-width: 34px; color: #d8d4c6; font-weight: 600; }
+    #driveTune b { color: #7c8074; font-weight: 500; }
     #flight .orbit { color: #39ff14; font-weight: 600; letter-spacing: 0.12em; }
     #flight .orbit.dim { opacity: 0.45; }
     #flight .orbit.blink { animation: orbitBlink 0.25s steps(2) infinite; }
@@ -758,11 +758,11 @@
           <button id="undo" type="button" class="slate ic" title="Undo (U)" aria-label="Undo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7L4 12l5 5"/><path d="M4 12h10a6 6 0 0 1 0 12" transform="translate(0 -5)"/></svg></button>
           <button id="reset" type="button" class="slate ic" title="Reset the view" aria-label="Reset view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><circle cx="12" cy="12" r="2.5"/></svg></button>
           <button id="zen" type="button" class="slate ic" title="Zen: only the model (Z)" aria-label="Zen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
-          <button id="boolBtn" type="button" class="slate" title="Boolean: select two objects (B), then this; the first taken is A, the second B">bool</button>
           <button id="keys" type="button" class="teal ic" title="Help: every mode and key (?)" aria-label="Help"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.1 1-1.1 1.8M12 17h.01"/></svg></button>
         </span>
         <span class="row">
           <button id="rec" type="button" class="red" title="Record: starts from an empty scene and writes every move and key into a JSON file when you press it again">rec</button>
+          <button id="boolBtn" type="button" class="slate" title="Boolean: select two objects (B), then this; the first taken is A, the second B">bool</button>
           <button id="play" type="button" class="slate" title="Play: pick a recording (JSON) and watch it build the scene again from an empty one; press again to stop">play</button>
           <input id="playFile" type="file" accept=".json,application/json" hidden>
         </span>
@@ -772,10 +772,10 @@
         <span id="gasGauge" aria-hidden="true"><i></i></span>
         <span id="driveText">0°<br>0%</span>
         <span id="driveTune">
-          <label title="Steering: trackpad pixels for full lock (half of it below 10 km/h)">wheel <input type="range" id="tSteer" min="300" max="4000" step="50"><b id="vSteer"></b></label>
-          <label title="Throttle: trackpad pixels from zero to full gas (and from zero to full brake)">gas <input type="range" id="tGas" min="300" max="4000" step="50"><b id="vGas"></b></label>
-          <label title="How long the let-go steering wheel takes to turn back to the middle">↺ wheel <input type="range" id="tSteerBack" min="0.05" max="2" step="0.05"><b id="vSteerBack"></b></label>
-          <label title="How long the let-go brake takes to come back to zero (the gas stays where it is)">↺ brake <input type="range" id="tBrakeBack" min="0.05" max="2" step="0.05"><b id="vBrakeBack"></b></label>
+          <label title="Steering: trackpad pixels for full lock (half of it below 10 km/h)">wheel <input type="range" id="tSteer" min="300" max="4000" step="50"><b>px</b></label>
+          <label title="Throttle: trackpad pixels from zero to full gas (and from zero to full brake)">gas <input type="range" id="tGas" min="300" max="4000" step="50"><b>px</b></label>
+          <label title="How long the let-go steering wheel takes to turn back to the middle">↺ wheel <input type="range" id="tSteerBack" min="0.05" max="2" step="0.05"><b>s</b></label>
+          <label title="How long the let-go gas and brake take to come back to zero">↺ gas <input type="range" id="tBrakeBack" min="0.05" max="2" step="0.05"><b>s</b></label>
         </span>
       </span>
       <span class="grp rows" data-label="network" id="netGrp" hidden>
@@ -789,7 +789,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@43c9b492ab57c020d90060f9f408a557f22753bd/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@8f3d5115d0725a017fb35d36348dfc23ae59f73a/dist/index.js';
     const orbit_ = orbitView; // (the camera orbit helper; `orbit` is the space orbit state)
     const LEG = { base: 0.15 }; // the base of a placed prism
 
@@ -1120,6 +1120,8 @@
     const CAR_BRAKE = 9;
     const CAR_HOLD_MS = 200; // a wheel input this recent still holds the wheel (a trackpad sends no events while the fingers rest)
     const CAR_STEP = 1.5; // m: the ground is looked for from this high above the car
+    const CAR_LOOK_PITCH = -0.05; // rad: straight ahead, a little down at the road
+    const CAR_LOOK_BACK = 0.4; // s: a let-go look aside turns back
     // how much a swipe moves the wheel (full lock = 1) and the throttle (full = 1): per trackpad pixel, per finger pixel. Full lock
     // takes 2000 trackpad pixels, below CAR_SLOW (10 km/h, parking) 1000; full throttle about 1700
     // The four sliders of the drive group set them (kept in this browser): trackpad pixels for full lock and for full gas, and the
@@ -1192,7 +1194,7 @@
     const startCar = () => {
       const eye = eyeNow();
       const g = groundAt(eye[0], eye[1], eye[2]) ?? groundAt(eye[0], eye[1] + 1e4, eye[2]);
-      car = { p: [eye[0], g ?? eye[1] - CAR_EYE, eye[2]], heading: yaw, v: 0, steer: 0, throttle: 0, steerAt: 0, touchHold: false, lookYaw: 0, lookPitch: Math.max(-0.5, Math.min(0.3, pitch)) };
+      car = { p: [eye[0], g ?? eye[1] - CAR_EYE, eye[2]], heading: yaw, v: 0, steer: 0, throttle: 0, steerAt: 0, touchHold: false, lookYaw: 0, lookPitch: CAR_LOOK_PITCH };
       fly = true;
       travel = null;
       locked = null;
@@ -1246,10 +1248,17 @@
         car.steer *= Math.exp((-dt * 3) / carTune.steerBack); // (3 / time: down to ~5 % in that time)
         if (Math.abs(car.steer) < 0.002) car.steer = 0;
       }
-      // the brake too comes back to zero when let go (the gas stays where it is)
-      if (!car.touchHold && now - (car.gasAt ?? 0) > CAR_HOLD_MS && car.throttle < 0) {
+      // the gas and the brake come back to zero when let go
+      if (!car.touchHold && now - (car.gasAt ?? 0) > CAR_HOLD_MS && car.throttle) {
         car.throttle *= Math.exp((-dt * 3) / carTune.brakeBack);
-        if (car.throttle > -0.002) car.throttle = 0;
+        if (Math.abs(car.throttle) < 0.002) car.throttle = 0;
+      }
+      // a look aside (a drag) comes back to straight ahead when the button is let go
+      if (!carLookHeld && (car.lookYaw || car.lookPitch !== CAR_LOOK_PITCH)) {
+        const k = Math.exp((-dt * 3) / CAR_LOOK_BACK);
+        car.lookYaw *= k;
+        car.lookPitch = CAR_LOOK_PITCH + (car.lookPitch - CAR_LOOK_PITCH) * k;
+        if (Math.abs(car.lookYaw) < 1e-3 && Math.abs(car.lookPitch - CAR_LOOK_PITCH) < 1e-3) ((car.lookYaw = 0), (car.lookPitch = CAR_LOOK_PITCH));
       }
       // the speed
       const t = car.throttle;
@@ -1262,18 +1271,26 @@
       const g = groundAt(nx, car.p[1] + CAR_STEP, nz);
       car.p = [nx, g ?? car.p[1], nz];
       placeCarCamera();
-      if (car.v || car.steer || t) redraw();
+      if (car.v || car.steer || t || car.lookYaw || car.lookPitch !== CAR_LOOK_PITCH) redraw();
     };
+    // the drag that looks aside: held while a mouse button (or a finger, one) is down on the view
+    let carLookHeld = false;
+    stage.addEventListener('pointerdown', (e) => {
+      if (drive() && (e.pointerType !== 'touch' || !fingers?.size)) carLookHeld = true;
+    });
+    window.addEventListener('pointerup', () => ((carLookHeld = false), drive() && redraw()));
+    window.addEventListener('pointercancel', () => (carLookHeld = false));
     // the four sliders
-    const tuneEls = { steer: ['tSteer', 'vSteer', (v) => `${v}px`], gas: ['tGas', 'vGas', (v) => `${v}px`], steerBack: ['tSteerBack', 'vSteerBack', (v) => `${(+v).toFixed(2)}s`], brakeBack: ['tBrakeBack', 'vBrakeBack', (v) => `${(+v).toFixed(2)}s`] };
-    for (const [key, [inId, outId, fmt]] of Object.entries(tuneEls)) {
-      const input = document.getElementById(inId), out = document.getElementById(outId);
+    // (beside a slider only its unit; the value is in its tooltip)
+    const tuneEls = { steer: ['tSteer', (v) => `${v} px`], gas: ['tGas', (v) => `${v} px`], steerBack: ['tSteerBack', (v) => `${(+v).toFixed(2)} s`], brakeBack: ['tBrakeBack', (v) => `${(+v).toFixed(2)} s`] };
+    for (const [key, [inId, fmt]] of Object.entries(tuneEls)) {
+      const input = document.getElementById(inId);
       if (!input) continue;
       input.value = carTune[key];
-      out.textContent = fmt(carTune[key]);
+      input.title = fmt(carTune[key]);
       input.addEventListener('input', () => {
         carTune[key] = +input.value;
-        out.textContent = fmt(input.value);
+        input.title = fmt(input.value);
         try {
           localStorage.setItem('3draft.carTune', JSON.stringify(carTune));
         } catch {}
@@ -1811,7 +1828,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@43c9b492ab57c020d90060f9f408a557f22753bd/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@8f3d5115d0725a017fb35d36348dfc23ae59f73a/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
