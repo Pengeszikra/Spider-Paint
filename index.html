@@ -754,7 +754,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@f37ddce1b173bea425d9854e42d9fb930db88964/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@3e2dfe439f57219b6c42ac576f35ad3c8c2af095/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -923,6 +923,7 @@
       if (skinned()) objs = objs.filter((o) => !posing.ids.has(o.id)); // the posed figure is drawn as a GPU skin, not from the scene
       let n = 0;
       owners = objs.map((o) => ({ obj: o, start: n, end: (n += o.mesh.faces.length) }));
+      spaceScene = Boolean(cloud) || objs.filter((o) => o.inst?.glow).length >= 50;
       sceneParts = objs.map((o) => o.mesh);
       scene = merge(nothing, ...sceneParts);
       placedVer++;
@@ -1041,6 +1042,38 @@
     // along that axis by one level, so w w w is 3 forward, and s s s slows down again to a stop.
     // The eye then sits (almost) on the orbit center and the center moves.
     let fly = false;
+    // Space scale (a star map: a point cloud or 50+ glowing instances, not while editing): the camera is a starship. Nothing but its
+    // own speed moves it: T / Tab only turn it onto the target (it keeps flying at the speed it had, the speed levels stay), it does
+    // not slow down at the target either, it flies on past it; the lens stays the same (SPACE_FOV). While locked it keeps turning
+    // towards the target as long as the target is ahead (within STEER_AHEAD); the first turn after T always goes all the way round.
+    // A drag (the hand) stops the steering; T again starts it.
+    let spaceScene = false;
+    const space = () => spaceScene && !editing && !bench;
+    const SPACE_FOV = (60 * Math.PI) / 180;
+    const STEER_RATE = 3; // 1/s: how quickly the heading follows the target
+    const STEER_AHEAD = (80 * Math.PI) / 180;
+    let steer = null; // { all: true } until the first turn is done, then {} ; null: no steering
+    const steerTo = (dt) => {
+      const o = lockedObject();
+      if (!o || !steer) return;
+      const eye = eyeNow();
+      const d = ballOf(o).center.map((c, i) => c - eye[i]);
+      const len = Math.hypot(...d) || 1;
+      const wantYaw = Math.atan2(d[0], -d[2]);
+      const wantPitch = Math.max(-LIMIT, Math.min(LIMIT, -Math.asin(d[1] / len)));
+      const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+      const off = Math.acos(Math.max(-1, Math.min(1, (d[0] * sy * cp - d[1] * sp - d[2] * cy * cp) / len)));
+      if (!steer.all && off > STEER_AHEAD) return; // behind us now (flown past): fly on straight
+      const k = 1 - Math.exp(-dt * STEER_RATE);
+      // the eye stays where it is: the pivot (FLY_DIST ahead) turns round it
+      const eyeBefore = eye;
+      yaw += (turnBy(yaw, wantYaw) - yaw) * k;
+      pitch += (wantPitch - pitch) * k;
+      const f = makeCamera(orbit({ yaw, pitch }), nothing, 100, { center: [0, 0, 0], radius: 1, dist: FLY_DIST }).f;
+      fit.center = eyeBefore.map((c, i) => c + f[i] * FLY_DIST);
+      if (off < 0.01) steer.all = false;
+      redraw();
+    };
     const level = { f: 0, r: 0, u: 0 }; // forward, right, up
     const UNIT = 0.25; // world units per second per level
     const FLY_DIST = 0.05;
@@ -1157,7 +1190,7 @@
     };
     const speed = (axis, d) => {
       if (frozen) return;
-      if (!locked) enterFly();
+      if (!locked || space()) enterFly();
       level[axis] += d;
       redraw();
     };
@@ -1165,7 +1198,8 @@
       const dt = Math.min(0.05, (now - lastFrame) / 1000);
       lastFrame = now;
       if (frozen) return;
-      if (locked) return stepTarget(dt);
+      if (locked && !space()) return stepTarget(dt);
+      if (locked) steerTo(dt);
       if (!fly) return;
       const cy = Math.cos(yaw);
       const sy = Math.sin(yaw);
@@ -1225,6 +1259,7 @@
     const letGo = () => {
       if (!locked) return false;
       locked = null;
+      steer = null;
       redraw();
       return true;
     };
@@ -1256,6 +1291,14 @@
     // T over empty space, or on the target, while targeting just brings the camera back onto the target; on another
     // object it re-targets. Tab: the next object. Esc lets go. With no target, T over empty space targets the nearest.
     const lookAt = (o, near = Infinity) => {
+      if (space() && near === Infinity) {
+        // a starship: it only turns onto the target, its place and speed stay
+        enterFly();
+        travel = null;
+        steer = { all: true };
+        focused = true;
+        return redraw();
+      }
       // the camera stays where it is and turns to the object: from here on it moves on a sphere round it
       const { center, radius } = ballOf(o);
       const eye = gcam?.eye ? [...gcam.eye] : eyeNow(); // the eye as drawn now, so the first target does not jump either
@@ -1324,7 +1367,7 @@
     // worker that dies or hangs is restarted (three times), and without a worker the picking stays on the main thread as before.
     const PICK_ASYNC_FACES = 4000;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@f37ddce1b173bea425d9854e42d9fb930db88964/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@3e2dfe439f57219b6c42ac576f35ad3c8c2af095/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -1760,7 +1803,7 @@
       const ease1 = 1 - Math.exp(-dtDraw * 9);
       lastDraw = performance.now();
       if (SHOW && !frozen && !travel && !fly) ((yaw += dtDraw * SHOW_SPIN), redraw()); // the turntable: round the model's middle, like A / D on a target
-      const fovGoal = fly && eyeInScene() ? INSIDE_FOV : FOV0; // the wide lens only once the eye is really in the scene: starting a flight must not change the picture
+      const fovGoal = space() ? SPACE_FOV : fly && eyeInScene() ? INSIDE_FOV : FOV0; // the wide lens only once the eye is really in the scene: starting a flight must not change the picture (in space one lens all the time)
       fovNow += (fovGoal - fovNow) * (fly ? 1 - Math.exp(-dtDraw * 2.2) : ease1); // the lens opens slowly: a quick zoom-out looks like a jump
       if (Math.abs(fovGoal - fovNow) < 1e-3) fovNow = fovGoal;
       else queued || redraw();
@@ -1836,14 +1879,14 @@
       };
       const marks = hit ? [{ name: 'cursor', lines: crosshair(scene, hit, crossRadius()) }] : [];
       if (aim && gcam) {
-        // the aim circle round the middle of the far object, as big as its circle on screen
+        // four short 45° ticks in the corners round the middle of the far object (its aim circle's size), drawn with the marks
         const R = (aim.px * Math.max(aim.depth, 1e-9)) / gcam.k / zoomNow;
-        const ring = [];
-        for (let a = 0; a < 24; a++) {
-          const p = (t) => aim.point.map((c, i) => c + (gcam.r[i] * Math.cos(t) + gcam.u[i] * Math.sin(t)) * R);
-          ring.push([p((a / 24) * 2 * Math.PI), p(((a + 1) / 24) * 2 * Math.PI)]);
+        const ticks = [];
+        for (const [a, b] of [[1, 1], [-1, 1], [-1, -1], [1, -1]]) {
+          const p = (t) => aim.point.map((c, i) => c + (gcam.r[i] * a + gcam.u[i] * b) * Math.SQRT1_2 * R * t);
+          ticks.push([p(1), p(1.7)]);
         }
-        marks.push({ name: 'cursor', lines: ring });
+        marks.push({ name: 'cursor', lines: ticks });
       }
       for (const [o, color] of [[boolFrom, '#e8590c'], [boolPair?.b, '#2f9e44'], ...pickedObjs().filter((o) => o !== boolFrom && o !== boolPair?.b).map((o) => [o, '#22b8cf'])]) {
         if (!o || !has(o)) continue;
@@ -2798,6 +2841,7 @@
     const turn = (dYaw, dPitch) => {
       if (frozen) return;
       travel = null; // the hand takes over from the glide
+      if (steer && space()) steer = null; // and from the steering (T again steers)
       yaw += dYaw;
       pitch = wrapPitch(pitch + dPitch);
       redraw();
@@ -6040,7 +6084,7 @@
       }
       if (e.key === 'Escape' && locked && !editing && !picking) {
         e.preventDefault();
-        stop();
+        if (!space()) stop(); // (a starship keeps its speed)
         return void letGo();
       }
       if (e.key === 'Escape' && !keyPanel.hidden) return void closeModals();
@@ -6610,6 +6654,7 @@
       globalThis.__3draft = {
         load: (data) => applyScene(data),
         pickFault: () => (picker.worker?.postMessage({ type: 'pick', ver: picker.ver, cam: null, x: 0, y: 0, cull: true, key: 'fault' }), Boolean(picker.worker)), // (a test: a broken question)
+        flight: () => ({ space: space(), fly, level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
         aim: () => (aim ? { name: aim.obj.name, px: +aim.px.toFixed(1), depth: aim.depth } : null), under: () => hitObj()?.name ?? null, locked: () => lockedObject()?.name ?? null,
         picker: () => ({ ready: picker.ready, failed: picker.failed, busy: Boolean(picker.busy), ver: picker.ver, picks: picker.picks, ms: +picker.ms.toFixed(2), sceneMs: +picker.sceneMs.toFixed(1), restarts: picker.restarts, errors: [...picker.errors] }),
         sky: () => ({ live: liveSky.set.size, points: liveSky.n, cached: galaxyCache.size, cachedPoints, traced: traced.size, cloud: cloud?.n ?? 0, ms: +drawMs.toFixed(1), rebuilds, faces: scene.faces.length }),
