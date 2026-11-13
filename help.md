@@ -144,7 +144,7 @@ In edit mode the pointer also finds the far side of a face, so from inside a hul
 Pressing **Q** with the eye inside the object (inside its bounding box, e.g. flying in a hull) does not move the camera: you stay where you are, and leaving edit mode does not move it either.
 
 ## Deep sky
-In a star map the camera is a starship: T or Tab only turns it towards the target, it keeps the speed it had (W S A D R F still set the speed), and it does not slow down at the target: it flies on past it, and the target is let go once it is behind you. The target is marked with four short diagonal ticks, like the aim. Esc lets go of the target and keeps the speed; Space stops. The lens stays the same all the time.
+In a star map the camera is a starship: T or Tab only turns it towards the target, it keeps the speed it had (W S A D R F still set the speed), and it does not slow down at the target: it flies on past it, and the target is let go once it is behind you. The target is marked with four short diagonal ticks, like the aim. A braking program slows the ship down by itself as it closes in on the target, down to 0.5 ly/s, and it passes the target at that speed; any speed key (W S A D R F) takes the controls back. Esc lets go of the target and keeps the speed; Space stops. The lens stays the same all the time.
 
 Far stars, black holes and galaxies are aimed at by their middle, not by their surface: a small circle (5 px, growing as you come closer) round a star is enough, no need to hit the pixel. Close up a star or a black hole is aimed at by its surface again. A galaxy is aimed at as a whole until it fills a quarter of the screen; after that the pointer goes through it, to its black hole.
 

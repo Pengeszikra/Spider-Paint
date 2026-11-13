@@ -755,7 +755,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@f421535f7f304caf68b3640e2c9bb4d37ad9b78e/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@c08a19596de4210371b152c876b7ffc1a935f27c/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1054,6 +1054,33 @@
     const STEER_RATE = 3; // 1/s: how quickly the heading follows the target
     const STEER_AHEAD = (80 * Math.PI) / 180;
     let steer = null; // { all: true } until the first turn is done, then {} ; null: no steering
+    // The braking program: closing in on the target the ship slows down by itself, so that it never is more than BRAKE_S seconds
+    // from it at its speed, but not below BRAKE_MIN (0.5 ly/s). It lowers `throttle` (a factor on the speed the levels give, kept
+    // after the target as well); it eases in (BRAKE_RATE), so a T at full speed does not jolt. Any speed key gives the stick back
+    // (throttle 1, and no more braking for this target; the next T / Tab brakes again).
+    const BRAKE_S = 2;
+    const BRAKE_MIN = 0.5;
+    const BRAKE_RATE = 4; // 1/s
+    const BRAKE_HARD = 0.6; // s
+    let throttle = 1;
+    let braking = false;
+    // lowers the throttle while the ship closes in on the target (v: the velocity of the levels, in UNITs)
+    const brake = (v, dt) => {
+      const o = lockedObject();
+      const full = Math.hypot(...v) * UNIT;
+      if (!o || !full) return;
+      const b = ballOf(o);
+      const eye = eyeNow();
+      const d = b.center.map((c, i) => c - eye[i]);
+      const len = Math.hypot(...d) || 1;
+      if (d[0] * v[0] + d[1] * v[1] + d[2] * v[2] <= 0) return; // not closing in
+      const gap = Math.max(0, len - b.radius);
+      const allowed = Math.max(BRAKE_MIN, gap / BRAKE_S);
+      const floor = Math.min(1, BRAKE_MIN / full);
+      const want = Math.max(floor, allowed / full);
+      if (want < throttle) throttle += (want - throttle) * (1 - Math.exp(-dt * BRAKE_RATE));
+      throttle = Math.min(throttle, Math.max(floor, gap / BRAKE_HARD / full)); // never closer than BRAKE_HARD seconds: no flying past at speed
+    };
     const steerTo = (dt) => {
       const o = lockedObject();
       if (!o) return;
@@ -1175,7 +1202,7 @@
       redraw();
     };
     const stop = () => {
-      if (!frozen) level.f = level.r = level.u = 0;
+      if (!frozen) ((level.f = level.r = level.u = 0), (throttle = 1));
     };
     let backoff = 1; // how far the eye is backed off for a wide stage right now (eases to its goal, so nothing jumps)
     let fovNow = (35 * Math.PI) / 180; // the lens: wide while flying inside the scene, eased both ways
@@ -1197,6 +1224,8 @@
     };
     const speed = (axis, d) => {
       if (frozen) return;
+      throttle = 1; // the pilot takes over from the braking program
+      braking = false;
       if (!locked || space()) enterFly();
       level[axis] += d;
       redraw();
@@ -1215,7 +1244,8 @@
       const forward = [sy * cp, -sp, -cy * cp];
       const right = [cy, 0, sy];
       const v = forward.map((c, i) => c * pace(level.f) + right[i] * pace(level.r) + (i === 1 ? pace(level.u) : 0));
-      fit.center = fit.center.map((c, i) => c + v[i] * UNIT * dt);
+      if (locked && space() && braking) brake(v, dt);
+      fit.center = fit.center.map((c, i) => c + v[i] * UNIT * throttle * dt);
       if (level.f || level.r || level.u) redraw();
     };
 
@@ -1303,6 +1333,7 @@
         enterFly();
         travel = null;
         steer = { all: true };
+        braking = true;
         focused = true;
         return redraw();
       }
@@ -1401,7 +1432,7 @@
     // worker that dies or hangs is restarted (three times), and without a worker the picking stays on the main thread as before.
     const PICK_ASYNC_FACES = 4000;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@f421535f7f304caf68b3640e2c9bb4d37ad9b78e/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@c08a19596de4210371b152c876b7ffc1a935f27c/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -2191,9 +2222,11 @@
           if (lockedObj) {
             const b = ballOf(lockedObj);
             gapTo = Math.max(0, Math.hypot(...b.center.map((c, i) => c - eye[i])) - b.radius);
+          }
+          if (lockedObj && !space()) {
             const dist = fit.dist ?? orbitDist(fit.radius);
             v = Math.hypot(pace(level.f) * ZOOM * dist, dist * SWING * Math.hypot(pace(level.r), pace(level.u)));
-          } else v = Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT;
+          } else v = Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * (space() ? throttle : 1); // (the braking program's share)
           const nice = (x) => (x >= 1e9 ? `${(x / 1e9).toFixed(1)}G` : x >= 1e6 ? `${(x / 1e6).toFixed(1)}M` : x >= 1e4 ? `${(x / 1e3).toFixed(1)}k` : x >= 100 ? x.toFixed(0) : x >= 1 ? x.toFixed(1) : x.toFixed(2));
           const speedText = star ? (v ? `${nice(v)} ly/s <small style="font-weight:400;opacity:.65">${nice(v * 31557600)} c</small>` : '0 ly/s') : `${v.toFixed(2)} ${editing ? 'm/s' : 'u/s'}`; // light years per second, with the multiple of the speed of light beside it
           flightEl.innerHTML = `<div><b>${speedText}</b></div><div class="lock">${gapTo === null ? '' : star ? `${gapTo.toFixed(2)} ly` : `${gapTo.toFixed(2)}${editing ? ' m' : ''}`}</div>`;
@@ -6699,7 +6732,7 @@
       globalThis.__3draft = {
         load: (data) => applyScene(data),
         pickFault: () => (picker.worker?.postMessage({ type: 'pick', ver: picker.ver, cam: null, x: 0, y: 0, cull: true, key: 'fault' }), Boolean(picker.worker)), // (a test: a broken question)
-        flight: () => ({ space: space(), fly, level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
+        flight: () => ({ space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
         aim: () => (aim ? { name: aim.obj.name, px: +aim.px.toFixed(1), depth: aim.depth } : null), under: () => hitObj()?.name ?? null, locked: () => lockedObject()?.name ?? null,
         picker: () => ({ ready: picker.ready, failed: picker.failed, busy: Boolean(picker.busy), ver: picker.ver, picks: picker.picks, ms: +picker.ms.toFixed(2), sceneMs: +picker.sceneMs.toFixed(1), restarts: picker.restarts, errors: [...picker.errors] }),
         sky: () => ({ live: liveSky.set.size, points: liveSky.n, cached: galaxyCache.size, cachedPoints, traced: traced.size, cloud: cloud?.n ?? 0, ms: +drawMs.toFixed(1), rebuilds, faces: scene.faces.length }),
