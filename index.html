@@ -449,6 +449,10 @@
     #gasGauge i { position: absolute; left: 0; right: 0; bottom: 50%; height: 0; background: #39d98a; }
     #gasGauge i.brake { bottom: auto; top: 50%; background: #ff5a4f; }
     #driveText { font: 600 11px/1.25 ui-monospace, monospace; min-width: 38px; text-align: right; }
+    #driveTune { display: grid; grid-template-columns: auto auto; gap: 2px 10px; font: 500 9px/1 var(--font-mono, ui-monospace, monospace); color: #9a9d90; }
+    #driveTune label { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+    #driveTune input { width: 64px; height: 12px; accent-color: #2fb8c0; }
+    #driveTune b { min-width: 34px; color: #d8d4c6; font-weight: 600; }
     #flight .orbit { color: #39ff14; font-weight: 600; letter-spacing: 0.12em; }
     #flight .orbit.dim { opacity: 0.45; }
     #flight .orbit.blink { animation: orbitBlink 0.25s steps(2) infinite; }
@@ -767,6 +771,12 @@
         <svg id="wheelGauge" viewBox="-20 -20 40 40" width="38" height="38" aria-hidden="true"><g id="wheelRot"><circle r="15" fill="none" stroke="currentColor" stroke-width="3"/><circle r="3" fill="currentColor"/><path d="M-15 0H-3M3 0H15M0 3V15" stroke="currentColor" stroke-width="2.5"/><path d="M0 -18V-12" stroke="#ff7b54" stroke-width="3"/></g></svg>
         <span id="gasGauge" aria-hidden="true"><i></i></span>
         <span id="driveText">0°<br>0%</span>
+        <span id="driveTune">
+          <label title="Steering: trackpad pixels for full lock (half of it below 10 km/h)">wheel <input type="range" id="tSteer" min="300" max="4000" step="50"><b id="vSteer"></b></label>
+          <label title="Throttle: trackpad pixels from zero to full gas (and from zero to full brake)">gas <input type="range" id="tGas" min="300" max="4000" step="50"><b id="vGas"></b></label>
+          <label title="How long the let-go steering wheel takes to turn back to the middle">↺ wheel <input type="range" id="tSteerBack" min="0.05" max="2" step="0.05"><b id="vSteerBack"></b></label>
+          <label title="How long the let-go brake takes to come back to zero (the gas stays where it is)">↺ brake <input type="range" id="tBrakeBack" min="0.05" max="2" step="0.05"><b id="vBrakeBack"></b></label>
+        </span>
       </span>
       <span class="grp rows" data-label="network" id="netGrp" hidden>
         <span class="row">
@@ -779,7 +789,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e20f334bcb31a8f011b3333db9fad6f71e1c23d4/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@43c9b492ab57c020d90060f9f408a557f22753bd/dist/index.js';
     const orbit_ = orbitView; // (the camera orbit helper; `orbit` is the space orbit state)
     const LEG = { base: 0.15 }; // the base of a placed prism
 
@@ -1108,15 +1118,17 @@
     const CAR_ACCEL = 3.5;
     const CAR_TOP = 50; // m/s at full throttle (180 km/h)
     const CAR_BRAKE = 9;
-    const CAR_RETURN = 12; // 1/s: the wheel turning back to the middle (quickly, as a real one let go)
     const CAR_HOLD_MS = 200; // a wheel input this recent still holds the wheel (a trackpad sends no events while the fingers rest)
     const CAR_STEP = 1.5; // m: the ground is looked for from this high above the car
     // how much a swipe moves the wheel (full lock = 1) and the throttle (full = 1): per trackpad pixel, per finger pixel. Full lock
     // takes 2000 trackpad pixels, below CAR_SLOW (10 km/h, parking) 1000; full throttle about 1700
-    const CAR_PAD_STEER = 1 / 2000;
-    const CAR_PAD_GAS = 0.0006;
-    const CAR_TOUCH_STEER = 1 / 1200;
-    const CAR_TOUCH_GAS = 0.001;
+    // The four sliders of the drive group set them (kept in this browser): trackpad pixels for full lock and for full gas, and the
+    // seconds the let-go wheel and the let-go brake take to come back (to ~5 %). A finger on a touch screen counts 1.67 trackpad pixels.
+    const carTune = { steer: 2000, gas: 1700, steerBack: 0.25, brakeBack: 0.3 };
+    try {
+      Object.assign(carTune, JSON.parse(localStorage.getItem('3draft.carTune') ?? '{}'));
+    } catch {}
+    const CAR_TOUCH = 1.67;
     const CAR_SLOW = 10 / 3.6; // m/s
     const steerGain = () => (car && car.v < CAR_SLOW ? 2 : 1);
     let car = null; // { p, heading, v, steer, throttle, steerAt, touchHold, lookYaw, lookPitch }
@@ -1224,14 +1236,20 @@
     const gasInput = (d) => {
       if (!car) return;
       car.throttle = Math.max(-1, Math.min(1, car.throttle + d));
+      car.gasAt = performance.now();
       redraw();
     };
     const stepCar = (dt, now) => {
       if (!car) startCar();
       // the wheel: held while the fingers are on it, back to the middle after
       if (!car.touchHold && now - car.steerAt > CAR_HOLD_MS && car.steer) {
-        car.steer *= Math.exp(-dt * CAR_RETURN);
+        car.steer *= Math.exp((-dt * 3) / carTune.steerBack); // (3 / time: down to ~5 % in that time)
         if (Math.abs(car.steer) < 0.002) car.steer = 0;
+      }
+      // the brake too comes back to zero when let go (the gas stays where it is)
+      if (!car.touchHold && now - (car.gasAt ?? 0) > CAR_HOLD_MS && car.throttle < 0) {
+        car.throttle *= Math.exp((-dt * 3) / carTune.brakeBack);
+        if (car.throttle > -0.002) car.throttle = 0;
       }
       // the speed
       const t = car.throttle;
@@ -1246,6 +1264,22 @@
       placeCarCamera();
       if (car.v || car.steer || t) redraw();
     };
+    // the four sliders
+    const tuneEls = { steer: ['tSteer', 'vSteer', (v) => `${v}px`], gas: ['tGas', 'vGas', (v) => `${v}px`], steerBack: ['tSteerBack', 'vSteerBack', (v) => `${(+v).toFixed(2)}s`], brakeBack: ['tBrakeBack', 'vBrakeBack', (v) => `${(+v).toFixed(2)}s`] };
+    for (const [key, [inId, outId, fmt]] of Object.entries(tuneEls)) {
+      const input = document.getElementById(inId), out = document.getElementById(outId);
+      if (!input) continue;
+      input.value = carTune[key];
+      out.textContent = fmt(carTune[key]);
+      input.addEventListener('input', () => {
+        carTune[key] = +input.value;
+        out.textContent = fmt(input.value);
+        try {
+          localStorage.setItem('3draft.carTune', JSON.stringify(carTune));
+        } catch {}
+      });
+      input.addEventListener('change', () => input.blur()); // (the keys work again right away)
+    }
     const SPACE_FOV = (60 * Math.PI) / 180;
     const STEER_RATE = 3; // 1/s: how quickly the heading follows the target
     const STEER_AHEAD = (80 * Math.PI) / 180;
@@ -1777,7 +1811,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e20f334bcb31a8f011b3333db9fad6f71e1c23d4/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@43c9b492ab57c020d90060f9f408a557f22753bd/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -1975,8 +2009,8 @@
       e.preventDefault();
       e.stopPropagation();
       const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
-      if (e.deltaX) steerInput(-e.deltaX * unit * CAR_PAD_STEER * steerGain());
-      if (e.deltaY) gasInput(e.deltaY * unit * CAR_PAD_GAS);
+      if (e.deltaX) steerInput((-e.deltaX * unit * steerGain()) / carTune.steer);
+      if (e.deltaY) gasInput((e.deltaY * unit) / carTune.gas);
       driveGrp?.classList.add('in'); // (a flash on the gauges: the input arrived)
       clearTimeout(driveGrp?._in);
       if (driveGrp) driveGrp._in = setTimeout(() => driveGrp.classList.remove('in'), 120);
@@ -2003,8 +2037,8 @@
       fingers.set(e.pointerId, [e.clientX, e.clientY]);
       if (fingers.size < 2 || !fingerMid) return;
       const m = midOf();
-      steerInput((m[0] - fingerMid[0]) * CAR_TOUCH_STEER * steerGain());
-      gasInput(-(m[1] - fingerMid[1]) * CAR_TOUCH_GAS);
+      steerInput(((m[0] - fingerMid[0]) * CAR_TOUCH * steerGain()) / carTune.steer);
+      gasInput((-(m[1] - fingerMid[1]) * CAR_TOUCH) / carTune.gas);
       fingerMid = m;
       e.stopImmediatePropagation();
       e.preventDefault();
