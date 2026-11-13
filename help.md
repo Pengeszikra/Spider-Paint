@@ -142,6 +142,9 @@ In edit mode the pointer also finds the far side of a face, so from inside a hul
 ## Editing from inside
 Pressing **Q** with the eye inside the object (inside its bounding box, e.g. flying in a hull) does not move the camera: you stay where you are, and leaving edit mode does not move it either.
 
+## Deep sky
+The **deepsky** example is a stress test: the Milky Way, 1000 real galaxies (from the OpenNGC catalogue), 400 black holes and 3000 real stars (the nearest 1000 and 2000 notable ones farther out). Galaxies are stored as a few numbers and their stars are worked out only when you come close enough for them to matter; far away a soft glow stands for them.
+
 ## The black hole
 Sagittarius A* (in the Milky Way and the stars scenes) is drawn by a small ray tracer: the light bends round it, so the accretion disc shows above and below the black shadow, with a thin photon ring. The gas is coloured as very hot gas really looks: bluish-white; the side coming towards you is brighter and bluer, the side going away dimmer and redder (Doppler). The disc is wide and thin, of clumpy glowing gas; stars between you and the hole still show in front of it, the ones behind it are hidden by its shadow. Only the area round it is computed, at half resolution.
 

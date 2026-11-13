@@ -709,6 +709,7 @@
         <option value="globe">Globe</option>
         <option value="stars">Stars (500 nearest)</option>
         <option value="milkyway">Milky Way (30 000 super-stars)</option>
+        <option value="deepsky">Deep sky (1000 galaxies, 400 black holes, 3000 stars)</option>
         <option value="stars-plain">Stars (300) + 100 galaxies (point glow)</option>
         <option value="ex27">EX-27 expedition module</option>
         <option value="human">Low poly human</option>
@@ -753,7 +754,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@4349b499b13ff30c53967c7eeea7cf5643d4e9a7/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@c57998259ca252fa6ee9156e13d46eae820767d5/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -836,10 +837,12 @@
     // The workbench (edit mode): every object stays where it is and stays visible. The object being edited is the active one: its
     // local origin (the middle of its base) carries the grid (the plane under it) and the camera looks at that point.
     let bench = null; // { origin: [x, y, z], base: history length at the start, cam: the view to return to }
+    let rebuilds = 0; // how many times the scene was merged (debug: __3draft.sky())
     let holdRebuild = 0; // inside asOneStep the scene is merged once at the end, not after every object
     let rebuildWanted = false;
     const rebuild = () => {
       if (holdRebuild) return void (rebuildWanted = true);
+      rebuilds++;
       let objs = allObjects();
       if (solo && !objs.some((o) => o.id === solo)) solo = null;
       if (solo) objs = objs.filter((o) => o.id === solo);
@@ -1512,7 +1515,12 @@
       }
     };
     let lastDraw = performance.now();
+    let drawMs = 0; // how long the last frame took on the CPU side (debug: __3draft.sky())
     const draw = () => {
+      const t0 = performance.now();
+      try { drawFrame(); } finally { drawMs = performance.now() - t0; }
+    };
+    const drawFrame = () => {
       queued = false;
       stepTravel(performance.now());
       stepFly(performance.now());
@@ -1866,8 +1874,8 @@
         }
       }
       drawCloud(size);
-      drawGlow(size);
       drawHoles(size);
+      drawGlow(size);
       surfaceEl.innerHTML = hit
         ? `surface <b>face ${hit.face} · n ${hit.normal.map(signed).join(' ')}</b> · ${healthText(owner(hit.face))}`
         : 'surface <b>–</b>';
@@ -2068,7 +2076,16 @@
         gl.vertexAttribPointer(loc(n), c, gl.FLOAT, false, 32, o * 4);
       });
       const u = Object.fromEntries(['uEye', 'uF', 'uR', 'uU', 'uK', 'uHalf', 'uDpr', 'uHole'].map((n) => [n, gl.getUniformLocation(prog, n)]));
-      return (cloudGl = { gl, prog, buf, vao, u, loaded: null });
+      // a second buffer for the galaxies sampled on the fly from their recipes (see liveGalaxies)
+      const buf2 = gl.createBuffer();
+      const vao2 = gl.createVertexArray();
+      gl.bindVertexArray(vao2);
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf2);
+      [['aPos', 3, 0], ['aRad', 1, 3], ['aCol', 3, 4], ['aLum', 1, 7]].forEach(([n, c, o]) => {
+        gl.enableVertexAttribArray(loc(n));
+        gl.vertexAttribPointer(loc(n), c, gl.FLOAT, false, 32, o * 4);
+      });
+      return (cloudGl = { gl, prog, buf, vao, buf2, vao2, u, loaded: null, loaded2: null });
     };
     // `c`: the scene's own point set; `sets`: objects that carry `cloud: <name>` get a copy of that point set from `protos`
     // (scaled by the object's scale, turned by its `rot`, moved to `at`): galaxies from density functions, one record each
@@ -2097,8 +2114,95 @@
       }
       cloud = { n: total, data };
     };
+    // ---- Galaxies kept as recipes (`galaxy` on an instance: kind, seed, shape) are sampled on the fly by the engine's galaxyPoints,
+    // only while they are big enough on screen (LIVE_PX); far away the glow sprite stands for them. A few new ones per frame (the
+    // rest follow on the next frames), the biggest LIVE_MAX at a time, the samples kept in a small cache (LRU) by recipe.
+    const LIVE_PX = 12;
+    const LIVE_MAX = 64;
+    const LIVE_NEW = 6;
+    const LIVE_CACHE = 240;
+    const galaxyCache = new Map();
+    let liveSky = { key: '', n: 0, data: null, set: new Set() };
+    const recipePoints = (rec) => {
+      const key = JSON.stringify(rec);
+      let q = galaxyCache.get(key);
+      if (q) {
+        galaxyCache.delete(key);
+        galaxyCache.set(key, q); // the most recently used goes to the end
+        return q;
+      }
+      q = galaxyPoints(rec);
+      galaxyCache.set(key, q);
+      if (galaxyCache.size > LIVE_CACHE) galaxyCache.delete(galaxyCache.keys().next().value);
+      return q;
+    };
+    const liveGalaxies = (size) => {
+      const { eye, f, r, u, k } = gcam;
+      const half = size / 2;
+      const want = [];
+      for (const o of allObjects()) {
+        const i = o.inst;
+        if (!i?.galaxy) continue;
+        const sc = instSize(i, 'core') || 1;
+        const d = vsub(i.at, eye);
+        const dist = Math.hypot(d[0], d[1], d[2]);
+        const depth = vdot(d, f);
+        const px = (sc * k) / Math.max(dist, 1e-9);
+        if (dist > sc) {
+          if (px < LIVE_PX || depth < -sc) continue;
+          if (depth > 0) {
+            const x = (vdot(d, r) / depth) * k, y = (vdot(d, u) / depth) * k, reach = (sc * k) / depth;
+            if (Math.abs(x) - reach > half || Math.abs(y) - reach > half) continue; // off screen
+          }
+        }
+        want.push([dist > sc ? px : 1e9, o]);
+      }
+      want.sort((a, b) => b[0] - a[0]);
+      const chosen = [];
+      let fresh = 0;
+      let more = false;
+      for (const [, o] of want.slice(0, LIVE_MAX)) {
+        if (!galaxyCache.has(JSON.stringify(o.inst.galaxy))) {
+          if (fresh >= LIVE_NEW) { more = true; continue; }
+          fresh++;
+        }
+        chosen.push(o);
+      }
+      const key = chosen.map((o) => `${o.name}@${o.inst.at.join(',')}/${o.inst.scale}/${o.inst.rot ?? ''}`).join('|');
+      if (key !== liveSky.key) {
+        const parts = chosen.map((o) => [o, recipePoints(o.inst.galaxy)]);
+        const n = parts.reduce((s, [, q]) => s + q.n, 0);
+        const data = new Float32Array(n * 8);
+        let at = 0;
+        for (const [o, q] of parts) {
+          const i = o.inst;
+          const s = instSize(i, 'core') || 1;
+          const [ta, tb] = i.rot ?? [0, 0];
+          const [ca, sa, cb, sb] = [Math.cos(ta), Math.sin(ta), Math.cos(tb), Math.sin(tb)];
+          for (let j = 0; j < q.n; j++) {
+            let x = q.p[3 * j] * s, y = q.p[3 * j + 1] * s, z = q.p[3 * j + 2] * s;
+            [y, z] = [y * ca - z * sa, y * sa + z * ca]; // the same turn as `instantiate`: tilt about x, then turn about y
+            [x, z] = [x * cb + z * sb, -x * sb + z * cb];
+            const c = q.c[j];
+            data[at] = x + i.at[0];
+            data[at + 1] = y + i.at[1];
+            data[at + 2] = z + i.at[2];
+            data[at + 3] = q.r[j] * s;
+            data[at + 4] = ((c >> 16) & 255) / 255;
+            data[at + 5] = ((c >> 8) & 255) / 255;
+            data[at + 6] = (c & 255) / 255;
+            data[at + 7] = q.l[j];
+            at += 8;
+          }
+        }
+        liveSky = { key, n, data, set: new Set(chosen.map((o) => o.inst)) };
+      }
+      if (more) redraw(); // the rest are sampled on the next frames
+    };
     const drawCloud = (size) => {
-      const g = cloud && gcam && !gcam.ortho && !bench ? cloudInit() : null;
+      if (gcam && !gcam.ortho && !bench) liveGalaxies(size);
+      else if (liveSky.n) liveSky = { key: '', n: 0, data: null, set: new Set() };
+      const g = (cloud || liveSky.n) && gcam && !gcam.ortho && !bench ? cloudInit() : null;
       cloudCanvas.hidden = !g || g.failed;
       if (cloudCanvas.hidden) return;
       const { gl } = g;
@@ -2106,10 +2210,15 @@
       const px = Math.round(size * dpr);
       if (cloudCanvas.width !== px) cloudCanvas.width = cloudCanvas.height = px;
       gl.viewport(0, 0, px, px);
-      if (g.loaded !== cloud) {
+      if (cloud && g.loaded !== cloud) {
         gl.bindBuffer(gl.ARRAY_BUFFER, g.buf);
         gl.bufferData(gl.ARRAY_BUFFER, cloud.data, gl.STATIC_DRAW);
         g.loaded = cloud;
+      }
+      if (liveSky.n && g.loaded2 !== liveSky) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, g.buf2);
+        gl.bufferData(gl.ARRAY_BUFFER, liveSky.data, gl.DYNAMIC_DRAW);
+        g.loaded2 = liveSky;
       }
       gl.clearColor(0, 0, 0, 1);
       gl.clear(gl.COLOR_BUFFER_BIT);
@@ -2136,7 +2245,11 @@
         if (rad > shadow[2]) shadow = [(vdot(d, r) / depth) * k, (vdot(d, u) / depth) * k, rad, depth];
       }
       gl.uniform4fv(g.u.uHole, shadow);
-      gl.drawArrays(gl.POINTS, 0, cloud.n);
+      if (cloud) gl.drawArrays(gl.POINTS, 0, cloud.n);
+      if (liveSky.n) {
+        gl.bindVertexArray(g.vao2);
+        gl.drawArrays(gl.POINTS, 0, liveSky.n);
+      }
     };
     // ---- A black hole (an instance with the bh-core material, e.g. Sagittarius A*) drawn by a small ray tracer instead of a ball
     // in a flat ring: rays from the eye bend round it (a cheap Schwarzschild step), so the accretion disc shows above and below the
@@ -2151,7 +2264,9 @@
     const HOLE_DISC = [2.85, 13]; // the accretion disc from just outside the last stable orbit (3) to far out, in horizon radii
     const HOLE_REACH = 15; // the tracer's ball: the disc and the bent light inside it
     const HOLE_CORE = 2.75; // the black ball reaches out to the disc's inner edge (the bending is still that of a horizon of 1)
-    const HOLE_SHADOW = 3.7; // how far its shadow reaches on screen, with the bending (hides the stars behind it)
+    const HOLE_SHADOW = 3.7;
+    const HOLE_MAX = 4; // traced at once
+    let traced = new Set(); // how far its shadow reaches on screen, with the bending (hides the stars behind it)
     const holeInit = () => {
       if (holeGl) return holeGl;
       const gl = holeCanvas.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: false });
@@ -2177,6 +2292,20 @@
           vec2 f = fract(p);
           f = f * f * (3.0 - 2.0 * f);
           return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+        }
+        // the same noise, periodic in x with period per (an integer): round the disc the gas closes up without a seam
+        float hashP(vec2 i, float per) { i.x = mod(i.x, per); return hash(i); }
+        float pnoise(vec2 p, float per) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(hashP(i, per), hashP(i + vec2(1.0, 0.0), per), f.x), mix(hashP(i + vec2(0.0, 1.0), per), hashP(i + vec2(1.0, 1.0), per), f.x), f.y);
+        }
+        float pfbm(vec2 p, float per) {
+          float s = 0.0;
+          float a = 0.5;
+          for (int i = 0; i < 4; i++) { s += a * pnoise(p, per); p = p * 2.0 + vec2(1.7, 9.2); per *= 2.0; a *= 0.5; }
+          return s;
         }
         float fbm(vec2 p) { // clumpy gas: four octaves
           float s = 0.0;
@@ -2220,8 +2349,9 @@
                 float heat = pow(uIn / rr, 1.25);
                 float ang = atan(dot(x, E2), dot(x, uE1));
                 // gas in rings, sheared round (the inner part has gone round further): clumps along the orbit
-                float gas = fbm(vec2(rr * 2.6, ang * 3.0 + 7.0 / sqrt(rr))) * 1.35;
-                gas *= 0.55 + 0.45 * fbm(vec2(rr * 9.0, ang * 1.0));
+                float u = ang / 6.2831853;                                           // 0..1 round the disc (with a jump of 1)
+                float gas = pfbm(vec2(u * 19.0 + 7.0 / sqrt(rr), rr * 2.6), 19.0) * 1.35;
+                gas *= 0.55 + 0.45 * pfbm(vec2(u * 6.0, rr * 9.0), 6.0);
                 // the colour of very hot gas: white with a touch of blue inside, warmer white further out; the Doppler shift turns
                 // the side coming at us bluer (and brighter), the side going away redder (and dimmer)
                 vec3 base = mix(vec3(0.82, 0.88, 1.0), vec3(1.0, 0.9, 0.78), smoothstep(0.0, 0.8, t));
@@ -2264,7 +2394,7 @@
       const holes = gcam && !gcam.ortho && !bench ? allObjects().filter((o) => isHole(o.inst)) : [];
       const g = holes.length ? holeInit() : null;
       holeCanvas.hidden = !g || g.failed;
-      if (holeCanvas.hidden) return;
+      if (holeCanvas.hidden) return void (traced = new Set());
       const { gl, u } = g;
       const dpr = Math.min(2, globalThis.devicePixelRatio || 1);
       const scale = dpr * 0.5; // half resolution: the tracer is the costly part
@@ -2277,7 +2407,14 @@
       gl.useProgram(g.prog);
       gl.bindVertexArray(g.vao);
       const { eye, f, r, u: up, k } = gcam;
-      for (const o of holes) {
+      // at most HOLE_MAX holes are traced, the biggest on screen; the rest keep their glow sprite
+      const ranked = holes
+        .map((o) => [o, ((HOLE_REACH * (instSize(o.inst, 'core') || 1)) * k) / Math.max(1e-9, Math.hypot(...vsub(o.inst.at, eye)))])
+        .filter(([, p]) => p >= 6)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, HOLE_MAX);
+      traced = new Set(ranked.map(([o]) => o.inst));
+      for (const [o] of ranked) {
         const i = o.inst;
         const rs = instSize(i, 'core') || i.scale || 1; // the ball's radius is the horizon
         const d = vsub(i.at, eye);
@@ -2306,11 +2443,11 @@
         const e1 = Math.abs(N[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
         const E1 = vsub(e1, N.map((c) => c * vdot(e1, N)));
         const el = Math.hypot(...E1);
-        gl.uniform3fv(u.uEye, eye);
+        gl.uniform3fv(u.uEye, [0, 0, 0]); // eye-relative (in doubles here): far holes keep their precision in the float shader
         gl.uniform3fv(u.uF, f);
         gl.uniform3fv(u.uR, r);
         gl.uniform3fv(u.uU, up);
-        gl.uniform3fv(u.uC, i.at);
+        gl.uniform3fv(u.uC, d);
         gl.uniform3fv(u.uN, N);
         gl.uniform3fv(u.uE1, E1.map((c) => c / el));
         gl.uniform1f(u.uK, k);
@@ -2375,14 +2512,14 @@
         const x = half + ((dx * r[0] + dy * r[1] + dz * r[2]) / depth) * k;
         const y = half - ((dx * u[0] + dy * u[1] + dz * u[2]) / depth) * k;
         if (x < -64 || y < -64 || x > size + 64 || y > size + 64) continue;
-        if (isHole(i) && holeGl && !holeGl.failed && (HOLE_REACH * (instSize(i, 'core') || 1) * k) / depth >= 6) continue; // the tracer draws this one
+        if (isHole(i) && holeGl && !holeGl.failed && traced.has(i)) continue; // the tracer draws this one
         const natural = (i.glow * k) / depth; // the glow radius in pixels
         // far stars fade out instead of keeping a minimum size: below ~2 px the glow dims with the square of its size
         const fade = natural < 2 ? (natural / 2) ** 2 : 1;
         if (fade < 0.01) continue;
         const rad = Math.min(48, Math.max(1.2, natural));
         // a galaxy drawn as a point cloud: its glow gives way to the stars once it is big on screen
-        const bigPx = i.far && i.cloud ? (i.scale * k) / depth : 0;
+        const bigPx = i.far && (i.cloud || liveSky.set.has(i)) ? (i.scale * k) / depth : 0;
         const alpha = fade * (natural > 20 ? 0.55 : 0.9) * (bigPx > 30 ? Math.max(0, 1 - (bigPx - 30) / 60) : 1);
         if (alpha < 0.01) continue;
         ctx.globalAlpha = alpha;
@@ -2692,10 +2829,24 @@
     // coarsest level of detail and `applyLod` swaps in the finer ones as the eye comes closer
     const placement = (i) => ({ at: i.at, scale: i.scale, mats: i.mats, color: i.color, rot: i.rot });
     const instSize = (i, slot) => (typeof i.scale === 'number' ? i.scale : (i.scale[slot] ?? i.scale['*'] ?? 1));
+    const LOD_NONE = 0.3; // pixels: a solid smaller than this on screen is not in the scene
+    const LOD_GHOST = 4; // a galaxy's invisible stand-in (only for pointing at it) waits until it is a few pixels
+    // a big scene (more than LOD_BIG instances) changes its levels at most every LOD_EVERY ms while you move: every change merges
+    // the whole scene again, and with thousands of stars some level changes in nearly every frame
+    const LOD_BIG = 600;
+    const LOD_EVERY = 150;
+    let lodAt = 0;
+    let lodTimer = 0;
     const applyLod = () => {
       if (!gcam || gcam.ortho) return;
+      const all = allObjects();
+      const now = performance.now();
+      if (all.length > LOD_BIG && now - lodAt < LOD_EVERY) {
+        if (!lodTimer) lodTimer = setTimeout(() => ((lodTimer = 0), redraw()), LOD_EVERY - (now - lodAt) + 1);
+        return;
+      }
       let changed = false;
-      for (const o of allObjects()) {
+      for (const o of all) {
         const i = o.inst;
         if (!i) continue;
         const dist = Math.hypot(i.at[0] - gcam.eye[0], i.at[1] - gcam.eye[1], i.at[2] - gcam.eye[2]) || 1e-6;
@@ -2703,6 +2854,15 @@
         // the last level is the halo alone as an octahedron, for a halo of only a few pixels
         const n = i.proto.lods.length;
         const corePx = (instSize(i, 'core') * gcam.k) / dist;
+        // far below a pixel the solid is left out of the scene altogether (its glow still shows): a point stands in for it, so a
+        // big scene (thousands of stars, galaxies) merges, uploads and picks only what can be seen
+        if (corePx < (i.mats?.core === 'gal-ghost' ? LOD_GHOST : LOD_NONE) && i.glow) {
+          if (i.level === -2) continue;
+          i.level = -2;
+          o.mesh = { positions: [[...i.at]], faces: [] };
+          changed = true;
+          continue;
+        }
         let level;
         if (i.proto.halo === false) level = lodLevel(corePx, n, [60, 22, 8, 3]); // a plain sphere: only the core has levels
         else {
@@ -2715,7 +2875,10 @@
         if (isHole(i) && holeInit() && !holeGl.failed) o.mesh = { ...o.mesh, faces: o.mesh.faces.filter((fc) => fc.mat !== i.mats.disc) }; // the tracer draws the disc
         changed = true;
       }
-      if (changed) rebuild();
+      if (changed) {
+        lodAt = now;
+        rebuild();
+      }
     };
     // merge on: a loaded scene is added to what is there; off: the scene is cleared first (one U brings it back) and the loaded one stands alone
     let mergeOn = true;
@@ -5803,7 +5966,7 @@
         swap.textContent = document.body.classList.contains('split') ? 'close store' : 'store';
       });
       box.append(swap);
-      for (const name of ['empty', 'globe', 'stars', 'stars-plain', 'milkyway', 'ex27', 'human', 'betterman', 'tr74', 'station-screen']) {
+      for (const name of ['empty', 'globe', 'stars', 'stars-plain', 'milkyway', 'deepsky', 'ex27', 'human', 'betterman', 'tr74', 'station-screen']) {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'cream';
@@ -6158,6 +6321,7 @@
     if (new URLSearchParams(location.search).has('debug')) {
       globalThis.__3draft = {
         load: (data) => applyScene(data),
+        sky: () => ({ live: liveSky.set.size, points: liveSky.n, cached: galaxyCache.size, traced: traced.size, cloud: cloud?.n ?? 0, ms: +drawMs.toFixed(1), rebuilds, faces: scene.faces.length }),
         open: (data) => loadScene(data, true),
         drop: (name, mesh, x, y) => (useBrush({ name, mesh }), dropBrush(x, y)), // (the old drag and drop's landing)
         placeBrush: (name, mesh) => placeBrush({ name, mesh }), // like gg on a model in the store
