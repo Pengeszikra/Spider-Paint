@@ -440,6 +440,7 @@
     #flight { position: fixed; z-index: 3; top: 46px; right: 28px; text-align: right; font: 500 12px/1.45 var(--font-mono); color: var(--muted); text-shadow: 0 0 4px #000, 0 0 2px #000; pointer-events: none; font-variant-numeric: tabular-nums; }
     #flight b { color: var(--fg, inherit); font-weight: 600; }
     #flight .lock { color: #4dabf7; }
+    #flight .vec { opacity: 0.75; font-size: 0.9em; }
     #flight .orbit { color: #39ff14; font-weight: 600; letter-spacing: 0.12em; }
     #flight .orbit.dim { opacity: 0.45; }
     #flight .orbit.blink { animation: orbitBlink 0.25s steps(2) infinite; }
@@ -760,7 +761,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@1e7f0fec376ef892aca79bb7215091c9f2f3a79c/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@3f97f51178615ac7ee9ac81079568af208ac3038/dist/index.js';
     const orbit_ = orbitView; // (the camera orbit helper; `orbit` is the space orbit state)
     const LEG = { base: 0.15 }; // the base of a placed prism
 
@@ -1068,6 +1069,7 @@
     const BRAKE_MIN = 0.5;
     const BRAKE_RATE = 4; // 1/s
     const BRAKE_HARD = 0.6; // s
+    const BRAKE_HOLD = 6; // radii: where the ship stops in front of the target
     let throttle = 1;
     let braking = false;
     // Orbit in space (0 / ö). With a target: the ship brakes hard to a stop (`orbit.phase` 'brake'), ORBIT blinks for ORBIT_ARM_MS
@@ -1211,12 +1213,22 @@
       const d = b.center.map((c, i) => c - eye[i]);
       const len = Math.hypot(...d) || 1;
       if (d[0] * v[0] + d[1] * v[1] + d[2] * v[2] <= 0) return; // not closing in
-      const gap = Math.max(0, len - b.radius);
-      const allowed = Math.max(BRAKE_MIN, gap / BRAKE_S);
-      const floor = Math.min(1, BRAKE_MIN / full);
-      const want = Math.max(floor, allowed / full);
+      // the ship stops BRAKE_HOLD radii from the target's middle (in front of it, the target about an eighth of the view wide)
+      const rest = len - Math.max(b.radius * BRAKE_HOLD, 1e-6);
+      if (rest <= Math.max(b.radius * 0.02, 1e-7)) return void arrive();
+      const floor = Math.min(BRAKE_MIN, rest * 2); // the last stretch: no slower than this, but it shrinks with the distance left
+      const want = Math.min(1, Math.max(floor, rest / BRAKE_S) / full);
       if (want < throttle) throttle += (want - throttle) * (1 - Math.exp(-dt * BRAKE_RATE));
-      throttle = Math.min(throttle, Math.max(floor, gap / BRAKE_HARD / full)); // never closer than BRAKE_HARD seconds: no flying past at speed
+      throttle = Math.min(throttle, (rest / BRAKE_HARD) / full); // never closer than BRAKE_HARD seconds at this speed: no flying through
+    };
+    // at the target: the ship stands (the levels, the throttle and the cruise go to rest)
+    const arrive = () => {
+      level.f = level.r = level.u = 0;
+      throttle = 1;
+      cruise = { f: 0, r: 0, u: 0 };
+      gravity = null;
+      braking = false;
+      redraw();
     };
     const steerTo = (dt) => {
       const o = lockedObject();
@@ -1575,7 +1587,7 @@
     // worker that dies or hangs is restarted (three times), and without a worker the picking stays on the main thread as before.
     const PICK_ASYNC_FACES = 4000;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@1e7f0fec376ef892aca79bb7215091c9f2f3a79c/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@3f97f51178615ac7ee9ac81079568af208ac3038/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -1985,6 +1997,26 @@
     };
     let lastDraw = performance.now();
     let drawMs = 0; // how long the last frame took on the CPU side (debug: __3draft.sky())
+    // the measured motion of the eye for the flight readout: its speed in space (every cause: the levels, the cruise, the orbit
+    // swing, the gravity) and how fast the view turns (degrees per second); smoothed, reset after a pause
+    const motion = { t: 0, eye: null, fwd: null, v: 0, w: 0 };
+    const measureMotion = (now, eye, fwd) => {
+      const dt = (now - motion.t) / 1000;
+      if (dt < 0.004) return; // (a second draw in the same frame)
+      if (motion.eye && dt < 0.5) {
+        const v = Math.hypot(...eye.map((c, i) => c - motion.eye[i])) / dt;
+        const dot = Math.max(-1, Math.min(1, fwd[0] * motion.fwd[0] + fwd[1] * motion.fwd[1] + fwd[2] * motion.fwd[2]));
+        const w = ((Math.acos(dot) * 180) / Math.PI) / dt;
+        const k = 1 - Math.exp(-dt * 6);
+        motion.v += (v - motion.v) * k;
+        motion.w += (w - motion.w) * k;
+        if (motion.v < 1e-9) motion.v = 0;
+        if (motion.w < 1e-4) motion.w = 0;
+      } else if (dt >= 0.5) motion.v = motion.w = 0;
+      motion.t = now;
+      motion.eye = [...eye];
+      motion.fwd = [...fwd];
+    };
     const draw = () => {
       const t0 = performance.now();
       try { drawFrame(); } finally { drawMs = performance.now() - t0; }
@@ -1993,6 +2025,7 @@
       queued = false;
       stepTravel(performance.now());
       stepFly(performance.now());
+      measureMotion(performance.now(), eyeNow(), shipBasis().forward); // once a frame, after the moves
       const r = stage.getBoundingClientRect();
       const touchy = matchMedia('(pointer: coarse), (max-width: 640px)').matches || document.body.classList.contains('pwa');
       // on a phone the drawing is a little larger than the short side and the rest of the screen is panel color
@@ -2377,8 +2410,10 @@
           } else v = space() ? Math.hypot(...shipVelocity()) : Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT; // (with the braking program's share and the cruise)
           const nice = (x) => (x >= 1e9 ? `${(x / 1e9).toFixed(1)}G` : x >= 1e6 ? `${(x / 1e6).toFixed(1)}M` : x >= 1e4 ? `${(x / 1e3).toFixed(1)}k` : x >= 100 ? x.toFixed(0) : x >= 1 ? x.toFixed(1) : x.toFixed(2));
           const speedText = star ? (v ? `${nice(v)} ly/s <small style="font-weight:400;opacity:.65">${nice(v * 31557600)} c</small>` : '0 ly/s') : `${v.toFixed(2)} ${editing ? 'm/s' : 'u/s'}`; // light years per second, with the multiple of the speed of light beside it
+          const unitText = star ? 'ly/s' : editing ? 'm/s' : 'u/s';
+          const vec = `<div class="vec">v⃗ ${star ? nice(motion.v) : motion.v.toFixed(2)} ${unitText} · ω ${motion.w >= 10 ? motion.w.toFixed(0) : motion.w.toFixed(1)}°/s</div>`;
           const mode = !space() ? '' : orbit ? `<div class="orbit ${orbit.phase === 'arm' ? 'blink' : orbit.phase === 'brake' ? 'dim' : ''}">ORBIT</div>` : gravity ? `<div class="orbit grav">GRAVITY · ${hudText(gravity.name)}</div>` : '';
-          flightEl.innerHTML = `<div><b>${speedText}</b></div>${mode}<div class="lock">${gapTo === null ? '' : star ? `${gapTo.toFixed(2)} ly` : `${gapTo.toFixed(2)}${editing ? ' m' : ''}`}</div>`;
+          flightEl.innerHTML = `<div><b>${speedText}</b></div>${vec}${mode}<div class="lock">${gapTo === null ? '' : star ? `${gapTo.toFixed(2)} ly` : `${gapTo.toFixed(2)}${editing ? ' m' : ''}`}</div>`;
         }
       }
       drawCloud(size);
@@ -3464,7 +3499,7 @@
         await addScene(data);
         if (data.view && (replace || !mergeOn || !had)) applyView(data.view);
       });
-    const addExample = async (name) => withLoader(name.replace(/^saved:/, ''), async () => loadScene(await sceneOf(name)));
+    const addExample = async (name) => ((startScene = startScene === name ? name : null), withLoader(name.replace(/^saved:/, ''), async () => loadScene(await sceneOf(name))));
     const addScene = async ({ objects: raw, palette: extra, prototypes, start, cloud: points, cloudProtos }) => {
       const objects = raw.map((o) => (o.proto ? { name: o.name, inst: { ...o, proto: prototypes[o.proto] }, mesh: instantiate(prototypes[o.proto].lods.at(-1), placement(o)), ...(o.pickable === false ? { pickable: false } : {}) } : o));
       // a scene may bring its own materials; the ones the palette lacks are added (and saved with a db)
@@ -7306,6 +7341,10 @@
     }
 
     if (EMBED) seedStore();
+    // the starting scene is the deep sky (?empty starts with nothing; a recording to play, a show or an artifact keep their own start)
+    let startScene = null;
+    if (!EMBED && !SHOW && !new URLSearchParams(location.search).has('empty') && !new URLSearchParams(location.search).has('play'))
+      (startScene = 'deepsky'), setTimeout(() => addExample('deepsky').catch((e) => sceneNote(`scene: ${e.message}`)), 0);
     draw();
     window.__ready = true;
     if (!EMBED && !SHOW && !globalThis.claude?.use && !plyName) addExample('globe'); // the starting scene (the store pane has its own stock)
@@ -7315,7 +7354,7 @@
     // or changed here, and the back button / back gesture (the phone app's back key too) needs pressing twice within two seconds.
     if (!EMBED && !SHOW) {
       window.addEventListener('beforeunload', (e) => {
-        if (!history.length && !allObjects().length) return; // nothing here to lose
+        if (!history.length && (!allObjects().length || startScene)) return; // nothing here to lose (the starting scene untouched)
         e.preventDefault();
         e.returnValue = ''; // (older browsers want it set)
       });
