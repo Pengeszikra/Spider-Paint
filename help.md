@@ -41,7 +41,7 @@ A minimal 3D scene builder. Fly through a scene, build with solid prisms, and ed
 | Space | Speed zero |
 | Arrow keys | Rotate the view in steps; drag does the same |
 | T | Target the object under the cross; the camera keeps looking at it |
-| Tab / Shift+Tab | Next / previous target |
+| Tab / Shift+Tab | Next / previous target: first the objects in view, starting with the one nearest the middle of the screen, then the rest (nearest first) |
 | Esc | Let go of the target |
 | ; (é) | Freeze |
 | / | Show only the object under the cross (again: everything) |

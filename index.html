@@ -755,7 +755,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@4e675f628ee3f4224d1f65c3e46f3874fa7ec380/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@f421535f7f304caf68b3640e2c9bb4d37ad9b78e/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1321,11 +1321,38 @@
         pitch: Math.max(-LIMIT, Math.min(LIMIT, -Math.asin(d[1] / len))),
       });
     };
+    // Tab: the objects in the field of view come first, nearest to the middle of the screen first, then all the others (nearest to
+    // the eye first). The order is taken when a Tab round starts (no target, or a target that is not in the round) and kept while
+    // Tab goes on, so turning onto one target does not shuffle the rest.
+    let tabRound = null; // { ids: [...] }
+    const tabOrder = () => {
+      const all = allObjects().filter((o) => o.mesh.positions.length && owners.some((w) => w.obj.id === o.id));
+      const cam = gcam;
+      if (!cam) return all;
+      const seen = [];
+      const rest = [];
+      for (const o of all) {
+        const c = ballOf(o).center;
+        const q = project(cam, c);
+        const off = Math.hypot(q.x - cam.size / 2, q.y - cam.size / 2);
+        const inView = q.depth > 0 && Math.abs(q.x - cam.size / 2) <= cam.size / 2 && Math.abs(q.y - cam.size / 2) <= cam.size / 2;
+        (inView ? seen : rest).push([inView ? off : Math.hypot(...vsub(c, cam.eye)), o]);
+      }
+      seen.sort((a, b) => a[0] - b[0]);
+      rest.sort((a, b) => a[0] - b[0]);
+      return [...seen, ...rest].map(([, o]) => o);
+    };
     const nextTarget = (back) => {
-      const list = allObjects().filter((o) => o.mesh.positions.length && owners.some((w) => w.obj.id === o.id));
+      if (!tabRound || !locked || !tabRound.ids.includes(locked)) tabRound = { ids: tabOrder().map((o) => o.id), fresh: true };
+      const byId = new Map(allObjects().map((o) => [o.id, o]));
+      const list = tabRound.ids.map((id) => byId.get(id)).filter(Boolean);
       if (!list.length) return;
-      const at = list.findIndex((o) => o.id === locked);
-      const o = list[(at + (back ? -1 : 1) + list.length) % list.length];
+      // the first Tab of a round takes the first of the list (the one nearest the middle), not the one after the current target
+      const at = tabRound.fresh ? (back ? 1 : -1) : list.findIndex((o) => o.id === locked);
+      tabRound.fresh = false;
+      const step = back ? -1 : 1;
+      let o = list[(at + step + list.length) % list.length];
+      if (o.id === locked && list.length > 1) o = list[(at + 2 * step + list.length) % list.length]; // (already the target: the next)
       locked = o.id;
       lookAt(o); // Tab turns the camera onto the object; it does not move (W flies there)
     };
@@ -1374,7 +1401,7 @@
     // worker that dies or hangs is restarted (three times), and without a worker the picking stays on the main thread as before.
     const PICK_ASYNC_FACES = 4000;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@4e675f628ee3f4224d1f65c3e46f3874fa7ec380/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@f421535f7f304caf68b3640e2c9bb4d37ad9b78e/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -6097,7 +6124,7 @@
       if (posing && poseKey(e)) return;
       if (e.key === 'Tab') {
         e.preventDefault(); // Tab is the target key: the next object (with no target yet: the one under the cross, like T)
-        if (!e.repeat) locked ? nextTarget(e.shiftKey) : travelTo();
+        if (!e.repeat) nextTarget(e.shiftKey); // (the first Tab: the object nearest the middle of the view)
         return;
       }
       if (e.key === 'Escape' && locked && !editing && !picking) {
