@@ -761,7 +761,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@eb61ed1bc5f9087d00c5d8563eb71255daa7fbf4/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@3281d9eb9c5ca8738fcbb1970458c1eda2ffe990/dist/index.js';
     const orbit_ = orbitView; // (the camera orbit helper; `orbit` is the space orbit state)
     const LEG = { base: 0.15 }; // the base of a placed prism
 
@@ -1061,10 +1061,10 @@
     const STEER_RATE = 3; // 1/s: how quickly the heading follows the target
     const STEER_AHEAD = (80 * Math.PI) / 180;
     let steer = null; // { all: true } until the first turn is done, then {} ; null: no steering
-    // The braking program: closing in on the target the ship slows down by itself, so that it never is more than BRAKE_S seconds
-    // from it at its speed, but not below BRAKE_MIN (0.5 ly/s). It lowers `throttle` (a factor on the speed the levels give, kept
-    // after the target as well); it eases in (BRAKE_RATE), so a T at full speed does not jolt. Any speed key gives the stick back
-    // (throttle 1, and no more braking for this target; the next T / Tab brakes again).
+    // The braking program: while there is a target (T, Tab, a double click) and the ship closes in on it, it slows down by itself
+    // (never nearer than BRAKE_S seconds to its stop at its speed) and stops at the target's surface. It lowers `throttle` (a factor
+    // on the speed the levels give); it eases in (BRAKE_RATE), so a T at full speed does not jolt. A speed key sets throttle 1 again
+    // and the program brakes from there: with a target you cannot fly into it (Esc lets the target go, then you fly on freely).
     const BRAKE_S = 2;
     const BRAKE_MIN = 0.5;
     const BRAKE_RATE = 4; // 1/s
@@ -1227,7 +1227,6 @@
       throttle = 1;
       cruise = { f: 0, r: 0, u: 0 };
       gravity = null;
-      braking = false;
       redraw();
     };
     const steerTo = (dt) => {
@@ -1373,8 +1372,7 @@
     };
     const speed = (axis, d) => {
       if (frozen) return;
-      throttle = 1; // the pilot takes over from the braking program
-      braking = false;
+      throttle = 1; // a new speed: the braking program (still on while there is a target) brakes again from here
       if (!locked || (space() && !orbitOn())) enterFly();
       level[axis] += d;
       redraw();
@@ -1394,8 +1392,9 @@
       const sp = Math.sin(pitch);
       const forward = [sy * cp, -sp, -cy * cp];
       const right = [cy, 0, sy];
-      const v = forward.map((c, i) => c * pace(level.f) + right[i] * pace(level.r) + (i === 1 ? pace(level.u) : 0));
-      if (locked && space() && braking) brake(v, dt);
+      const velocity = () => forward.map((c, i) => c * pace(level.f) + right[i] * pace(level.r) + (i === 1 ? pace(level.u) : 0));
+      if (locked && space() && braking) brake(velocity(), dt);
+      const v = velocity(); // (after the brake: arriving it set the levels to rest and the throttle back to 1)
       const { forward: F, right: Rt } = shipBasis();
       const cw = F.map((c, i) => c * cruise.f + Rt[i] * cruise.r + (i === 1 ? cruise.u : 0)); // the cruise, ly/s
       fit.center = fit.center.map((c, i) => c + v[i] * UNIT * throttle * dt + cw[i] * dt);
@@ -1587,7 +1586,7 @@
     // worker that dies or hangs is restarted (three times), and without a worker the picking stays on the main thread as before.
     const PICK_ASYNC_FACES = 4000;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@eb61ed1bc5f9087d00c5d8563eb71255daa7fbf4/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@3281d9eb9c5ca8738fcbb1970458c1eda2ffe990/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
