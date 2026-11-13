@@ -154,6 +154,8 @@ Far stars, black holes and galaxies are aimed at by their middle, not by their s
 
 The **deepsky** example is a stress test: the Milky Way, 1000 real galaxies (from the OpenNGC catalogue), 400 black holes and 3000 real stars (the nearest 1000 and 2000 notable ones farther out). Galaxies are stored as a few numbers and their stars are worked out only when you come close enough for them to matter; far away a soft glow stands for them.
 
+Twelve famous **colliding galaxies** (M81 and M82, the Whirlpool, the Antennae, the Mice, Stephan's Quintet, Arp 220 and others, and the Sagittarius stream round the Milky Way) are worked out by a small gravity simulation: two galaxies pass each other, tides pull out tails and bridges, mergers become one body. Each system always shows the same moment of its collision, and each has its own.
+
 ## The black hole
 Sagittarius A* (in the Milky Way and the stars scenes) is drawn by a small ray tracer: the light bends round it, so the accretion disc shows above and below the black shadow, with a thin photon ring. The gas is coloured as very hot gas really looks: bluish-white; the side coming towards you is brighter and bluer, the side going away dimmer and redder (Doppler). The disc is wide and thin, of clumpy glowing gas; stars between you and the hole still show in front of it, the ones behind it are hidden by its shadow. Only the area round it is computed, at half resolution.
 
