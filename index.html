@@ -441,6 +441,13 @@
     #flight b { color: var(--fg, inherit); font-weight: 600; }
     #flight .lock { color: #4dabf7; }
     #flight .vec { opacity: 0.75; font-size: 0.9em; }
+    #driveGrp { color: #d8d4c6; opacity: 0.35; }
+    #driveGrp.on { opacity: 1; }
+    #gasGauge { position: relative; width: 10px; height: 38px; border-radius: 3px; background: #22251f; overflow: hidden; }
+    #gasGauge::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #5b5f55; }
+    #gasGauge i { position: absolute; left: 0; right: 0; bottom: 50%; height: 0; background: #39d98a; }
+    #gasGauge i.brake { bottom: auto; top: 50%; background: #ff5a4f; }
+    #driveText { font: 600 11px/1.25 ui-monospace, monospace; min-width: 38px; text-align: right; }
     #flight .orbit { color: #39ff14; font-weight: 600; letter-spacing: 0.12em; }
     #flight .orbit.dim { opacity: 0.45; }
     #flight .orbit.blink { animation: orbitBlink 0.25s steps(2) infinite; }
@@ -725,10 +732,10 @@
         <option value="station-screen">Station screen (a scene on a face)</option>
         <optgroup id="savedGroup" label="saved here" hidden></optgroup></select>
           <button id="mergeSw" type="button" class="sw on" title="Loading a scene (the list, file ↑): on adds it to what is there, off clears the scene first and loads it alone"><i></i>merge</button>
-          <select id="vehicle" aria-label="Vehicle: how the camera moves" title="Vehicle: how the camera moves in this scene. starship: T / Tab only turn the ship, it keeps its speed, brakes to the target's surface, 0 orbit / gravity. car: (coming; does nothing yet). A scene file may set it (vehicle)">
+          <select id="vehicle" aria-label="Vehicle: how the camera moves" title="Vehicle: how the camera moves in this scene. starship: T / Tab only turn the ship, it keeps its speed, brakes to the target's surface, 0 orbit / gravity. car: drives on the ground (two fingers: sideways the wheel, up / down the throttle). A scene file may set it (vehicle)">
           <option value="">– vehicle</option>
           <option value="starship">starship</option>
-          <option value="car">car (soon)</option>
+          <option value="car">car</option>
           </select>
           <button id="clear" type="button" class="slate ic" title="Remove every object (U brings them back)" aria-label="Clear"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M8 7V5h8v2M7 7l1 12h8l1-12"/></svg></button>
         </span>
@@ -755,6 +762,11 @@
           <input id="playFile" type="file" accept=".json,application/json" hidden>
         </span>
       </span>
+      <span class="grp" data-label="drive" id="driveGrp" title="The car (vehicle: car): the steering wheel and the throttle. Two fingers sideways turn the wheel (it stays while you hold it, and turns back to the middle when you let go); two fingers up give gas, down take it back and then brake; the throttle stays where you leave it">
+        <svg id="wheelGauge" viewBox="-20 -20 40 40" width="38" height="38" aria-hidden="true"><g id="wheelRot"><circle r="15" fill="none" stroke="currentColor" stroke-width="3"/><circle r="3" fill="currentColor"/><path d="M-15 0H-3M3 0H15M0 3V15" stroke="currentColor" stroke-width="2.5"/><path d="M0 -18V-12" stroke="#ff7b54" stroke-width="3"/></g></svg>
+        <span id="gasGauge" aria-hidden="true"><i></i></span>
+        <span id="driveText">0°<br>0%</span>
+      </span>
       <span class="grp rows" data-label="network" id="netGrp" hidden>
         <span class="row">
           <button id="netExit" type="button" class="slate" title="Give the control back to the 3D view (a click outside the page does the same)">exit</button>
@@ -766,7 +778,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@82235e53b1405663a06e088798cc861d1d240a71/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@5afa2d4e61adb5cb217421365667102bf8906723/dist/index.js';
     const orbit_ = orbitView; // (the camera orbit helper; `orbit` is the space orbit state)
     const LEG = { base: 0.15 }; // the base of a placed prism
 
@@ -1066,6 +1078,7 @@
     const setVehicle = (v) => {
       vehicle = v === 'starship' || v === 'car' ? v : null;
       if (vehicleEl) vehicleEl.value = vehicle ?? '';
+      car = null; // (started at the next frame from where the eye is)
       if (vehicle !== 'starship') {
         orbit = null;
         gravity = null;
@@ -1081,6 +1094,100 @@
       vehicleEl.blur(); // so the keys work right away
     });
     const space = () => vehicle === 'starship' && !editing && !bench;
+    // ---- The car (vehicle 'car'): it keeps to the ground (the highest surface under it, looked for with a ray straight down from a
+    // little above the car, so it climbs slopes and kerbs but does not jump onto roofs; houses are not hit). 1 unit = 1 metre.
+    // Two fingers (a trackpad's two-finger swipe, or two fingers on a touch screen): sideways turn the steering wheel, which stays
+    // where it is while you hold it and turns back to the middle when you let go (CAR_RETURN); up adds throttle, down takes it back
+    // and below zero brakes; the throttle stays where it is left. The speed: full throttle CAR_ACCEL m/s², settling at
+    // throttle × CAR_TOP; braking CAR_BRAKE m/s²; no reverse yet. The turn: a bicycle model (wheelbase CAR_BASE, wheel angle up to
+    // CAR_STEER). The eye sits CAR_EYE above the ground, looking ahead; a drag looks round (it does not steer).
+    const CAR_EYE = 1.3;
+    const CAR_BASE = 2.7;
+    const CAR_STEER = 0.6; // rad, the front wheels at full lock
+    const CAR_ACCEL = 3.5;
+    const CAR_TOP = 50; // m/s at full throttle (180 km/h)
+    const CAR_BRAKE = 9;
+    const CAR_RETURN = 3; // 1/s: the wheel turning back to the middle
+    const CAR_HOLD_MS = 300; // a wheel input this recent still holds the wheel (a trackpad sends no events while the fingers rest)
+    const CAR_STEP = 1.5; // m: the ground is looked for from this high above the car
+    let car = null; // { p, heading, v, steer, throttle, steerAt, touchHold, lookYaw, lookPitch }
+    const drive = () => vehicle === 'car' && !editing && !bench;
+    const groundAt = (x, y, z) => {
+      const mesh = pickTarget().mesh;
+      if (!mesh.faces.length) return null;
+      const cam = { name: 'down', eye: [x, y, z], f: [0, -1, 0], r: [1, 0, 0], u: [0, 0, -1], ortho: true, k: 1, size: 2 };
+      const h = kernel ? kernel.pick(mesh, cam, 1, 1, { cull: false }) : pick(mesh, cam, 1, 1, { cull: false });
+      return h ? h.point[1] : null;
+    };
+    const startCar = () => {
+      const eye = eyeNow();
+      const g = groundAt(eye[0], eye[1], eye[2]) ?? groundAt(eye[0], eye[1] + 1e4, eye[2]);
+      car = { p: [eye[0], g ?? eye[1] - CAR_EYE, eye[2]], heading: yaw, v: 0, steer: 0, throttle: 0, steerAt: 0, touchHold: false, lookYaw: 0, lookPitch: Math.max(-0.5, Math.min(0.3, pitch)) };
+      fly = true;
+      travel = null;
+      locked = null;
+      level.f = level.r = level.u = 0;
+      placeCarCamera();
+    };
+    // the gauges under the console (after sys): the wheel turned as the steering wheel would be (the wheels' angle × 3), the throttle bar
+    const driveGrp = document.getElementById('driveGrp');
+    const wheelRot = document.getElementById('wheelRot');
+    const gasBar = document.querySelector('#gasGauge i');
+    const driveText = document.getElementById('driveText');
+    let driveShown = '';
+    const showDrive = () => {
+      if (!driveGrp) return;
+      const on = vehicle === 'car';
+      const st = car?.steer ?? 0, th = car?.throttle ?? 0;
+      const key = `${on}|${st.toFixed(3)}|${th.toFixed(3)}`;
+      if (key === driveShown) return;
+      driveShown = key;
+      driveGrp.classList.toggle('on', on);
+      wheelRot.setAttribute('transform', `rotate(${(st * CAR_STEER * 57.3 * 3).toFixed(1)})`); // a steering wheel turns ~3x the wheels
+      gasBar.classList.toggle('brake', th < 0);
+      gasBar.style.height = `${Math.abs(th) * 50}%`;
+      driveText.innerHTML = `${Math.round(st * CAR_STEER * 57.3)}°<br>${th < 0 ? 'brake ' : ''}${Math.round(Math.abs(th) * 100)}%`;
+    };
+    const placeCarCamera = () => {
+      yaw = car.heading + car.lookYaw;
+      pitch = car.lookPitch;
+      const f = makeCamera(orbit_({ yaw, pitch }), nothing, 100, { center: [0, 0, 0], radius: 1, dist: FLY_DIST }).f;
+      const eye = [car.p[0], car.p[1] + CAR_EYE, car.p[2]];
+      fit.center = eye.map((c, i) => c + f[i] * FLY_DIST);
+      fit.dist = FLY_DIST;
+      backoff = 1;
+    };
+    const steerInput = (d) => {
+      if (!car) return;
+      car.steer = Math.max(-1, Math.min(1, car.steer + d));
+      car.steerAt = performance.now();
+      redraw();
+    };
+    const gasInput = (d) => {
+      if (!car) return;
+      car.throttle = Math.max(-1, Math.min(1, car.throttle + d));
+      redraw();
+    };
+    const stepCar = (dt, now) => {
+      if (!car) startCar();
+      // the wheel: held while the fingers are on it, back to the middle after
+      if (!car.touchHold && now - car.steerAt > CAR_HOLD_MS && car.steer) {
+        car.steer *= Math.exp(-dt * CAR_RETURN);
+        if (Math.abs(car.steer) < 0.002) car.steer = 0;
+      }
+      // the speed
+      const t = car.throttle;
+      let a = t >= 0 ? t * CAR_ACCEL - (CAR_ACCEL / CAR_TOP) * car.v : t * CAR_BRAKE;
+      car.v = Math.max(0, car.v + a * dt);
+      // the turn (bicycle model) and the move
+      car.heading += (car.v / CAR_BASE) * Math.tan(car.steer * CAR_STEER) * dt;
+      const fwd = [Math.sin(car.heading), 0, -Math.cos(car.heading)];
+      const nx = car.p[0] + fwd[0] * car.v * dt, nz = car.p[2] + fwd[2] * car.v * dt;
+      const g = groundAt(nx, car.p[1] + CAR_STEP, nz);
+      car.p = [nx, g ?? car.p[1], nz];
+      placeCarCamera();
+      if (car.v || car.steer || t) redraw();
+    };
     const SPACE_FOV = (60 * Math.PI) / 180;
     const STEER_RATE = 3; // 1/s: how quickly the heading follows the target
     const STEER_AHEAD = (80 * Math.PI) / 180;
@@ -1395,7 +1502,7 @@
       focused = true;
     };
     const speed = (axis, d) => {
-      if (frozen) return;
+      if (frozen || drive()) return; // (the car: the two-finger wheel and throttle)
       throttle = 1; // a new speed: the braking program (still on while there is a target) brakes again from here
       if (!locked || (space() && !orbitOn())) enterFly();
       level[axis] += d;
@@ -1405,6 +1512,7 @@
       const dt = Math.min(0.05, (now - lastFrame) / 1000);
       lastFrame = now;
       if (frozen) return;
+      if (drive()) return stepCar(dt, now);
       if (locked && (!space() || orbitOn())) return stepTarget(dt);
       if (locked) steerTo(dt);
       stepOrbit(dt, now);
@@ -1610,7 +1718,7 @@
     // worker that dies or hangs is restarted (three times), and without a worker the picking stays on the main thread as before.
     const PICK_ASYNC_FACES = 4000;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@82235e53b1405663a06e088798cc861d1d240a71/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@5afa2d4e61adb5cb217421365667102bf8906723/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -1801,6 +1909,43 @@
       redraw();
     });
     // while a page has the control, a press anywhere outside it hands the control back (and does nothing else)
+    // the car on a touch screen: two fingers; their mean move sideways turns the wheel, up / down sets the throttle
+    const fingers = new Map();
+    let fingerMid = null;
+    const midOf = () => {
+      const v = [...fingers.values()];
+      return [v.reduce((a, q) => a + q[0], 0) / v.length, v.reduce((a, q) => a + q[1], 0) / v.length];
+    };
+    stage.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'touch' || !drive()) return;
+      fingers.set(e.pointerId, [e.clientX, e.clientY]);
+      if (fingers.size >= 2) {
+        fingerMid = midOf();
+        if (car) car.touchHold = true;
+        e.stopImmediatePropagation();
+        e.preventDefault();
+      }
+    }, true);
+    stage.addEventListener('pointermove', (e) => {
+      if (!fingers.has(e.pointerId)) return;
+      fingers.set(e.pointerId, [e.clientX, e.clientY]);
+      if (fingers.size < 2 || !fingerMid) return;
+      const m = midOf();
+      steerInput((m[0] - fingerMid[0]) * 0.006);
+      gasInput(-(m[1] - fingerMid[1]) * 0.004);
+      fingerMid = m;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+    }, true);
+    const fingerUp = (e) => {
+      if (!fingers.delete(e.pointerId)) return;
+      if (fingers.size < 2) {
+        fingerMid = null;
+        if (car) car.touchHold = false; // the wheel goes back to the middle
+      }
+    };
+    stage.addEventListener('pointerup', fingerUp, true);
+    stage.addEventListener('pointercancel', fingerUp, true);
     stage.addEventListener('pointerdown', (e) => {
       if (!screenCtl) return;
       e.stopImmediatePropagation();
@@ -2049,6 +2194,7 @@
       stepTravel(performance.now());
       stepFly(performance.now());
       measureMotion(performance.now(), eyeNow(), shipBasis().forward); // once a frame, after the moves
+      showDrive();
       const r = stage.getBoundingClientRect();
       const touchy = matchMedia('(pointer: coarse), (max-width: 640px)').matches || document.body.classList.contains('pwa');
       // on a phone the drawing is a little larger than the short side and the rest of the screen is panel color
@@ -2421,6 +2567,9 @@
           // In a star map one unit is one light year, so the speed is given as a multiple of the speed of light
           // (1 ly/s = 31 557 600 c) and the distance in light years.
           const star = space(); // the starship flies in light years
+          if (drive() && car) {
+            flightEl.innerHTML = `<div><b>${(car.v * 3.6).toFixed(0)} km/h</b></div><div class="vec">wheel ${Math.round(car.steer * CAR_STEER * 57.3)}° · gas ${Math.round(car.throttle * 100)}%</div>`;
+          }
           let v;
           let gapTo = null;
           if (lockedObj) {
@@ -2436,7 +2585,7 @@
           const unitText = star ? 'ly/s' : editing ? 'm/s' : 'u/s';
           const vec = `<div class="vec">v⃗ ${star ? nice(motion.v) : motion.v.toFixed(2)} ${unitText} · ω ${motion.w >= 10 ? motion.w.toFixed(0) : motion.w.toFixed(1)}°/s</div>`;
           const mode = !space() ? '' : orbit ? `<div class="orbit ${orbit.phase === 'arm' ? 'blink' : orbit.phase === 'brake' ? 'dim' : ''}">ORBIT</div>` : gravity ? `<div class="orbit grav">GRAVITY · ${hudText(gravity.name)}</div>` : '';
-          flightEl.innerHTML = `<div><b>${speedText}</b></div>${vec}${mode}<div class="lock">${gapTo === null ? '' : star ? `${gapTo.toFixed(2)} ly` : `${gapTo.toFixed(2)}${editing ? ' m' : ''}`}</div>`;
+          if (!(drive() && car)) flightEl.innerHTML = `<div><b>${speedText}</b></div>${vec}${mode}<div class="lock">${gapTo === null ? '' : star ? `${gapTo.toFixed(2)} ly` : `${gapTo.toFixed(2)}${editing ? ' m' : ''}`}</div>`;
         }
       }
       drawCloud(size);
@@ -3147,6 +3296,12 @@
       if (frozen) return;
       travel = null; // the hand takes over from the glide
       if (steer && space()) steer = null; // and from the steering (T again steers)
+      if (drive() && car) {
+        car.lookYaw += dYaw;
+        car.lookPitch = Math.max(-1.2, Math.min(1.2, car.lookPitch + dPitch));
+        placeCarCamera();
+        return redraw();
+      }
       yaw += dYaw;
       pitch = wrapPitch(pitch + dPitch);
       redraw();
@@ -5586,6 +5741,12 @@
       e.preventDefault(); // (and a trackpad pinch, which comes as a wheel with Ctrl, does not zoom the page)
       if (xf?.kind === 'bevel') return bevelSegments(e.deltaY < 0 ? 1 : -1);
       const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+      if (drive() && !e.ctrlKey) {
+        // a two-finger swipe: sideways the wheel (fingers to the right: right), up / down the throttle (fingers up: more)
+        if (e.deltaX) steerInput(-e.deltaX * unit * 0.004);
+        if (e.deltaY) gasInput(e.deltaY * unit * 0.003);
+        return;
+      }
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return orbitPointer(e.deltaX * unit * 0.005); // sideways: round the point under the cursor
       const step = e.deltaY * unit;
       zoomGoal = Math.min(30, Math.max(0.25, zoomGoal * Math.exp(-step * (e.ctrlKey ? 0.01 : 0.0015))));
@@ -6966,7 +7127,7 @@
       globalThis.__3draft = {
         load: (data) => applyScene(data),
         pickFault: () => (picker.worker?.postMessage({ type: 'pick', ver: picker.ver, cam: null, x: 0, y: 0, cull: true, key: 'fault' }), Boolean(picker.worker)), // (a test: a broken question)
-        flight: () => ({ vehicle, orbit: orbit?.phase ?? null, gravity: gravity && { name: gravity.name }, cruise: { ...cruise }, space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
+        flight: () => ({ vehicle, car: car && { p: car.p, heading: car.heading, v: car.v, steer: car.steer, throttle: car.throttle }, orbit: orbit?.phase ?? null, gravity: gravity && { name: gravity.name }, cruise: { ...cruise }, space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
         aim: () => (aim ? { name: aim.obj.name, px: +aim.px.toFixed(1), depth: aim.depth } : null), under: () => hitObj()?.name ?? null, locked: () => lockedObject()?.name ?? null,
         picker: () => ({ ready: picker.ready, failed: picker.failed, busy: Boolean(picker.busy), ver: picker.ver, picks: picker.picks, ms: +picker.ms.toFixed(2), sceneMs: +picker.sceneMs.toFixed(1), restarts: picker.restarts, errors: [...picker.errors] }),
         sky: () => ({ live: liveSky.set.size, points: liveSky.n, cached: galaxyCache.size, cachedPoints, traced: traced.size, cloud: cloud?.n ?? 0, ms: +drawMs.toFixed(1), rebuilds, faces: scene.faces.length }),
