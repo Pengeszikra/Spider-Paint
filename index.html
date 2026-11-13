@@ -443,6 +443,7 @@
     #flight .vec { opacity: 0.75; font-size: 0.9em; }
     #driveGrp { color: #d8d4c6; opacity: 0.35; }
     #driveGrp.on { opacity: 1; }
+    #driveGrp.in #wheelGauge { color: #39ff14; }
     #gasGauge { position: relative; width: 10px; height: 38px; border-radius: 3px; background: #22251f; overflow: hidden; }
     #gasGauge::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #5b5f55; }
     #gasGauge i { position: absolute; left: 0; right: 0; bottom: 50%; height: 0; background: #39d98a; }
@@ -778,7 +779,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@5afa2d4e61adb5cb217421365667102bf8906723/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@10135350686de6f3b0606c1069703840603fefbf/dist/index.js';
     const orbit_ = orbitView; // (the camera orbit helper; `orbit` is the space orbit state)
     const LEG = { base: 0.15 }; // the base of a placed prism
 
@@ -1718,7 +1719,7 @@
     // worker that dies or hangs is restarted (three times), and without a worker the picking stays on the main thread as before.
     const PICK_ASYNC_FACES = 4000;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@5afa2d4e61adb5cb217421365667102bf8906723/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@10135350686de6f3b0606c1069703840603fefbf/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -1909,6 +1910,19 @@
       redraw();
     });
     // while a page has the control, a press anywhere outside it hands the control back (and does nothing else)
+    // the car on a trackpad: a two-finger swipe anywhere on the page (not only over the 3D view; not over a list or a text box):
+    // sideways the wheel (fingers to the right: right), up / down the throttle (fingers up: more, with natural scrolling)
+    window.addEventListener('wheel', (e) => {
+      if (!drive() || e.ctrlKey || e.target.closest?.('select, input, textarea, #side, #palette')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+      if (e.deltaX) steerInput(-e.deltaX * unit * 0.004);
+      if (e.deltaY) gasInput(e.deltaY * unit * 0.003);
+      driveGrp?.classList.add('in'); // (a flash on the gauges: the input arrived)
+      clearTimeout(driveGrp?._in);
+      if (driveGrp) driveGrp._in = setTimeout(() => driveGrp.classList.remove('in'), 120);
+    }, { capture: true, passive: false });
     // the car on a touch screen: two fingers; their mean move sideways turns the wheel, up / down sets the throttle
     const fingers = new Map();
     let fingerMid = null;
@@ -5741,12 +5755,7 @@
       e.preventDefault(); // (and a trackpad pinch, which comes as a wheel with Ctrl, does not zoom the page)
       if (xf?.kind === 'bevel') return bevelSegments(e.deltaY < 0 ? 1 : -1);
       const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
-      if (drive() && !e.ctrlKey) {
-        // a two-finger swipe: sideways the wheel (fingers to the right: right), up / down the throttle (fingers up: more)
-        if (e.deltaX) steerInput(-e.deltaX * unit * 0.004);
-        if (e.deltaY) gasInput(e.deltaY * unit * 0.003);
-        return;
-      }
+      if (drive()) return; // (the car takes the wheel on the window, below)
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return orbitPointer(e.deltaX * unit * 0.005); // sideways: round the point under the cursor
       const step = e.deltaY * unit;
       zoomGoal = Math.min(30, Math.max(0.25, zoomGoal * Math.exp(-step * (e.ctrlKey ? 0.01 : 0.0015))));
