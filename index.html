@@ -444,6 +444,8 @@
     #driveGrp { color: #d8d4c6; opacity: 0.35; }
     #driveGrp.on { opacity: 1; }
     #driveText .brake { color: #ff5a4f; }
+    #xrNote { font: 500 9px/1.2 var(--font-mono, ui-monospace, monospace); color: #9a9d90; max-width: 230px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #xrNote.press { color: #39ff14; }
     body.car footer.console .grp[data-label="sys"] { display: none; }
     #driveGrp.in #wheelGauge { color: #39ff14; }
     #gasGauge { position: relative; width: 10px; height: 38px; border-radius: 3px; background: #22251f; overflow: hidden; }
@@ -780,6 +782,10 @@
           <label title="How long the let-go gas and brake take to come back to zero">↺ gas <input type="range" id="tBrakeBack" min="0.05" max="2" step="0.05"><b>s</b></label>
         </span>
       </span>
+      <span class="grp rows" data-label="xr" id="xrGrp">
+        <span class="row"><button id="xrBtn" type="button" class="teal" title="WebXR: show the scene in a headset (immersive-vr; on a Mac: the Meta Immersive Web Emulator). The right stick drives the car: sideways the wheel, up / down the gas">enter VR</button></span>
+        <span class="row"><span id="xrNote">–</span></span>
+      </span>
       <span class="grp rows" data-label="network" id="netGrp" hidden>
         <span class="row">
           <button id="netExit" type="button" class="slate" title="Give the control back to the 3D view (a click outside the page does the same)">exit</button>
@@ -791,7 +797,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@daf9d96306d672c6eb95e143ace68c9a4edcf029/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@66a82ad4a009106e1ce460774241edbf60edd9aa/dist/index.js';
     const orbit_ = orbitView; // (the camera orbit helper; `orbit` is the space orbit state)
     const LEG = { base: 0.15 }; // the base of a placed prism
 
@@ -902,6 +908,9 @@
     };
     let lastHitId = null; // the object the cross was last on (a click on a panel button takes the pointer off the view)
     let queued = false;
+    // (WebXR, see toggleXr: declared up here because redraw and the renderer read them from the start)
+    let xrArgs = null; // { scene, view, opts } of the last desktop frame
+    const xrState = { session: null, space: null, prevMode: null, last: 0, flashUntil: 0, pressed: '' };
 
     // Prisms still flying: { mesh, inst, from, start }; once landed they become ordinary objects.
     // (was: Prisms put down so far) `inst` is the prism as an instance
@@ -1243,6 +1252,7 @@
       if (!car) return;
       car.throttle = Math.max(-1, Math.min(1, car.throttle + d));
       car.gasAt = performance.now();
+      car.gasLatch = false; // (the trackpad's gas springs back; the VR stick's stays: xrDrive)
       redraw();
     };
     const stepCar = (dt, now) => {
@@ -1253,7 +1263,7 @@
         if (Math.abs(car.steer) < 0.002) car.steer = 0;
       }
       // the gas and the brake come back to zero when let go
-      if (!car.touchHold && now - (car.gasAt ?? 0) > CAR_HOLD_MS && car.throttle) {
+      if (!car.touchHold && !car.gasLatch && now - (car.gasAt ?? 0) > CAR_HOLD_MS && car.throttle) {
         car.throttle *= Math.exp((-dt * 3) / carTune.brakeBack);
         if (Math.abs(car.throttle) < 0.002) car.throttle = 0;
       }
@@ -1836,7 +1846,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@daf9d96306d672c6eb95e143ace68c9a4edcf029/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@66a82ad4a009106e1ce460774241edbf60edd9aa/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -2623,7 +2633,7 @@
         const gpuMarks = marks.map((m) => (m.color ? m : { ...m, color: /^#[0-9a-f]{6}$/i.test(cur) ? cur : '#0b7285' }));
         const screens = sceneScreens();
         renderGpu = (readback = false) =>
-          gpu[readback ? 'pixels' : 'render'](scene, view, {
+          gpu[readback ? 'pixels' : 'render'](scene, view, (xrArgs = { scene, view, opts: {
             screens,
             palette: paletteMap,
             parts: sceneParts,
@@ -2639,7 +2649,7 @@
             marks: gpuMarks,
             skin: skinNow(),
             light: { direction: [Math.sin(a) * 0.6, 0.8, Math.cos(a) * 0.6] },
-          });
+          } }).opts);
         if (vr) {
           // two eyes: the same camera shifted along its right vector, drawn one after the other and copied to the eye canvases
           const W = innerWidth, H = innerHeight, half = Math.floor(W / 2);
@@ -3433,6 +3443,7 @@
       ctx.globalAlpha = 1;
     };
     const redraw = () => {
+      if (xrState.session) return; // (the XR session's own frame loop draws)
       if (!queued) {
         queued = true;
         requestAnimationFrame(draw);
@@ -7268,6 +7279,7 @@
       globalThis.__3draft = {
         load: (data) => applyScene(data),
         pickFault: () => (picker.worker?.postMessage({ type: 'pick', ver: picker.ver, cam: null, x: 0, y: 0, cull: true, key: 'fault' }), Boolean(picker.worker)), // (a test: a broken question)
+        xr: () => ({ on: Boolean(xrState.session), pressed: xrState.pressed, note: xrNote?.textContent }),
         flight: () => ({ vehicle, car: car && { p: car.p, heading: car.heading, v: car.v, steer: car.steer, throttle: car.throttle }, orbit: orbit?.phase ?? null, gravity: gravity && { name: gravity.name }, cruise: { ...cruise }, space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
         aim: () => (aim ? { name: aim.obj.name, px: +aim.px.toFixed(1), depth: aim.depth } : null), under: () => hitObj()?.name ?? null, locked: () => lockedObject()?.name ?? null,
         picker: () => ({ ready: picker.ready, failed: picker.failed, busy: Boolean(picker.busy), ver: picker.ver, picks: picker.picks, ms: +picker.ms.toFixed(2), sceneMs: +picker.sceneMs.toFixed(1), restarts: picker.restarts, errors: [...picker.errors] }),
@@ -7690,6 +7702,124 @@
           return { name: o.name, verts: o.mesh.positions.length, faces: o.mesh.faces.length, solid: health(o.mesh).allSolid, hash: h };
         }) };
     }
+
+    // ---- WebXR (immersive-vr), the first, minimal step: the scene in a headset through the WebGL2 renderer, and the controllers.
+    // Enter VR switches to the WebGL2 view if needed (a WebXR layer is made from a WebGL2 context), starts an immersive-vr session
+    // with a 'local' reference space, and from then on the session's requestAnimationFrame runs everything: one frame of the
+    // program (moves, the desktop picture, which also hands over the renderer's arguments: xrArgs) and then each eye into the
+    // XRWebGLLayer's framebuffer with that eye's view matrix, projection and viewport. The headset's space hangs on a rig: its origin
+    // at the eye of the scene (the car: its driver's eye), turned to the heading (yaw only); the head moves only the view. Ending the
+    // session (exit VR, or the headset) gives the desktop view back (and the view mode it had). Not yet in the headset: the glow,
+    // the point cloud and the black hole layers (separate 2D / WebGL canvases), the marks. The controllers: any button pressed tints
+    // the sky green for a moment and shows in the xr note; the right stick drives the car (xrDrive).
+    const xrBtn = document.getElementById('xrBtn');
+    const xrNote = document.getElementById('xrNote');
+    const XR_STEER_RATE = 1.5; // full lock per second at full stick
+    const XR_GAS_RATE = 0.8; // full gas per second at full stick
+    const XR_DEAD = 0.15;
+    const xrSay = (t) => (xrNote ? (xrNote.textContent = t) : null);
+    // the right stick: sideways turns the wheel (held while deflected, back to the middle when let go: carTune.steerBack); up / down
+    // changes the gas, which stays where it is in the middle
+    const xrDrive = (pads, dt, now) => {
+      if (!drive() || !car) return;
+      const right = pads.find((p) => p.hand === 'right') ?? pads[0];
+      if (!right) return;
+      const ax = right.axes;
+      const x = ax.length >= 4 ? ax[2] : ax[0] ?? 0, y = ax.length >= 4 ? ax[3] : ax[1] ?? 0;
+      if (Math.abs(x) > XR_DEAD) {
+        car.steer = Math.max(-1, Math.min(1, car.steer + x * XR_STEER_RATE * dt));
+        car.steerAt = now;
+      }
+      if (Math.abs(y) > XR_DEAD) {
+        car.throttle = Math.max(-1, Math.min(1, car.throttle - y * XR_GAS_RATE * dt)); // stick forward (y < 0): more
+        car.gasLatch = true;
+      }
+    };
+    const xrPads = (session) =>
+      [...session.inputSources].filter((src) => src.gamepad).map((src) => ({ hand: src.handedness, axes: [...src.gamepad.axes], buttons: src.gamepad.buttons.map((b) => b.pressed) }));
+    // the rig: scene point = rotY(-yaw) · headset point + origin
+    const xrRig = () => (drive() && car ? { origin: [car.p[0], car.p[1] + CAR_EYE, car.p[2]], yaw: car.heading } : { origin: eyeNow(), yaw });
+    const xrFrame = (t, frame) => {
+      const session = frame.session;
+      if (session !== xrState.session) return; // (a frame still on its way after the end)
+      session.requestAnimationFrame(xrFrame);
+      const now = performance.now();
+      const dt = xrState.last ? Math.min(0.1, (now - xrState.last) / 1000) : 0;
+      xrState.last = now;
+      // the controllers: the stick to the car, the buttons to the note and a flash
+      const pads = xrPads(session);
+      xrDrive(pads, dt, now);
+      const pressed = pads.map((p) => p.buttons.map((b, i) => (b ? `${p.hand[0] ?? '?'}${i}` : '')).filter(Boolean).join(' ')).filter(Boolean).join(' ');
+      if (pressed) xrState.flashUntil = now + 150;
+      if (pressed !== xrState.pressed) {
+        xrState.pressed = pressed;
+        if (pressed) console.log('[xr] pressed', pressed);
+      }
+      const r = pads.find((p) => p.hand === 'right');
+      xrSay(`${pressed ? `▣ ${pressed}` : 'in VR'}${r ? ` · R ${r.axes.map((v) => v.toFixed(2)).join(' ')}` : ''}`);
+      xrNote?.classList.toggle('press', Boolean(pressed));
+      // one frame of the program (it also renders the desktop picture and leaves xrArgs)
+      queued = false;
+      drawFrame();
+      const pose = frame.getViewerPose(xrState.space);
+      const layer = session.renderState.baseLayer;
+      if (!pose || !layer || !xrArgs || !gpu?.context) return;
+      const { origin, yaw: ry } = xrRig();
+      const c = Math.cos(ry), sn = Math.sin(ry);
+      // scene -> headset: rotY(yaw) · (p - origin), column-major
+      const rx = c * origin[0] + sn * origin[2], rz = -sn * origin[0] + c * origin[2];
+      const toHead = [c, 0, -sn, 0, 0, 1, 0, 0, sn, 0, c, 0, -rx, -origin[1], -rz, 1];
+      const sky = now < xrState.flashUntil ? [0.08, 0.35, 0.12] : (xrArgs.opts.background ?? [0.02, 0.02, 0.03]);
+      for (const v of pose.views) {
+        const vp = layer.getViewport(v);
+        if (!vp) continue;
+        const p = v.transform.position;
+        const eye = [c * p.x - sn * p.z + origin[0], p.y + origin[1], sn * p.x + c * p.z + origin[2]];
+        gpu.render(xrArgs.scene, xrArgs.view, { ...xrArgs.opts, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: v.projectionMatrix, view: mul4(v.transform.inverse.matrix, toHead), eye } });
+      }
+    };
+    const endedXr = async () => {
+      xrState.session = null;
+      xrState.last = 0;
+      if (xrBtn) xrBtn.textContent = 'enter VR';
+      xrSay('VR ended');
+      xrNote?.classList.remove('press');
+      if (xrState.prevMode) await setMode(xrState.prevMode === 'svg' ? 'svg' : 'gpu');
+      xrState.prevMode = null;
+      redraw();
+    };
+    const toggleXr = async () => {
+      if (xrState.session) return xrState.session.end();
+      const xr = navigator.xr;
+      if (!xr) return xrSay('no WebXR here (on a Mac: the Immersive Web Emulator)');
+      if (!(await xr.isSessionSupported('immersive-vr').catch(() => false))) return xrSay('immersive-vr is not supported here');
+      if (mode !== 'gpu' || activeKind !== 'webgl2') {
+        xrState.prevMode = mode !== 'gpu' ? 'svg' : 'gpu';
+        await setMode('gl');
+      }
+      const gl = gpu?.context;
+      if (activeKind !== 'webgl2' || !gl) return xrSay('WebGL2 is not available');
+      let session;
+      try {
+        session = await xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor'] });
+      } catch (err) {
+        if (xrState.prevMode) ((await setMode(xrState.prevMode === 'svg' ? 'svg' : 'gpu')), (xrState.prevMode = null));
+        return xrSay(`could not start VR: ${err?.message ?? err}`);
+      }
+      try {
+        await gl.makeXRCompatible?.();
+      } catch {}
+      session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl), depthNear: 0.05, depthFar: 1e5 });
+      xrState.space = await session.requestReferenceSpace('local');
+      xrState.session = session;
+      session.addEventListener('end', endedXr);
+      session.addEventListener('selectstart', (e) => ((xrState.flashUntil = performance.now() + 250), console.log('[xr] select', e.inputSource?.handedness)));
+      if (xrBtn) xrBtn.textContent = 'exit VR';
+      xrSay('in VR');
+      session.requestAnimationFrame(xrFrame);
+    };
+    xrBtn?.addEventListener('click', () => (toggleXr(), xrBtn.blur()));
+    if (!navigator.xr) xrSay('no WebXR in this browser');
 
     if (EMBED) seedStore();
     // the starting scene is the deep sky (?empty starts with nothing; a recording to play, a show or an artifact keep their own start)
