@@ -443,6 +443,8 @@
     #flight .vec { opacity: 0.75; font-size: 0.9em; }
     #driveGrp { color: #d8d4c6; opacity: 0.35; }
     #driveGrp.on { opacity: 1; }
+    #driveText .brake { color: #ff5a4f; }
+    body.car footer.console .grp[data-label="sys"] { display: none; }
     #driveGrp.in #wheelGauge { color: #39ff14; }
     #gasGauge { position: relative; width: 10px; height: 38px; border-radius: 3px; background: #22251f; overflow: hidden; }
     #gasGauge::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #5b5f55; }
@@ -789,7 +791,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@46ee8d23aa27644711031e8dfee1dfa7b4dbd7a8/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@876b0b2ea99f3c401c31bcfb3bdbecee71ad4b98/dist/index.js';
     const orbit_ = orbitView; // (the camera orbit helper; `orbit` is the space orbit state)
     const LEG = { base: 0.15 }; // the base of a placed prism
 
@@ -1212,14 +1214,15 @@
       if (!driveGrp) return;
       const on = vehicle === 'car';
       const st = car?.steer ?? 0, th = car?.throttle ?? 0;
-      const key = `${on}|${st.toFixed(3)}|${th.toFixed(3)}`;
+      const key = `${on}|${drive()}|${st.toFixed(3)}|${th.toFixed(3)}`;
       if (key === driveShown) return;
       driveShown = key;
+      document.body.classList.toggle('car', drive()); // driving: the sys group steps aside
       driveGrp.classList.toggle('on', on);
       wheelRot.setAttribute('transform', `rotate(${(st * CAR_STEER * 57.3 * 3).toFixed(1)})`); // a steering wheel turns ~3x the wheels
       gasBar.classList.toggle('brake', th < 0);
       gasBar.style.height = `${Math.abs(th) * 50}%`;
-      driveText.innerHTML = `${Math.round(st * CAR_STEER * 57.3)}°<br>${th < 0 ? 'brake ' : ''}${Math.round(Math.abs(th) * 100)}%`;
+      driveText.innerHTML = `${Math.round(st * CAR_STEER * 57.3)}°<br>${th < 0 ? `<span class="brake">brake ${Math.round(-th * 100)}%</span>` : `${Math.round(th * 100)}%`}`;
     };
     const placeCarCamera = () => {
       yaw = car.heading + car.lookYaw;
@@ -1833,7 +1836,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@46ee8d23aa27644711031e8dfee1dfa7b4dbd7a8/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@876b0b2ea99f3c401c31bcfb3bdbecee71ad4b98/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
