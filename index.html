@@ -761,7 +761,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@3f97f51178615ac7ee9ac81079568af208ac3038/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@eb61ed1bc5f9087d00c5d8563eb71255daa7fbf4/dist/index.js';
     const orbit_ = orbitView; // (the camera orbit helper; `orbit` is the space orbit state)
     const LEG = { base: 0.15 }; // the base of a placed prism
 
@@ -1069,7 +1069,7 @@
     const BRAKE_MIN = 0.5;
     const BRAKE_RATE = 4; // 1/s
     const BRAKE_HARD = 0.6; // s
-    const BRAKE_HOLD = 6; // radii: where the ship stops in front of the target
+    const BRAKE_HOLD = 1.05; // radii from the middle: the ship comes right up to the target's surface (as the old target approach, STOP)
     let throttle = 1;
     let braking = false;
     // Orbit in space (0 / ö). With a target: the ship brakes hard to a stop (`orbit.phase` 'brake'), ORBIT blinks for ORBIT_ARM_MS
@@ -1213,10 +1213,10 @@
       const d = b.center.map((c, i) => c - eye[i]);
       const len = Math.hypot(...d) || 1;
       if (d[0] * v[0] + d[1] * v[1] + d[2] * v[2] <= 0) return; // not closing in
-      // the ship stops BRAKE_HOLD radii from the target's middle (in front of it, the target about an eighth of the view wide)
+      // the ship stops at the target's surface (BRAKE_HOLD radii from its middle): a star's ball, a galaxy's bounding sphere
       const rest = len - Math.max(b.radius * BRAKE_HOLD, 1e-6);
       if (rest <= Math.max(b.radius * 0.02, 1e-7)) return void arrive();
-      const floor = Math.min(BRAKE_MIN, rest * 2); // the last stretch: no slower than this, but it shrinks with the distance left
+      const floor = Math.min(BRAKE_MIN, rest * 4); // the last stretch: no slower than this, but it shrinks with the distance left
       const want = Math.min(1, Math.max(floor, rest / BRAKE_S) / full);
       if (want < throttle) throttle += (want - throttle) * (1 - Math.exp(-dt * BRAKE_RATE));
       throttle = Math.min(throttle, (rest / BRAKE_HARD) / full); // never closer than BRAKE_HARD seconds at this speed: no flying through
@@ -1587,7 +1587,7 @@
     // worker that dies or hangs is restarted (three times), and without a worker the picking stays on the main thread as before.
     const PICK_ASYNC_FACES = 4000;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@3f97f51178615ac7ee9ac81079568af208ac3038/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@eb61ed1bc5f9087d00c5d8563eb71255daa7fbf4/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
