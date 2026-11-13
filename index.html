@@ -789,7 +789,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@8f3d5115d0725a017fb35d36348dfc23ae59f73a/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@38cc51e091232020f24dabe90ee4af41b05ead22/dist/index.js';
     const orbit_ = orbitView; // (the camera orbit helper; `orbit` is the space orbit state)
     const LEG = { base: 0.15 }; // the base of a placed prism
 
@@ -1109,8 +1109,8 @@
     // little above the car, so it climbs slopes and kerbs but does not jump onto roofs; houses are not hit). 1 unit = 1 metre.
     // Two fingers (a trackpad's two-finger swipe, or two fingers on a touch screen): sideways turn the steering wheel, which stays
     // where it is while you hold it and turns back to the middle when you let go (CAR_RETURN); up adds throttle, down takes it back
-    // and below zero brakes; the throttle stays where it is left. The speed: full throttle CAR_ACCEL m/s², settling at
-    // throttle × CAR_TOP; braking CAR_BRAKE m/s²; no reverse yet. The turn: a bicycle model (wheelbase CAR_BASE, wheel angle up to
+    // and below zero brakes. The speed: gas accelerates up to CAR_ACCEL m/s² (less and less towards CAR_TOP); braking CAR_BRAKE m/s²;
+    // at zero throttle the car keeps its speed; no reverse yet. The turn: a bicycle model (wheelbase CAR_BASE, wheel angle up to
     // CAR_STEER). The eye sits CAR_EYE above the ground, looking ahead; a drag looks round (it does not steer).
     const CAR_EYE = 1.3;
     const CAR_BASE = 2.7;
@@ -1262,7 +1262,8 @@
       }
       // the speed
       const t = car.throttle;
-      let a = t >= 0 ? t * CAR_ACCEL - (CAR_ACCEL / CAR_TOP) * car.v : t * CAR_BRAKE;
+      // gas speeds up (less and less towards CAR_TOP), the brake slows down, at zero the car keeps its speed (no drag)
+      const a = t > 0 ? t * CAR_ACCEL * Math.max(0, 1 - car.v / CAR_TOP) : t * CAR_BRAKE;
       car.v = Math.max(0, car.v + a * dt);
       // the turn (bicycle model) and the move
       car.heading += (car.v / CAR_BASE) * Math.tan(car.steer * CAR_STEER) * dt;
@@ -1828,7 +1829,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@8f3d5115d0725a017fb35d36348dfc23ae59f73a/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@38cc51e091232020f24dabe90ee4af41b05ead22/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
