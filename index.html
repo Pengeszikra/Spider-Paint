@@ -754,7 +754,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@3e2dfe439f57219b6c42ac576f35ad3c8c2af095/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@6cf4509da149324de849061ae1c3b7408970232b/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1055,10 +1055,16 @@
     let steer = null; // { all: true } until the first turn is done, then {} ; null: no steering
     const steerTo = (dt) => {
       const o = lockedObject();
-      if (!o || !steer) return;
+      if (!o) return;
       const eye = eyeNow();
       const d = ballOf(o).center.map((c, i) => c - eye[i]);
       const len = Math.hypot(...d) || 1;
+      if (!steer?.all && level.f > 0) {
+        // flown past it (the target is behind, the ship goes forward): the target is let go, the flight goes on
+        const fw = [Math.sin(yaw) * Math.cos(pitch), -Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch)];
+        if (d[0] * fw[0] + d[1] * fw[1] + d[2] * fw[2] < 0) return void letGo();
+      }
+      if (!steer) return;
       const wantYaw = Math.atan2(d[0], -d[2]);
       const wantPitch = Math.max(-LIMIT, Math.min(LIMIT, -Math.asin(d[1] / len)));
       const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
@@ -1367,7 +1373,7 @@
     // worker that dies or hangs is restarted (three times), and without a worker the picking stays on the main thread as before.
     const PICK_ASYNC_FACES = 4000;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@3e2dfe439f57219b6c42ac576f35ad3c8c2af095/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@6cf4509da149324de849061ae1c3b7408970232b/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -1878,15 +1884,25 @@
         return Math.min(fit.radius * 0.07, away * 0.03, Math.max(own * 0.5, away * 0.004)) / zoomNow; // (as big on screen whatever the zoom)
       };
       const marks = hit ? [{ name: 'cursor', lines: crosshair(scene, hit, crossRadius()) }] : [];
-      if (aim && gcam) {
-        // four short 45° ticks in the corners round the middle of the far object (its aim circle's size), drawn with the marks
-        const R = (aim.px * Math.max(aim.depth, 1e-9)) / gcam.k / zoomNow;
-        const ticks = [];
-        for (const [a, b] of [[1, 1], [-1, 1], [-1, -1], [1, -1]]) {
-          const p = (t) => aim.point.map((c, i) => c + (gcam.r[i] * a + gcam.u[i] * b) * Math.SQRT1_2 * R * t);
-          ticks.push([p(1), p(1.7)]);
+      // four short 45° ticks in the corners round a middle (R px on screen), drawn with the marks
+      const ticksAt = (point, px) => {
+        const depth = Math.max(vdot(vsub(point, gcam.eye), gcam.f), 1e-9);
+        const w = (depth / gcam.k / zoomNow) * Math.SQRT1_2; // world size of one pixel along the diagonal
+        const len = Math.max(4, Math.min(12, px * 0.7)); // a tick is short, also round a big target
+        return [[1, 1], [-1, 1], [-1, -1], [1, -1]].map(([a, b]) => {
+          const p = (t) => point.map((c, i) => c + (gcam.r[i] * a + gcam.u[i] * b) * w * t);
+          return [p(px), p(px + len)];
+        });
+      };
+      if (aim && gcam) marks.push({ name: 'cursor', lines: ticksAt(aim.point, aim.px) });
+      if (lockedObj && gcam && space() && aim?.obj !== lockedObj) {
+        // in space the target (T, Tab) gets the same ticks, round its ball as seen on screen (instead of the box bracket)
+        const b = ballOf(lockedObj);
+        const depth = vdot(vsub(b.center, gcam.eye), gcam.f);
+        if (depth > b.radius) {
+          const px = (b.radius * gcam.k) / depth;
+          marks.push({ name: 'cursor', lines: ticksAt(b.center, isGalaxy(lockedObj.inst) ? Math.max(PICK_MIN, px) : Math.max(PICK_MIN, px < PICK_SOLID ? Math.min(PICK_MAX, px * 2) : px * 1.1)) });
         }
-        marks.push({ name: 'cursor', lines: ticks });
       }
       for (const [o, color] of [[boolFrom, '#e8590c'], [boolPair?.b, '#2f9e44'], ...pickedObjs().filter((o) => o !== boolFrom && o !== boolPair?.b).map((o) => [o, '#22b8cf'])]) {
         if (!o || !has(o)) continue;
@@ -2014,7 +2030,7 @@
         if (snapE && !xf) marks.push({ name: 'snap-edge', color: '#ffffff', width: 2, lines: [[P[snapE[0]], P[snapE[1]]]] });
         if (snapF >= 0 && !xf && editing.mesh.faces[snapF]) marks.push({ name: 'snap-face', color: '#ffffff', width: 1.5, lines: outline(editing.mesh.faces[snapF].v) });
       }
-      if (lockedObj) {
+      if (lockedObj && !space()) {
         const lo = [Infinity, Infinity, Infinity];
         const hi = [-Infinity, -Infinity, -Infinity];
         for (const q of lockedObj.mesh.positions) q.forEach((c, i) => ((lo[i] = Math.min(lo[i], c)), (hi[i] = Math.max(hi[i], c))));
