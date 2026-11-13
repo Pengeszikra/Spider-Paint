@@ -411,6 +411,15 @@
     #gpuerr, #gpuerr * { -webkit-user-select: text; user-select: text; }
     #textBox { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 30; width: min(360px, 80vw); box-sizing: border-box; background: #14160f; color: var(--cream); border: 1px solid var(--cream); border-radius: 8px; padding: 9px 12px; font: 600 14px/1 var(--font-mono); }
     #textBox[hidden] { display: none; }
+    #findBox { position: fixed; left: 50%; top: 38%; transform: translate(-50%, -50%); z-index: 40; width: min(420px, calc(100vw - 32px)); }
+    #findBox[hidden] { display: none; }
+    #findInput { width: 100%; box-sizing: border-box; background: #14160f; color: var(--cream); border: 1px solid var(--cream); border-radius: 8px; padding: 11px 14px; font: 600 15px/1 var(--font-mono); outline: none; box-shadow: 0 6px 30px #000c; }
+    #findList { margin-top: 4px; background: #14160fee; border-radius: 8px; overflow: hidden; font: 500 12px/1.2 var(--font-mono); }
+    #findList:empty { display: none; }
+    #findList div { display: flex; justify-content: space-between; gap: 12px; padding: 6px 14px; color: #c9cbbf; cursor: pointer; }
+    #findList div span:last-child { color: #8a8d80; white-space: nowrap; }
+    #findList div.sel { background: #2fb8c033; color: var(--cream); }
+    #findList b { color: #39ff14; font-weight: 600; }
     input[type=text], input[type=search], textarea { -webkit-user-select: text; user-select: text; }
 
     /* no frame round the 3D view, and the target readout floats without a box */
@@ -586,6 +595,7 @@
 
   <main id="stage" tabindex="0" role="img" aria-label="Empty space for prisms. 9 switches between the SVG and the WebGPU view, L turns the light, C switches the filmic look, N smooth shading, K the studio light. Drag, or use the arrow keys, to rotate the view. The cross follows the surface under the pointer. M puts a prism down there, or shoots one into empty space; Space stops the movement. B drags a box round objects to select them (B twice: a lasso), then G, R, S move, turn and size them together; the bool button asks for a boolean operation on two selected objects (union, A minus B, B minus A, intersect). V joins two surface points with a thin bar (P over empty space forgets a pending first point), X deletes the object under the cross, W A S D R F fly, / shows only the model under the cross (/ again: the whole scene), P shows the material palette (Ctrl+click (Cmd on a Mac) paints a face, Ctrl+double click the whole model), T flies the camera to the object under the cross, H puts the move gizmo (helper) on the object under the cross with the world axes, the next H switches to the object's own axes, the third takes it off; drag an arrow to move the object; E toggles edges and points, U or Backspace takes the last one back."><div id="frame"><canvas id="gpu" hidden></canvas><div id="layer"></div><div id="screens"></div><svg id="selArea" aria-hidden="true"></svg></div><div id="hud" aria-hidden="true"></div><div id="loader" hidden role="status"><i></i><span>loading…</span></div></main>
 
+  <div id="findBox" hidden><input id="findInput" type="text" placeholder="find a target (↑↓ choose, Enter: target, Esc: close)" maxlength="60" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Find a target by name"><div id="findList"></div></div>
   <input id="textBox" type="text" placeholder="text (Enter: make it, Esc: cancel)" maxlength="80" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="The words to put on the face" hidden>
   <div id="editbar" hidden><b id="editText"></b><button id="editHelp" type="button" title="Show / hide the edit help" aria-pressed="false" hidden>?</button><span id="editHelpText" hidden>V: sketch lines (nothing happens yet) · 6: the lathe (select a face first; V draws a contour on it above its bottom line, the axis; Enter, then the number of segments, Enter again = 7) · 1 / 2 / 3: select points / lines / faces (click; Shift+click adds or takes away; A selects all, A A clears) · G: grab the selection (X / Y / Z lock the axis, type metres, click or Enter confirms, Esc cancels) · S: scale (same keys) · E: extrude the selected faces · 4: the saw: V puts 2 points on one face = a cut square to the face, or 3 points = a cut through the triangle; Enter cuts · Shift+W A S D R F fly · Ctrl/Cmd+click paints · Shift+X deletes the object under the cross · U undo · Esc back, then leave · Q leave</span></div>
 
@@ -798,7 +808,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@46693f3a03d71269a7e983f65f11db5da4f9303d/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@0e985b4b3db195f70878817c0130f38ff710cc7d/dist/index.js';
     const orbit_ = orbitView; // (the camera orbit helper; `orbit` is the space orbit state)
     const LEG = { base: 0.15 }; // the base of a placed prism
 
@@ -1817,6 +1827,87 @@
       locked = o.id;
       lookAt(o); // Tab turns the camera onto the object; it does not move (W flies there)
     };
+    // Find (Enter): a box in the middle of the screen; the typed text picks a target by name. Matching ignores case and accents;
+    // a name that is the text ranks first, then one that starts with it, then one with a word starting with it, then any part
+    // (and the letters in order, as a last resort); nearer objects first within a rank. ↑↓ choose, Enter targets (as Tab: lookAt), Esc closes.
+    const findBox = document.getElementById('findBox');
+    const findInput = document.getElementById('findInput');
+    const findList = document.getElementById('findList');
+    const FIND_SHOW = 8;
+    const fold = (t) => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    let found = [];
+    let foundAt = 0;
+    const findRank = (name, q) => {
+      if (name === q) return 0;
+      if (name.startsWith(q)) return 1;
+      const at = name.indexOf(q);
+      if (at > 0 && /[^a-z0-9]/.test(name[at - 1])) return 2;
+      if (at > 0) return 3;
+      let i = 0;
+      for (const ch of name) if (ch === q[i]) i++;
+      return i === q.length ? 4 : -1;
+    };
+    const findDist = (o) => {
+      const s = (gcam?.eye ? [...gcam.eye] : eyeNow());
+      return Math.hypot(...vsub(ballOf(o).center, s));
+    };
+    const findShow = () => {
+      const q = fold(findInput.value.trim());
+      found = [];
+      if (q) {
+        const hits = [];
+        for (const o of allObjects()) {
+          if (!o.mesh.positions.length || !owners.some((w) => w.obj.id === o.id)) continue;
+          const r = findRank(fold(o.name ?? o.id), q);
+          if (r >= 0) hits.push([r, o]);
+        }
+        const best = hits.length > 400 ? hits.filter((h) => h[0] <= 2).concat(hits.filter((h) => h[0] > 2).slice(0, 400)) : hits;
+        found = best.map(([r, o]) => [r, findDist(o), o]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).slice(0, FIND_SHOW).map(([, d, o]) => ({ o, d }));
+      }
+      foundAt = Math.min(foundAt, Math.max(0, found.length - 1));
+      const star = allObjects().length >= 100 && allObjects().some((o) => o.name === 'Sun');
+      const fmt = (d) => (star ? (d >= 1e6 ? `${(d / 1e6).toFixed(1)} Mly` : d >= 1e3 ? `${(d / 1e3).toFixed(1)} kly` : `${d.toFixed(1)} ly`) : d.toFixed(1));
+      const mark = (name) => {
+        const at = fold(name).indexOf(q);
+        return at < 0 ? hudText(name) : `${hudText(name.slice(0, at))}<b>${hudText(name.slice(at, at + q.length))}</b>${hudText(name.slice(at + q.length))}`;
+      };
+      findList.innerHTML = found.map((f, i) => `<div class="${i === foundAt ? 'sel' : ''}" data-i="${i}"><span>${mark(String(f.o.name ?? f.o.id))}</span><span>${fmt(f.d)}</span></div>`).join('');
+    };
+    const openFind = () => {
+      if (editing || posing || xf || vr) return;
+      findBox.hidden = false;
+      findInput.value = '';
+      foundAt = 0;
+      findShow();
+      findInput.focus();
+    };
+    const closeFind = () => {
+      findBox.hidden = true;
+      findInput.blur();
+    };
+    const findTake = (i = foundAt) => {
+      const f = found[i];
+      closeFind();
+      if (!f) return;
+      locked = f.o.id;
+      tabRound = null;
+      lookAt(f.o);
+    };
+    findInput.addEventListener('input', () => ((foundAt = 0), findShow()));
+    findInput.addEventListener('keydown', (e) => {
+      e.stopPropagation(); // typing is not a command
+      if (e.key === 'Escape') return void (e.preventDefault(), closeFind());
+      if (e.key === 'Enter') return void (e.preventDefault(), findTake());
+      if (e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) return void (e.preventDefault(), (foundAt = (foundAt + 1) % Math.max(1, found.length)), findShow());
+      if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) return void (e.preventDefault(), (foundAt = (foundAt - 1 + found.length) % Math.max(1, found.length)), findShow());
+    });
+    findInput.addEventListener('keyup', (e) => e.stopPropagation());
+    findInput.addEventListener('blur', () => setTimeout(() => document.activeElement !== findInput && (findBox.hidden = true), 150));
+    findList.addEventListener('pointerdown', (e) => {
+      const row = e.target.closest('[data-i]');
+      if (row) (e.preventDefault(), findTake(Number(row.dataset.i)));
+    });
+
     const travelTo = () => {
       const under = hitObj();
       const current = lockedObject();
@@ -1863,7 +1954,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@46693f3a03d71269a7e983f65f11db5da4f9303d/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@0e985b4b3db195f70878817c0130f38ff710cc7d/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -6707,8 +6798,9 @@
       pose: { run: () => enterPose(), once: true, plain: true },
       pickable: { run: (e) => togglePickable(e?.shiftKey), once: true, plain: true },
       orbit: { run: () => toggleOrbit(), once: true, plain: true },
+      find: { run: () => openFind(), once: true, plain: true },
     };
-    const KEYMAP = { '?': 'help', z: 'zen', '/': 'isolate', p: 'palette', 7: 'scene', 9: 'view', i: 'pick', c: 'filmic', n: 'smooth', k: 'studio', l: 'light', t: 'target', o: 'pickable', 0: 'orbit', 'ö': 'orbit', h: 'gizmo', e: 'clean', u: 'undo', Backspace: 'undo', j: 'pose' };
+    const KEYMAP = { '?': 'help', z: 'zen', '/': 'isolate', p: 'palette', 7: 'scene', 9: 'view', i: 'pick', c: 'filmic', n: 'smooth', k: 'studio', l: 'light', t: 'target', o: 'pickable', 0: 'orbit', 'ö': 'orbit', h: 'gizmo', e: 'clean', u: 'undo', Backspace: 'undo', j: 'pose', Enter: 'find' };
     const bindKey = (key, action) => (action ? (KEYMAP[key] = action) : delete KEYMAP[key]);
     const boundAction = (e) => {
       const a = ACTIONS[KEYMAP[e.key.length === 1 ? e.key.toLowerCase() : e.key]];
@@ -7065,7 +7157,7 @@
       ';': { cap: ';', sub: 'freeze', title: '; (é on a Hungarian keyboard)', cat: 'teal', text: 'Freeze: everything that moves stands still (flying, orbiting, dragging the view), so the cursor can work. The speed is kept; the key again carries on with it.' },
       k: { cap: 'K', sub: 'studio', cat: 'teal', text: 'Studio light: key, fill and rim light that follow the camera.' },
       l: { cap: 'L', sub: 'light', cat: 'teal', text: 'Light on / off. Off: no light in the scene at all, only emitting surfaces and the edge lines show.', edit: 'Loop: a selected line (2) takes the lines of its loop, a selected face (3) the faces of its loop (L again: the other way round). The light switch stays on its button.' },
-      enter: { cap: 'Enter', sub: 'cut', cat: 'red', w: 2.2, title: 'Enter', text: '', edit: 'Saw: cuts along the marked plane.' },
+      enter: { cap: 'Enter', sub: 'find', cat: 'teal', w: 2.2, title: 'Enter', text: 'Find: a box in the middle of the screen, type a name, Enter targets it.', edit: 'Saw: cuts along the marked plane.' },
       shift: { cap: 'Shift', sub: 'paint', cat: 'slate', w: 2.4, title: 'Shift', text: 'Shift+Tab: previous target. Painting is Ctrl+click (Cmd on a Mac).', edit: 'Shift+click adds to the selection or takes from it. Shift+W A S D R F fly (plain, they are edit keys).', run: false },
       z: { cap: 'Z', sub: 'zen', cat: 'slate', text: 'Zen: hide everything but the model. Z or Esc brings the panels back.' },
       x: { cap: 'X', sub: 'del', cat: 'red', text: 'Shift+X deletes the object under the cross, in every mode (U brings it back). Alone, during G / S / R, X locks the axis to x.', edit: 'Shift+X deletes the selected points, lines or faces (a point takes its faces, a line the faces on it); with nothing selected, the object under the cross. During G / S: locks the axis to x.' },
