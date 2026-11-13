@@ -766,7 +766,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@8c48531733f860da5da4e222b032f082a7361f92/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@82235e53b1405663a06e088798cc861d1d240a71/dist/index.js';
     const orbit_ = orbitView; // (the camera orbit helper; `orbit` is the space orbit state)
     const LEG = { base: 0.15 }; // the base of a placed prism
 
@@ -1610,7 +1610,7 @@
     // worker that dies or hangs is restarted (three times), and without a worker the picking stays on the main thread as before.
     const PICK_ASYNC_FACES = 4000;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@8c48531733f860da5da4e222b032f082a7361f92/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@82235e53b1405663a06e088798cc861d1d240a71/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -3091,6 +3091,27 @@
       ctx.globalCompositeOperation = 'lighter';
       const { eye, f, r, u, k } = gcam;
       const half = size / 2;
+      // a black hole's shadow (as the cloud's: HOLE_SHADOW horizon radii on screen) hides the glows behind it
+      const shadows = [];
+      for (const o of stars) {
+        const i = o.inst;
+        if (!isHole(i)) continue;
+        const dx = i.at[0] - eye[0], dy = i.at[1] - eye[1], dz = i.at[2] - eye[2];
+        const depth = dx * f[0] + dy * f[1] + dz * f[2];
+        if (depth < 1e-3) continue;
+        const R = (HOLE_SHADOW * (instSize(i, 'core') || 1) * k) / depth;
+        if (R < 1.5) continue;
+        shadows.push({ x: half + ((dx * r[0] + dy * r[1] + dz * r[2]) / depth) * k, y: half - ((dx * u[0] + dy * u[1] + dz * u[2]) / depth) * k, depth, R, i });
+      }
+      const shade = (x, y, depth, i) => {
+        let a = 1;
+        for (const h of shadows) {
+          if (h.i === i || depth <= h.depth) continue; // only what is behind the hole
+          const d = Math.hypot(x - h.x, y - h.y);
+          if (d < h.R) a *= Math.max(0, Math.min(1, (d - h.R * 0.85) / (h.R * 0.15))); // a soft rim
+        }
+        return a;
+      };
       for (const o of stars) {
         const i = o.inst;
         const dx = i.at[0] - eye[0], dy = i.at[1] - eye[1], dz = i.at[2] - eye[2];
@@ -3108,7 +3129,7 @@
         const rad = Math.min(48, Math.max(1.2, natural));
         // a galaxy drawn as a point cloud: its glow gives way to the stars once it is big on screen
         const bigPx = i.far && (i.cloud || liveSky.set.has(i)) ? (i.scale * k) / depth : 0;
-        const alpha = fade * (natural > 20 ? 0.55 : 0.9) * (bigPx > 30 ? Math.max(0, 1 - (bigPx - 30) / 60) : 1);
+        const alpha = fade * (natural > 20 ? 0.55 : 0.9) * (bigPx > 30 ? Math.max(0, 1 - (bigPx - 30) / 60) : 1) * (shadows.length ? shade(x, y, depth, i) : 1);
         if (alpha < 0.01) continue;
         ctx.globalAlpha = alpha;
         const R = rad * dpr;
