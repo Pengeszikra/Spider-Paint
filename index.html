@@ -789,7 +789,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@38cc51e091232020f24dabe90ee4af41b05ead22/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@46ee8d23aa27644711031e8dfee1dfa7b4dbd7a8/dist/index.js';
     const orbit_ = orbitView; // (the camera orbit helper; `orbit` is the space orbit state)
     const LEG = { base: 0.15 }; // the base of a placed prism
 
@@ -1120,6 +1120,7 @@
     const CAR_BRAKE = 9;
     const CAR_HOLD_MS = 200; // a wheel input this recent still holds the wheel (a trackpad sends no events while the fingers rest)
     const CAR_STEP = 1.5; // m: the ground is looked for from this high above the car
+    const CAR_GRIP = 6; // m/s²: the most sideways acceleration a turn may ask for (the wheels turn less at speed)
     const CAR_LOOK_PITCH = -0.05; // rad: straight ahead, a little down at the road
     const CAR_LOOK_BACK = 0.4; // s: a let-go look aside turns back
     // how much a swipe moves the wheel (full lock = 1) and the throttle (full = 1): per trackpad pixel, per finger pixel. Full lock
@@ -1266,7 +1267,10 @@
       const a = t > 0 ? t * CAR_ACCEL * Math.max(0, 1 - car.v / CAR_TOP) : t * CAR_BRAKE;
       car.v = Math.max(0, car.v + a * dt);
       // the turn (bicycle model) and the move
-      car.heading += (car.v / CAR_BASE) * Math.tan(car.steer * CAR_STEER) * dt;
+      // the faster, the less the wheels turn for the same wheel position: never more than CAR_GRIP sideways (v² / R), so a fast car
+      // does not spin round; slow, the full CAR_STEER
+      const lock = Math.min(CAR_STEER, Math.atan((CAR_GRIP * CAR_BASE) / Math.max(1e-6, car.v * car.v)));
+      car.heading += (car.v / CAR_BASE) * Math.tan(car.steer * lock) * dt;
       const fwd = [Math.sin(car.heading), 0, -Math.cos(car.heading)];
       const nx = car.p[0] + fwd[0] * car.v * dt, nz = car.p[2] + fwd[2] * car.v * dt;
       const g = groundAt(nx, car.p[1] + CAR_STEP, nz);
@@ -1829,7 +1833,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@38cc51e091232020f24dabe90ee4af41b05ead22/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@46ee8d23aa27644711031e8dfee1dfa7b4dbd7a8/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -2022,13 +2026,22 @@
     // while a page has the control, a press anywhere outside it hands the control back (and does nothing else)
     // the car on a trackpad: a two-finger swipe anywhere on the page (not only over the 3D view; not over a list or a text box):
     // sideways the wheel (fingers to the right: right), up / down the throttle (fingers up: more, with natural scrolling)
+    const MOMENTUM_RUN = 4;
+    const padRun = { x: 0, y: 0, lx: 0, ly: 0 };
     window.addEventListener('wheel', (e) => {
       if (!drive() || e.ctrlKey || e.target.closest?.('select, input, textarea, #side, #palette')) return;
       e.preventDefault();
       e.stopPropagation();
       const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
-      if (e.deltaX) steerInput((-e.deltaX * unit * steerGain()) / carTune.steer);
-      if (e.deltaY) gasInput((e.deltaY * unit) / carTune.gas);
+      // A Mac trackpad keeps sending wheel events after the fingers are lifted (the momentum, a smoothly shrinking delta): those
+      // are not the hand, so after a run of MOMENTUM_RUN ever smaller deltas on an axis the axis is taken as let go.
+      const ax = Math.abs(e.deltaX), ay = Math.abs(e.deltaY);
+      padRun.x = ax && ax < padRun.lx ? padRun.x + 1 : 0;
+      padRun.y = ay && ay < padRun.ly ? padRun.y + 1 : 0;
+      padRun.lx = ax;
+      padRun.ly = ay;
+      if (e.deltaX && padRun.x < MOMENTUM_RUN) steerInput((-e.deltaX * unit * steerGain()) / carTune.steer);
+      if (e.deltaY && padRun.y < MOMENTUM_RUN) gasInput((e.deltaY * unit) / carTune.gas);
       driveGrp?.classList.add('in'); // (a flash on the gauges: the input arrived)
       clearTimeout(driveGrp?._in);
       if (driveGrp) driveGrp._in = setTimeout(() => driveGrp.classList.remove('in'), 120);
