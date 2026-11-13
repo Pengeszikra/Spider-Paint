@@ -754,7 +754,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@23e61ed6b5938106712e1b66dd5a96aaac05c76e/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@f37ddce1b173bea425d9854e42d9fb930db88964/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -788,6 +788,80 @@
     let pitch = START.pitch;
     let pointer = null; // last pointer position, client pixels
     let hit = null; // the surface under the pointer in the last drawn frame
+    // A far space object (a star, a black hole, a galaxy) is not aimed at by its surface but by how near its middle is to the pointer
+    // on screen: { obj, point (its middle), normal (to the eye), face: -1, px (the aim circle's radius) }. Stars and black holes have a
+    // circle of PICK_MIN px when far, growing with them up to PICK_MAX; once the solid is PICK_SOLID px on screen its surface is aimed at
+    // as any model's (a black hole's disc never). A galaxy's circle is its own size on screen, until it is a quarter of the screen:
+    // after that it is not aimed at at all (the pointer sees through it, onto what is inside, its black hole). An object with
+    // pickable: false is never aimed at (O): you can work inside a clear block like inside water.
+    let aim = null;
+    const PICK_MIN = 5;
+    const PICK_MAX = 16;
+    const PICK_SOLID = 14;
+    const PICK_GALAXY_SHARE = 0.25;
+    const isGalaxy = (i) => i?.mats?.core === 'gal-ghost';
+    const hitObj = () => (aim ? aim.obj : hit ? owner(hit.face) : null);
+    const aimAt = (cam, x, y) => {
+      if (cam.ortho) return null;
+      let bestDot = null;
+      let bestGal = null;
+      for (const o of allObjects()) {
+        const i = o.inst;
+        if (!i?.glow || o.pickable === false) continue;
+        const sc = instSize(i, 'core') || 1;
+        const q = project(cam, i.at);
+        if (q.depth <= sc * 0.5) continue;
+        const px = (sc * cam.k) / q.depth;
+        let R;
+        let rank;
+        if (isGalaxy(i)) {
+          if (px > cam.size * PICK_GALAXY_SHARE) continue; // too big: see through it
+          R = Math.max(PICK_MIN, px);
+          rank = 1;
+        } else {
+          if (px >= PICK_SOLID) continue; // big enough: its surface is aimed at
+          R = Math.min(PICK_MAX, Math.max(PICK_MIN, px * 2));
+          rank = 0;
+        }
+        const d = Math.hypot(q.x - x, q.y - y);
+        if (d > R) continue;
+        // among stars and black holes the nearest to the pointer, among galaxies the smallest
+        const score = rank ? R : d;
+        if (score < ((rank ? bestGal?.score : bestDot?.score) ?? Infinity)) {
+          const c = { obj: o, depth: q.depth, px: R, score, reach: sc };
+          if (rank) bestGal = c;
+          else bestDot = c;
+        }
+      }
+      // a star or a black hole in front of a galaxy wins; one inside the galaxy (its own black hole) does not, while the galaxy is
+      // small enough to be aimed at as a whole
+      const best = bestDot && bestGal && bestDot.depth > bestGal.depth - bestGal.reach ? bestGal : bestDot ?? bestGal;
+      if (!best) return null;
+      const n = vsub(cam.eye, best.obj.inst.at);
+      const l = Math.hypot(n[0], n[1], n[2]) || 1;
+      return { obj: best.obj, point: [...best.obj.inst.at], normal: n.map((c) => c / l), face: -1, px: best.px, depth: best.depth, distance: l };
+    };
+    // the scene the pointer's surface hits are looked for in: without the objects that are not to be aimed at (pickable: false, but the
+    // one being edited always is) and without the galaxies' stand-ins; map: a face of it -> the face of the scene
+    let pickCache = { scene: null, editing: null, mesh: null, map: null }; // (scene: null forces a new one: pickable changed)
+    const pickTarget = () => {
+      if (pickCache.scene === scene && pickCache.editing === editing) return pickCache;
+      const out = (o) => (o.pickable === false && o !== editing) || isGalaxy(o.inst);
+      let mesh = scene;
+      let map = null;
+      if (owners.some((w) => w.end > w.start && out(w.obj))) {
+        const parts = [];
+        const m = [];
+        for (const w of owners) {
+          if (out(w.obj)) continue;
+          parts.push(w.obj.mesh);
+          for (let f = w.start; f < w.end; f++) m.push(f);
+        }
+        mesh = merge(nothing, ...parts);
+        map = Int32Array.from(m);
+      }
+      return (pickCache = { scene, editing, mesh, map });
+    };
     let lastHitId = null; // the object the cross was last on (a click on a panel button takes the pointer off the view)
     let queued = false;
 
@@ -1206,7 +1280,7 @@
       lookAt(o); // Tab turns the camera onto the object; it does not move (W flies there)
     };
     const travelTo = () => {
-      const under = hit ? owner(hit.face) : null;
+      const under = hitObj();
       const current = lockedObject();
       if (current) {
         if (under) locked = under.id; // another object: target that one instead
@@ -1250,7 +1324,7 @@
     // worker that dies or hangs is restarted (three times), and without a worker the picking stays on the main thread as before.
     const PICK_ASYNC_FACES = 4000;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@23e61ed6b5938106712e1b66dd5a96aaac05c76e/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@f37ddce1b173bea425d9854e42d9fb930db88964/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -1282,7 +1356,7 @@
           postMessage({ type: 'error', where: d && d.type, key: d && d.key, ver, message: String(err && err.message || err), stack: err && err.stack });
         }
       };`;
-    const picker = { worker: null, ready: false, failed: false, busy: 0, sent: null, ver: 0, owners: new Map(), want: null, sentKey: '', last: null, errors: [], restarts: 0, ms: 0, sceneMs: 0, picks: 0 };
+    const picker = { worker: null, ready: false, failed: false, busy: 0, sent: null, sentEditing: null, ver: 0, owners: new Map(), want: null, sentKey: '', last: null, errors: [], restarts: 0, ms: 0, sceneMs: 0, picks: 0 };
     const pickError = (where, message, stack) => {
       picker.errors.push({ at: new Date().toISOString(), where, message });
       if (picker.errors.length > 20) picker.errors.shift();
@@ -1292,7 +1366,7 @@
     };
     const stopPicker = (why) => {
       picker.worker?.terminate();
-      Object.assign(picker, { worker: null, ready: false, busy: 0, sent: null, sentKey: '', last: null });
+      Object.assign(picker, { worker: null, ready: false, busy: 0, sent: null, sentEditing: null, sentKey: '', last: null });
       if (picker.restarts++ < 3) setTimeout(startPicker, 1000 * picker.restarts);
       else ((picker.failed = true), pickError('stopped', `${why}; picking is back on the main thread`));
       redraw();
@@ -1351,33 +1425,37 @@
         stopPicker('the worker did not answer');
         return null;
       }
-      if (picker.sent !== scene) {
-        // the merged scene, flat, handed over (transferred) to the worker
-        const nv = scene.positions.length;
+      if (picker.sent !== pickTarget().mesh) {
+        // the merged scene (what may be aimed at), flat, handed over (transferred) to the worker
+        const { mesh: ps, map } = pickTarget();
+        const nv = ps.positions.length;
         const pos = new Float64Array(nv * 3);
-        scene.positions.forEach((q, i) => ((pos[3 * i] = q[0]), (pos[3 * i + 1] = q[1]), (pos[3 * i + 2] = q[2])));
-        const start = new Int32Array(scene.faces.length + 1);
+        ps.positions.forEach((q, i) => ((pos[3 * i] = q[0]), (pos[3 * i + 1] = q[1]), (pos[3 * i + 2] = q[2])));
+        const start = new Int32Array(ps.faces.length + 1);
         let total = 0;
-        scene.faces.forEach((f, i) => ((start[i] = total), (total += f.v.length)));
-        start[scene.faces.length] = total;
+        ps.faces.forEach((f, i) => ((start[i] = total), (total += f.v.length)));
+        start[ps.faces.length] = total;
         const verts = new Int32Array(total);
-        scene.faces.forEach((f, i) => verts.set(f.v, start[i]));
+        ps.faces.forEach((f, i) => verts.set(f.v, start[i]));
         picker.ver++;
-        picker.owners.set(picker.ver, owners.map((w) => ({ id: w.obj.id, mesh: w.obj.mesh, start: w.start, end: w.end })));
+        picker.owners.set(picker.ver, { map, list: owners.map((w) => ({ id: w.obj.id, mesh: w.obj.mesh, start: w.start, end: w.end })) });
         for (const v of picker.owners.keys()) if (v < picker.ver - 4) picker.owners.delete(v);
         picker.worker.postMessage({ type: 'scene', ver: picker.ver, pos, start, verts, cam: { ...cam } }, [pos.buffer, start.buffer, verts.buffer]);
-        picker.sent = scene;
+        picker.sent = ps;
       }
       const c = { name: cam.name, eye: cam.eye, f: cam.f, r: cam.r, u: cam.u, ortho: cam.ortho, k: cam.k, size: cam.size };
       picker.want = { ver: picker.ver, cam: c, x, y, cull, key: `${picker.ver}|${x}|${y}|${cull}|${c.eye}|${c.f}|${c.k}` };
       sendPick();
       const L = picker.last;
       if (!L?.hit) return null;
-      if (L.ver === picker.ver) return L.hit;
+      const then = picker.owners.get(L.ver);
+      if (!then) return null;
+      const face = then.map ? then.map[L.hit.face] : L.hit.face; // a face of that version's scene
+      if (L.ver === picker.ver) return { ...L.hit, face };
       // an answer for an older scene: still good for an object whose mesh is the same; its faces now start elsewhere
-      const old = picker.owners.get(L.ver)?.find((w) => L.hit.face >= w.start && L.hit.face < w.end);
+      const old = then.list.find((w) => face >= w.start && face < w.end);
       const now = old && owners.find((w) => w.obj.id === old.id && w.obj.mesh === old.mesh);
-      return now ? { ...L.hit, face: now.start + (L.hit.face - old.start) } : null;
+      return now ? { ...L.hit, face: now.start + (face - old.start) } : null;
     };
     if (typeof Worker !== 'undefined' && !new URLSearchParams(location.search).has('nopickworker')) startPicker();
 
@@ -1708,6 +1786,7 @@
       const shown = flights.length ? merge(scene, ...flights.map((p) => shifted(p.mesh, p.from.map((c) => c * remaining(p, now))))) : scene;
 
       hit = null;
+      aim = null;
       if (pointer) {
         // the square panel is centered in the stage
         const x = pointer.x - r.left - (r.width - size) / 2;
@@ -1715,12 +1794,21 @@
         cam = makeCamera(view, scene, size, shown_fit);
         // editing sees the far side of a face too: from inside a hull its walls face away, and they must still be selectable
         const cull = !editing;
-        const async = picker.ready && !picker.failed && !editing && !placing && scene.faces.length >= PICK_ASYNC_FACES;
-        hit = async ? asyncPick(cam, x, y, cull) : kernel ? kernel.pick(scene, cam, x, y, { cull }) : pick(scene, cam, x, y, { cull });
+        const pt = pickTarget();
+        const async = picker.ready && !picker.failed && !editing && !placing && pt.mesh.faces.length >= PICK_ASYNC_FACES;
+        if (async) hit = asyncPick(cam, x, y, cull);
+        else {
+          hit = kernel ? kernel.pick(pt.mesh, cam, x, y, { cull }) : pick(pt.mesh, cam, x, y, { cull });
+          if (hit && pt.map) hit = { ...hit, face: pt.map[hit.face] };
+        }
         if (placing && hit && placing.ids.has(owner(hit.face)?.id)) hit = null; // the pointer sees through the model being placed
+        // a far space object whose middle is near the pointer, in front of the surface hit: it is the one pointed at
+        aim = editing || placing ? null : aimAt(cam, x, y);
+        if (aim && hit && hit.distance < aim.depth && owner(hit.face) !== aim.obj) aim = null;
+        if (aim) hit = null;
         cam.at = { x, y };
         panelPointer = { x, y };
-        if (hit) lastHitId = owner(hit.face)?.id ?? lastHitId;
+        if (hitObj()) lastHitId = hitObj().id;
         if (scrubWant) ((scrubWant = false), setTimeout(scrub, 0)); // (outside the frame: painting rebuilds the scene)
       } else panelPointer = null;
       gcam = makeCamera(view, scene, size, shown_fit);
@@ -1747,6 +1835,16 @@
         return Math.min(fit.radius * 0.07, away * 0.03, Math.max(own * 0.5, away * 0.004)) / zoomNow; // (as big on screen whatever the zoom)
       };
       const marks = hit ? [{ name: 'cursor', lines: crosshair(scene, hit, crossRadius()) }] : [];
+      if (aim && gcam) {
+        // the aim circle round the middle of the far object, as big as its circle on screen
+        const R = (aim.px * Math.max(aim.depth, 1e-9)) / gcam.k / zoomNow;
+        const ring = [];
+        for (let a = 0; a < 24; a++) {
+          const p = (t) => aim.point.map((c, i) => c + (gcam.r[i] * Math.cos(t) + gcam.u[i] * Math.sin(t)) * R);
+          ring.push([p((a / 24) * 2 * Math.PI), p(((a + 1) / 24) * 2 * Math.PI)]);
+        }
+        marks.push({ name: 'cursor', lines: ring });
+      }
       for (const [o, color] of [[boolFrom, '#e8590c'], [boolPair?.b, '#2f9e44'], ...pickedObjs().filter((o) => o !== boolFrom && o !== boolPair?.b).map((o) => [o, '#22b8cf'])]) {
         if (!o || !has(o)) continue;
         const lo = [Infinity, Infinity, Infinity];
@@ -1975,7 +2073,7 @@
       countEl.textContent = String(allObjects().length + placed.length);
       {
         // the HUD: what is under the cross (name, distance, size) and the target state
-        const under = hit ? owner(hit.face) : null;
+        const under = hitObj();
         const eye = eye0;
         // the steady part (the target) is on top; what is under the cross changes all the time and sits at the bottom
         const rows = [];
@@ -1984,7 +2082,7 @@
           rows.push(`<div class="row lock"><span>◎ ${hudText(lockedObj.name ?? lockedObj.id)}</span></div><div class="row"><span>wasdrf orbit · Tab next · Esc free</span></div>`);
         } else rows.push('<div class="row"><span>T target</span></div><div class="row"><span>&nbsp;</span></div>');
         if (under) {
-          const d = Math.hypot(...hit.point.map((c, i) => c - eye[i]));
+          const d = Math.hypot(...(aim ?? hit).point.map((c, i) => c - eye[i]));
           const faces = under.mesh.faces.length;
           // a target and another object under the cross: the distance between the two (centre to centre; light years in a star map)
           let between = '';
@@ -1993,7 +2091,7 @@
             const starMap = !editing && allObjects().length >= 100 && allObjects().some((o) => o.name === 'Sun');
             between = `<div class="row"><span>to target</span><span>${starMap ? `${gap.toFixed(2)} ly` : gap.toFixed(2)}</span></div>`;
           }
-          rows.push(`<div class="row"><b>${hudText(under.name ?? under.id)}</b><b>${d.toFixed(2)}${editing ? ' m' : ''}</b></div><div class="row"><span>${faces} faces</span><span>${under.id === locked ? 'target' : ''}</span></div>${between}`);
+          rows.push(`<div class="row"><b>${hudText(under.name ?? under.id)}</b><b>${d.toFixed(2)}${editing ? ' m' : ''}</b></div><div class="row"><span>${aim ? 'aimed at its middle' : `${faces} faces`}</span><span>${under.id === locked ? 'target' : ''}</span></div>${between}`);
         } else rows.push('<div class="row"><span>–</span></div><div class="row"><span>&nbsp;</span></div>');
         hudEl.innerHTML = rows.join('');
         {
@@ -2887,7 +2985,7 @@
     const save = (obj, op) => col && enqueue(op, () => unsaved.delete(obj.id));
     // the stored document of an object; the lines drawn on it ride along
     const textPart = (o) => (o.text !== undefined ? { text: o.text, textFrame: o.textFrame } : {}); // a text model keeps its words and where they stand, so they can be fixed
-    const docOf = (o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}), ...textPart(o) });
+    const docOf = (o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}), ...textPart(o), ...(o.pickable === false ? { pickable: false } : {}) });
     const shortId = () => Math.random().toString(36).slice(2, 6).padEnd(4, '0'); // prism-{id}
     const uid = (name) => `${name}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
     const create = (name, mesh) => {
@@ -2915,7 +3013,7 @@
       rebuild();
     };
     const remove = () => {
-      const o = hit && owner(hit.face);
+      const o = hitObj();
       if (!o) return;
       erase(o);
       history.push(() => has(o) || restore(o));
@@ -2993,12 +3091,11 @@
     const placement = (i) => ({ at: i.at, scale: i.scale, mats: i.mats, color: i.color, rot: i.rot });
     const instSize = (i, slot) => (typeof i.scale === 'number' ? i.scale : (i.scale[slot] ?? i.scale['*'] ?? 1));
     const LOD_NONE = 0.3; // pixels: a solid smaller than this on screen is not in the scene
-    const LOD_GHOST = 4; // a galaxy's invisible stand-in (only for pointing at it) waits until it is a few pixels
     // a big scene (more than LOD_BIG instances) changes its levels at most every LOD_EVERY ms while you move: every change merges
     // the whole scene again, and with thousands of stars some level changes in nearly every frame
     const LOD_BIG = 600;
     const LOD_EVERY = 150;
-    const LOD_STEPS_BIG = [240, 90, 32, 10];
+    const LOD_STEPS_BIG = [120, 45, 16, 4]; // (below 4 px the coarsest, a diamond, which is not seen as one)
     let lodAt = 0;
     let lodTimer = 0;
     const applyLod = () => {
@@ -3021,7 +3118,7 @@
         const corePx = (instSize(i, 'core') * gcam.k) / dist;
         // far below a pixel the solid is left out of the scene altogether (its glow still shows): a point stands in for it, so a
         // big scene (thousands of stars, galaxies) merges, uploads and picks only what can be seen
-        if (corePx < (i.mats?.core === 'gal-ghost' ? LOD_GHOST : LOD_NONE) && i.glow) {
+        if ((isGalaxy(i) || corePx < LOD_NONE) && i.glow) {
           if (i.level === -2) continue;
           i.level = -2;
           o.mesh = { positions: [[...i.at]], faces: [] };
@@ -3099,7 +3196,7 @@
       });
     const addExample = async (name) => withLoader(name.replace(/^saved:/, ''), async () => loadScene(await sceneOf(name)));
     const addScene = async ({ objects: raw, palette: extra, prototypes, start, cloud: points, cloudProtos }) => {
-      const objects = raw.map((o) => (o.proto ? { name: o.name, inst: { ...o, proto: prototypes[o.proto] }, mesh: instantiate(prototypes[o.proto].lods.at(-1), placement(o)) } : o));
+      const objects = raw.map((o) => (o.proto ? { name: o.name, inst: { ...o, proto: prototypes[o.proto] }, mesh: instantiate(prototypes[o.proto].lods.at(-1), placement(o)), ...(o.pickable === false ? { pickable: false } : {}) } : o));
       // a scene may bring its own materials; the ones the palette lacks are added (and saved with a db)
       for (const m of extra ?? []) {
         if (materials.some((x) => x.name === m.name)) continue;
@@ -3122,6 +3219,7 @@
           const made = create(o.name, mesh);
           if (o.text !== undefined) Object.assign(live(made) ?? made, { text: o.text, textFrame: o.textFrame && { ...o.textFrame, origin: o.textFrame.origin.map((c, i) => (i === 0 ? c + dx : c)) } });
           if (o.inst) (live(made) ?? made).inst = { ...o.inst, at: [o.inst.at[0] + dx, o.inst.at[1], o.inst.at[2]], level: -1 };
+          if (o.pickable === false) (live(made) ?? made).pickable = false;
         }),
       );
       // a scene may say where the eye starts (the stars: next to the Sun); otherwise the whole thing is framed
@@ -3683,9 +3781,9 @@
         }
         return;
       }
-      if (!(hit && owner(hit.face))) return;
+      if (!hitObj()) return;
       beforeSolo = { center: [...fit.center], radius: fit.radius, dist: fit.dist, yaw, pitch, fly, focused };
-      solo = owner(hit.face).id;
+      solo = hitObj().id;
       rebuild();
       focused = false;
       goTo({ ...overview(), yaw, pitch }); // frame the isolated object, keep the viewing direction
@@ -3811,7 +3909,7 @@
       // H cycles: world axes -> the object's own axes -> off
       if (gizmo && !gLocal) gLocal = true;
       else if (gizmo) gizmo = null;
-      else if (hit && owner(hit.face)) ((gizmo = owner(hit.face)), (gLocal = false));
+      else if (hitObj()) ((gizmo = hitObj()), (gLocal = false));
       gHover = null;
       redraw();
     };
@@ -4010,7 +4108,7 @@
     };
     let wasEmpty = false; // the scene was empty when the edit began (the first cube): coming back must frame the cube, not the empty stage
     const enterEdit = () => {
-      let o = (hit && owner(hit.face)) ?? lockedObject() ?? null;
+      let o = hitObj() ?? lockedObject() ?? null;
       if (!o) {
         // nothing under the cross and no target: a new 1 x 1 x 1 m cube of the selected material, standing on the bench
         wasEmpty = !scene.positions.length;
@@ -5483,7 +5581,30 @@
         return v.map((c, i) => c * cs + cr[i] * sn + u[i] * d);
       };
     };
-    const pointedObject = () => lockedObject() ?? (hit && owner(hit.face)) ?? null;
+    const pointedObject = () => lockedObject() ?? hitObj() ?? null;
+    // O: the selection, the target or the object under the cross is no longer aimed at (pickable: false) or is again; the pointer
+    // sees through it, so you can work inside it (a clear block of water or jelly). Shift+O makes every object aimable again.
+    const togglePickable = (all = false) => {
+      const list = all ? allObjects().filter((o) => o.pickable === false) : pickedObjs().length ? pickedObjs() : [lockedObject() ?? hitObj()].filter(Boolean);
+      if (!list.length) return sceneNote(all ? 'every object can be aimed at' : 'O: nothing under the cross, no target, no selection');
+      const off = all ? false : list.some((o) => o.pickable !== false);
+      const was = list.map((o) => [o, o.pickable]);
+      const set = (o, v) => {
+        const x = live(o) ?? o;
+        if (v === false) x.pickable = false;
+        else delete x.pickable;
+        if (x.host && col) save(x, () => col.doc(x.id).set(docOf(x)));
+      };
+      for (const o of list) set(o, off ? false : true);
+      history.push(() => {
+        for (const [o, v] of was) set(o, v);
+        pickCache = { scene: null };
+        redraw();
+      });
+      pickCache = { scene: null };
+      sceneNote(off ? `${list.length === 1 ? hudText(list[0].name ?? list[0].id) : `${list.length} objects`}: not aimed at (O again, or Shift+O for all)` : `${list.length} object${list.length > 1 ? 's' : ''} can be aimed at again`);
+      redraw();
+    };
     const duplicate = () => {
       const src = editing ?? pointedObject();
       if (!src) return;
@@ -5888,13 +6009,14 @@
       undo: { run: () => undo() },
       delete: { run: () => remove() },
       pose: { run: () => enterPose(), once: true, plain: true },
+      pickable: { run: (e) => togglePickable(e?.shiftKey), once: true, plain: true },
     };
-    const KEYMAP = { '?': 'help', z: 'zen', '/': 'isolate', p: 'palette', 7: 'scene', 9: 'view', i: 'pick', c: 'filmic', n: 'smooth', k: 'studio', l: 'light', t: 'target', h: 'gizmo', e: 'clean', u: 'undo', Backspace: 'undo', j: 'pose' };
+    const KEYMAP = { '?': 'help', z: 'zen', '/': 'isolate', p: 'palette', 7: 'scene', 9: 'view', i: 'pick', c: 'filmic', n: 'smooth', k: 'studio', l: 'light', t: 'target', o: 'pickable', h: 'gizmo', e: 'clean', u: 'undo', Backspace: 'undo', j: 'pose' };
     const bindKey = (key, action) => (action ? (KEYMAP[key] = action) : delete KEYMAP[key]);
     const boundAction = (e) => {
       const a = ACTIONS[KEYMAP[e.key.length === 1 ? e.key.toLowerCase() : e.key]];
       if (!a || (a.plain && (e.ctrlKey || e.metaKey || e.altKey)) || (a.once && e.repeat)) return Boolean(a); // a held key does nothing, but is still handled
-      a.run();
+      a.run(e);
       return true;
     };
     Object.assign(window, { ACTIONS, KEYMAP, bindKey });
@@ -5938,14 +6060,15 @@
         e.preventDefault();
         if (e.repeat) return;
         const o = pointedObject();
-        const under = hit && owner(hit.face);
+        const under = hitObj();
+        const h = aim ?? hit;
         if (picked.length && pickedObjs().length) {
           // the selection moves together (G G: placed together, held where the pointer is on one of them)
-          lastG = under && picked.includes(under.id) ? { t: performance.now(), id: 'group', point: [...hit.point], normal: [...hit.normal] } : null;
+          lastG = under && picked.includes(under.id) ? { t: performance.now(), id: 'group', point: [...h.point], normal: [...h.normal] } : null;
           startGroup('grab');
           return;
         }
-        lastG = o && hit && owner(hit.face)?.id === o.id ? { t: performance.now(), id: o.id, point: [...hit.point], normal: [...hit.normal] } : null;
+        lastG = o && under?.id === o.id ? { t: performance.now(), id: o.id, point: [...h.point], normal: [...h.normal] } : null;
         grabObject(o);
         return;
       }
@@ -6392,7 +6515,7 @@
         name,
         palette: materials.filter((m) => used.has(m.name)).map((m) => ({ ...m })),
         view: viewOf(),
-        objects: allObjects().map((o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}), ...textPart(o) })),
+        objects: allObjects().map((o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}), ...textPart(o), ...(o.pickable === false ? { pickable: false } : {}) })),
       };
     };
     const showSaved = () => {
@@ -6487,6 +6610,7 @@
       globalThis.__3draft = {
         load: (data) => applyScene(data),
         pickFault: () => (picker.worker?.postMessage({ type: 'pick', ver: picker.ver, cam: null, x: 0, y: 0, cull: true, key: 'fault' }), Boolean(picker.worker)), // (a test: a broken question)
+        aim: () => (aim ? { name: aim.obj.name, px: +aim.px.toFixed(1), depth: aim.depth } : null), under: () => hitObj()?.name ?? null, locked: () => lockedObject()?.name ?? null,
         picker: () => ({ ready: picker.ready, failed: picker.failed, busy: Boolean(picker.busy), ver: picker.ver, picks: picker.picks, ms: +picker.ms.toFixed(2), sceneMs: +picker.sceneMs.toFixed(1), restarts: picker.restarts, errors: [...picker.errors] }),
         sky: () => ({ live: liveSky.set.size, points: liveSky.n, cached: galaxyCache.size, cachedPoints, traced: traced.size, cloud: cloud?.n ?? 0, ms: +drawMs.toFixed(1), rebuilds, faces: scene.faces.length }),
         open: (data) => loadScene(data, true),
@@ -6541,7 +6665,7 @@
     };
     const applyScene = (data) => {
       if (EMBED || SHOW) return; // the store and a scene screen have their own objects
-      const next = (data.objects ?? []).map((o, n) => ({ id: o.id ?? o.name ?? `o${n}`, name: o.name ?? `o${n}`, mesh: o.mesh, wire: o.wire, host: true }));
+      const next = (data.objects ?? []).map((o, n) => ({ id: o.id ?? o.name ?? `o${n}`, name: o.name ?? `o${n}`, mesh: o.mesh, wire: o.wire, host: true, ...(o.pickable === false ? { pickable: false } : {}) }));
       // db snapshots hand out every document again (also the echo of our own write): an object whose content did not
       // change stays the same instance, so its mesh and its GPU vertices are kept, and an unchanged scene is not rebuilt
       let unchanged = data.rev === 'db' && next.length === hostObjects.length;
