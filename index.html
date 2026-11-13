@@ -741,7 +741,7 @@
         <option value="tr74">TR-74 expedition module</option>
         <option value="station-screen">Station screen (a scene on a face)</option>
         <optgroup id="savedGroup" label="saved here" hidden></optgroup></select>
-          <button id="mergeSw" type="button" class="sw on" title="Loading a scene (the list, file ↑): on adds it to what is there, off clears the scene first and loads it alone"><i></i>merge</button>
+          <button id="mergeSw" type="button" class="sw on" title="Loading a scene (the list, f↑): on adds it to what is there, off clears the scene first and loads it alone"><i></i>merge</button>
           <select id="vehicle" aria-label="Vehicle: how the camera moves" title="Vehicle: how the camera moves in this scene. starship: T / Tab only turn the ship, it keeps its speed, brakes to the target's surface, 0 orbit / gravity. car: drives on the ground (two fingers: sideways the wheel, up / down the throttle). A scene file may set it (vehicle)">
           <option value="">– vehicle</option>
           <option value="starship">starship</option>
@@ -752,8 +752,8 @@
         <span class="row">
           <input id="sceneName" type="text" placeholder="name" maxlength="40" spellcheck="false" autocapitalize="off" aria-label="Name of the scene to save" title="The name a scene is saved under here (empty: a dated name)">
           <button id="sceneSave" type="button" class="cream" title="Save the scene on this computer (this browser) under that name; it then shows in the list">save</button>
-          <button id="sceneDown" type="button" class="cream" title="Download the scene as a .json file">file ↓</button>
-          <button id="sceneOpen" type="button" class="cream" title="Add a scene from a .json file">file ↑</button>
+          <button id="sceneDown" type="button" class="cream" title="Download the scene as a .json file">f↓</button>
+          <button id="sceneOpen" type="button" class="cream" title="Add a scene from a .json file">f↑</button>
           <button id="sceneForget" type="button" class="slate" title="Forget the saved scene with the name in the box">✕</button>
           <button id="boolBtn" type="button" class="slate" title="Boolean: select two objects (B), then this; the first taken is A, the second B">bool</button>
           <input id="sceneFile" type="file" accept=".json,application/json" hidden>
@@ -768,7 +768,7 @@
         </span>
         <span class="row">
           <button id="rec" type="button" class="red" title="Record: starts from an empty scene and writes every move and key into a JSON file when you press it again">rec</button>
-          <button id="xrBtn" type="button" class="teal" title="WebXR: show the scene in a headset (immersive-vr; on a Mac: the Meta Immersive Web Emulator). The right stick drives the car: sideways the wheel, up / down the gas">enter VR</button>
+          <button id="xrBtn" type="button" class="teal" title="WebXR: show the scene in a headset (immersive-vr; on a Mac: the Meta Immersive Web Emulator). The right stick drives the car: sideways the wheel, up / down the gas">VR</button>
           <button id="play" type="button" class="slate" title="Play: pick a recording (JSON) and watch it build the scene again from an empty one; press again to stop">play</button>
           <input id="playFile" type="file" accept=".json,application/json" hidden>
         </span>
@@ -798,7 +798,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@9398becf8bfb27ed8aae1e557cf96b711fadc7d4/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e4a216bf36a91cc07b49b920d11c35addd54ab85/dist/index.js';
     const orbit_ = orbitView; // (the camera orbit helper; `orbit` is the space orbit state)
     const LEG = { base: 0.15 }; // the base of a placed prism
 
@@ -1847,7 +1847,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@9398becf8bfb27ed8aae1e557cf96b711fadc7d4/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e4a216bf36a91cc07b49b920d11c35addd54ab85/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -7227,7 +7227,7 @@
         showSaved();
         sceneNote(`saved "${name}" here (${allObjects().length} objects)`);
       } catch (e) {
-        sceneNote('could not save here (the browser storage is full or blocked): use file ↓');
+        sceneNote('could not save here (the browser storage is full or blocked): use f↓');
       }
     });
     document.getElementById('sceneForget').addEventListener('click', () => {
@@ -7794,7 +7794,7 @@
     const endedXr = async () => {
       xrState.session = null;
       xrState.last = 0;
-      if (xrBtn) xrBtn.textContent = 'enter VR';
+      if (xrBtn) xrBtn.textContent = 'VR';
       xrSay('VR ended');
       xrNote?.classList.remove('press');
       if (xrState.prevMode) await setMode(xrState.prevMode === 'svg' ? 'svg' : 'gpu');
@@ -7827,7 +7827,7 @@
       xrState.session = session;
       session.addEventListener('end', endedXr);
       session.addEventListener('selectstart', (e) => ((xrState.flashUntil = performance.now() + 250), console.log('[xr] select', e.inputSource?.handedness)));
-      if (xrBtn) xrBtn.textContent = 'exit VR';
+      if (xrBtn) xrBtn.textContent = 'exit';
       xrSay('in VR');
       session.requestAnimationFrame(xrFrame);
     };
