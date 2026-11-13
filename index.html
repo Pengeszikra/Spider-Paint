@@ -791,7 +791,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@0357601b874a672f2c315b06d3a59c614b365bf0/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@daf9d96306d672c6eb95e143ace68c9a4edcf029/dist/index.js';
     const orbit_ = orbitView; // (the camera orbit helper; `orbit` is the space orbit state)
     const LEG = { base: 0.15 }; // the base of a placed prism
 
@@ -1129,7 +1129,7 @@
     // takes 300 trackpad pixels, below CAR_SLOW (10 km/h, parking) 150; full throttle 750
     // The four sliders of the drive group set them (kept in this browser): trackpad pixels for full lock and for full gas, and the
     // seconds the let-go wheel and the let-go brake take to come back (to ~5 %). A finger on a touch screen counts 1.67 trackpad pixels.
-    const carTune = { steer: 300, gas: 750, steerBack: 0.25, brakeBack: 0.3 }; // (the sliders' middles: what felt right)
+    const carTune = { steer: 280, gas: 750, steerBack: 0.45, brakeBack: 0.05 }; // (what felt right on a Mac trackpad)
     try {
       Object.assign(carTune, JSON.parse(localStorage.getItem('3draft.carTune') ?? '{}'));
     } catch {}
@@ -1836,7 +1836,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@0357601b874a672f2c315b06d3a59c614b365bf0/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@daf9d96306d672c6eb95e143ace68c9a4edcf029/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
