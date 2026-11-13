@@ -753,7 +753,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@2791ca2a64456c65f91aa29137c5699d0fd8af4e/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@897864a0ba81a5cf0b1801767f5d5979fe145ce4/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -2032,12 +2032,15 @@
       gl.attachShader(prog, sh(gl.VERTEX_SHADER, `#version 300 es
         in vec3 aPos; in float aRad; in vec3 aCol; in float aLum;
         uniform vec3 uEye, uF, uR, uU; uniform float uK, uHalf, uDpr;
+        uniform vec4 uHole; // a black hole's shadow on screen (x, y in panel pixels from the middle, radius, its depth); radius 0: none
         out vec3 vCol; out float vA;
         void main() {
           vec3 d = aPos - uEye;
           float depth = dot(d, uF);
           if (depth < 1e-3) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; vA = 0.0; vCol = vec3(0.0); return; }
-          gl_Position = vec4(dot(d, uR) / depth * uK / uHalf, dot(d, uU) / depth * uK / uHalf, 0.0, 1.0);
+          vec2 sp = vec2(dot(d, uR), dot(d, uU)) / depth * uK;
+          if (uHole.z > 0.0 && depth > uHole.w && distance(sp, uHole.xy) < uHole.z) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; vA = 0.0; vCol = vec3(0.0); return; } // behind the hole: hidden by its shadow
+          gl_Position = vec4(sp / uHalf, 0.0, 1.0);
           float nat = aRad * uK / depth;                      // what its radius would be in pixels
           float px = clamp(nat, 1.3, 2.4);                    // ... but it stays a point
           gl_PointSize = px * 2.0 * uDpr;
@@ -2064,7 +2067,7 @@
         gl.enableVertexAttribArray(loc(n));
         gl.vertexAttribPointer(loc(n), c, gl.FLOAT, false, 32, o * 4);
       });
-      const u = Object.fromEntries(['uEye', 'uF', 'uR', 'uU', 'uK', 'uHalf', 'uDpr'].map((n) => [n, gl.getUniformLocation(prog, n)]));
+      const u = Object.fromEntries(['uEye', 'uF', 'uR', 'uU', 'uK', 'uHalf', 'uDpr', 'uHole'].map((n) => [n, gl.getUniformLocation(prog, n)]));
       return (cloudGl = { gl, prog, buf, vao, u, loaded: null });
     };
     // `c`: the scene's own point set; `sets`: objects that carry `cloud: <name>` get a copy of that point set from `protos`
@@ -2122,6 +2125,17 @@
       gl.uniform1f(g.u.uK, k);
       gl.uniform1f(g.u.uHalf, size / 2);
       gl.uniform1f(g.u.uDpr, dpr);
+      // the nearest black hole in view darkens what lies behind it: its shadow (about 2.6 horizon radii across the bent light)
+      let shadow = [0, 0, 0, 0];
+      for (const o of allObjects()) {
+        if (!isHole(o.inst)) continue;
+        const d = vsub(o.inst.at, eye);
+        const depth = vdot(d, f);
+        if (depth <= 0) continue;
+        const rad = (2.6 * (instSize(o.inst, 'core') || 1) * k) / depth;
+        if (rad > shadow[2]) shadow = [(vdot(d, r) / depth) * k, (vdot(d, u) / depth) * k, rad, depth];
+      }
+      gl.uniform4fv(g.u.uHole, shadow);
       gl.drawArrays(gl.POINTS, 0, cloud.n);
     };
     // ---- A black hole (an instance with the bh-core material, e.g. Sagittarius A*) drawn by a small ray tracer instead of a ball
@@ -2131,9 +2145,11 @@
     const holeCanvas = Object.assign(document.createElement('canvas'), { id: 'hole' });
     holeCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none';
     holeCanvas.hidden = true;
-    frame.append(holeCanvas);
+    cloudCanvas.before(holeCanvas); // under the star cloud (screen-blended over it): the stars still show in front of it
     let holeGl = null;
     const isHole = (i) => i?.mats?.core === 'bh-core';
+    const HOLE_DISC = [2.6, 13]; // the accretion disc from just outside the last stable orbit (3) to far out, in horizon radii
+    const HOLE_REACH = 15; // the tracer's ball: the disc and the bent light inside it
     const holeInit = () => {
       if (holeGl) return holeGl;
       const gl = holeCanvas.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: false });
@@ -2151,14 +2167,27 @@
       gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, `#version 300 es
         precision highp float;
         uniform vec3 uEye, uF, uR, uU, uC, uN, uE1;
-        uniform float uK, uHalf, uRs, uScale, uH, uIn, uOut;
+        uniform float uK, uHalf, uRs, uScale, uH, uIn, uOut, uB;
         out vec4 o;
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float vnoise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+        }
+        float fbm(vec2 p) { // clumpy gas: four octaves
+          float s = 0.0;
+          float a = 0.5;
+          for (int i = 0; i < 4; i++) { s += a * vnoise(p); p = p * 2.03 + vec2(1.7, 9.2); a *= 0.5; }
+          return s;
+        }
         void main() {
           vec2 q = vec2(gl_FragCoord.x, uH - gl_FragCoord.y) / uScale;           // panel pixels
           vec3 dir = normalize(uF + (q.x - uHalf) / uK * uR - (q.y - uHalf) / uK * uU);
           vec3 p = (uEye - uC) / uRs;                                              // the hole's own units: horizon radius 1
           vec3 v = dir;
-          float B = 9.0;                                                           // nothing bends noticeably beyond this
+          float B = uB;                                                            // nothing bends noticeably beyond this
           float b = dot(p, v);
           float c = dot(p, p) - B * B;
           float disc = b * b - c;
@@ -2170,7 +2199,7 @@
           vec3 col = vec3(0.0);
           float a = 0.0;
           float minR = 1e9;
-          for (int i = 0; i < 110; i++) {
+          for (int i = 0; i < 150; i++) {
             float r = length(p);
             minR = min(minR, r);
             if (r < 1.0) { a = 1.0; break; }                                       // into the horizon: the shadow
@@ -2184,12 +2213,19 @@
               float rr = length(x);
               if (rr > uIn && rr < uOut) {
                 vec3 tang = normalize(cross(uN, x));                               // the disc turns this way
-                float dop = 1.0 + 0.55 * dot(tang, -v);                            // the side coming at us is brighter
-                float heat = pow(uIn / rr, 1.6);
+                float dop = 1.0 + 0.45 * dot(tang, -v);                            // the side coming at us is brighter
+                float t = (rr - uIn) / (uOut - uIn);                               // 0 at the inner edge, 1 at the outer
+                float heat = pow(uIn / rr, 1.25);
                 float ang = atan(dot(x, E2), dot(x, uE1));
-                float streak = 0.7 + 0.3 * sin(rr * 11.0 + ang * 3.0) * sin(rr * 4.3 - ang * 5.0);
-                vec3 dc = mix(vec3(1.0, 0.32, 0.06), vec3(1.0, 0.92, 0.75), heat) * heat * 2.4 * dop * dop * dop * streak;
-                float da = smoothstep(uOut, uOut - 1.2, rr) * smoothstep(uIn, uIn + 0.35, rr) * 0.92;
+                // gas in rings, sheared round (the inner part has gone round further): clumps along the orbit
+                float gas = fbm(vec2(rr * 2.6, ang * 3.0 + 7.0 / sqrt(rr))) * 1.35;
+                gas *= 0.55 + 0.45 * fbm(vec2(rr * 9.0, ang * 1.0));
+                vec3 hot = vec3(1.0, 0.93, 0.72);
+                vec3 warm = vec3(1.0, 0.62, 0.22);
+                vec3 cool = vec3(0.75, 0.28, 0.07);
+                vec3 tint = t < 0.35 ? mix(hot, warm, t / 0.35) : mix(warm, cool, (t - 0.35) / 0.65);
+                vec3 dc = tint * (0.45 + 2.2 * heat) * dop * dop * dop * gas;
+                float da = smoothstep(1.0, 0.55, t) * smoothstep(0.0, 0.06, t) * clamp(gas * 0.95, 0.0, 0.9);
                 col += (1.0 - a) * dc * da;
                 a += (1.0 - a) * da;
                 if (a > 0.985) break;
@@ -2213,7 +2249,7 @@
       const loc = gl.getAttribLocation(prog, 'aP');
       gl.enableVertexAttribArray(loc);
       gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-      const u = Object.fromEntries(['uEye', 'uF', 'uR', 'uU', 'uC', 'uN', 'uE1', 'uK', 'uHalf', 'uRs', 'uScale', 'uH', 'uIn', 'uOut'].map((n) => [n, gl.getUniformLocation(prog, n)]));
+      const u = Object.fromEntries(['uEye', 'uF', 'uR', 'uU', 'uC', 'uN', 'uE1', 'uK', 'uHalf', 'uRs', 'uScale', 'uH', 'uIn', 'uOut', 'uB'].map((n) => [n, gl.getUniformLocation(prog, n)]));
       return (holeGl = { gl, prog, vao, u });
     };
     // the disc's axis: the prototype's up, turned like `instantiate` does (tilt about x, then turn about y)
@@ -2243,7 +2279,7 @@
         const rs = instSize(i, 'core') || i.scale || 1; // the ball's radius is the horizon
         const d = vsub(i.at, eye);
         const depth = vdot(d, f);
-        const R = 9 * rs; // the bending reach
+        const R = HOLE_REACH * rs; // the bending reach (the disc and its bent image are inside)
         const pxR = (R * k) / Math.max(depth, 1e-9);
         if (depth <= R * 0.2 && Math.hypot(...d) > R) continue; // behind
         if (pxR < 6) continue; // a few pixels: the glow sprite is enough
@@ -2279,8 +2315,9 @@
         gl.uniform1f(u.uRs, rs);
         gl.uniform1f(u.uScale, scale);
         gl.uniform1f(u.uH, px);
-        gl.uniform1f(u.uIn, 1.575 * 1.4); // (the old ring: 0.35 to 1 of 4.5; the inner edge kept off the photon ring)
-        gl.uniform1f(u.uOut, 4.5 * 1.25);
+        gl.uniform1f(u.uIn, HOLE_DISC[0]);
+        gl.uniform1f(u.uOut, HOLE_DISC[1]);
+        gl.uniform1f(u.uB, HOLE_REACH);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       }
       gl.disable(gl.SCISSOR_TEST);
@@ -2334,7 +2371,7 @@
         const x = half + ((dx * r[0] + dy * r[1] + dz * r[2]) / depth) * k;
         const y = half - ((dx * u[0] + dy * u[1] + dz * u[2]) / depth) * k;
         if (x < -64 || y < -64 || x > size + 64 || y > size + 64) continue;
-        if (isHole(i) && holeGl && !holeGl.failed && (9 * (instSize(i, 'core') || 1) * k) / depth >= 6) continue; // the tracer draws this one
+        if (isHole(i) && holeGl && !holeGl.failed && (HOLE_REACH * (instSize(i, 'core') || 1) * k) / depth >= 6) continue; // the tracer draws this one
         const natural = (i.glow * k) / depth; // the glow radius in pixels
         // far stars fade out instead of keeping a minimum size: below ~2 px the glow dims with the square of its size
         const fade = natural < 2 ? (natural / 2) ** 2 : 1;
