@@ -309,6 +309,7 @@
     h1 { color: var(--cream); letter-spacing: 0.06em; }
     h1 span { color: var(--muted); }
     .build { padding: 3px 9px; border: 1px solid var(--line); border-radius: 9px; font-size: 11px; }
+    #fps { display: inline-block; min-width: 48px; text-align: right; margin-right: 8px; color: #8fd18b; }
     #stage { border: 1.5px solid var(--outline); border-radius: 22px; background: var(--panel); }
     .read { gap: 6px 8px; }
     .read > span { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 10px; border: 1px solid var(--outline); border-radius: 10px; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
@@ -446,7 +447,7 @@
     #driveText .brake { color: #ff5a4f; }
     #xrNote { font: 500 9px/1.2 var(--font-mono, ui-monospace, monospace); color: #9a9d90; max-width: 230px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #xrNote.press { color: #39ff14; }
-    body.car footer.console .grp[data-label="sys"] { display: none; }
+    body.car footer.console .grp[data-label="sys"] .row > :not(#xrBtn) { display: none; } /* driving: only VR stays of sys */
     #driveGrp.in #wheelGauge { color: #39ff14; }
     #gasGauge { position: relative; width: 10px; height: 38px; border-radius: 3px; background: #22251f; overflow: hidden; }
     #gasGauge::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #5b5f55; }
@@ -580,7 +581,7 @@
 <body>
   <header class="bar">
     <h1>Spider Paint<span>3Draft</span></h1>
-    <p class="build" id="build" title="Build, YY.MM.DD.NNN">–</p>
+    <p class="build"><span id="fps" title="Frames drawn in the last second (– while nothing moves: a still picture is not redrawn)">–</span> <span id="build" title="Build, YY.MM.DD.NNN">–</span></p>
   </header>
 
   <main id="stage" tabindex="0" role="img" aria-label="Empty space for prisms. 9 switches between the SVG and the WebGPU view, L turns the light, C switches the filmic look, N smooth shading, K the studio light. Drag, or use the arrow keys, to rotate the view. The cross follows the surface under the pointer. M puts a prism down there, or shoots one into empty space; Space stops the movement. B drags a box round objects to select them (B twice: a lasso), then G, R, S move, turn and size them together; the bool button asks for a boolean operation on two selected objects (union, A minus B, B minus A, intersect). V joins two surface points with a thin bar (P over empty space forgets a pending first point), X deletes the object under the cross, W A S D R F fly, / shows only the model under the cross (/ again: the whole scene), P shows the material palette (Ctrl+click (Cmd on a Mac) paints a face, Ctrl+double click the whole model), T flies the camera to the object under the cross, H puts the move gizmo (helper) on the object under the cross with the world axes, the next H switches to the object's own axes, the third takes it off; drag an arrow to move the object; E toggles edges and points, U or Backspace takes the last one back."><div id="frame"><canvas id="gpu" hidden></canvas><div id="layer"></div><div id="screens"></div><svg id="selArea" aria-hidden="true"></svg></div><div id="hud" aria-hidden="true"></div><div id="loader" hidden role="status"><i></i><span>loading…</span></div></main>
@@ -754,6 +755,7 @@
           <button id="sceneDown" type="button" class="cream" title="Download the scene as a .json file">file ↓</button>
           <button id="sceneOpen" type="button" class="cream" title="Add a scene from a .json file">file ↑</button>
           <button id="sceneForget" type="button" class="slate" title="Forget the saved scene with the name in the box">✕</button>
+          <button id="boolBtn" type="button" class="slate" title="Boolean: select two objects (B), then this; the first taken is A, the second B">bool</button>
           <input id="sceneFile" type="file" accept=".json,application/json" hidden>
         </span>
       </span>
@@ -766,7 +768,7 @@
         </span>
         <span class="row">
           <button id="rec" type="button" class="red" title="Record: starts from an empty scene and writes every move and key into a JSON file when you press it again">rec</button>
-          <button id="boolBtn" type="button" class="slate" title="Boolean: select two objects (B), then this; the first taken is A, the second B">bool</button>
+          <button id="xrBtn" type="button" class="teal" title="WebXR: show the scene in a headset (immersive-vr; on a Mac: the Meta Immersive Web Emulator). The right stick drives the car: sideways the wheel, up / down the gas">enter VR</button>
           <button id="play" type="button" class="slate" title="Play: pick a recording (JSON) and watch it build the scene again from an empty one; press again to stop">play</button>
           <input id="playFile" type="file" accept=".json,application/json" hidden>
         </span>
@@ -783,7 +785,6 @@
         </span>
       </span>
       <span class="grp rows" data-label="xr" id="xrGrp">
-        <span class="row"><button id="xrBtn" type="button" class="teal" title="WebXR: show the scene in a headset (immersive-vr; on a Mac: the Meta Immersive Web Emulator). The right stick drives the car: sideways the wheel, up / down the gas">enter VR</button></span>
         <span class="row"><span id="xrNote">–</span></span>
       </span>
       <span class="grp rows" data-label="network" id="netGrp" hidden>
@@ -797,7 +798,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@66a82ad4a009106e1ce460774241edbf60edd9aa/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@9398becf8bfb27ed8aae1e557cf96b711fadc7d4/dist/index.js';
     const orbit_ = orbitView; // (the camera orbit helper; `orbit` is the space orbit state)
     const LEG = { base: 0.15 }; // the base of a placed prism
 
@@ -1846,7 +1847,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@66a82ad4a009106e1ce460774241edbf60edd9aa/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@9398becf8bfb27ed8aae1e557cf96b711fadc7d4/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -2339,7 +2340,19 @@
       const t0 = performance.now();
       try { drawFrame(); } finally { drawMs = performance.now() - t0; }
     };
+    // the FPS counter before the version: frames drawn in the last second (the XR loop counts too)
+    let fpsFrames = 0;
+    let fpsShownAt = performance.now();
+    const fpsEl = document.getElementById('fps');
+    setInterval(() => {
+      const t = performance.now();
+      const fps = (fpsFrames * 1000) / (t - fpsShownAt);
+      fpsEl.textContent = fpsFrames ? `${fps >= 10 ? fps.toFixed(0) : fps.toFixed(1)} fps` : '– fps';
+      fpsFrames = 0;
+      fpsShownAt = t;
+    }, 1000);
     const drawFrame = () => {
+      fpsFrames++;
       queued = false;
       stepTravel(performance.now());
       stepFly(performance.now());
