@@ -779,7 +779,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@b9a1e675fed326f657708c8b58bcf11946c109f2/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e20f334bcb31a8f011b3333db9fad6f71e1c23d4/dist/index.js';
     const orbit_ = orbitView; // (the camera orbit helper; `orbit` is the space orbit state)
     const LEG = { base: 0.15 }; // the base of a placed prism
 
@@ -1108,14 +1108,17 @@
     const CAR_ACCEL = 3.5;
     const CAR_TOP = 50; // m/s at full throttle (180 km/h)
     const CAR_BRAKE = 9;
-    const CAR_RETURN = 3; // 1/s: the wheel turning back to the middle
-    const CAR_HOLD_MS = 300; // a wheel input this recent still holds the wheel (a trackpad sends no events while the fingers rest)
+    const CAR_RETURN = 12; // 1/s: the wheel turning back to the middle (quickly, as a real one let go)
+    const CAR_HOLD_MS = 200; // a wheel input this recent still holds the wheel (a trackpad sends no events while the fingers rest)
     const CAR_STEP = 1.5; // m: the ground is looked for from this high above the car
-    // how much a swipe moves the wheel (full lock = 1) and the throttle (full = 1): per trackpad pixel, per finger pixel
-    const CAR_PAD_STEER = 0.0015;
-    const CAR_PAD_GAS = 0.0012;
-    const CAR_TOUCH_STEER = 0.0025;
-    const CAR_TOUCH_GAS = 0.002;
+    // how much a swipe moves the wheel (full lock = 1) and the throttle (full = 1): per trackpad pixel, per finger pixel. Full lock
+    // takes 2000 trackpad pixels, below CAR_SLOW (10 km/h, parking) 1000; full throttle about 1700
+    const CAR_PAD_STEER = 1 / 2000;
+    const CAR_PAD_GAS = 0.0006;
+    const CAR_TOUCH_STEER = 1 / 1200;
+    const CAR_TOUCH_GAS = 0.001;
+    const CAR_SLOW = 10 / 3.6; // m/s
+    const steerGain = () => (car && car.v < CAR_SLOW ? 2 : 1);
     let car = null; // { p, heading, v, steer, throttle, steerAt, touchHold, lookYaw, lookPitch }
     const drive = () => vehicle === 'car' && !editing && !bench;
     // The ground under a point: the scene's not-steep triangles (what may be aimed at) in a grid over x-z, built once per scene;
@@ -1774,7 +1777,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@b9a1e675fed326f657708c8b58bcf11946c109f2/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e20f334bcb31a8f011b3333db9fad6f71e1c23d4/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -1972,7 +1975,7 @@
       e.preventDefault();
       e.stopPropagation();
       const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
-      if (e.deltaX) steerInput(-e.deltaX * unit * CAR_PAD_STEER);
+      if (e.deltaX) steerInput(-e.deltaX * unit * CAR_PAD_STEER * steerGain());
       if (e.deltaY) gasInput(e.deltaY * unit * CAR_PAD_GAS);
       driveGrp?.classList.add('in'); // (a flash on the gauges: the input arrived)
       clearTimeout(driveGrp?._in);
@@ -2000,7 +2003,7 @@
       fingers.set(e.pointerId, [e.clientX, e.clientY]);
       if (fingers.size < 2 || !fingerMid) return;
       const m = midOf();
-      steerInput((m[0] - fingerMid[0]) * CAR_TOUCH_STEER);
+      steerInput((m[0] - fingerMid[0]) * CAR_TOUCH_STEER * steerGain());
       gasInput(-(m[1] - fingerMid[1]) * CAR_TOUCH_GAS);
       fingerMid = m;
       e.stopImmediatePropagation();
