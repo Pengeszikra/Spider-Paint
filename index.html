@@ -754,7 +754,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@c57998259ca252fa6ee9156e13d46eae820767d5/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@052d5273cfa07b69ac3ab1d9f7acc22678d44101/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1115,6 +1115,7 @@
     const lockedObject = () => (locked ? allObjects().find((o) => o.id === locked) ?? null : null);
     const ballCache = new WeakMap();
     const ballOf = (o) => {
+      if (o.inst && !o.mesh.faces.length) return { center: [...o.inst.at], radius: instSize(o.inst, 'core') || 1 }; // left out (too small to see)
       let b = ballCache.get(o.mesh);
       if (!b) ballCache.set(o.mesh, (b = bounds(o.mesh)));
       return b;
@@ -1240,6 +1241,145 @@
       },
       () => (pickEl.textContent = 'js'),
     );
+
+    // ---- The picking of a big scene (PICK_ASYNC_FACES faces and up, not while editing or placing) runs in a Web Worker, so a new
+    // scene (copied into the kernel there, triangulated) never stalls a frame: the main thread sends the merged scene when it changes
+    // and the pointer's ray every frame (only one question in flight, the newest wins), and uses the latest answer. An answer made for
+    // an older scene still counts for an object whose mesh has not changed since (its face is moved to where it is now). Every error
+    // of the worker is caught and kept (__3draft.picker(), the pick label shows ⚠ and the count; the console has the details); a
+    // worker that dies or hangs is restarted (three times), and without a worker the picking stays on the main thread as before.
+    const PICK_ASYNC_FACES = 4000;
+    const PICK_HANG_MS = 5000;
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@052d5273cfa07b69ac3ab1d9f7acc22678d44101/dist/index.js';
+    const PICK_WORKER_SRC = `
+      let api = null, kernel = null, mesh = null, ver = -1;
+      const ready = import(ENGINE_URL).then(async (m) => {
+        api = m;
+        try { kernel = await m.initKernel(); } catch (err) { postMessage({ type: 'error', where: 'kernel', message: String(err && err.message || err) }); }
+        postMessage({ type: 'ready', kernel: Boolean(kernel) });
+      });
+      const ask = (cam, x, y, cull) => (kernel ? kernel.pick(mesh, cam, x, y, { cull }) : api.pick(mesh, cam, x, y, { cull }));
+      onmessage = async (e) => {
+        const d = e.data;
+        try {
+          await ready;
+          if (d.type === 'scene') {
+            const positions = new Array(d.pos.length / 3);
+            for (let i = 0; i < positions.length; i++) positions[i] = [d.pos[3 * i], d.pos[3 * i + 1], d.pos[3 * i + 2]];
+            const faces = new Array(d.start.length - 1);
+            for (let f = 0; f < faces.length; f++) faces[f] = { v: Array.from(d.verts.subarray(d.start[f], d.start[f + 1])) };
+            mesh = { positions, faces };
+            ver = d.ver;
+            const t = performance.now();
+            if (d.cam) ask(d.cam, 0, 0, true); // copies the scene into the kernel now, not at the first question
+            postMessage({ type: 'scene', ver, ms: performance.now() - t });
+          } else if (d.type === 'pick') {
+            const t = performance.now();
+            const hit = mesh && d.ver === ver ? ask(d.cam, d.x, d.y, d.cull) : null;
+            postMessage({ type: 'hit', ver, key: d.key, hit, ms: performance.now() - t });
+          }
+        } catch (err) {
+          postMessage({ type: 'error', where: d && d.type, key: d && d.key, ver, message: String(err && err.message || err), stack: err && err.stack });
+        }
+      };`;
+    const picker = { worker: null, ready: false, failed: false, busy: 0, sent: null, ver: 0, owners: new Map(), want: null, sentKey: '', last: null, errors: [], restarts: 0, ms: 0, sceneMs: 0, picks: 0 };
+    const pickError = (where, message, stack) => {
+      picker.errors.push({ at: new Date().toISOString(), where, message });
+      if (picker.errors.length > 20) picker.errors.shift();
+      console.warn(`[pick worker] ${where}: ${message}`, stack ?? '');
+      pickEl.textContent = `${kernel ? 'hexaw' : 'js'}·worker ⚠${picker.errors.length}`;
+      pickEl.title = `the picking worker: ${where}: ${message}`;
+    };
+    const stopPicker = (why) => {
+      picker.worker?.terminate();
+      Object.assign(picker, { worker: null, ready: false, busy: 0, sent: null, sentKey: '', last: null });
+      if (picker.restarts++ < 3) setTimeout(startPicker, 1000 * picker.restarts);
+      else ((picker.failed = true), pickError('stopped', `${why}; picking is back on the main thread`));
+      redraw();
+    };
+    const startPicker = () => {
+      let w;
+      try {
+        const url = URL.createObjectURL(new Blob([`const ENGINE_URL = ${JSON.stringify(ENGINE_URL)};\n${PICK_WORKER_SRC}`], { type: 'text/javascript' }));
+        w = new Worker(url, { type: 'module' });
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        picker.failed = true;
+        return pickError('start', String(err?.message ?? err));
+      }
+      picker.worker = w;
+      w.onerror = (e) => {
+        e.preventDefault();
+        pickError('crash', e.message || 'the worker failed (could not load the engine?)');
+        stopPicker('the worker crashed');
+      };
+      w.onmessageerror = () => pickError('message', 'a message could not be read');
+      w.onmessage = ({ data: d }) => {
+        if (d.type === 'ready') {
+          picker.ready = true;
+          pickEl.textContent = `${d.kernel ? 'hexaw' : 'js'}·worker${picker.errors.length ? ` ⚠${picker.errors.length}` : ''}`;
+          return redraw();
+        }
+        if (d.type === 'scene') return void (picker.sceneMs = d.ms);
+        if (d.type === 'error') {
+          if (d.where === 'pick') picker.busy = 0;
+          pickError(d.where, d.message, d.stack);
+          return d.where === 'pick' && sendPick();
+        }
+        if (d.type !== 'hit') return;
+        picker.busy = 0;
+        picker.ms = d.ms;
+        picker.picks++;
+        const before = picker.last;
+        picker.last = { ver: d.ver, hit: d.hit };
+        const same = before && before.ver === d.ver && (before.hit?.face ?? -1) === (d.hit?.face ?? -1) && String(before.hit?.point) === String(d.hit?.point);
+        if (!same) redraw();
+        sendPick();
+      };
+    };
+    const sendPick = () => {
+      const q = picker.want;
+      if (!q || !picker.worker || picker.busy || q.key === picker.sentKey) return;
+      picker.busy = performance.now();
+      picker.sentKey = q.key;
+      picker.worker.postMessage({ type: 'pick', ...q });
+    };
+    // the hit for the pointer from the worker (null while the first answer is on its way)
+    const asyncPick = (cam, x, y, cull) => {
+      if (picker.busy && performance.now() - picker.busy > PICK_HANG_MS) {
+        pickError('hang', `no answer in ${PICK_HANG_MS} ms`);
+        stopPicker('the worker did not answer');
+        return null;
+      }
+      if (picker.sent !== scene) {
+        // the merged scene, flat, handed over (transferred) to the worker
+        const nv = scene.positions.length;
+        const pos = new Float64Array(nv * 3);
+        scene.positions.forEach((q, i) => ((pos[3 * i] = q[0]), (pos[3 * i + 1] = q[1]), (pos[3 * i + 2] = q[2])));
+        const start = new Int32Array(scene.faces.length + 1);
+        let total = 0;
+        scene.faces.forEach((f, i) => ((start[i] = total), (total += f.v.length)));
+        start[scene.faces.length] = total;
+        const verts = new Int32Array(total);
+        scene.faces.forEach((f, i) => verts.set(f.v, start[i]));
+        picker.ver++;
+        picker.owners.set(picker.ver, owners.map((w) => ({ id: w.obj.id, mesh: w.obj.mesh, start: w.start, end: w.end })));
+        for (const v of picker.owners.keys()) if (v < picker.ver - 4) picker.owners.delete(v);
+        picker.worker.postMessage({ type: 'scene', ver: picker.ver, pos, start, verts, cam: { ...cam } }, [pos.buffer, start.buffer, verts.buffer]);
+        picker.sent = scene;
+      }
+      const c = { name: cam.name, eye: cam.eye, f: cam.f, r: cam.r, u: cam.u, ortho: cam.ortho, k: cam.k, size: cam.size };
+      picker.want = { ver: picker.ver, cam: c, x, y, cull, key: `${picker.ver}|${x}|${y}|${cull}|${c.eye}|${c.f}|${c.k}` };
+      sendPick();
+      const L = picker.last;
+      if (!L?.hit) return null;
+      if (L.ver === picker.ver) return L.hit;
+      // an answer for an older scene: still good for an object whose mesh is the same; its faces now start elsewhere
+      const old = picker.owners.get(L.ver)?.find((w) => L.hit.face >= w.start && L.hit.face < w.end);
+      const now = old && owners.find((w) => w.obj.id === old.id && w.obj.mesh === old.mesh);
+      return now ? { ...L.hit, face: now.start + (L.hit.face - old.start) } : null;
+    };
+    if (typeof Worker !== 'undefined' && !new URLSearchParams(location.search).has('nopickworker')) startPicker();
 
     let shiftOn = false; // the Shift button of the touch pad (sticky)
     const fabMode = document.getElementById('fabMode');
@@ -1575,7 +1715,8 @@
         cam = makeCamera(view, scene, size, shown_fit);
         // editing sees the far side of a face too: from inside a hull its walls face away, and they must still be selectable
         const cull = !editing;
-        hit = kernel ? kernel.pick(scene, cam, x, y, { cull }) : pick(scene, cam, x, y, { cull });
+        const async = picker.ready && !picker.failed && !editing && !placing && scene.faces.length >= PICK_ASYNC_FACES;
+        hit = async ? asyncPick(cam, x, y, cull) : kernel ? kernel.pick(scene, cam, x, y, { cull }) : pick(scene, cam, x, y, { cull });
         if (placing && hit && placing.ids.has(owner(hit.face)?.id)) hit = null; // the pointer sees through the model being placed
         cam.at = { x, y };
         panelPointer = { x, y };
@@ -2835,6 +2976,7 @@
     // the whole scene again, and with thousands of stars some level changes in nearly every frame
     const LOD_BIG = 600;
     const LOD_EVERY = 150;
+    const LOD_STEPS_BIG = [240, 90, 32, 10];
     let lodAt = 0;
     let lodTimer = 0;
     const applyLod = () => {
@@ -2846,6 +2988,7 @@
         return;
       }
       let changed = false;
+      const big = all.length > LOD_BIG; // in a big scene the spheres stay coarser (a glowing star of 30 px needs no 2000 faces)
       for (const o of all) {
         const i = o.inst;
         if (!i) continue;
@@ -2864,7 +3007,7 @@
           continue;
         }
         let level;
-        if (i.proto.halo === false) level = lodLevel(corePx, n, [60, 22, 8, 3]); // a plain sphere: only the core has levels
+        if (i.proto.halo === false) level = lodLevel(corePx, n, big ? LOD_STEPS_BIG : [60, 22, 8, 3]); // a plain sphere: only the core has levels
         else {
           level = lodLevel(corePx, n - 1, [60, 22, 8, 3, 1].slice(0, n - 2));
           if (level === n - 2 && (instSize(i, 'halo') * gcam.k) / dist < 3) level = n - 1;
@@ -6321,6 +6464,8 @@
     if (new URLSearchParams(location.search).has('debug')) {
       globalThis.__3draft = {
         load: (data) => applyScene(data),
+        pickFault: () => (picker.worker?.postMessage({ type: 'pick', ver: picker.ver, cam: null, x: 0, y: 0, cull: true, key: 'fault' }), Boolean(picker.worker)), // (a test: a broken question)
+        picker: () => ({ ready: picker.ready, failed: picker.failed, busy: Boolean(picker.busy), ver: picker.ver, picks: picker.picks, ms: +picker.ms.toFixed(2), sceneMs: +picker.sceneMs.toFixed(1), restarts: picker.restarts, errors: [...picker.errors] }),
         sky: () => ({ live: liveSky.set.size, points: liveSky.n, cached: galaxyCache.size, traced: traced.size, cloud: cloud?.n ?? 0, ms: +drawMs.toFixed(1), rebuilds, faces: scene.faces.length }),
         open: (data) => loadScene(data, true),
         drop: (name, mesh, x, y) => (useBrush({ name, mesh }), dropBrush(x, y)), // (the old drag and drop's landing)

@@ -20,6 +20,7 @@ const steps = [
   ['title', '<title>3Draft Viewer</title>', '<title>Spider Paint</title>'],
   ['header', '<h1>3Draft<span>viewer</span></h1>', '<h1>Spider Paint<span>3Draft</span></h1>'],
   ['engine import', "from '../dist/index.js';", `from '${engine}';`],
+  ['worker engine', "new URL('../dist/index.js', import.meta.url).href", `'${engine}'`],
   // the table example is gone; the prisms keep the old table leg's base
   ['table import', "import { LEG, table } from '../examples/table-model.js';", 'const LEG = { base: 0.15 }; // the base of a placed prism'],
   ['table scene', "      if (name === 'table') return { objects: [{ name: 'table', mesh: table }] };\n", ''],
