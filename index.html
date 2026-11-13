@@ -754,7 +754,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@247fe0372fe67f5c16da37b192c325d75cc44fd1/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@23e61ed6b5938106712e1b66dd5a96aaac05c76e/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1250,7 +1250,7 @@
     // worker that dies or hangs is restarted (three times), and without a worker the picking stays on the main thread as before.
     const PICK_ASYNC_FACES = 4000;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@247fe0372fe67f5c16da37b192c325d75cc44fd1/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@23e61ed6b5938106712e1b66dd5a96aaac05c76e/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -2256,13 +2256,20 @@
       cloud = { n: total, data };
     };
     // ---- Galaxies kept as recipes (`galaxy` on an instance: kind, seed, shape) are sampled on the fly by the engine's galaxyPoints,
-    // only while they are big enough on screen (LIVE_PX); far away the glow sprite stands for them. A few new ones per frame (the
-    // rest follow on the next frames), the biggest LIVE_MAX at a time, the samples kept in a small cache (LRU) by recipe.
+    // only while they are big enough on screen (LIVE_PX); far away the glow sprite stands for them. A big galaxy has tens of thousands
+    // of points (as many as the Milky Way's cloud for its size), shuffled, so while it is small on screen only the first part of them is
+    // drawn (a half, a quarter … below LIVE_FULL_PX, each a little brighter). New samples up to LIVE_GEN points per frame (the rest
+    // follow on the next frames), the biggest LIVE_MAX galaxies and LIVE_POINTS points at a time, the samples kept in a cache (LRU,
+    // LIVE_CACHE_POINTS points) by recipe.
     const LIVE_PX = 12;
+    const LIVE_POINT_LY = 140;
     const LIVE_MAX = 64;
-    const LIVE_NEW = 6;
-    const LIVE_CACHE = 240;
+    const LIVE_FULL_PX = 300;
+    const LIVE_GEN = 80000;
+    const LIVE_POINTS = 1200000;
+    const LIVE_CACHE_POINTS = 3000000;
     const galaxyCache = new Map();
+    let cachedPoints = 0;
     let liveSky = { key: '', n: 0, data: null, set: new Set() };
     const recipePoints = (rec) => {
       const key = JSON.stringify(rec);
@@ -2274,7 +2281,12 @@
       }
       q = galaxyPoints(rec);
       galaxyCache.set(key, q);
-      if (galaxyCache.size > LIVE_CACHE) galaxyCache.delete(galaxyCache.keys().next().value);
+      cachedPoints += q.n;
+      while (cachedPoints > LIVE_CACHE_POINTS && galaxyCache.size > 1) {
+        const [k0, q0] = galaxyCache.entries().next().value;
+        galaxyCache.delete(k0);
+        cachedPoints -= q0.n;
+      }
       return q;
     };
     const liveGalaxies = (size) => {
@@ -2299,28 +2311,38 @@
         want.push([dist > sc ? px : 1e9, o]);
       }
       want.sort((a, b) => b[0] - a[0]);
-      const chosen = [];
+      const chosen = []; // [object, how many of its points, brightness factor]
       let fresh = 0;
+      let drawn = 0;
       let more = false;
-      for (const [, o] of want.slice(0, LIVE_MAX)) {
-        if (!galaxyCache.has(JSON.stringify(o.inst.galaxy))) {
-          if (fresh >= LIVE_NEW) { more = true; continue; }
-          fresh++;
+      for (const [px, o] of want.slice(0, LIVE_MAX)) {
+        const rec = o.inst.galaxy;
+        const full = galaxyCache.get(JSON.stringify(rec))?.n ?? rec.n ?? 1800;
+        const step = Math.min(5, Math.max(0, Math.round(Math.log2(LIVE_FULL_PX / Math.min(px, 1e6))))); // 1, 1/2 … 1/32 of the points
+        const m = Math.min(full, Math.max(200, Math.ceil(full / 2 ** step)));
+        if (drawn + m > LIVE_POINTS) break;
+        if (!galaxyCache.has(JSON.stringify(rec))) {
+          if (fresh && fresh + full > LIVE_GEN) { more = true; continue; }
+          fresh += full;
         }
-        chosen.push(o);
+        drawn += m;
+        chosen.push([o, m, Math.min(2, Math.sqrt(full / m))]);
       }
-      const key = chosen.map((o) => `${o.name}@${o.inst.at.join(',')}/${o.inst.scale}/${o.inst.rot ?? ''}`).join('|');
+      const key = chosen.map(([o, m]) => `${o.name}@${o.inst.at.join(',')}/${o.inst.scale}/${o.inst.rot ?? ''}#${m}`).join('|');
       if (key !== liveSky.key) {
-        const parts = chosen.map((o) => [o, recipePoints(o.inst.galaxy)]);
-        const n = parts.reduce((s, [, q]) => s + q.n, 0);
+        const parts = chosen.map(([o, m, lift]) => [o, recipePoints(o.inst.galaxy), m, lift]);
+        const n = parts.reduce((s, [, q, m]) => s + Math.min(m, q.n), 0);
         const data = new Float32Array(n * 8);
         let at = 0;
-        for (const [o, q] of parts) {
+        for (const [o, q, m, lift] of parts) {
           const i = o.inst;
           const s = instSize(i, 'core') || 1;
+          // the points' radius as for the Milky Way (~140 ly for its ~45 000 ly radius), in proportion to the galaxy: two galaxies of the
+          // same size on screen then shine alike (a galaxy's surface brightness does not change with distance)
+          const pointScale = Math.min(s, (LIVE_POINT_LY / 0.04) * Math.max(1, s / 45000)); // (a small galaxy keeps ~140 ly points)
           const [ta, tb] = i.rot ?? [0, 0];
           const [ca, sa, cb, sb] = [Math.cos(ta), Math.sin(ta), Math.cos(tb), Math.sin(tb)];
-          for (let j = 0; j < q.n; j++) {
+          for (let j = 0, jn = Math.min(m, q.n); j < jn; j++) {
             let x = q.p[3 * j] * s, y = q.p[3 * j + 1] * s, z = q.p[3 * j + 2] * s;
             [y, z] = [y * ca - z * sa, y * sa + z * ca]; // the same turn as `instantiate`: tilt about x, then turn about y
             [x, z] = [x * cb + z * sb, -x * sb + z * cb];
@@ -2328,15 +2350,15 @@
             data[at] = x + i.at[0];
             data[at + 1] = y + i.at[1];
             data[at + 2] = z + i.at[2];
-            data[at + 3] = q.r[j] * s;
+            data[at + 3] = q.r[j] * pointScale; // a star cloud like the Milky Way's (~140 ly there), growing with the galaxy
             data[at + 4] = ((c >> 16) & 255) / 255;
             data[at + 5] = ((c >> 8) & 255) / 255;
             data[at + 6] = (c & 255) / 255;
-            data[at + 7] = q.l[j];
+            data[at + 7] = q.l[j] * lift;
             at += 8;
           }
         }
-        liveSky = { key, n, data, set: new Set(chosen.map((o) => o.inst)) };
+        liveSky = { key, n, data, set: new Set(chosen.map(([o]) => o.inst)) };
       }
       if (more) redraw(); // the rest are sampled on the next frames
     };
@@ -6466,7 +6488,7 @@
         load: (data) => applyScene(data),
         pickFault: () => (picker.worker?.postMessage({ type: 'pick', ver: picker.ver, cam: null, x: 0, y: 0, cull: true, key: 'fault' }), Boolean(picker.worker)), // (a test: a broken question)
         picker: () => ({ ready: picker.ready, failed: picker.failed, busy: Boolean(picker.busy), ver: picker.ver, picks: picker.picks, ms: +picker.ms.toFixed(2), sceneMs: +picker.sceneMs.toFixed(1), restarts: picker.restarts, errors: [...picker.errors] }),
-        sky: () => ({ live: liveSky.set.size, points: liveSky.n, cached: galaxyCache.size, traced: traced.size, cloud: cloud?.n ?? 0, ms: +drawMs.toFixed(1), rebuilds, faces: scene.faces.length }),
+        sky: () => ({ live: liveSky.set.size, points: liveSky.n, cached: galaxyCache.size, cachedPoints, traced: traced.size, cloud: cloud?.n ?? 0, ms: +drawMs.toFixed(1), rebuilds, faces: scene.faces.length }),
         open: (data) => loadScene(data, true),
         drop: (name, mesh, x, y) => (useBrush({ name, mesh }), dropBrush(x, y)), // (the old drag and drop's landing)
         placeBrush: (name, mesh) => placeBrush({ name, mesh }), // like gg on a model in the store
