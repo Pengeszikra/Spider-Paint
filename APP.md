@@ -10,7 +10,7 @@ Branch: `master` (the 2015 original is kept untouched in branch `2015-sept-11`).
 |---|---|
 | `index.html` | **generated**, never edit by hand |
 | `help.md` | copied from `3Draft/app/help.md` by the sync |
-| `models/*.scene.json` | example scenes the page fetches. `bridge` and `betterman` (the figure for pose mode, `J`) are copied from 3Draft by the sync, as are `globe, stars, stars-plain, milkyway, ex27`; `human, tr74, station-screen` live only here, and so does `WU-3463-Wyoming-UP-3463.json` (the station that `station-screen` plays on its monitor through a scene screen) |
+| `models/*.scene.json` | example scenes the page fetches. `bridge` and `betterman` (the figure for pose mode, `J`) are copied from 3Draft by the sync, as are `globe, stars, stars-plain, milkyway, deepsky, ex27`; `human, tr74, station-screen` live only here, and so does `WU-3463-Wyoming-UP-3463.json` (the station that `station-screen` plays on its monitor through a scene screen) |
 | `scripts/sync.mjs` | the generator (see below) |
 | `sw.js` | service worker: caches page, models, icons and the pinned engine so the app works offline |
 | `manifest.webmanifest`, `icons/`, `favicon.svg` | PWA install files (sync does not touch them) |
@@ -33,7 +33,7 @@ If you forget to raise `CACHE`, installed phones keep the old shell. Always rais
 
 ## How the sync works
 
-`sync.mjs` reads `3Draft/app/index.html` and applies a list of **exact text replacements** (`steps`): title and header, engine import pinned to the commit, example paths `./models/`, the example list, the phone's Exa menu, opt-in `?live`, PWA `<head>` tags, the starting scene (globe) and service-worker registration. If a replacement no longer matches (the viewer changed that line) it **stops** with `step "<name>" did not match`. Fix the step in `sync.mjs` (or adjust the 3Draft line); do not patch the generated `index.html`. A step that mentions a path into the 3Draft repo (`../dist/`, `../examples/`) left in the output is also an error.
+`sync.mjs` reads `3Draft/app/index.html` and applies a list of **exact text replacements** (`steps`): title and header, engine import pinned to the commit, example paths `./models/`, the example list, the phone's Exa menu, opt-in `?live`, PWA `<head>` tags and service-worker registration. (The starting scene is 3Draft's own: the deep sky, loaded alone; the sync no longer adds a globe start, which made the deep sky merge beside it, 500 million light years away.) If a replacement no longer matches (the viewer changed that line) it **stops** with `step "<name>" did not match`. Fix the step in `sync.mjs` (or adjust the 3Draft line); do not patch the generated `index.html`. A step that mentions a path into the 3Draft repo (`../dist/`, `../examples/`) left in the output is also an error.
 
 To add a model only this repo ships: put `models/<name>.scene.json` here, add it to the `example list` option group and, for the phone menu, to the `exa menu` array in `sync.mjs`, add the file to the `SHELL` list in `sw.js`, raise `CACHE`.
 

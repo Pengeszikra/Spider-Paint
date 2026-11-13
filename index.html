@@ -798,7 +798,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e4a216bf36a91cc07b49b920d11c35addd54ab85/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@f67f6b4b9fe76fc7c6b8d3d8a7ab50188353b8f2/dist/index.js';
     const orbit_ = orbitView; // (the camera orbit helper; `orbit` is the space orbit state)
     const LEG = { base: 0.15 }; // the base of a placed prism
 
@@ -1847,7 +1847,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e4a216bf36a91cc07b49b920d11c35addd54ab85/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@f67f6b4b9fe76fc7c6b8d3d8a7ab50188353b8f2/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -7838,10 +7838,9 @@
     // the starting scene is the deep sky (?empty starts with nothing; a recording to play, a show or an artifact keep their own start)
     let startScene = null;
     if (!EMBED && !SHOW && !new URLSearchParams(location.search).has('empty') && !new URLSearchParams(location.search).has('play'))
-      (startScene = 'deepsky'), setTimeout(() => addExample('deepsky').catch((e) => sceneNote(`scene: ${e.message}`)), 0);
+      (startScene = 'deepsky'), setTimeout(() => withLoader('deepsky', async () => loadScene(await sceneOf('deepsky'), true)).catch((e) => sceneNote(`scene: ${e.message}`)), 0); // (alone: never merged into something already there)
     draw();
     window.__ready = true;
-    if (!EMBED && !SHOW && !globalThis.claude?.use && !plyName) addExample('globe'); // the starting scene (the store pane has its own stock)
     // works offline once opened (not in an artifact, nor from a file)
     if (!EMBED && 'serviceWorker' in navigator && location.protocol.startsWith('http') && !globalThis.claude?.use) navigator.serviceWorker.register('sw.js').catch(() => {}); // the engine and the page script both ran (the watchdog below looks at this)
     // Leaving by accident: the browser asks first (closing the tab, reloading, typing another address) once something has been made
