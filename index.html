@@ -753,7 +753,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@5e844510452e078f9fc2883f658c310008a73530/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@2791ca2a64456c65f91aa29137c5699d0fd8af4e/dist/index.js';
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -1867,6 +1867,7 @@
       }
       drawCloud(size);
       drawGlow(size);
+      drawHoles(size);
       surfaceEl.innerHTML = hit
         ? `surface <b>face ${hit.face} · n ${hit.normal.map(signed).join(' ')}</b> · ${healthText(owner(hit.face))}`
         : 'surface <b>–</b>';
@@ -2123,6 +2124,167 @@
       gl.uniform1f(g.u.uDpr, dpr);
       gl.drawArrays(gl.POINTS, 0, cloud.n);
     };
+    // ---- A black hole (an instance with the bh-core material, e.g. Sagittarius A*) drawn by a small ray tracer instead of a ball
+    // in a flat ring: rays from the eye bend round it (a cheap Schwarzschild step), so the accretion disc shows above and below the
+    // shadow too, with a photon ring and the near side brightened (Doppler). Its own WebGL2 layer; only the square round the hole is
+    // computed (scissor), at half resolution, and nothing when it is only a few pixels (the glow sprite does that).
+    const holeCanvas = Object.assign(document.createElement('canvas'), { id: 'hole' });
+    holeCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none';
+    holeCanvas.hidden = true;
+    frame.append(holeCanvas);
+    let holeGl = null;
+    const isHole = (i) => i?.mats?.core === 'bh-core';
+    const holeInit = () => {
+      if (holeGl) return holeGl;
+      const gl = holeCanvas.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: false });
+      if (!gl) return (holeGl = { failed: true });
+      const sh = (type, src) => {
+        const x = gl.createShader(type);
+        gl.shaderSource(x, src);
+        gl.compileShader(x);
+        if (!gl.getShaderParameter(x, gl.COMPILE_STATUS)) console.warn('hole shader:', gl.getShaderInfoLog(x));
+        return x;
+      };
+      const prog = gl.createProgram();
+      gl.attachShader(prog, sh(gl.VERTEX_SHADER, `#version 300 es
+        in vec2 aP; void main() { gl_Position = vec4(aP, 0.0, 1.0); }`));
+      gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, `#version 300 es
+        precision highp float;
+        uniform vec3 uEye, uF, uR, uU, uC, uN, uE1;
+        uniform float uK, uHalf, uRs, uScale, uH, uIn, uOut;
+        out vec4 o;
+        void main() {
+          vec2 q = vec2(gl_FragCoord.x, uH - gl_FragCoord.y) / uScale;           // panel pixels
+          vec3 dir = normalize(uF + (q.x - uHalf) / uK * uR - (q.y - uHalf) / uK * uU);
+          vec3 p = (uEye - uC) / uRs;                                              // the hole's own units: horizon radius 1
+          vec3 v = dir;
+          float B = 9.0;                                                           // nothing bends noticeably beyond this
+          float b = dot(p, v);
+          float c = dot(p, p) - B * B;
+          float disc = b * b - c;
+          if (disc < 0.0) discard;
+          float t0 = -b - sqrt(disc);
+          if (t0 > 0.0) p += v * t0;
+          float h2 = dot(cross(p, v), cross(p, v));
+          vec3 E2 = cross(uN, uE1);
+          vec3 col = vec3(0.0);
+          float a = 0.0;
+          float minR = 1e9;
+          for (int i = 0; i < 110; i++) {
+            float r = length(p);
+            minR = min(minR, r);
+            if (r < 1.0) { a = 1.0; break; }                                       // into the horizon: the shadow
+            float dt = clamp(0.07 * r, 0.015, 0.5);
+            vec3 pn = p + v * dt;
+            v = normalize(v - 1.5 * h2 * p / pow(r, 5.0) * dt);                   // the bending
+            float s0 = dot(p, uN);
+            float s1 = dot(pn, uN);
+            if (s0 * s1 < 0.0) {
+              vec3 x = mix(p, pn, s0 / (s0 - s1));
+              float rr = length(x);
+              if (rr > uIn && rr < uOut) {
+                vec3 tang = normalize(cross(uN, x));                               // the disc turns this way
+                float dop = 1.0 + 0.55 * dot(tang, -v);                            // the side coming at us is brighter
+                float heat = pow(uIn / rr, 1.6);
+                float ang = atan(dot(x, E2), dot(x, uE1));
+                float streak = 0.7 + 0.3 * sin(rr * 11.0 + ang * 3.0) * sin(rr * 4.3 - ang * 5.0);
+                vec3 dc = mix(vec3(1.0, 0.32, 0.06), vec3(1.0, 0.92, 0.75), heat) * heat * 2.4 * dop * dop * dop * streak;
+                float da = smoothstep(uOut, uOut - 1.2, rr) * smoothstep(uIn, uIn + 0.35, rr) * 0.92;
+                col += (1.0 - a) * dc * da;
+                a += (1.0 - a) * da;
+                if (a > 0.985) break;
+              }
+            }
+            p = pn;
+            if (r > B + 0.5 && dot(p, v) > 0.0) break;                             // got away
+          }
+          float ring = exp(-pow((minR - 1.52) * 7.0, 2.0)) * (1.0 - a);           // the photon ring: rays that nearly circled
+          col += vec3(1.0, 0.75, 0.45) * ring * 0.9;
+          a = max(a, ring * 0.6);
+          o = vec4(col, a);                                                        // (premultiplied)
+        }`));
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return (holeGl = { failed: true });
+      const buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+      const vao = gl.createVertexArray();
+      gl.bindVertexArray(vao);
+      const loc = gl.getAttribLocation(prog, 'aP');
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+      const u = Object.fromEntries(['uEye', 'uF', 'uR', 'uU', 'uC', 'uN', 'uE1', 'uK', 'uHalf', 'uRs', 'uScale', 'uH', 'uIn', 'uOut'].map((n) => [n, gl.getUniformLocation(prog, n)]));
+      return (holeGl = { gl, prog, vao, u });
+    };
+    // the disc's axis: the prototype's up, turned like `instantiate` does (tilt about x, then turn about y)
+    const holeAxis = (i) => {
+      const [ta, tb] = i.rot ?? [0, 0];
+      return [Math.sin(ta) * Math.sin(tb), Math.cos(ta), Math.sin(ta) * Math.cos(tb)];
+    };
+    const drawHoles = (size) => {
+      const holes = gcam && !gcam.ortho && !bench ? allObjects().filter((o) => isHole(o.inst)) : [];
+      const g = holes.length ? holeInit() : null;
+      holeCanvas.hidden = !g || g.failed;
+      if (holeCanvas.hidden) return;
+      const { gl, u } = g;
+      const dpr = Math.min(2, globalThis.devicePixelRatio || 1);
+      const scale = dpr * 0.5; // half resolution: the tracer is the costly part
+      const px = Math.max(1, Math.round(size * scale));
+      if (holeCanvas.width !== px) holeCanvas.width = holeCanvas.height = px;
+      gl.viewport(0, 0, px, px);
+      gl.disable(gl.SCISSOR_TEST);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.useProgram(g.prog);
+      gl.bindVertexArray(g.vao);
+      const { eye, f, r, u: up, k } = gcam;
+      for (const o of holes) {
+        const i = o.inst;
+        const rs = instSize(i, 'core') || i.scale || 1; // the ball's radius is the horizon
+        const d = vsub(i.at, eye);
+        const depth = vdot(d, f);
+        const R = 9 * rs; // the bending reach
+        const pxR = (R * k) / Math.max(depth, 1e-9);
+        if (depth <= R * 0.2 && Math.hypot(...d) > R) continue; // behind
+        if (pxR < 6) continue; // a few pixels: the glow sprite is enough
+        const half = size / 2;
+        let x0 = 0;
+        let y0 = 0;
+        let x1 = size;
+        let y1 = size;
+        if (Math.hypot(...d) > R * 1.05) {
+          const cx = half + (vdot(d, r) / depth) * k;
+          const cy = half - (vdot(d, up) / depth) * k;
+          x0 = Math.max(0, cx - pxR * 1.05);
+          x1 = Math.min(size, cx + pxR * 1.05);
+          y0 = Math.max(0, cy - pxR * 1.05);
+          y1 = Math.min(size, cy + pxR * 1.05);
+          if (x1 <= x0 || y1 <= y0) continue;
+        }
+        gl.enable(gl.SCISSOR_TEST);
+        gl.scissor(Math.floor(x0 * scale), Math.floor((size - y1) * scale), Math.ceil((x1 - x0) * scale) + 1, Math.ceil((y1 - y0) * scale) + 1);
+        const N = holeAxis(i);
+        const e1 = Math.abs(N[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+        const E1 = vsub(e1, N.map((c) => c * vdot(e1, N)));
+        const el = Math.hypot(...E1);
+        gl.uniform3fv(u.uEye, eye);
+        gl.uniform3fv(u.uF, f);
+        gl.uniform3fv(u.uR, r);
+        gl.uniform3fv(u.uU, up);
+        gl.uniform3fv(u.uC, i.at);
+        gl.uniform3fv(u.uN, N);
+        gl.uniform3fv(u.uE1, E1.map((c) => c / el));
+        gl.uniform1f(u.uK, k);
+        gl.uniform1f(u.uHalf, half);
+        gl.uniform1f(u.uRs, rs);
+        gl.uniform1f(u.uScale, scale);
+        gl.uniform1f(u.uH, px);
+        gl.uniform1f(u.uIn, 1.575 * 1.4); // (the old ring: 0.35 to 1 of 4.5; the inner edge kept off the photon ring)
+        gl.uniform1f(u.uOut, 4.5 * 1.25);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      }
+      gl.disable(gl.SCISSOR_TEST);
+    };
     const glowCanvas = Object.assign(document.createElement('canvas'), { id: 'glow' });
     glowCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none';
     frame.append(glowCanvas);
@@ -2172,6 +2334,7 @@
         const x = half + ((dx * r[0] + dy * r[1] + dz * r[2]) / depth) * k;
         const y = half - ((dx * u[0] + dy * u[1] + dz * u[2]) / depth) * k;
         if (x < -64 || y < -64 || x > size + 64 || y > size + 64) continue;
+        if (isHole(i) && holeGl && !holeGl.failed && (9 * (instSize(i, 'core') || 1) * k) / depth >= 6) continue; // the tracer draws this one
         const natural = (i.glow * k) / depth; // the glow radius in pixels
         // far stars fade out instead of keeping a minimum size: below ~2 px the glow dims with the square of its size
         const fade = natural < 2 ? (natural / 2) ** 2 : 1;
@@ -2508,6 +2671,7 @@
         if (level === i.level) continue;
         i.level = level;
         o.mesh = instantiate(i.proto.lods[level], placement(i));
+        if (isHole(i) && holeInit() && !holeGl.failed) o.mesh = { ...o.mesh, faces: o.mesh.faces.filter((fc) => fc.mat !== i.mats.disc) }; // the tracer draws the disc
         changed = true;
       }
       if (changed) rebuild();
