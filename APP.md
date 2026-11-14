@@ -14,6 +14,10 @@ Branch: `master` (the 2015 original is kept untouched in branch `2015-sept-11`).
 | `scripts/sync.mjs` | the generator (see below) |
 | `sw.js` | service worker: caches page, models, icons and the pinned engine so the app works offline |
 | `manifest.webmanifest`, `icons/`, `favicon.svg` | PWA install files (sync does not touch them) |
+| `mcp/server.js`, `mcp/scene.js`, `mcp/live.js`, `mcp/engine/`, `mcp/package.json` | **generated** by the sync: 3Draft's MCP server, tools and live link, with the engine's runtime files, so `node mcp/server.js` runs from this repo alone |
+| `mcp/serve.js` | this repo's own: the live viewer's static server (Spider Paint at `/?live`, a 3Draft checkout at `/3draft/app/`; no `sw.js`, which would cache the live stream) |
+| `MCP.md` | the MCP guide for the AI and the setup; its tool table (between the `tools` markers) is filled by the sync from the tools themselves |
+| `.vercelignore` | keeps `mcp/` and `MCP.md` off the website |
 | `media/` | README pictures |
 | `README.md` | what the program is, for users |
 
@@ -36,6 +40,10 @@ If you forget to raise `CACHE`, installed phones keep the old shell. Always rais
 `sync.mjs` reads `3Draft/app/index.html` and applies a list of **exact text replacements** (`steps`): title and header, engine import pinned to the commit, example paths `./models/`, the example list, the phone's Exa menu, opt-in `?live`, PWA `<head>` tags and service-worker registration. (The starting scene is 3Draft's own: the deep sky, loaded alone; the sync no longer adds a globe start, which made the deep sky merge beside it, 500 million light years away.) If a replacement no longer matches (the viewer changed that line) it **stops** with `step "<name>" did not match`. Fix the step in `sync.mjs` (or adjust the 3Draft line); do not patch the generated `index.html`. A step that mentions a path into the 3Draft repo (`../dist/`, `../examples/`) left in the output is also an error.
 
 To add a model only this repo ships: put `models/<name>.scene.json` here, add it to the `example list` option group and, for the phone menu, to the `exa menu` array in `sync.mjs`, add the file to the `SHELL` list in `sw.js`, raise `CACHE`.
+
+## The MCP server
+
+`node mcp/server.js` (stdio): the same server as 3Draft's, see `MCP.md`. Sync copies it with three path changes (`../dist/` -> `./engine/`, `../app/serve.js` -> `./serve.js`, the server's name) and the runtime files of `dist/` (no tests, no `.d.ts`). The live viewer is served by `mcp/serve.js`: `/?live` is Spider Paint listening to the MCP scene and the `view_*` commands (`/events`, `/viewer-state`; `sw.js` leaves these alone), `/3draft/app/` the 3Draft viewer from `3DRAFT_DIR` or a sibling `../3Draft` / `../3draft`. The page loads the engine from jsDelivr like on the web, so the pinned commit must be pushed.
 
 ## Running and testing locally
 

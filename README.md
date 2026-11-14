@@ -61,6 +61,16 @@ npx serve .            # or: python3 -m http.server
 
 Published as a Claude artifact, the scene and the palette live in a shared database, so a person and an AI see and edit the same objects.
 
+## Build with an AI (MCP)
+
+Spider Paint has an MCP server: an AI (Codex, Claude Code, Claude Desktop) builds models with tools and steers the live viewer: loads the deep sky, targets Andromeda, switches to the starship. From this folder:
+
+```
+codex mcp add spider-paint -- node "$(pwd)/mcp/server.js"
+```
+
+Then ask it for the viewer's URL and open it. Everything else, also the full tool list, is in [MCP.md](MCP.md).
+
 ## About 3Draft
 
 [3Draft](https://github.com/Pengeszikra/3Draft) is a minimalist, AI first 3D engine: a model is plain data that a human, a program and an LLM can all read and write. It has an SVG and a WebGPU renderer, surface picking (with a WebAssembly kernel written in HEXAW), solid booleans and mesh editing.

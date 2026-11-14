@@ -809,7 +809,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@576701f6427664b2e4eb03e596d628348e75d8f5/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@3574e9d20ba379ce6ad4806655c375c8869395e8/dist/index.js';
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
     const LEG = { base: 0.15 }; // the base of a placed prism
@@ -1972,7 +1972,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@576701f6427664b2e4eb03e596d628348e75d8f5/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@3574e9d20ba379ce6ad4806655c375c8869395e8/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -7538,6 +7538,41 @@
       events.onerror = () => {
         liveEl.textContent = events.readyState === EventSource.CLOSED ? 'off' : 'reconnecting…';
       };
+      // viewer commands of the MCP server (view_target, view_camera, view_vehicle, view_example)
+      events.addEventListener('view', async (e) => {
+        try {
+          const c = JSON.parse(e.data);
+          if (c.cmd === 'target') {
+            findInput.value = c.name;
+            findShow();
+            const f = found[0];
+            if (!f) return void (liveEl.textContent = `no "${c.name}"`);
+            locked = f.o.id;
+            tabRound = null;
+            lookAt(f.o);
+          } else if (c.cmd === 'camera') {
+            letGo(); // (a target would turn the ship back to it)
+            gravity = null;
+            lookFrom(c.eye, c.yaw ?? 0, c.pitch ?? 0);
+            roll = ((c.roll ?? 0) * Math.PI) / 180;
+            redraw();
+          } else if (c.cmd === 'vehicle') setVehicle(c.vehicle === 'none' ? null : c.vehicle);
+          else if (c.cmd === 'example') await (c.replace ? withLoader(c.name, async () => loadScene(await sceneOf(c.name), true)) : addExample(c.name));
+          reportView();
+        } catch (err) {
+          liveEl.textContent = 'bad command';
+          liveEl.title = String(err.message ?? err);
+        }
+      });
+      // what the viewer shows, for the view_state tool
+      const reportView = () => {
+        if (events.readyState !== EventSource.OPEN) return;
+        const deg = (a) => +((a * 180) / Math.PI).toFixed(2);
+        const t = lockedObject();
+        const state = { vehicle: vehicle ?? 'none', eye: eyeNow().map((v) => +v.toFixed(4)), yaw: deg(yaw), pitch: deg(pitch), roll: deg(roll), target: t ? t.name ?? t.id : null, speed: space() ? +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3) : null, orbit: orbit?.phase ?? null, objects: allObjects().length, scene: startScene ?? null, view: mode };
+        fetch('/viewer-state', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(state) }).catch(() => {});
+      };
+      setInterval(reportView, 2000);
     }
 
     // Published as a Claude artifact with the `db` capability: the objects live in the shared

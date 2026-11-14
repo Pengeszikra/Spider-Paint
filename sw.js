@@ -1,7 +1,7 @@
 // Spider Paint service worker: the app works offline once it has been opened.
 // The page, models and icons come from the cache first and are refreshed in the background;
 // the engine (pinned to one commit on jsDelivr, so it never changes) and the fonts are kept after the first visit.
-const CACHE = 'spider-paint-v176';
+const CACHE = 'spider-paint-v177';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'favicon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'help.md', 'models/bridge.scene.json', 'models/globe.scene.json', 'models/human.scene.json', 'models/betterman.scene.json', 'models/station-screen.scene.json', 'models/WU-3463-Wyoming-UP-3463.json'];
 
 self.addEventListener('install', (e) => {
@@ -19,6 +19,7 @@ self.addEventListener('fetch', (e) => {
   const same = url.origin === location.origin;
   const cdn = url.hostname === 'cdn.jsdelivr.net' || url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
   if (!same && !cdn) return;
+  if (same && ['/events', '/scene', '/viewer-state'].includes(url.pathname)) return; // the MCP live link (mcp/): never cached
   e.respondWith(
     caches.open(CACHE).then(async (cache) => {
       const hit = await cache.match(req, { ignoreSearch: same });

@@ -8,7 +8,8 @@
 // replacement; if one no longer matches (the viewer changed), the script stops and says which.
 
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { join, resolve } from 'node:path';
 
 const src = resolve(process.argv[2] ?? '../3Draft');
@@ -73,4 +74,40 @@ writeFileSync(join(here, 'models/ex27.scene.json'), readFileSync(join(src, 'exam
 // betterman: the figure pose mode (J) is made for
 writeFileSync(join(here, 'models/betterman.scene.json'), readFileSync(join(src, 'examples/betterman.scene.json')));
 // models/human.scene.json (the low poly human) and models/tr74.scene.json (the TR-74 module) live only in this repo: sync leaves them alone
+
+// ---- The MCP server (mcp/): 3Draft's server, scene tools and live link, with the engine beside them (mcp/engine/, the runtime
+// files of dist/), so it runs from this repo alone. mcp/serve.js (the static server: Spider Paint at /, a 3Draft checkout at
+// /3draft/) and MCP.md are this repo's own; sync fills MCP.md's tool list (between the tools markers) from the tools themselves.
+const mcpDir = join(here, 'mcp');
+const engineDir = join(mcpDir, 'engine');
+rmSync(engineDir, { recursive: true, force: true });
+mkdirSync(engineDir, { recursive: true });
+for (const f of readdirSync(join(src, 'dist'))) if (f.endsWith('.js') && !f.endsWith('.test.js')) copyFileSync(join(src, 'dist', f), join(engineDir, f));
+const mcpSteps = {
+  'server.js': [["from '../dist/index.js'", "from './engine/index.js'"], ["serverInfo: { name: '3draft', version }", "serverInfo: { name: 'spider-paint', version }"], ['3draft MCP server ${version} ready on stdio', 'Spider Paint MCP server (3Draft ${version}) ready on stdio']],
+  'scene.js': [["from '../dist/index.js'", "from './engine/index.js'"]],
+  'live.js': [["from '../app/serve.js'", "from './serve.js'"]],
+};
+for (const [file, reps] of Object.entries(mcpSteps)) {
+  let text = readFileSync(join(src, 'mcp', file), 'utf8');
+  for (const [from, to] of reps) {
+    if (!text.includes(from)) throw new Error(`sync: mcp/${file}: "${from}" not found; update scripts/sync.mjs`);
+    text = text.replace(from, to);
+  }
+  if (text.includes('../dist/') || text.includes('../app/')) throw new Error(`sync: mcp/${file} still points into the 3Draft repo`);
+  const note = `// (copied from 3Draft ${commit.slice(0, 7)} by scripts/sync.mjs: change it there)\n`;
+  writeFileSync(join(mcpDir, file), text.startsWith('#!') ? text.replace(/^(#!.*\n)/, `$1${note}`) : note + text);
+}
+const { version: engineVersion } = await import(pathToFileURL(join(engineDir, 'index.js')).href);
+writeFileSync(join(mcpDir, 'package.json'), `${JSON.stringify({ name: 'spider-paint-mcp', private: true, type: 'module', description: 'The Spider Paint / 3Draft MCP server: node mcp/server.js', '3draft': { version: engineVersion, commit } }, null, 2)}\n`);
+// MCP.md: the tool list
+const { createScene } = await import(pathToFileURL(join(mcpDir, 'scene.js')).href);
+const cell = (t) => String(t).replace(/\|/g, '\\|').replace(/\n/g, ' ');
+const args = (schema) => Object.keys(schema?.properties ?? {}).map((k) => ((schema.required ?? []).includes(k) ? `**${k}**` : k)).join(', ') || '–';
+const toolRows = createScene().list().map((t) => `| \`${t.name}\` | ${args(t.inputSchema)} | ${cell(t.description)} |`).join('\n');
+const mdPath = join(here, 'MCP.md');
+const md = readFileSync(mdPath, 'utf8');
+const marks = /(<!-- tools:start -->)[\s\S]*?(<!-- tools:end -->)/;
+if (!marks.test(md)) throw new Error('sync: MCP.md has no <!-- tools:start --> / <!-- tools:end --> markers');
+writeFileSync(mdPath, md.replace(marks, (_, a, b) => `${a}\n| tool | arguments (bold: required) | what it does |\n|---|---|---|\n${toolRows}\n${b}`));
 console.log(`Spider Paint <- 3Draft ${commit}`);
