@@ -814,7 +814,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@5244a63355fd291d2d2d32611f9e4eb229d005b8/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@7b1f5a95a98fc45aae7b0bbb6d4008794af2689e/dist/index.js';
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
     const LEG = { base: 0.15 }; // the base of a placed prism
@@ -1995,7 +1995,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@5244a63355fd291d2d2d32611f9e4eb229d005b8/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@7b1f5a95a98fc45aae7b0bbb6d4008794af2689e/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -3225,6 +3225,9 @@
         const parts = chosen.map(([o, m, lift]) => [o, recipePoints(o.inst.galaxy), m, lift]);
         const n = parts.reduce((s, [, q, m]) => s + Math.min(m, q.n), 0);
         const data = new Float32Array(n * 8);
+        // the points are kept relative to an origin (the first galaxy's middle) and drawn relative to the eye from there: a float32 is
+        // ~2000 ly coarse at the cosmic dawn's 33 billion light years, which would snap a galaxy's points onto a grid
+        const origin = [...(parts[0]?.[0].inst.at ?? [0, 0, 0])];
         let at = 0;
         for (const [o, q, m, lift] of parts) {
           const i = o.inst;
@@ -3239,9 +3242,9 @@
             [y, z] = [y * ca - z * sa, y * sa + z * ca]; // the same turn as `instantiate`: tilt about x, then turn about y
             [x, z] = [x * cb + z * sb, -x * sb + z * cb];
             const c = q.c[j];
-            data[at] = x + i.at[0];
-            data[at + 1] = y + i.at[1];
-            data[at + 2] = z + i.at[2];
+            data[at] = x + (i.at[0] - origin[0]);
+            data[at + 1] = y + (i.at[1] - origin[1]);
+            data[at + 2] = z + (i.at[2] - origin[2]);
             data[at + 3] = q.r[j] * pointScale; // a star cloud like the Milky Way's (~140 ly there), growing with the galaxy
             data[at + 4] = ((c >> 16) & 255) / 255;
             data[at + 5] = ((c >> 8) & 255) / 255;
@@ -3250,7 +3253,7 @@
             at += 8;
           }
         }
-        liveSky = { key, n, data, set: new Set(chosen.map(([o]) => o.inst)) };
+        liveSky = { key, n, data, origin, set: new Set(chosen.map(([o]) => o.inst)) };
       }
       if (more) redraw(); // the rest are sampled on the next frames
     };
@@ -3303,6 +3306,7 @@
       if (cloud) gl.drawArrays(gl.POINTS, 0, cloud.n);
       if (liveSky.n) {
         gl.bindVertexArray(g.vao2);
+        gl.uniform3fv(g.u.uEye, vsub(eye, liveSky.origin)); // (the live points are relative to their origin; the subtraction in doubles)
         gl.drawArrays(gl.POINTS, 0, liveSky.n);
       }
     };

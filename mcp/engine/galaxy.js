@@ -2,7 +2,8 @@
 // every time, on the fly, when the viewer needs them (the galaxy is big enough on screen). The frame is the unit one: radius 1,
 // the disc in the x-z plane (normal = y). Every point stands for millions of stars.
 const BLUE = [170, 195, 255], WHITE = [255, 240, 225], GOLD = [255, 205, 140], RED = [255, 170, 105], PINK = [255, 190, 215];
-const DEFAULT_N = { S: 1800, E: 1400, I: 700, D: 350, P: 2400 };
+const DEFAULT_N = { S: 1800, E: 1400, I: 700, D: 350, P: 2400, H: 900 };
+const UV = [150, 165, 255], TEAL = [140, 255, 215];
 export const galaxyPoints = (g) => {
     let seed = (Math.abs(Math.floor(g.seed)) % 2147483646) + 1;
     const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
@@ -73,6 +74,47 @@ export const galaxyPoints = (g) => {
             if (!inside(x, y, z))
                 continue;
             add(x, y, z, 0.05, rnd() < 0.2 ? mix(PINK, WHITE, rnd()) : mix(BLUE, WHITE, rnd() * 0.6), 1);
+        }
+    }
+    else if (g.kind === 'H') {
+        const b = g.b ?? 0.75;
+        const turn = rnd() * Math.PI; // the long axis in the plane
+        const ct = Math.cos(turn), st = Math.sin(turn);
+        const put = (x, y, z, r, c, l) => {
+            const X = x * ct - z * st, Z = x * st + z * ct;
+            if (inside(X, y, Z))
+                add(X, y, Z, r, c, l);
+        };
+        const young = () => (rnd() < 0.2 ? mix(UV, BLUE, rnd()) : mix(BLUE, WHITE, rnd() * 0.8));
+        const gas = () => (rnd() < 0.6 ? mix(PINK, WHITE, rnd() * 0.3) : mix(TEAL, WHITE, rnd() * 0.3));
+        // the black hole's light first (a few points, very bright, in the very middle)
+        if (g.agn) {
+            add(0, 0, 0, 0.06, mix(WHITE, BLUE, 0.2), 6);
+            for (let k = 0; k < Math.max(3, Math.round(n * 0.015)); k++)
+                add(gauss() * 0.012, gauss() * 0.012, gauss() * 0.012, 0.03, mix(WHITE, UV, rnd() * 0.5), 2.5);
+        }
+        // the starburst knots
+        const clumps = Math.max(0, Math.round(g.clumps ?? 3));
+        const knots = Array.from({ length: clumps }, () => {
+            const r = 0.1 + rnd() * 0.3, a = rnd() * 2 * Math.PI;
+            return [r * Math.cos(a), gauss() * 0.05, r * Math.sin(a) * b, 0.025 + rnd() * 0.04];
+        });
+        const knotN = clumps ? Math.round(n * 0.22) : 0;
+        const haloN = Math.round(n * (g.halo ?? 0.15));
+        const start = i;
+        while (i < start + knotN && guard--) {
+            const [kx, ky, kz, ks] = knots[Math.floor(rnd() * clumps)];
+            put(kx + gauss() * ks, ky + gauss() * ks, kz + gauss() * ks, 0.03, rnd() < 0.3 ? gas() : young(), 1.6);
+        }
+        // the faint envelope
+        while (i < start + knotN + haloN && guard--) {
+            const r = expo(0.3), v = [gauss(), gauss(), gauss()], l = Math.hypot(v[0], v[1], v[2]) || 1;
+            put((v[0] / l) * r, (v[1] / l) * r * 0.7, (v[2] / l) * r * b, 0.05, rnd() < 0.25 ? gas() : young(), 0.45);
+        }
+        // the bright compact body: exponential, puffy
+        while (i < n && guard--) {
+            const r = expo(0.13), v = [gauss(), gauss(), gauss()], l = Math.hypot(v[0], v[1], v[2]) || 1;
+            put((v[0] / l) * r, (v[1] / l) * r * 0.55, (v[2] / l) * r * b, 0.035, rnd() < 0.12 ? gas() : young(), 1.2 + Math.max(0, 0.3 - r) * 3);
         }
     }
     else if (g.kind === 'P') {
