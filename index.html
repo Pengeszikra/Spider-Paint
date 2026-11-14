@@ -809,8 +809,9 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@ecd1774d3184d65581d05ec0c3863937cf300f37/dist/index.js';
-    const orbit_ = orbitView; // (the camera orbit helper; `orbit` is the space orbit state)
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@576701f6427664b2e4eb03e596d628348e75d8f5/dist/index.js';
+    // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
+    const orbit_ = (o = {}) => orbitView({ roll, ...o });
     const LEG = { base: 0.15 }; // the base of a placed prism
 
     const stage = document.getElementById('stage');
@@ -842,6 +843,9 @@
 
     let yaw = START.yaw;
     let pitch = START.pitch;
+    let roll = 0; // the starship's bank round the view axis (radians; positive: right); 0 outside the starship
+    const rollKeys = new Set(); // -1 ([ / ő), +1 (] / ú) while held
+    const ROLL_RATE = Math.PI / 3; // rad/s while a roll key is held
     let pointer = null; // last pointer position, client pixels
     let hit = null; // the surface under the pointer in the last drawn frame
     // A far space object (a star, a black hole, a galaxy) is not aimed at by its surface but by how near its middle is to the pointer
@@ -1362,7 +1366,10 @@
     const orbitOn = () => orbit?.phase === 'on';
     const shipBasis = () => {
       const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
-      return { forward: [sy * cp, -sp, -cy * cp], right: [cy, 0, sy], up: [0, 1, 0] };
+      const forward = [sy * cp, -sp, -cy * cp], right = [cy, 0, sy], up = [0, 1, 0];
+      if (!roll) return { forward, right, up };
+      const c = Math.cos(roll), s = Math.sin(roll); // banked: the ship's right and up turn round the forward axis
+      return { forward, right: right.map((v, i) => v * c - up[i] * s), up: up.map((v, i) => v * c + right[i] * s) };
     };
     // the ship's velocity in the world, ly/s: the levels (with the braking program's throttle) and the cruise
     const shipVelocity = () => {
@@ -1666,7 +1673,15 @@
       const dt = Math.min(0.05, (now - lastFrame) / 1000);
       lastFrame = now;
       if (frozen) return;
+      if (!findBox.hidden) return; // searching (Enter): everything holds still until a target is taken or the box closes
       if (drive()) return stepCar(dt, now);
+      if (!space()) roll = 0;
+      else if (rollKeys.size) {
+        let d = 0;
+        for (const k of rollKeys) d += k;
+        roll = wrapPitch(roll + d * ROLL_RATE * dt);
+        redraw();
+      }
       if (locked && (!space() || orbitOn())) return stepTarget(dt);
       if (locked) steerTo(dt);
       stepOrbit(dt, now);
@@ -1676,13 +1691,13 @@
       const sy = Math.sin(yaw);
       const cp = Math.cos(pitch);
       const sp = Math.sin(pitch);
-      const forward = [sy * cp, -sp, -cy * cp];
-      const right = [cy, 0, sy];
-      const velocity = () => forward.map((c, i) => c * pace(level.f) + right[i] * pace(level.r) + (i === 1 ? pace(level.u) : 0));
+      const { forward, right, up: upS } = shipBasis();
+      const velocity = () => forward.map((c, i) => c * pace(level.f) + right[i] * pace(level.r) + upS[i] * pace(level.u));
       if (locked && space() && braking) brake(velocity(), dt);
       const v = velocity(); // (after the brake: arriving it set the levels to rest and the throttle back to 1)
       const { forward: F, right: Rt } = shipBasis();
-      const cw = F.map((c, i) => c * cruise.f + Rt[i] * cruise.r + (i === 1 ? cruise.u : 0)); // the cruise, ly/s
+      const { up: Up } = shipBasis();
+      const cw = F.map((c, i) => c * cruise.f + Rt[i] * cruise.r + Up[i] * cruise.u); // the cruise, ly/s
       fit.center = fit.center.map((c, i) => c + v[i] * UNIT * throttle * dt + cw[i] * dt);
       if (level.f || level.r || level.u || cruise.f || cruise.r || cruise.u) redraw();
     };
@@ -1885,6 +1900,8 @@
     const closeFind = () => {
       findBox.hidden = true;
       findInput.blur();
+      lastFrame = performance.now(); // (the held-still time is not flown afterwards)
+      redraw();
     };
     const findTake = (i = foundAt) => {
       const f = found[i];
@@ -1903,7 +1920,7 @@
       if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) return void (e.preventDefault(), (foundAt = (foundAt - 1 + found.length) % Math.max(1, found.length)), findShow());
     });
     findInput.addEventListener('keyup', (e) => e.stopPropagation());
-    findInput.addEventListener('blur', () => setTimeout(() => document.activeElement !== findInput && (findBox.hidden = true), 150));
+    findInput.addEventListener('blur', () => setTimeout(() => document.activeElement !== findInput && !findBox.hidden && closeFind(), 150));
     findList.addEventListener('pointerdown', (e) => {
       const row = e.target.closest('[data-i]');
       if (row) (e.preventDefault(), findTake(Number(row.dataset.i)));
@@ -1955,7 +1972,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@ecd1774d3184d65581d05ec0c3863937cf300f37/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@576701f6427664b2e4eb03e596d628348e75d8f5/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -3580,6 +3597,10 @@
         placeCarCamera();
         return redraw();
       }
+      if (roll) {
+        const c = Math.cos(roll), s = Math.sin(roll);
+        [dYaw, dPitch] = [dYaw * c - dPitch * s, dPitch * c + dYaw * s]; // banked: the picture's sideways / up-down
+      }
       yaw += dYaw;
       pitch = wrapPitch(pitch + dPitch);
       redraw();
@@ -3600,6 +3621,7 @@
     const reset = () => {
       if (bench) return goTo({ center: benchLook(), radius: benchRadius(), yaw: START.yaw, pitch: START.pitch });
       focused = false;
+      roll = 0;
       goTo({ ...overview(), yaw: START.yaw, pitch: START.pitch });
     };
 
@@ -6771,6 +6793,13 @@
       ArrowUp: [0, -STEP],
       ArrowDown: [0, STEP],
     };
+    // [ / ő: roll left, ] / ú: roll right (the starship), while held
+    const rollOf = (e) => (e.code === 'BracketLeft' || e.key === '[' || e.key === 'ő' || e.key === 'Ő' ? -1 : e.code === 'BracketRight' || e.key === ']' || e.key === 'ú' || e.key === 'Ú' ? 1 : 0);
+    window.addEventListener('keyup', (e) => {
+      const k = rollOf(e);
+      if (k) rollKeys.delete(k);
+    });
+    window.addEventListener('blur', () => rollKeys.clear());
     const FLY_KEYS = { w: ['f', 1], s: ['f', -1], d: ['r', 1], a: ['r', -1], r: ['u', 1], f: ['u', -1] };
     // a click on a button hands the keyboard back to the view (a keyboard activation keeps the focus)
     document.addEventListener('click', (e) => {
@@ -6885,7 +6914,12 @@
         return;
       }
       const fk = !e.ctrlKey && !e.metaKey && !e.altKey && (!editing || e.shiftKey) && FLY_KEYS[e.key.toLowerCase()];
-      if (fk) {
+      const rk = !e.ctrlKey && !e.metaKey && !e.altKey && space() && rollOf(e);
+      if (rk) {
+        e.preventDefault();
+        rollKeys.add(rk);
+        redraw();
+      } else if (fk) {
         e.preventDefault();
         if (!e.repeat) speed(...fk);
       } else if (e.key === ' ') {
@@ -7402,7 +7436,7 @@
         load: (data) => applyScene(data),
         pickFault: () => (picker.worker?.postMessage({ type: 'pick', ver: picker.ver, cam: null, x: 0, y: 0, cull: true, key: 'fault' }), Boolean(picker.worker)), // (a test: a broken question)
         xr: () => ({ on: Boolean(xrState.session), mono: Boolean(xrState.mono), pressed: xrState.pressed, note: xrNote?.textContent }),
-        flight: () => ({ vehicle, car: car && { p: car.p, heading: car.heading, v: car.v, steer: car.steer, throttle: car.throttle }, orbit: orbit?.phase ?? null, gravity: gravity && { name: gravity.name }, cruise: { ...cruise }, space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
+        flight: () => ({ roll: +roll.toFixed(4), vehicle, car: car && { p: car.p, heading: car.heading, v: car.v, steer: car.steer, throttle: car.throttle }, orbit: orbit?.phase ?? null, gravity: gravity && { name: gravity.name }, cruise: { ...cruise }, space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
         aim: () => (aim ? { name: aim.obj.name, px: +aim.px.toFixed(1), depth: aim.depth } : null), under: () => hitObj()?.name ?? null, locked: () => lockedObject()?.name ?? null,
         picker: () => ({ ready: picker.ready, failed: picker.failed, busy: Boolean(picker.busy), ver: picker.ver, picks: picker.picks, ms: +picker.ms.toFixed(2), sceneMs: +picker.sceneMs.toFixed(1), restarts: picker.restarts, errors: [...picker.errors] }),
         sky: () => ({ live: liveSky.set.size, points: liveSky.n, cached: galaxyCache.size, cachedPoints, traced: traced.size, cloud: cloud?.n ?? 0, ms: +drawMs.toFixed(1), rebuilds, faces: scene.faces.length }),

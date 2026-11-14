@@ -41,9 +41,10 @@ A minimal 3D scene builder. Fly through a scene, build with solid prisms, and ed
 | Space | Speed zero |
 | Arrow keys | Rotate the view in steps; drag does the same |
 | T | Target the object under the cross; the camera keeps looking at it |
-| Enter | Find a target: a box opens in the middle of the screen; type part of a name (case and accents do not matter), ↑↓ choose, Enter targets it, Esc closes |
+| Enter | Find a target: a box opens in the middle of the screen (meanwhile the ship holds still: nothing moves until you take a target or close the box); type part of a name (case and accents do not matter), ↑↓ choose, Enter targets it, Esc closes |
 | Tab / Shift+Tab | Next / previous target: first the objects in view, starting with the one nearest the middle of the screen, then the rest (nearest first) |
 | Esc | Let go of the target |
+| [ / ő, ] / ú | In a star map: **roll** the starship round its view axis while held ([ left, ] right). Steering, A/D and R/F follow the bank; the reset (double click on empty space in a model, the reset button) levels it |
 | 0 / ö | In a star map: **orbit**. With a target the ship brakes hard to a stop, the target's ticks turn green, ORBIT blinks for a second, then W/S and A/D R/F move round the target. 0 again: a swing speed is kept and the ship goes into **gravity mode** round the target (it keeps circling; slowing the speed along the orbit, e.g. the opposite A/D, slows it down, and at zero it flies on straight). Without a target: no braking, the nearest object in view becomes the centre and your speed swings you round it. Space ends it |
 | ; (é) | Freeze |
 | / | Show only the object under the cross (again: everything) |
