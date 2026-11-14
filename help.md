@@ -44,6 +44,7 @@ A minimal 3D scene builder. Fly through a scene, build with solid prisms, and ed
 | Enter | Find a target: a box opens in the middle of the screen (meanwhile the ship holds still: nothing moves until you take a target or close the box); type part of a name (case and accents do not matter), ↑↓ choose, Enter targets it, Esc closes |
 | Tab / Shift+Tab | Next / previous target: first the objects in view, starting with the one nearest the middle of the screen, then the rest (nearest first) |
 | Esc | Let go of the target |
+| V (star map) | **Star line**: V on a star (or the target), then V on another one: a light yellow glowing line joins their centres. V on empty space or Esc forgets the first. The sky group's **lines** switch shows or hides all of them, U / Backspace takes the last one back |
 | [ / ő, ] / ú | In a star map: **roll** the starship round its view axis while held ([ left, ] right). Steering, A/D and R/F follow the bank; the reset (double click on empty space in a model, the reset button) levels it |
 | 0 / ö | In a star map: **orbit**. With a target the ship brakes hard to a stop, the target's ticks turn green, ORBIT blinks for a second, then W/S and A/D R/F move round the target. 0 again: a swing speed is kept and the ship goes into **gravity mode** round the target (it keeps circling; slowing the speed along the orbit, e.g. the opposite A/D, slows it down, and at zero it flies on straight). Without a target: no braking, the nearest object in view becomes the centre and your speed swings you round it. Space ends it |
 | ; (é) | Freeze |
@@ -155,6 +156,8 @@ The **vehicle** select (next to the scene list) sets how the camera moves: – (
 Far stars, black holes and galaxies are aimed at by their middle, not by their surface: a small circle (5 px, growing as you come closer) round a star is enough, no need to hit the pixel. Close up a star or a black hole is aimed at by its surface again. A galaxy is aimed at as a whole until it fills a quarter of the screen; after that the pointer goes through it, to its black hole.
 
 The **deepsky** example is a stress test: the Milky Way, 1000 real galaxies (from the OpenNGC catalogue), 400 black holes and 3000 real stars (the nearest 1000 and 2000 notable ones farther out). Galaxies are stored as a few numbers and their stars are worked out only when you come close enough for them to matter; far away a soft glow stands for them.
+
+The **constellations** as seen from the Earth (all 88, Serpens in two parts) are drawn as light yellow lines between their stars' centres; the sky group's **figures** switch turns them on and off. From the Earth they are the familiar figures; fly away and they turn into 3D shapes, since their stars are at very different distances. Each figure is findable by its Latin name (Enter: orion, ursa major).
 
 Twelve famous **colliding galaxies** (M81 and M82, the Whirlpool, the Antennae, the Mice, Stephan's Quintet, Arp 220 and others, and the Sagittarius stream round the Milky Way) are worked out by a small gravity simulation: two galaxies pass each other, tides pull out tails and bridges, mergers become one body. Each system always shows the same moment of its collision, and each has its own.
 

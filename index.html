@@ -453,6 +453,7 @@
     #flight .vec { opacity: 0.75; font-size: 0.9em; }
     #driveGrp { color: #d8d4c6; }
     #driveGrp:not(.on) { display: none; } /* only with the car */
+    #skyGrp:not(.on) { display: none; } /* only with the starship */
     #driveText .brake { color: #ff5a4f; }
     #xrNote { font: 500 9px/1.2 var(--font-mono, ui-monospace, monospace); color: #9a9d90; max-width: 230px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #xrNote.press { color: #39ff14; }
@@ -795,6 +796,10 @@
           <label title="How long the let-go gas and brake take to come back to zero">↺ gas <input type="range" id="tBrakeBack" min="0.05" max="2" step="0.05"><b>s</b></label>
         </span>
       </span>
+      <span class="grp rows" data-label="sky" id="skyGrp" title="The star map's lines (vehicle: starship)">
+        <span class="row"><button id="skyMine" type="button" class="sw on" title="Your star lines: V on a star, then V on another one joins their centres with a light yellow glowing bar. This switch shows or hides all of them"><i></i>lines</button></span>
+        <span class="row"><button id="skyIau" type="button" class="sw on" title="The constellations as seen from Earth (88 IAU figures, lines between the stars' centres): show or hide all of them"><i></i>figures</button></span>
+      </span>
       <span class="grp rows" data-label="xr" id="xrGrp">
         <span class="row"><span id="xrNote">–</span></span>
       </span>
@@ -809,7 +814,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@3574e9d20ba379ce6ad4806655c375c8869395e8/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e9ea1faea6177c341ab1a5b19cec9f739db8ab3b/dist/index.js';
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
     const LEG = { base: 0.15 }; // the base of a placed prism
@@ -958,6 +963,8 @@
     let hostObjects = [];
     let mine = [];
     const allObjects = () => [...hostObjects, ...mine];
+    // the star map's lines (sky group): 'mine' are the ones drawn with V, 'iau' the constellation figures; each switch hides its kind
+    const skyShow = { mine: true, iau: true };
     // objects are told apart by id: a db snapshot (also the echo of our own write) hands out new instances
     const live = (o) => allObjects().find((x) => x.id === o.id);
     const has = (o) => Boolean(live(o));
@@ -984,6 +991,7 @@
       if (solo && !objs.some((o) => o.id === solo)) solo = null;
       if (solo) objs = objs.filter((o) => o.id === solo);
       if (skinned()) objs = objs.filter((o) => !posing.ids.has(o.id)); // the posed figure is drawn as a GPU skin, not from the scene
+      if (!skyShow.mine || !skyShow.iau) objs = objs.filter((o) => !o.skyLine || skyShow[o.skyLine]); // the sky switches
       let n = 0;
       owners = objs.map((o) => ({ obj: o, start: n, end: (n += o.mesh.faces.length) }));
       sceneParts = objs.map((o) => o.mesh);
@@ -1239,11 +1247,12 @@
       if (!driveGrp) return;
       const on = vehicle === 'car';
       const st = car?.steer ?? 0, th = car?.throttle ?? 0;
-      const key = `${on}|${drive()}|${st.toFixed(3)}|${th.toFixed(3)}`;
+      const key = `${vehicle}|${drive()}|${st.toFixed(3)}|${th.toFixed(3)}`;
       if (key === driveShown) return;
       driveShown = key;
       document.body.classList.toggle('car', drive()); // driving: the sys group steps aside
       driveGrp.classList.toggle('on', on);
+      document.getElementById('skyGrp')?.classList.toggle('on', vehicle === 'starship');
       wheelRot.setAttribute('transform', `rotate(${(st * CAR_STEER * 57.3 * 3).toFixed(1)})`); // a steering wheel turns ~3x the wheels
       gasBar.classList.toggle('brake', th < 0);
       gasBar.style.height = `${Math.abs(th) * 50}%`;
@@ -1972,7 +1981,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@3574e9d20ba379ce6ad4806655c375c8869395e8/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e9ea1faea6177c341ab1a5b19cec9f739db8ab3b/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -2843,6 +2852,7 @@
           const b = ballOf(lockedObj);
           rows.push(`<div class="row lock"><span>◎ ${hudText(lockedObj.name ?? lockedObj.id)}</span></div><div class="row"><span>wasdrf orbit · Tab next · Esc free</span></div>`);
         } else rows.push('<div class="row"><span>T target</span></div><div class="row"><span>&nbsp;</span></div>');
+        if (skyFrom && has(skyFrom)) rows.push(`<div class="row lock"><span>V line from ${hudText(skyFrom.name ?? skyFrom.id)} · V on another star · V on empty space: cancel</span></div>`);
         if (under) {
           const d = Math.hypot(...(aim ?? hit).point.map((c, i) => c - eye[i]));
           const faces = under.mesh.faces.length;
@@ -3757,6 +3767,62 @@
       create('bar', mesh);
       redraw();
     };
+    // ---- Star lines. A light yellow glowing prism from the centre of one object to the centre of another (the material
+    // `sky-line`, emit 2.5, added to the palette when missing). In a star map V draws one: the first V takes the
+    // object under the cross (or the target), the second V another one; V over empty space forgets the first.
+    const SKY_MAT = { name: 'sky-line', color: '#fff3a0', metal: 0, rough: 1, alpha: 1, emit: 2.5 };
+    const skyMat = () => {
+      if (materials.some((m) => m.name === SKY_MAT.name)) return;
+      materials.push({ ...SKY_MAT });
+      saveMaterial(materials[materials.length - 1]);
+      syncPalette();
+    };
+    // the bar tapers: each end is as wide as SKY_WIDTH times its distance from the observer (the Sun for the figures, the eye
+    // where a V line was drawn), so from there it is an even line of about one pixel however deep it reaches
+    const SKY_WIDTH = 0.0016;
+    const skyBar = (a, b, from = [0, 0, 0]) => {
+      skyMat();
+      const d = b.map((c, i) => c - a[i]);
+      const length = Math.hypot(...d);
+      const ey = d.map((c) => c / length);
+      const side = Math.abs(ey[1]) > 0.95 ? [1, 0, 0] : UP;
+      const ez0 = [ey[1] * side[2] - ey[2] * side[1], ey[2] * side[0] - ey[0] * side[2], ey[0] * side[1] - ey[1] * side[0]];
+      const ez = ez0.map((c) => c / Math.hypot(...ez0));
+      const ex = [ey[1] * ez[2] - ey[2] * ez[1], ey[2] * ez[0] - ey[0] * ez[2], ey[0] * ez[1] - ey[1] * ez[0]];
+      const half = (p) => Math.max(SKY_WIDTH * Math.hypot(...p.map((c, i) => c - from[i])), length * 2e-4, 1e-5) / 2;
+      const ring = (p, h) => [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => p.map((c, i) => c + (ex[i] * u + ez[i] * v) * h));
+      const positions = [...ring(a, half(a)), ...ring(b, half(b))];
+      const mat = SKY_MAT.name, color = SKY_MAT.color;
+      // a frustum: the a end (0-3), the b end (4-7), counter-clockwise from outside
+      const faces = [[3, 2, 1, 0], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]].map((v) => ({ v, color, mat }));
+      return { positions, faces };
+    };
+    let skyFrom = null; // the first object of a star line being drawn
+    const skyLine = () => {
+      const o = hitObj() ?? lockedObject();
+      if (!o || o.skyLine) {
+        skyFrom = null;
+        return redraw();
+      }
+      if (!skyFrom || !has(skyFrom)) {
+        skyFrom = o;
+        return redraw();
+      }
+      if (o.id === skyFrom.id) return; // the same one twice: keep waiting for another
+      const a = ballOf(skyFrom).center, b = ballOf(o).center;
+      const made = create(`${skyFrom.name ?? 'star'} – ${o.name ?? 'star'}`, skyBar(a, b, eyeNow()));
+      Object.assign(live(made) ?? made, { skyLine: 'mine', pickable: false });
+      skyFrom = null;
+      if (!skyShow.mine) setSky('mine', true); // a new line shows
+      rebuild();
+      redraw();
+    };
+    const setSky = (kind, on) => {
+      skyShow[kind] = on;
+      document.getElementById(kind === 'mine' ? 'skyMine' : 'skyIau')?.classList.toggle('on', on);
+      rebuild();
+      redraw();
+    };
     // The object that owns a face of the scene.
     const owner = (face) => owners.find((o) => face >= o.start && face < o.end)?.obj ?? null;
     // Every change goes the same way: the document (if a db is connected) and the local object.
@@ -3789,7 +3855,7 @@
     const save = (obj, op) => col && enqueue(op, () => unsaved.delete(obj.id));
     // the stored document of an object; the lines drawn on it ride along
     const textPart = (o) => (o.text !== undefined ? { text: o.text, textFrame: o.textFrame } : {}); // a text model keeps its words and where they stand, so they can be fixed
-    const docOf = (o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}), ...textPart(o), ...(o.pickable === false ? { pickable: false } : {}) });
+    const docOf = (o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}), ...textPart(o), ...(o.pickable === false ? { pickable: false } : {}), ...(o.skyLine ? { skyLine: o.skyLine } : {}) });
     const shortId = () => Math.random().toString(36).slice(2, 6).padEnd(4, '0'); // prism-{id}
     const uid = (name) => `${name}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
     const create = (name, mesh) => {
@@ -4000,7 +4066,7 @@
         if (data.view && (replace || !mergeOn || !had)) applyView(data.view);
       });
     const addExample = async (name) => ((startScene = startScene === name ? name : null), withLoader(name.replace(/^saved:/, ''), async () => loadScene(await sceneOf(name))));
-    const addScene = async ({ objects: raw, palette: extra, prototypes, start, cloud: points, cloudProtos, vehicle: ride }) => {
+    const addScene = async ({ objects: raw, palette: extra, prototypes, start, cloud: points, cloudProtos, vehicle: ride, figures }) => {
       const objects = raw.map((o) => (o.proto ? { name: o.name, inst: { ...o, proto: prototypes[o.proto] }, mesh: instantiate(prototypes[o.proto].lods.at(-1), placement(o)), ...(o.pickable === false ? { pickable: false } : {}) } : o));
       // a scene may bring its own materials; the ones the palette lacks are added (and saved with a db)
       for (const m of extra ?? []) {
@@ -4025,8 +4091,26 @@
           if (o.text !== undefined) Object.assign(live(made) ?? made, { text: o.text, textFrame: o.textFrame && { ...o.textFrame, origin: o.textFrame.origin.map((c, i) => (i === 0 ? c + dx : c)) } });
           if (o.inst) (live(made) ?? made).inst = { ...o.inst, at: [o.inst.at[0] + dx, o.inst.at[1], o.inst.at[2]], level: -1 };
           if (o.pickable === false) (live(made) ?? made).pickable = false;
+          if (o.skyLine) (live(made) ?? made).skyLine = o.skyLine;
         }),
       );
+      // the constellation figures: one object per figure, its bars between the centres of the stars just loaded (by name)
+      if (figures?.length) {
+        const at = new Map();
+        for (const o of objects) if (o.inst && !at.has(o.name)) at.set(o.name, [o.inst.at[0] + dx, o.inst.at[1], o.inst.at[2]]);
+        asOneStep(() => {
+          for (const f of figures) {
+            const bars = [];
+            for (const line of f.lines) for (let i = 1; i < line.length; i++) {
+              const a = at.get(line[i - 1]), b = at.get(line[i]);
+              if (a && b) bars.push(skyBar(a, b));
+            }
+            if (!bars.length) continue;
+            const made = create(f.name, merge(nothing, ...bars));
+            Object.assign(live(made) ?? made, { skyLine: 'iau', pickable: false, figure: f.id });
+          }
+        });
+      }
       // the vehicle: what the scene says; without it a guess (a star map is a starship) for a scene loaded on its own
       if (ride !== undefined) setVehicle(ride);
       else if (!have.length) setVehicle(points || raw.filter((o) => o.glow).length >= 50 ? 'starship' : null);
@@ -6857,6 +6941,7 @@
         if (!e.repeat) nextTarget(e.shiftKey); // (the first Tab: the object nearest the middle of the view)
         return;
       }
+      if (e.key === 'Escape' && skyFrom) return void (e.preventDefault(), (skyFrom = null), redraw()); // forget a pending star line first
       if (e.key === 'Escape' && locked && !editing && !picking) {
         e.preventDefault();
         if (!space()) stop(); // (a starship keeps its speed)
@@ -6986,7 +7071,8 @@
             // any other mode: V sketches a line (nothing is selected, nothing moves)
             if (emode !== 'draw') ((emode = 'draw'), (sel = emptySel()), showBar());
             sketch();
-          } else spider();
+          } else if (space() && !drive()) skyLine(); // a star map: V joins two objects' centres
+          else spider();
         }
       } else if (picking && e.key === 'Escape') {
         armPick(false);
@@ -7161,7 +7247,7 @@
     // ?: the key explainer, a keyboard drawn from data. Hover or tap a key to read it, press a real key to see it light up,
     // "run" does what the key does. Colours: teal = target / look, red = editing and making, cream = flying and viewing, slate = system.
     const KEYS = {
-      escape: { cap: 'Esc', sub: 'free', cat: 'slate', w: 1.5, title: 'Escape', text: 'Cancels: closes the boolean question, stops a pending spider bar, ends zen.', target: 'Lets go of the target. The camera stays exactly where it is.', edit: 'Forgets the saw points or the sketch line, then leaves the saw or a move mode, then leaves edit mode (the target stays).' },
+      escape: { cap: 'Esc', sub: 'free', cat: 'slate', w: 1.5, title: 'Escape', text: 'Cancels: closes the boolean question, stops a pending spider bar or star line, ends zen.', target: 'Lets go of the target. The camera stays exactly where it is.', edit: 'Forgets the saw points or the sketch line, then leaves the saw or a move mode, then leaves edit mode (the target stays).' },
       1: { cap: '1', sub: 'union', cat: 'red', text: 'Boolean question: union.', edit: 'Select points: click one, Shift+click adds or takes away. G / S / E then work on them.' },
       2: { cap: '2', sub: 'A−B', cat: 'red', text: 'Boolean question: A minus B.', edit: 'Select lines (edges).' },
       3: { cap: '3', sub: 'B−A', cat: 'red', text: 'Boolean question: B minus A.', edit: 'Select faces.' },
@@ -7197,7 +7283,7 @@
       z: { cap: 'Z', sub: 'zen', cat: 'slate', text: 'Zen: hide everything but the model. Z or Esc brings the panels back.' },
       x: { cap: 'X', sub: 'del', cat: 'red', text: 'Shift+X deletes the object under the cross, in every mode (U brings it back). Alone, during G / S / R, X locks the axis to x.', edit: 'Shift+X deletes the selected points, lines or faces (a point takes its faces, a line the faces on it); with nothing selected, the object under the cross. During G / S: locks the axis to x.' },
       c: { cap: 'C', sub: 'glow', cat: 'teal', text: 'Glow: emitting materials light their surroundings as local lights (no shadows). With the light off, only they light the scene.' },
-      v: { cap: 'V', sub: 'bar', cat: 'red', text: 'Spider bar: joins two surface points with a thin bar.', edit: 'In the lathe (6): puts a contour point on the face plane. Sketches a line from point to point on the surface (sketch mode, 5; Enter then makes faces and lines of the drawing). In saw mode (4): puts a saw point (two on one face: a cut square to it; three: a cut through the triangle).' },
+      v: { cap: 'V', sub: 'bar', cat: 'red', text: 'Spider bar: joins two surface points with a thin bar. In a star map (starship): a star line, a light yellow glowing bar from the centre of one object to the centre of another (V on the first, V on the second); the sky group\'s lines switch shows or hides them.', edit: 'In the lathe (6): puts a contour point on the face plane. Sketches a line from point to point on the surface (sketch mode, 5; Enter then makes faces and lines of the drawing). In saw mode (4): puts a saw point (two on one face: a cut square to it; three: a cut through the triangle).' },
       7: { cap: '7', sub: 'store', cat: 'teal', text: 'Open or close the store: a second 3D view on the left (a third of the width) with the loose objects (timber stock). The keys go to the view the pointer is over. In the store: target one (T) and press M, and it becomes the model M puts down in the build view.' },
       n: { cap: 'N', sub: 'smooth', cat: 'teal', text: 'Smooth shading: faces that meet at a shallow angle share their normals.' },
       m: { cap: 'M', sub: 'place', cat: 'red', text: 'Puts a prism down at the cross (or shoots one into empty space).', solo: 'In isolated mode the prism is a bullet: where it lands it carves A−B out of the surface; if it misses it disappears.' },
@@ -7319,6 +7405,8 @@
     document.getElementById('gpuBtn').addEventListener('click', toggleMode);
     document.getElementById('light').addEventListener('click', turnLight);
     document.getElementById('filmic').addEventListener('click', toggleFilmic);
+    document.getElementById('skyMine').addEventListener('click', (e) => (setSky('mine', !skyShow.mine), e.currentTarget.blur()));
+    document.getElementById('skyIau').addEventListener('click', (e) => (setSky('iau', !skyShow.iau), e.currentTarget.blur()));
     document.getElementById('freeze').addEventListener('click', toggleFreeze);
     document.getElementById('filmic').classList.toggle('on', filmic);
     document.getElementById('smooth').addEventListener('click', toggleSmooth);
@@ -7340,7 +7428,7 @@
         palette: materials.filter((m) => used.has(m.name)).map((m) => ({ ...m })),
         view: viewOf(),
         ...(vehicle ? { vehicle } : {}),
-        objects: allObjects().map((o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}), ...textPart(o), ...(o.pickable === false ? { pickable: false } : {}) })),
+        objects: allObjects().map((o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}), ...textPart(o), ...(o.pickable === false ? { pickable: false } : {}), ...(o.skyLine ? { skyLine: o.skyLine } : {}) })),
       };
     };
     const showSaved = () => {

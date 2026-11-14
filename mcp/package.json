@@ -4,7 +4,7 @@
   "type": "module",
   "description": "The Spider Paint / 3Draft MCP server: node mcp/server.js",
   "3draft": {
-    "version": "26.11.14003",
-    "commit": "3574e9d20ba379ce6ad4806655c375c8869395e8"
+    "version": "26.11.14004",
+    "commit": "e9ea1faea6177c341ab1a5b19cec9f739db8ab3b"
   }
 }
