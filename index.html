@@ -814,7 +814,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@4895dac05543576da2239cee822c083cf9a87fed/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@54d1f49322dc6e643f19b830cd0ccdbfe68055de/dist/index.js';
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
     const LEG = { base: 0.15 }; // the base of a placed prism
@@ -1874,7 +1874,7 @@
     };
     const findDist = (o) => {
       const s = (gcam?.eye ? [...gcam.eye] : eyeNow());
-      return Math.hypot(...vsub(ballOf(o).center, s));
+      return Math.hypot(...vsub(o.figure ? o.figure.centre : ballOf(o).center, s));
     };
     const findShow = () => {
       const q = fold(findInput.value.trim());
@@ -1886,6 +1886,12 @@
           const r = findRank(fold(o.name ?? o.id), q);
           if (r >= 0) hits.push([r, o]);
         }
+        // the constellation figures, by their Latin and English names: taking one turns the view to its middle
+        if (skyShow.iau)
+          for (const f of skyFigures) {
+            const r = Math.min(...[f.name, f.en].filter(Boolean).map((n) => findRank(fold(n), q)).map((x) => (x < 0 ? 99 : x)));
+            if (r < 99) hits.push([r, { id: `figure:${f.id}:${f.name}`, name: `${f.name} (constellation)`, figure: f }]);
+          }
         const best = hits.length > 400 ? hits.filter((h) => h[0] <= 2).concat(hits.filter((h) => h[0] > 2).slice(0, 400)) : hits;
         found = best.map(([r, o]) => [r, findDist(o), o]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).slice(0, FIND_SHOW).map(([, d, o]) => ({ o, d }));
       }
@@ -1912,13 +1918,21 @@
       lastFrame = performance.now(); // (the held-still time is not flown afterwards)
       redraw();
     };
+    // a found object becomes the target (as Tab); a found constellation figure: the view turns to its middle, nothing is targeted
+    const takeFound = (o) => {
+      if (o.figure) {
+        letGo();
+        const e = eyeNow(), d = vsub(o.figure.centre, e);
+        return lookFrom(e, (Math.atan2(d[0], -d[2]) * 180) / Math.PI, (Math.asin(d[1] / Math.hypot(...d)) * 180) / Math.PI);
+      }
+      locked = o.id;
+      tabRound = null;
+      lookAt(o);
+    };
     const findTake = (i = foundAt) => {
       const f = found[i];
       closeFind();
-      if (!f) return;
-      locked = f.o.id;
-      tabRound = null;
-      lookAt(f.o);
+      if (f) takeFound(f.o);
     };
     findInput.addEventListener('input', () => ((foundAt = 0), findShow()));
     findInput.addEventListener('keydown', (e) => {
@@ -1981,7 +1995,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@4895dac05543576da2239cee822c083cf9a87fed/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@54d1f49322dc6e643f19b830cd0ccdbfe68055de/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -2590,7 +2604,7 @@
         const own = under ? ballOf(under).radius : Infinity;
         return Math.min(fit.radius * 0.07, away * 0.03, Math.max(own * 0.5, away * 0.004)) / zoomNow; // (as big on screen whatever the zoom)
       };
-      const marks = hit ? [{ name: 'cursor', lines: crosshair(scene, hit, crossRadius()) }] : [];
+      const marks = [...skyMarks(), ...(hit ? [{ name: 'cursor', lines: crosshair(scene, hit, crossRadius()) }] : [])];
       // four short 45° ticks in the corners round a middle (R px on screen), drawn with the marks
       const ticksAt = (point, px, turn = 0) => {
         const depth = Math.max(vdot(vsub(point, gcam.eye), gcam.f), 1e-9);
@@ -3767,42 +3781,32 @@
       create('bar', mesh);
       redraw();
     };
-    // ---- Star lines. A light yellow glowing prism from the centre of one object to the centre of another (the material
-    // `sky-line`, emit 2.5, added to the palette when missing). In a star map V draws one: the first V takes the
-    // object under the cross (or the target), the second V another one; V over empty space forgets the first.
-    const SKY_MAT = { name: 'sky-line', color: '#fff3a0', metal: 0, rough: 1, alpha: 0.15, emit: 2.5 };
-    const skyMat = () => {
-      const had = materials.find((m) => m.name === SKY_MAT.name);
-      if (had && had.alpha === 1 && had.emit === 2.5) Object.assign(had, { alpha: SKY_MAT.alpha }), saveMaterial(had), syncPalette(); // the first version was opaque
-      if (had) return;
-      materials.push({ ...SKY_MAT });
-      saveMaterial(materials[materials.length - 1]);
-      syncPalette();
+    // ---- Star lines: GPU lines (the marks: even width in screen pixels, under the other marks, no faces, no picking).
+    // `skyFigures`: the constellation figures of the loaded scenes, [{ id, name, en, lines: names, pts: polylines of centres }];
+    // `skyMine`: the lines drawn with V, [{ a, b: names, pts: [centre, centre] }]. In a star map V draws one: the first V takes
+    // the object under the cross (or the target), the second V another one; V over empty space or Esc forgets the first.
+    const SKY_LOOK = { iau: { color: '#fff3a0', width: 1.2, opacity: 0.3 }, mine: { color: '#ffe066', width: 1.6, opacity: 0.75 } };
+    let skyFigures = [];
+    let skyMine = [];
+    let skyMarksCache = { key: '', marks: [] };
+    const skyMarks = () => {
+      const key = `${skyShow.iau}|${skyShow.mine}|${skyFigures.length}|${skyMine.length}`;
+      if (key !== skyMarksCache.key) {
+        const marks = [];
+        if (skyShow.iau && skyFigures.length) marks.push({ name: 'figures', ...SKY_LOOK.iau, lines: skyFigures.flatMap((f) => f.pts) });
+        if (skyShow.mine && skyMine.length) marks.push({ name: 'star-lines', ...SKY_LOOK.mine, lines: skyMine.map((l) => l.pts) });
+        skyMarksCache = { key, marks };
+      }
+      return skyMarksCache.marks;
     };
-    // the bar tapers: each end is as wide as SKY_WIDTH times its distance from the observer (the Sun for the figures, the eye
-    // where a V line was drawn), so from there it is an even line of about one pixel however deep it reaches
-    const SKY_WIDTH = 0.0008;
-    const skyBar = (a, b, from = [0, 0, 0]) => {
-      skyMat();
-      const d = b.map((c, i) => c - a[i]);
-      const length = Math.hypot(...d);
-      const ey = d.map((c) => c / length);
-      const side = Math.abs(ey[1]) > 0.95 ? [1, 0, 0] : UP;
-      const ez0 = [ey[1] * side[2] - ey[2] * side[1], ey[2] * side[0] - ey[0] * side[2], ey[0] * side[1] - ey[1] * side[0]];
-      const ez = ez0.map((c) => c / Math.hypot(...ez0));
-      const ex = [ey[1] * ez[2] - ey[2] * ez[1], ey[2] * ez[0] - ey[0] * ez[2], ey[0] * ez[1] - ey[1] * ez[0]];
-      const half = (p) => Math.max(SKY_WIDTH * Math.hypot(...p.map((c, i) => c - from[i])), 1e-5) / 2; // (no floor from the length: a near star's end of a long bar would swell)
-      const ring = (p, h) => [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => p.map((c, i) => c + (ex[i] * u + ez[i] * v) * h));
-      const positions = [...ring(a, half(a)), ...ring(b, half(b))];
-      const mat = SKY_MAT.name, color = SKY_MAT.color;
-      // a frustum: the a end (0-3), the b end (4-7), counter-clockwise from outside
-      const faces = [[3, 2, 1, 0], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]].map((v) => ({ v, color, mat }));
-      return { positions, faces };
+    const skyCentre = (name) => {
+      const o = allObjects().find((x) => x.name === name);
+      return o ? [...ballOf(o).center] : null;
     };
     let skyFrom = null; // the first object of a star line being drawn
     const skyLine = () => {
       const o = hitObj() ?? lockedObject();
-      if (!o || o.skyLine) {
+      if (!o) {
         skyFrom = null;
         return redraw();
       }
@@ -3811,18 +3815,16 @@
         return redraw();
       }
       if (o.id === skyFrom.id) return; // the same one twice: keep waiting for another
-      const a = ballOf(skyFrom).center, b = ballOf(o).center;
-      const made = create(`${skyFrom.name ?? 'star'} – ${o.name ?? 'star'}`, skyBar(a, b, eyeNow()));
-      Object.assign(live(made) ?? made, { skyLine: 'mine', pickable: false });
+      const line = { a: skyFrom.name ?? skyFrom.id, b: o.name ?? o.id, pts: [[...ballOf(skyFrom).center], [...ballOf(o).center]] };
+      skyMine = [...skyMine, line];
+      history.push(() => (skyMine = skyMine.filter((l) => l !== line)));
       skyFrom = null;
       if (!skyShow.mine) setSky('mine', true); // a new line shows
-      rebuild();
       redraw();
     };
     const setSky = (kind, on) => {
       skyShow[kind] = on;
       document.getElementById(kind === 'mine' ? 'skyMine' : 'skyIau')?.classList.toggle('on', on);
-      rebuild();
       redraw();
     };
     // The object that owns a face of the scene.
@@ -3920,6 +3922,9 @@
     // Clear: every object goes; one U brings them all back.
     const clearScene = () => {
       setCloud(null);
+      skyFigures = [];
+      skyMine = [];
+      skyFrom = null;
       setVehicle(null);
       redraw();
       const all = allObjects().slice();
@@ -4068,7 +4073,8 @@
         if (data.view && (replace || !mergeOn || !had)) applyView(data.view);
       });
     const addExample = async (name) => ((startScene = startScene === name ? name : null), withLoader(name.replace(/^saved:/, ''), async () => loadScene(await sceneOf(name))));
-    const addScene = async ({ objects: raw, palette: extra, prototypes, start, cloud: points, cloudProtos, vehicle: ride, figures }) => {
+    const centroid = (ps) => ps.reduce((s, p) => s.map((c, i) => c + p[i] / ps.length), [0, 0, 0]);
+    const addScene = async ({ objects: raw, palette: extra, prototypes, start, cloud: points, cloudProtos, vehicle: ride, figures, skyLines }) => {
       const objects = raw.map((o) => (o.proto ? { name: o.name, inst: { ...o, proto: prototypes[o.proto] }, mesh: instantiate(prototypes[o.proto].lods.at(-1), placement(o)), ...(o.pickable === false ? { pickable: false } : {}) } : o));
       // a scene may bring its own materials; the ones the palette lacks are added (and saved with a db)
       for (const m of extra ?? []) {
@@ -4096,22 +4102,34 @@
           if (o.skyLine) (live(made) ?? made).skyLine = o.skyLine;
         }),
       );
-      // the constellation figures: one object per figure, its bars between the centres of the stars just loaded (by name)
+      // the constellation figures: polylines between the centres of the stars just loaded (by name), drawn as GPU lines
       if (figures?.length) {
         const at = new Map();
-        for (const o of objects) if (o.inst && !at.has(o.name)) at.set(o.name, [o.inst.at[0] + dx, o.inst.at[1], o.inst.at[2]]);
-        asOneStep(() => {
-          for (const f of figures) {
-            const bars = [];
-            for (const line of f.lines) for (let i = 1; i < line.length; i++) {
-              const a = at.get(line[i - 1]), b = at.get(line[i]);
-              if (a && b) bars.push(skyBar(a, b));
+        for (const o of objects) {
+          if (at.has(o.name)) continue;
+          const c = o.inst ? o.inst.at : bounds(o.mesh).center; // (a saved scene's stars are plain meshes)
+          at.set(o.name, [c[0] + dx, c[1], c[2]]);
+        }
+        const made = [];
+        for (const f of figures) {
+          const pts = [];
+          for (const line of f.lines) {
+            let cur = [];
+            for (const n of line) {
+              const p = at.get(n);
+              if (p) cur.push(p);
+              else (cur.length > 1 && pts.push(cur), (cur = []));
             }
-            if (!bars.length) continue;
-            const made = create(f.name, merge(nothing, ...bars));
-            Object.assign(live(made) ?? made, { skyLine: 'iau', pickable: false, figure: f.id });
+            if (cur.length > 1) pts.push(cur);
           }
-        });
+          if (pts.length) made.push({ ...f, pts, centre: centroid(pts.flat()) });
+        }
+        skyFigures = [...skyFigures, ...made];
+      }
+      // the star lines a saved scene brings (by the names of their ends)
+      for (const [a, b] of skyLines ?? []) {
+        const pa = skyCentre(a), pb = skyCentre(b);
+        if (pa && pb) skyMine = [...skyMine, { a, b, pts: [pa, pb] }];
       }
       // the vehicle: what the scene says; without it a guess (a star map is a starship) for a scene loaded on its own
       if (ride !== undefined) setVehicle(ride);
@@ -7431,6 +7449,8 @@
         view: viewOf(),
         ...(vehicle ? { vehicle } : {}),
         objects: allObjects().map((o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}), ...textPart(o), ...(o.pickable === false ? { pickable: false } : {}), ...(o.skyLine ? { skyLine: o.skyLine } : {}) })),
+        ...(skyFigures.length ? { figures: skyFigures.map(({ id, name, en, lines }) => ({ id, name, en, lines })) } : {}),
+        ...(skyMine.length ? { skyLines: skyMine.map((l) => [l.a, l.b]) } : {}),
       };
     };
     const showSaved = () => {
@@ -7637,9 +7657,7 @@
             findShow();
             const f = found[0];
             if (!f) return void (liveEl.textContent = `no "${c.name}"`);
-            locked = f.o.id;
-            tabRound = null;
-            lookAt(f.o);
+            takeFound(f.o);
           } else if (c.cmd === 'camera') {
             letGo(); // (a target would turn the ship back to it)
             gravity = null;
