@@ -815,7 +815,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@43ebf00d0c3a5dbbe38644a41776ec5efd4bd578/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@5dd13e20811360589f1238a12264008c4ee17d03/dist/index.js';
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
     const LEG = { base: 0.15 }; // the base of a placed prism
@@ -1382,9 +1382,28 @@
       return { forward, right: right.map((v, i) => v * c - up[i] * s), up: up.map((v, i) => v * c + right[i] * s) };
     };
     // the ship's velocity in the world, ly/s: the levels (with the braking program's throttle) and the cruise
+    // In a star system the speed levels scale down with the distance to the nearest star or planet (its surface): level 1 is
+    // then 5 % of that distance per second (`SYSTEM_PACE`), so 10 000 km over the Earth it is ~500 km/s, among the planets a
+    // tenth of an AU per second or less, and from 5 ly out the levels are the usual light years per second (between stars a bit
+    // slower). The cruise, the braking program and the orbit work on the scaled speed.
+    const SYSTEM_PACE = 0.2; // the scale per light year of distance (level 1 = 0.25 ly/s · scale)
+    let spaceScale = 1;
+    const nearSurface = () => {
+      const e = eyeNow();
+      let d = Infinity;
+      for (const o of allObjects()) {
+        const i = o.inst;
+        if (!i || i.far) continue;
+        d = Math.min(d, Math.hypot(i.at[0] - e[0], i.at[1] - e[1], i.at[2] - e[2]) - (instSize(i, 'core') || 0));
+      }
+      return d;
+    };
+    const updateSpaceScale = () => (spaceScale = space() && !drive() ? Math.min(1, Math.max(1e-14, nearSurface() * SYSTEM_PACE)) : 1);
+    const unitNow = () => UNIT * (space() ? spaceScale : 1);
     const shipVelocity = () => {
       const { forward, right, up } = shipBasis();
-      const a = pace(level.f) * UNIT * throttle + cruise.f, b = pace(level.r) * UNIT * throttle + cruise.r, c = pace(level.u) * UNIT * throttle + cruise.u;
+      const U = unitNow();
+      const a = pace(level.f) * U * throttle + cruise.f, b = pace(level.r) * U * throttle + cruise.r, c = pace(level.u) * U * throttle + cruise.u;
       return forward.map((x, i) => x * a + right[i] * b + up[i] * c);
     };
     // turns the heading by `angle` round the unit axis n, the eye staying where it is
@@ -1495,7 +1514,7 @@
     // lowers the throttle while the ship closes in on the target (v: the velocity of the levels, in UNITs)
     const brake = (v, dt) => {
       const o = lockedObject();
-      const full = Math.hypot(...v) * UNIT;
+      const full = Math.hypot(...v) * unitNow();
       if (!o || !full) return;
       const b = ballOf(o);
       const eye = eyeNow();
@@ -1702,13 +1721,14 @@
       const cp = Math.cos(pitch);
       const sp = Math.sin(pitch);
       const { forward, right, up: upS } = shipBasis();
+      updateSpaceScale();
       const velocity = () => forward.map((c, i) => c * pace(level.f) + right[i] * pace(level.r) + upS[i] * pace(level.u));
       if (locked && space() && braking) brake(velocity(), dt);
       const v = velocity(); // (after the brake: arriving it set the levels to rest and the throttle back to 1)
       const { forward: F, right: Rt } = shipBasis();
       const { up: Up } = shipBasis();
       const cw = F.map((c, i) => c * cruise.f + Rt[i] * cruise.r + Up[i] * cruise.u); // the cruise, ly/s
-      fit.center = fit.center.map((c, i) => c + v[i] * UNIT * throttle * dt + cw[i] * dt);
+      fit.center = fit.center.map((c, i) => c + v[i] * unitNow() * throttle * dt + cw[i] * dt);
       if (level.f || level.r || level.u || cruise.f || cruise.r || cruise.u) redraw();
     };
 
@@ -1996,7 +2016,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@43ebf00d0c3a5dbbe38644a41776ec5efd4bd578/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@5dd13e20811360589f1238a12264008c4ee17d03/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -7789,7 +7809,7 @@
         if (events.readyState !== EventSource.OPEN) return;
         const deg = (a) => +((a * 180) / Math.PI).toFixed(2);
         const t = lockedObject();
-        const state = { vehicle: vehicle ?? 'none', eye: eyeNow().map((v) => +v.toFixed(4)), yaw: deg(yaw), pitch: deg(pitch), roll: deg(roll), target: t ? t.name ?? t.id : null, speed: space() ? +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3) : null, orbit: orbit?.phase ?? null, objects: allObjects().length, scene: startScene ?? null, view: mode };
+        const state = { vehicle: vehicle ?? 'none', eye: eyeNow().map((v) => +v.toFixed(4)), yaw: deg(yaw), pitch: deg(pitch), roll: deg(roll), target: t ? t.name ?? t.id : null, speed: space() ? +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * unitNow() * throttle).toFixed(3) : null, orbit: orbit?.phase ?? null, objects: allObjects().length, scene: startScene ?? null, view: mode };
         fetch('/viewer-state', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(state) }).catch(() => {});
       };
       setInterval(reportView, 2000);
