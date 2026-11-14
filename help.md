@@ -159,6 +159,8 @@ The **deepsky** example is a stress test: the Milky Way, 1000 real galaxies (fro
 
 The **constellations** as seen from the Earth (all 88, Serpens in two parts) are drawn as thin light yellow lines between their stars' centres; the sky group's **figures** switch turns them on and off (off at the start). From the Earth they are the familiar figures; fly away and they turn into 3D shapes, since their stars are at very different distances. Enter finds them by their Latin or English name (orion, ursa major, great bear): the view turns to the figure.
 
+Stars have their **real size** now: from afar a star is only its glow, as in the real sky. Around the Sun the **Solar System** is at its true scale: the eight planets, Pluto and the Moon where they stand on 14 November 2026, with their orbits (the sky group's **orbits** switch) and Saturn's rings; the scene starts 60 AU from the Sun, over the orbits. Fly to a planet with Enter (earth, saturn): the braking program stops you just above its surface; distances and speeds read in ly, AU or km.
+
 The **farthest known galaxies** are there too, at their real distance of 32–34 billion light years: MoM-z14 (the record, seen 280 million years after the Big Bang), JADES-GS-z14-0, z14-1, z13-0 and GN-z11 with its black hole. Small, compact, blue, clumpy young galaxies; Enter finds them (mom, jades, gn-z11).
 
 Twelve famous **colliding galaxies** (M81 and M82, the Whirlpool, the Antennae, the Mice, Stephan's Quintet, Arp 220 and others, and the Sagittarius stream round the Milky Way) are worked out by a small gravity simulation: two galaxies pass each other, tides pull out tails and bridges, mergers become one body. Each system always shows the same moment of its collision, and each has its own.

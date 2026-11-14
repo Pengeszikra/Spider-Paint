@@ -798,6 +798,7 @@
       </span>
       <span class="grp rows" data-label="sky" id="skyGrp" title="The star map's lines (vehicle: starship)">
         <span class="row"><button id="skyMine" type="button" class="sw" title="Your star lines: V on a star, then V on another one joins their centres with a light yellow glowing bar. This switch shows or hides all of them"><i></i>lines</button></span>
+        <span class="row"><button id="skyOrbit" type="button" class="sw on" title="The planets' orbits (and the Moon's): show or hide them"><i></i>orbits</button></span>
         <span class="row"><button id="skyIau" type="button" class="sw" title="The constellations as seen from Earth (88 IAU figures, lines between the stars' centres): show or hide all of them"><i></i>figures</button></span>
       </span>
       <span class="grp rows" data-label="xr" id="xrGrp">
@@ -814,7 +815,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@7b1f5a95a98fc45aae7b0bbb6d4008794af2689e/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@43ebf00d0c3a5dbbe38644a41776ec5efd4bd578/dist/index.js';
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
     const LEG = { base: 0.15 }; // the base of a placed prism
@@ -964,7 +965,7 @@
     let mine = [];
     const allObjects = () => [...hostObjects, ...mine];
     // the star map's lines (sky group): 'mine' are the ones drawn with V, 'iau' the constellation figures; each switch hides its kind
-    const skyShow = { mine: false, iau: false }; // off at the start (a new V line turns its kind on)
+    const skyShow = { mine: false, iau: false, orbit: true }; // lines and figures off at the start (a new V line turns its kind on); the orbits on
     // objects are told apart by id: a db snapshot (also the echo of our own write) hands out new instances
     const live = (o) => allObjects().find((x) => x.id === o.id);
     const has = (o) => Boolean(live(o));
@@ -1512,8 +1513,8 @@
         }
       }
       // the ship stops at the target's surface (BRAKE_HOLD radii from its middle): a star's ball, a galaxy's bounding sphere
-      const rest = len - Math.max(b.radius * BRAKE_HOLD, 1e-6);
-      if (rest <= Math.max(b.radius * 0.02, 1e-7)) {
+      const rest = len - Math.max(b.radius * BRAKE_HOLD, 1e-13); // (no bigger floor: a real planet is ~1e-9 ly)
+      if (rest <= Math.max(b.radius * 0.02, 1e-14)) {
         if (galaxy) braking = false; // (once: then the galaxy lets you in)
         return void arrive();
       }
@@ -1995,7 +1996,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@7b1f5a95a98fc45aae7b0bbb6d4008794af2689e/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@43ebf00d0c3a5dbbe38644a41776ec5efd4bd578/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -2791,16 +2792,24 @@
         const rgb = /^#[0-9a-f]{6}$/i.test(bg) ? [1, 3, 5].map((i) => parseInt(bg.slice(i, i + 2), 16) / 255) : undefined;
         const a = lightAngle;
         const cur = getComputedStyle(stage).getPropertyValue('--cursor').trim();
-        const gpuMarks = marks.map((m) => (m.color ? m : { ...m, color: /^#[0-9a-f]{6}$/i.test(cur) ? cur : '#0b7285' }));
-        const screens = sceneScreens();
+        // the floating origin (a star map): the GPU gets everything relative to the nearest object's middle when that is needed for
+        // its size (a real star 4 ly away is 1e-7 ly big, finer than a float32 there); log depth from a planet's surface to the galaxies
+        const ro = pickOrigin();
+        const sky = space() && !drive();
+        const gpuMarks = shiftMarks(marks.map((m) => (m.color ? m : { ...m, color: /^#[0-9a-f]{6}$/i.test(cur) ? cur : '#0b7285' })), ro);
+        const screens = shiftScreens(sceneScreens(), ro);
+        const gScene = shiftMesh(scene, ro);
+        const gFit = ro ? { ...shown_fit, center: vsub(shown_fit.center, ro) } : shown_fit;
+        const sunLight = sky ? sunDirection() : null;
         renderGpu = (readback = false) =>
-          gpu[readback ? 'pixels' : 'render'](scene, view, (xrArgs = { scene, view, opts: {
+          gpu[readback ? 'pixels' : 'render'](gScene, view, (xrArgs = { scene: gScene, view, origin: ro, opts: {
             screens,
             palette: paletteMap,
-            parts: sceneParts,
-            instances: { mesh: PROTO, data: instances(now, flights.length > 0) },
+            parts: shiftParts(sceneParts, ro),
+            instances: { mesh: PROTO, data: shiftInstances(instances(now, flights.length > 0), ro) },
             size,
-            fit: shown_fit,
+            fit: gFit,
+            logDepth: sky ? 1e12 : 0,
             background: rgb,
             glow: filmic,
             smooth: smooth ? 40 : 0,
@@ -2809,7 +2818,7 @@
             unlit: !lightOn,
             marks: gpuMarks,
             skin: skinNow(),
-            light: { direction: [Math.sin(a) * 0.6, 0.8, Math.cos(a) * 0.6] },
+            light: { direction: sunLight ?? [Math.sin(a) * 0.6, 0.8, Math.cos(a) * 0.6] },
           } }).opts);
         if (vr) {
           // two eyes: the same camera shifted along its right vector, drawn one after the other and copied to the eye canvases
@@ -2875,9 +2884,9 @@
           if (lockedObj && under !== lockedObj) {
             const gap = Math.hypot(...ballOf(under).center.map((c, i) => c - ballOf(lockedObj).center[i]));
             const starMap = !editing && allObjects().length >= 100 && allObjects().some((o) => o.name === 'Sun');
-            between = `<div class="row"><span>to target</span><span>${starMap ? `${gap.toFixed(2)} ly` : gap.toFixed(2)}</span></div>`;
+            between = `<div class="row"><span>to target</span><span>${starMap ? lyText(gap) : gap.toFixed(2)}</span></div>`;
           }
-          rows.push(`<div class="row"><b>${hudText(under.name ?? under.id)}</b><b>${d.toFixed(2)}${editing ? ' m' : ''}</b></div><div class="row"><span>${aim ? 'aimed at its middle' : `${faces} faces`}</span><span>${under.id === locked ? 'target' : ''}</span></div>${between}`);
+          rows.push(`<div class="row"><b>${hudText(under.name ?? under.id)}</b><b>${space() ? lyText(d) : `${d.toFixed(2)}${editing ? ' m' : ''}`}</b></div><div class="row"><span>${aim ? 'aimed at its middle' : `${faces} faces`}</span><span>${under.id === locked ? 'target' : ''}</span></div>${between}`);
         } else rows.push('<div class="row"><span>–</span></div><div class="row"><span>&nbsp;</span></div>');
         hudEl.innerHTML = rows.join('');
         {
@@ -2899,11 +2908,11 @@
             v = Math.hypot(pace(level.f) * ZOOM * dist, dist * SWING * Math.hypot(pace(level.r), pace(level.u)));
           } else v = space() ? Math.hypot(...shipVelocity()) : Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT; // (with the braking program's share and the cruise)
           const nice = (x) => (x >= 1e9 ? `${(x / 1e9).toFixed(1)}G` : x >= 1e6 ? `${(x / 1e6).toFixed(1)}M` : x >= 1e4 ? `${(x / 1e3).toFixed(1)}k` : x >= 100 ? x.toFixed(0) : x >= 1 ? x.toFixed(1) : x.toFixed(2));
-          const speedText = star ? (v ? `${nice(v)} ly/s <small style="font-weight:400;opacity:.65">${nice(v * 31557600)} c</small>` : '0 ly/s') : `${v.toFixed(2)} ${editing ? 'm/s' : 'u/s'}`; // light years per second, with the multiple of the speed of light beside it
+          const speedText = star ? (v ? `${lyText(v)}/s <small style="font-weight:400;opacity:.65">${nice(v * 31557600)} c</small>` : '0 ly/s') : `${v.toFixed(2)} ${editing ? 'm/s' : 'u/s'}`; // light years per second (AU, km when slower), with the multiple of the speed of light beside it
           const unitText = star ? 'ly/s' : editing ? 'm/s' : 'u/s';
-          const vec = `<div class="vec">v⃗ ${star ? nice(motion.v) : motion.v.toFixed(2)} ${unitText} · ω ${motion.w >= 10 ? motion.w.toFixed(0) : motion.w.toFixed(1)}°/s</div>`;
+          const vec = `<div class="vec">v⃗ ${star ? `${lyText(motion.v)}/s` : `${motion.v.toFixed(2)} ${unitText}`} · ω ${motion.w >= 10 ? motion.w.toFixed(0) : motion.w.toFixed(1)}°/s</div>`;
           const mode = !space() ? '' : orbit ? `<div class="orbit ${orbit.phase === 'arm' ? 'blink' : orbit.phase === 'brake' ? 'dim' : ''}">ORBIT</div>` : gravity ? `<div class="orbit grav">GRAVITY · ${hudText(gravity.name)}</div>` : '';
-          if (!(drive() && car)) flightEl.innerHTML = `<div><b>${speedText}</b></div>${vec}${mode}<div class="lock">${gapTo === null ? '' : star ? `${gapTo.toFixed(2)} ly` : `${gapTo.toFixed(2)}${editing ? ' m' : ''}`}</div>`;
+          if (!(drive() && car)) flightEl.innerHTML = `<div><b>${speedText}</b></div>${vec}${mode}<div class="lock">${gapTo === null ? '' : star ? lyText(gapTo) : `${gapTo.toFixed(2)}${editing ? ' m' : ''}`}</div>`;
         }
       }
       drawCloud(size);
@@ -3302,6 +3311,9 @@
         const rad = (HOLE_SHADOW * (instSize(o.inst, 'core') || 1) * k) / depth;
         if (rad > shadow[2]) shadow = [(vdot(d, r) / depth) * k, (vdot(d, u) / depth) * k, rad, depth];
       }
+      // ... and so does a planet or a star whose ball is big on screen (the points are not depth tested against the scene)
+      const ball = bigBall();
+      if (ball && ball.R > shadow[2]) shadow = [ball.x, -ball.y, ball.R, ball.depth];
       gl.uniform4fv(g.u.uHole, shadow);
       if (cloud) gl.drawArrays(gl.POINTS, 0, cloud.n);
       if (liveSky.n) {
@@ -3549,6 +3561,91 @@
       }
       return s;
     };
+    // ---- The floating origin (a star map only). A float32 keeps ~7 digits: a real star 4 ly away (radius 1e-7 ly) or a planet
+    // would crumble on the GPU. So the scene, the marks and the camera go to the GPU relative to `renderOrigin`, which jumps to the
+    // middle of the nearest object once that object's size is finer than the float32 grid at the current origin can show
+    // (a moved origin means one new upload of the scene; in the Solar System the Sun's origin, 0, is fine for every planet).
+    let renderOrigin = null;
+    let shiftCache = { mesh: null, o: null, out: null };
+    const pickOrigin = () => {
+      if (!space() || drive()) return (renderOrigin = null);
+      const e = eyeNow();
+      let best = null, bd = Infinity;
+      for (const o of allObjects()) {
+        const i = o.inst;
+        if (!i || i.far) continue;
+        const sz = instSize(i, 'core') || 1;
+        const d = Math.hypot(i.at[0] - e[0], i.at[1] - e[1], i.at[2] - e[2]) - sz;
+        if (d < bd) ((bd = d), (best = { at: i.at, sz }));
+      }
+      if (!best) return renderOrigin;
+      const o = renderOrigin ?? [0, 0, 0];
+      const off = Math.hypot(best.at[0] - o[0], best.at[1] - o[1], best.at[2] - o[2]);
+      const grain = Math.max(off, Math.hypot(...vsub(e, o))) * 1.2e-7; // the float32 step there
+      if (grain > best.sz * 0.002 && bd < best.sz * 1e5) renderOrigin = Math.hypot(...best.at) * 1.2e-7 < best.sz * 0.002 ? null : [...best.at];
+      return renderOrigin;
+    };
+    const shiftMesh = (mesh, o) => {
+      if (!o) return mesh;
+      if (shiftCache.mesh !== mesh || shiftCache.o !== o) shiftCache = { mesh, o, out: { ...mesh, positions: mesh.positions.map((p) => [p[0] - o[0], p[1] - o[1], p[2] - o[2]]) } };
+      return shiftCache.out;
+    };
+    // the per-object meshes the GPU caches by (sceneParts): shifted once per origin, each kept while the origin stays
+    let partsCache = { o: null, map: new WeakMap() };
+    const shiftParts = (parts, o) => {
+      if (!o) return parts;
+      if (partsCache.o !== o) partsCache = { o, map: new WeakMap() };
+      return parts.map((m) => {
+        let out = partsCache.map.get(m);
+        if (!out) partsCache.map.set(m, (out = { ...m, positions: m.positions.map((p) => [p[0] - o[0], p[1] - o[1], p[2] - o[2]]) }));
+        return out;
+      });
+    };
+    const shiftMarks = (marks, o) => (o ? marks.map((m) => ({ ...m, lines: m.lines.map((l) => l.map((p) => [p[0] - o[0], p[1] - o[1], p[2] - o[2]])) })) : marks);
+    const shiftScreens = (screens, o) => (o && screens?.length ? screens.map((sc) => ({ ...sc, corners: sc.corners.map((p) => [p[0] - o[0], p[1] - o[1], p[2] - o[2]]) })) : screens);
+    const shiftInstances = (data, o) => {
+      if (!o || !data?.length) return data;
+      const out = new Float32Array(data);
+      for (let k = 0; k < out.length; k += 15) ((out[k] -= o[0]), (out[k + 1] -= o[1]), (out[k + 2] -= o[2]));
+      return out;
+    };
+    // in the Solar System the light comes from the Sun (the origin): its direction as seen at the object nearest to the eye
+    const sunDirection = () => {
+      const e = eyeNow();
+      if (Math.hypot(...e) > 0.01) return null; // (outside ~630 AU: the usual light)
+      let best = null, bd = Infinity;
+      for (const o of allObjects()) {
+        const i = o.inst;
+        if (!i || Math.hypot(...i.at) > 0.01 || Math.hypot(...i.at) < 1e-9) continue;
+        const d = Math.hypot(...vsub(i.at, e));
+        if (d < bd) ((bd = d), (best = i.at));
+      }
+      const c = best ?? e;
+      const l = Math.hypot(...c);
+      return l > 0 ? c.map((v) => -v / l) : null;
+    };
+    // a length in light years as it reads best: ly, AU (astronomical units) or km (the Solar System at its true scale)
+    const LY_AU = 63241.077, LY_KM = 9.4607304725808e12;
+    const lyText = (x) => {
+      const f = (v) => (v >= 1e9 ? `${(v / 1e9).toFixed(1)}G` : v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v >= 1e4 ? `${(v / 1e3).toFixed(1)}k` : v >= 100 ? v.toFixed(0) : v >= 1 ? v.toFixed(1) : v.toFixed(2));
+      return x >= 0.01 || x === 0 ? `${f(x)} ly` : x * LY_AU >= 0.01 ? `${f(x * LY_AU)} AU` : `${f(x * LY_KM)} km`;
+    };
+    // the non-galaxy instance (a planet, a star) that is biggest on screen, if it is over 2 px: { x, y (CSS px), R, depth, i }
+    const bigBall = () => {
+      if (!gcam || gcam.ortho) return null;
+      const { eye, f, r, u, k } = gcam;
+      let best = null;
+      for (const o of allObjects()) {
+        const i = o.inst;
+        if (!i || i.far || isHole(i)) continue;
+        const dx = i.at[0] - eye[0], dy = i.at[1] - eye[1], dz = i.at[2] - eye[2];
+        const depth = dx * f[0] + dy * f[1] + dz * f[2];
+        if (depth <= 0) continue;
+        const R = ((instSize(i, 'core') || 0) * k) / depth;
+        if (R > 2 && (!best || R > best.R)) best = { x: ((dx * r[0] + dy * r[1] + dz * r[2]) / depth) * k, y: -((dx * u[0] + dy * u[1] + dz * u[2]) / depth) * k, R, depth, i };
+      }
+      return best;
+    };
     const GLOW_RANGE = 7000; // light years: the glow of stars farther than this is not drawn
     const drawGlow = (size) => {
       const stars = allObjects().filter((o) => o.inst?.glow);
@@ -3574,12 +3671,14 @@
         if (R < 1.5) continue;
         shadows.push({ x: half + ((dx * r[0] + dy * r[1] + dz * r[2]) / depth) * k, y: half - ((dx * u[0] + dy * u[1] + dz * u[2]) / depth) * k, depth, R, i });
       }
+      const ball = bigBall(); // the biggest planet / star ball on screen hides the glows behind it
+      if (ball) shadows.push({ ...ball, x: half + ball.x, y: half + ball.y, hard: true });
       const shade = (x, y, depth, i) => {
         let a = 1;
         for (const h of shadows) {
           if (h.i === i || depth <= h.depth) continue; // only what is behind the hole
           const d = Math.hypot(x - h.x, y - h.y);
-          if (d < h.R) a *= Math.max(0, Math.min(1, (d - h.R * 0.85) / (h.R * 0.15))); // a soft rim
+          if (d < h.R) a *= h.hard ? 0 : Math.max(0, Math.min(1, (d - h.R * 0.85) / (h.R * 0.15))); // a soft rim (a ball: none)
         }
         return a;
       };
@@ -3600,7 +3699,9 @@
         const rad = Math.min(48, Math.max(1.2, natural));
         // a galaxy drawn as a point cloud: its glow gives way to the stars once it is big on screen
         const bigPx = i.far && (i.cloud || liveSky.set.has(i)) ? (i.scale * k) / depth : 0;
-        const alpha = fade * (natural > 20 ? 0.55 : 0.9) * (bigPx > 30 ? Math.max(0, 1 - (bigPx - 30) / 60) : 1) * (shadows.length ? shade(x, y, depth, i) : 1);
+        // a star or a planet whose own sphere shows (true size: only close by): the glow gives way to it
+        const ballPx = !i.far ? ((instSize(i, 'core') || 0) * k) / depth : 0;
+        const alpha = fade * (natural > 20 ? 0.55 : 0.9) * (bigPx > 30 ? Math.max(0, 1 - (bigPx - 30) / 60) : 1) * (ballPx > 3 ? Math.max(0, 1 - (ballPx - 3) / 12) : 1) * (shadows.length ? shade(x, y, depth, i) : 1);
         if (alpha < 0.01) continue;
         ctx.globalAlpha = alpha;
         const R = rad * dpr;
@@ -3792,11 +3893,13 @@
     const SKY_LOOK = { iau: { color: '#fff3a0', width: 1.2, opacity: 0.3 }, mine: { color: '#ffe066', width: 1.6, opacity: 0.75 } };
     let skyFigures = [];
     let skyMine = [];
+    let skyPaths = []; // a scene's `paths` (the planets' orbits): [{ name, kind, color, pts }]
     let skyMarksCache = { key: '', marks: [] };
     const skyMarks = () => {
-      const key = `${skyShow.iau}|${skyShow.mine}|${skyFigures.length}|${skyMine.length}`;
+      const key = `${skyShow.iau}|${skyShow.mine}|${skyShow.orbit}|${skyFigures.length}|${skyMine.length}|${skyPaths.length}`;
       if (key !== skyMarksCache.key) {
         const marks = [];
+        if (skyShow.orbit) for (const p of skyPaths) marks.push({ name: p.name, color: p.color ?? '#9fb4d0', width: 1, opacity: 0.45, lines: [p.pts] });
         if (skyShow.iau && skyFigures.length) marks.push({ name: 'figures', ...SKY_LOOK.iau, lines: skyFigures.flatMap((f) => f.pts) });
         if (skyShow.mine && skyMine.length) marks.push({ name: 'star-lines', ...SKY_LOOK.mine, lines: skyMine.map((l) => l.pts) });
         skyMarksCache = { key, marks };
@@ -3828,7 +3931,7 @@
     };
     const setSky = (kind, on) => {
       skyShow[kind] = on;
-      document.getElementById(kind === 'mine' ? 'skyMine' : 'skyIau')?.classList.toggle('on', on);
+      document.getElementById({ mine: 'skyMine', iau: 'skyIau', orbit: 'skyOrbit' }[kind])?.classList.toggle('on', on);
       redraw();
     };
     // The object that owns a face of the scene.
@@ -3928,6 +4031,7 @@
       setCloud(null);
       skyFigures = [];
       skyMine = [];
+      skyPaths = [];
       skyFrom = null;
       setVehicle(null);
       redraw();
@@ -4078,7 +4182,7 @@
       });
     const addExample = async (name) => ((startScene = startScene === name ? name : null), withLoader(name.replace(/^saved:/, ''), async () => loadScene(await sceneOf(name))));
     const centroid = (ps) => ps.reduce((s, p) => s.map((c, i) => c + p[i] / ps.length), [0, 0, 0]);
-    const addScene = async ({ objects: raw, palette: extra, prototypes, start, cloud: points, cloudProtos, vehicle: ride, figures, skyLines }) => {
+    const addScene = async ({ objects: raw, palette: extra, prototypes, start, cloud: points, cloudProtos, vehicle: ride, figures, skyLines, paths }) => {
       const objects = raw.map((o) => (o.proto ? { name: o.name, inst: { ...o, proto: prototypes[o.proto] }, mesh: instantiate(prototypes[o.proto].lods.at(-1), placement(o)), ...(o.pickable === false ? { pickable: false } : {}) } : o));
       // a scene may bring its own materials; the ones the palette lacks are added (and saved with a db)
       for (const m of extra ?? []) {
@@ -4130,6 +4234,8 @@
         }
         skyFigures = [...skyFigures, ...made];
       }
+      // the paths (the planets' orbits): polylines, moved with the scene
+      if (paths?.length) skyPaths = [...skyPaths, ...paths.map((p) => ({ ...p, pts: p.pts.map((q) => [q[0] + dx, q[1], q[2]]) }))];
       // the star lines a saved scene brings (by the names of their ends)
       for (const [a, b] of skyLines ?? []) {
         const pa = skyCentre(a), pb = skyCentre(b);
@@ -7430,6 +7536,7 @@
     document.getElementById('light').addEventListener('click', turnLight);
     document.getElementById('filmic').addEventListener('click', toggleFilmic);
     document.getElementById('skyMine').addEventListener('click', (e) => (setSky('mine', !skyShow.mine), e.currentTarget.blur()));
+    document.getElementById('skyOrbit').addEventListener('click', (e) => (setSky('orbit', !skyShow.orbit), e.currentTarget.blur()));
     document.getElementById('skyIau').addEventListener('click', (e) => (setSky('iau', !skyShow.iau), e.currentTarget.blur()));
     document.getElementById('freeze').addEventListener('click', toggleFreeze);
     document.getElementById('filmic').classList.toggle('on', filmic);
@@ -7455,6 +7562,7 @@
         objects: allObjects().map((o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}), ...textPart(o), ...(o.pickable === false ? { pickable: false } : {}), ...(o.skyLine ? { skyLine: o.skyLine } : {}) })),
         ...(skyFigures.length ? { figures: skyFigures.map(({ id, name, en, lines }) => ({ id, name, en, lines })) } : {}),
         ...(skyMine.length ? { skyLines: skyMine.map((l) => [l.a, l.b]) } : {}),
+        ...(skyPaths.length ? { paths: skyPaths } : {}),
       };
     };
     const showSaved = () => {
@@ -8079,7 +8187,8 @@
       const pose = frame.getViewerPose(xrState.space);
       const layer = session.renderState.baseLayer;
       if (!pose || !layer || !xrArgs || !gpu?.context) return;
-      const { origin, yaw: ry } = xrRig();
+      const { origin: worldOrigin, yaw: ry } = xrRig();
+      const origin = xrArgs.origin ? vsub(worldOrigin, xrArgs.origin) : worldOrigin; // (the floating origin)
       const c = Math.cos(ry), sn = Math.sin(ry);
       // scene -> headset: rotY(yaw) · (p - origin), column-major
       const rx = c * origin[0] + sn * origin[2], rz = -sn * origin[0] + c * origin[2];

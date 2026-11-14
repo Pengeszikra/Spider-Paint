@@ -375,6 +375,12 @@ struct U {
   lcol : array<vec4<f32>, 16>, // rgb colour times intensity
 };
 @group(0) @binding(0) var<uniform> u : U;
+// logarithmic depth (u.eye.w = 1 / the smallest distance that needs depth; 0: the usual depth from the projection)
+fn ld(p0 : vec4<f32>) -> vec4<f32> {
+  var p = p0;
+  if (u.eye.w > 0.0) { p.z = log2(max(1e-6, u.eye.w * p.w + 1.0)) / log2(u.eye.w * 1e12 + 1.0) * p.w; }
+  return p;
+}
 struct Bones { r : array<vec4<f32>, ${3 * 64}> }; // per joint three rows of [cols | shift]
 @group(0) @binding(1) var<uniform> bones : Bones;
 
@@ -390,7 +396,7 @@ struct VOut {
 
 @vertex fn vs(i : VIn) -> VOut {
   var o : VOut;
-  o.p = u.vp * vec4<f32>(i.pos, 1.0);
+  o.p = ld(u.vp * vec4<f32>(i.pos, 1.0));
   o.n = i.nrm;
   o.c = i.col;
   o.w = i.pos;
@@ -419,7 +425,7 @@ fn bone(k : u32, p : vec4<f32>) -> vec3<f32> {
       n = n + bone(k, vec4<f32>(i.nrm, 0.0)) * w;
     }
   }
-  o.p = u.vp * vec4<f32>(p, 1.0);
+  o.p = ld(u.vp * vec4<f32>(p, 1.0));
   o.n = n;
   o.c = i.col;
   o.w = p;
@@ -434,7 +440,7 @@ fn bone(k : u32, p : vec4<f32>) -> vec3<f32> {
 struct QOut { @builtin(position) p : vec4<f32>, @location(0) uv : vec2<f32> };
 @vertex fn vsq(@location(0) pos : vec3<f32>, @location(1) uv : vec2<f32>) -> QOut {
   var o : QOut;
-  o.p = u.vp * vec4<f32>(pos, 1.0);
+  o.p = ld(u.vp * vec4<f32>(pos, 1.0));
   o.uv = uv;
   return o;
 }
@@ -456,7 +462,7 @@ struct IIn {
 @vertex fn vsi(i : IIn) -> VOut {
   var o : VOut;
   let w = i.at + i.ex * i.pos.x + i.ey * i.pos.y + i.ez * i.pos.z;
-  o.p = u.vp * vec4<f32>(w, 1.0);
+  o.p = ld(u.vp * vec4<f32>(w, 1.0));
   // the axes may be scaled (a thin long bar from the same prototype): normals follow the unit axes
   o.n = normalize(i.ex) * i.nrm.x + normalize(i.ey) * i.nrm.y + normalize(i.ez) * i.nrm.z;
   o.c = i.col;
@@ -468,7 +474,7 @@ struct IIn {
 
 // the edge lines: 1 pixel, nudged a hair towards the eye so they win against the faces they lie on
 @vertex fn vsl(@location(0) pos : vec3<f32>) -> @builtin(position) vec4<f32> {
-  var p = u.vp * vec4<f32>(pos, 1.0);
+  var p = ld(u.vp * vec4<f32>(pos, 1.0));
   p.z = p.z - 0.0002 * p.w;
   return p;
 }
@@ -484,7 +490,7 @@ struct MOut { @builtin(position) p : vec4<f32>, @location(0) q : vec2<f32>, @loc
   var o : MOut;
   var ca = u.vp * vec4<f32>(a, 1.0);
   var cb = u.vp * vec4<f32>(b, 1.0);
-  let e = 0.001;
+  let e = select(0.001, 1e-13, u.eye.w > 0.0); // (with log depth anything just in front of the eye is drawn)
   o.p = vec4<f32>(2.0, 2.0, 2.0, 1.0);
   if (ca.w < e && cb.w < e) { return o; }
   if (ca.w < e) { ca = mix(ca, cb, (e - ca.w) / (cb.w - ca.w)); }
@@ -850,7 +856,7 @@ export const createGpu = async (canvas, { sampleCount = 4, onError } = {}) => {
         depth = device.createTexture({ size: [n, n], format: 'depth24plus', sampleCount, usage: GPUTextureUsage.RENDER_ATTACHMENT });
         color = sampleCount > 1 ? device.createTexture({ size: [n, n], format, sampleCount, usage: GPUTextureUsage.RENDER_ATTACHMENT }) : null;
     };
-    const draw = (mesh, view, { size = 400, fit, background = [0.98, 0.98, 0.97], light = {}, material = {}, palette, dpr = globalThis.devicePixelRatio || 1, instances, parts, tonemap = false, smooth = false, studio = false, edges = false, marks, unlit = false, glow = false, skin, screens } = {}, readback = false) => {
+    const draw = (mesh, view, { size = 400, fit, background = [0.98, 0.98, 0.97], light = {}, material = {}, palette, dpr = globalThis.devicePixelRatio || 1, instances, parts, tonemap = false, smooth = false, studio = false, edges = false, marks, unlit = false, glow = false, skin, screens, logDepth = 0 } = {}, readback = false) => {
         const L = { ...defaultLight, ...light };
         const filmic = tonemap ? { exposure: 1, emit: 2, ...(tonemap === true ? {} : tonemap) } : null;
         const M = { ...defaultMaterial, ...material };
@@ -1000,7 +1006,7 @@ export const createGpu = async (canvas, { sampleCount = 4, onError } = {}) => {
         u.set([...(S ? rig(0.7, -0.5, 0.6) : norm(L.direction)), unlit ? 1 : 0], 16);
         u.set([...L.sky, 0], 20);
         u.set([...L.ground, 0], 24);
-        u.set([...cam.eye, 0], 28);
+        u.set([...cam.eye, logDepth > 0 && !cam.ortho ? logDepth : 0], 28);
         u.set([M.ambient, M.diffuse, M.specular, M.shininess], 32);
         u.set([filmic ? 1 : 0, filmic ? filmic.exposure : 1, filmic ? filmic.emit : 0, S ? 1 : 0], 36);
         u.set([...rig(0.6, 0.8, 0.1), S ? S.fill : 0], 40);
