@@ -814,7 +814,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e9ea1faea6177c341ab1a5b19cec9f739db8ab3b/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@4895dac05543576da2239cee822c083cf9a87fed/dist/index.js';
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
     const LEG = { base: 0.15 }; // the base of a placed prism
@@ -1981,7 +1981,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e9ea1faea6177c341ab1a5b19cec9f739db8ab3b/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@4895dac05543576da2239cee822c083cf9a87fed/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -3770,16 +3770,18 @@
     // ---- Star lines. A light yellow glowing prism from the centre of one object to the centre of another (the material
     // `sky-line`, emit 2.5, added to the palette when missing). In a star map V draws one: the first V takes the
     // object under the cross (or the target), the second V another one; V over empty space forgets the first.
-    const SKY_MAT = { name: 'sky-line', color: '#fff3a0', metal: 0, rough: 1, alpha: 1, emit: 2.5 };
+    const SKY_MAT = { name: 'sky-line', color: '#fff3a0', metal: 0, rough: 1, alpha: 0.15, emit: 2.5 };
     const skyMat = () => {
-      if (materials.some((m) => m.name === SKY_MAT.name)) return;
+      const had = materials.find((m) => m.name === SKY_MAT.name);
+      if (had && had.alpha === 1 && had.emit === 2.5) Object.assign(had, { alpha: SKY_MAT.alpha }), saveMaterial(had), syncPalette(); // the first version was opaque
+      if (had) return;
       materials.push({ ...SKY_MAT });
       saveMaterial(materials[materials.length - 1]);
       syncPalette();
     };
     // the bar tapers: each end is as wide as SKY_WIDTH times its distance from the observer (the Sun for the figures, the eye
     // where a V line was drawn), so from there it is an even line of about one pixel however deep it reaches
-    const SKY_WIDTH = 0.0016;
+    const SKY_WIDTH = 0.0008;
     const skyBar = (a, b, from = [0, 0, 0]) => {
       skyMat();
       const d = b.map((c, i) => c - a[i]);
@@ -3789,7 +3791,7 @@
       const ez0 = [ey[1] * side[2] - ey[2] * side[1], ey[2] * side[0] - ey[0] * side[2], ey[0] * side[1] - ey[1] * side[0]];
       const ez = ez0.map((c) => c / Math.hypot(...ez0));
       const ex = [ey[1] * ez[2] - ey[2] * ez[1], ey[2] * ez[0] - ey[0] * ez[2], ey[0] * ez[1] - ey[1] * ez[0]];
-      const half = (p) => Math.max(SKY_WIDTH * Math.hypot(...p.map((c, i) => c - from[i])), length * 2e-4, 1e-5) / 2;
+      const half = (p) => Math.max(SKY_WIDTH * Math.hypot(...p.map((c, i) => c - from[i])), 1e-5) / 2; // (no floor from the length: a near star's end of a long bar would swell)
       const ring = (p, h) => [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => p.map((c, i) => c + (ex[i] * u + ez[i] * v) * h));
       const positions = [...ring(a, half(a)), ...ring(b, half(b))];
       const mat = SKY_MAT.name, color = SKY_MAT.color;

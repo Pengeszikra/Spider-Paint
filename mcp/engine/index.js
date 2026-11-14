@@ -4,7 +4,7 @@
 // a target cross that lies on the surface under the cursor. No textures, no
 // shading yet.
 export const name = '3draft';
-export const version = '26.11.14004';
+export const version = '26.11.14005';
 export { box, extrude, merge, rotate, bounds, faceNormal, faceCenter } from './mesh.js';
 export { validate } from './check.js';
 export { boolean, union, subtract, intersect, health, splitParts } from './csg.js';
