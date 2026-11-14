@@ -26,7 +26,7 @@ It is one page, `index.html`, and two example models, `models/bridge.scene.json`
 npx serve .            # or: python3 -m http.server
 ```
 
-(A static server is needed because the page loads the model with `fetch`; GitHub Pages works too.) The scene starts with the globe (one `U` removes it). The view starts in WebGPU and falls back to SVG by itself when WebGPU is not there.
+(A static server is needed because the page loads the model with `fetch`; GitHub Pages works too.) The scene starts empty (`?deepsky` starts with the deep sky; every scene is in the + scene list). The view starts in WebGPU and falls back to SVG by itself when WebGPU is not there.
 
 ## What it can do
 

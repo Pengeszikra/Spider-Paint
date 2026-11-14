@@ -157,7 +157,7 @@ Far stars, black holes and galaxies are aimed at by their middle, not by their s
 
 The **deepsky** example is a stress test: the Milky Way, 1000 real galaxies (from the OpenNGC catalogue), 400 black holes and 3000 real stars (the nearest 1000 and 2000 notable ones farther out). Galaxies are stored as a few numbers and their stars are worked out only when you come close enough for them to matter; far away a soft glow stands for them.
 
-The **constellations** as seen from the Earth (all 88, Serpens in two parts) are drawn as thin light yellow lines between their stars' centres; the sky group's **figures** switch turns them on and off. From the Earth they are the familiar figures; fly away and they turn into 3D shapes, since their stars are at very different distances. Enter finds them by their Latin or English name (orion, ursa major, great bear): the view turns to the figure.
+The **constellations** as seen from the Earth (all 88, Serpens in two parts) are drawn as thin light yellow lines between their stars' centres; the sky group's **figures** switch turns them on and off (off at the start). From the Earth they are the familiar figures; fly away and they turn into 3D shapes, since their stars are at very different distances. Enter finds them by their Latin or English name (orion, ursa major, great bear): the view turns to the figure.
 
 Twelve famous **colliding galaxies** (M81 and M82, the Whirlpool, the Antennae, the Mice, Stephan's Quintet, Arp 220 and others, and the Sagittarius stream round the Milky Way) are worked out by a small gravity simulation: two galaxies pass each other, tides pull out tails and bridges, mergers become one body. Each system always shows the same moment of its collision, and each has its own.
 
