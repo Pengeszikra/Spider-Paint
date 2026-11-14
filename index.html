@@ -451,12 +451,12 @@
     #flight b { color: var(--fg, inherit); font-weight: 600; }
     #flight .lock { color: #4dabf7; }
     #flight .vec { opacity: 0.75; font-size: 0.9em; }
-    #driveGrp { color: #d8d4c6; opacity: 0.35; }
-    #driveGrp.on { opacity: 1; }
+    #driveGrp { color: #d8d4c6; }
+    #driveGrp:not(.on) { display: none; } /* only with the car */
     #driveText .brake { color: #ff5a4f; }
     #xrNote { font: 500 9px/1.2 var(--font-mono, ui-monospace, monospace); color: #9a9d90; max-width: 230px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #xrNote.press { color: #39ff14; }
-    body.car footer.console .grp[data-label="sys"] .row > :not(#xrBtn) { display: none; } /* driving: only VR stays of sys */
+    body.car footer.console .grp[data-label="sys"] .row > :not(#xrBtn, #emBtn) { display: none; } /* driving: only VR and EM stay of sys */
     #driveGrp.in #wheelGauge { color: #39ff14; }
     #gasGauge { position: relative; width: 10px; height: 38px; border-radius: 3px; background: #22251f; overflow: hidden; }
     #gasGauge::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #5b5f55; }
@@ -778,8 +778,9 @@
         </span>
         <span class="row">
           <button id="rec" type="button" class="red" title="Record: starts from an empty scene and writes every move and key into a JSON file when you press it again">rec</button>
-          <button id="xrBtn" type="button" class="teal" title="WebXR: show the scene in a headset (immersive-vr; on a Mac: the Meta Immersive Web Emulator). The right stick drives the car: sideways the wheel, up / down the gas">VR</button>
           <button id="play" type="button" class="slate" title="Play: pick a recording (JSON) and watch it build the scene again from an empty one; press again to stop">play</button>
+          <button id="xrBtn" type="button" class="slate" title="VR (on: red): show the scene in a headset, one picture per eye (immersive-vr; on a Mac: the Meta Immersive Web Emulator). The right stick drives the car: sideways the wheel, up / down the gas">VR</button>
+          <button id="emBtn" type="button" class="slate" title="EM, emulator mode (on: red): the same WebXR session (head pose, controllers), but one plain picture over the whole view instead of the two eyes">EM</button>
           <input id="playFile" type="file" accept=".json,application/json" hidden>
         </span>
       </span>
@@ -808,7 +809,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@0e985b4b3db195f70878817c0130f38ff710cc7d/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@ecd1774d3184d65581d05ec0c3863937cf300f37/dist/index.js';
     const orbit_ = orbitView; // (the camera orbit helper; `orbit` is the space orbit state)
     const LEG = { base: 0.15 }; // the base of a placed prism
 
@@ -921,7 +922,7 @@
     let queued = false;
     // (WebXR, see toggleXr: declared up here because redraw and the renderer read them from the start)
     let xrArgs = null; // { scene, view, opts } of the last desktop frame
-    const xrState = { session: null, space: null, prevMode: null, last: 0, flashUntil: 0, pressed: '' };
+    const xrState = { session: null, space: null, prevMode: null, last: 0, flashUntil: 0, pressed: '', mono: false };
 
     // Prisms still flying: { mesh, inst, from, start }; once landed they become ordinary objects.
     // (was: Prisms put down so far) `inst` is the prism as an instance
@@ -1954,7 +1955,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@0e985b4b3db195f70878817c0130f38ff710cc7d/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@ecd1774d3184d65581d05ec0c3863937cf300f37/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -7400,7 +7401,7 @@
       globalThis.__3draft = {
         load: (data) => applyScene(data),
         pickFault: () => (picker.worker?.postMessage({ type: 'pick', ver: picker.ver, cam: null, x: 0, y: 0, cull: true, key: 'fault' }), Boolean(picker.worker)), // (a test: a broken question)
-        xr: () => ({ on: Boolean(xrState.session), pressed: xrState.pressed, note: xrNote?.textContent }),
+        xr: () => ({ on: Boolean(xrState.session), mono: Boolean(xrState.mono), pressed: xrState.pressed, note: xrNote?.textContent }),
         flight: () => ({ vehicle, car: car && { p: car.p, heading: car.heading, v: car.v, steer: car.steer, throttle: car.throttle }, orbit: orbit?.phase ?? null, gravity: gravity && { name: gravity.name }, cruise: { ...cruise }, space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
         aim: () => (aim ? { name: aim.obj.name, px: +aim.px.toFixed(1), depth: aim.depth } : null), under: () => hitObj()?.name ?? null, locked: () => lockedObject()?.name ?? null,
         picker: () => ({ ready: picker.ready, failed: picker.failed, busy: Boolean(picker.busy), ver: picker.ver, picks: picker.picks, ms: +picker.ms.toFixed(2), sceneMs: +picker.sceneMs.toFixed(1), restarts: picker.restarts, errors: [...picker.errors] }),
@@ -7833,7 +7834,19 @@
     // session (exit VR, or the headset) gives the desktop view back (and the view mode it had). Not yet in the headset: the glow,
     // the point cloud and the black hole layers (separate 2D / WebGL canvases), the marks. The controllers: any button pressed tints
     // the sky green for a moment and shows in the xr note; the right stick drives the car (xrDrive).
+    // EM (emulator mode): the same immersive-vr session (the head pose and the controllers of the headset or the emulator), but
+    // drawn as one picture over the layer's whole framebuffer from the head's middle (pose.transform), with the first eye's lens
+    // made symmetric and stretched to the framebuffer's aspect: no stereo. VR and EM switch into each other while a session runs;
+    // pressing the one that is on ends it.
     const xrBtn = document.getElementById('xrBtn');
+    const emBtn = document.getElementById('emBtn');
+    const xrButtons = () => {
+      const on = Boolean(xrState.session);
+      xrBtn?.classList.toggle('red', on && !xrState.mono);
+      xrBtn?.classList.toggle('slate', !(on && !xrState.mono));
+      emBtn?.classList.toggle('red', on && xrState.mono);
+      emBtn?.classList.toggle('slate', !(on && xrState.mono));
+    };
     const xrNote = document.getElementById('xrNote');
     const XR_STEER_RATE = 1.5; // full lock per second at full stick
     const XR_GAS_RATE = 0.8; // full gas per second at full stick
@@ -7877,7 +7890,7 @@
         if (pressed) console.log('[xr] pressed', pressed);
       }
       const r = pads.find((p) => p.hand === 'right');
-      xrSay(`${pressed ? `▣ ${pressed}` : 'in VR'}${r ? ` · R ${r.axes.map((v) => v.toFixed(2)).join(' ')}` : ''}`);
+      xrSay(`${pressed ? `▣ ${pressed}` : xrState.mono ? 'in EM' : 'in VR'}${r ? ` · R ${r.axes.map((v) => v.toFixed(2)).join(' ')}` : ''}`);
       xrNote?.classList.toggle('press', Boolean(pressed));
       // one frame of the program (it also renders the desktop picture and leaves xrArgs)
       queued = false;
@@ -7891,6 +7904,16 @@
       const rx = c * origin[0] + sn * origin[2], rz = -sn * origin[0] + c * origin[2];
       const toHead = [c, 0, -sn, 0, 0, 1, 0, 0, sn, 0, c, 0, -rx, -origin[1], -rz, 1];
       const sky = now < xrState.flashUntil ? [0.08, 0.35, 0.12] : (xrArgs.opts.background ?? [0.02, 0.02, 0.03]);
+      if (xrState.mono) {
+        const w = layer.framebufferWidth, h = layer.framebufferHeight;
+        const P = [...pose.views[0].projectionMatrix];
+        P[0] = P[5] / (w / h);
+        P[8] = 0;
+        P[9] = 0;
+        const p = pose.transform.position;
+        const eye = [c * p.x - sn * p.z + origin[0], p.y + origin[1], sn * p.x + c * p.z + origin[2]];
+        return void gpu.render(xrArgs.scene, xrArgs.view, { ...xrArgs.opts, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [0, 0, w, h], projection: P, view: mul4(pose.transform.inverse.matrix, toHead), eye } });
+      }
       for (const v of pose.views) {
         const vp = layer.getViewport(v);
         if (!vp) continue;
@@ -7902,15 +7925,20 @@
     const endedXr = async () => {
       xrState.session = null;
       xrState.last = 0;
-      if (xrBtn) xrBtn.textContent = 'VR';
-      xrSay('VR ended');
+      xrButtons();
+      xrSay(`${xrState.mono ? 'EM' : 'VR'} ended`);
       xrNote?.classList.remove('press');
       if (xrState.prevMode) await setMode(xrState.prevMode === 'svg' ? 'svg' : 'gpu');
       xrState.prevMode = null;
       redraw();
     };
-    const toggleXr = async () => {
-      if (xrState.session) return xrState.session.end();
+    const toggleXr = async (mono = false) => {
+      if (xrState.session) {
+        if (xrState.mono === mono) return xrState.session.end();
+        xrState.mono = mono; // VR <-> EM in the running session
+        return xrButtons();
+      }
+      xrState.mono = mono;
       const xr = navigator.xr;
       if (!xr) return xrSay('no WebXR here (on a Mac: the Immersive Web Emulator)');
       if (!(await xr.isSessionSupported('immersive-vr').catch(() => false))) return xrSay('immersive-vr is not supported here');
@@ -7935,11 +7963,12 @@
       xrState.session = session;
       session.addEventListener('end', endedXr);
       session.addEventListener('selectstart', (e) => ((xrState.flashUntil = performance.now() + 250), console.log('[xr] select', e.inputSource?.handedness)));
-      if (xrBtn) xrBtn.textContent = 'exit';
-      xrSay('in VR');
+      xrButtons();
+      xrSay(mono ? 'in EM' : 'in VR');
       session.requestAnimationFrame(xrFrame);
     };
-    xrBtn?.addEventListener('click', () => (toggleXr(), xrBtn.blur()));
+    xrBtn?.addEventListener('click', () => (toggleXr(false), xrBtn.blur()));
+    emBtn?.addEventListener('click', () => (toggleXr(true), emBtn.blur()));
     if (!navigator.xr) xrSay('no WebXR in this browser');
 
     if (EMBED) seedStore();

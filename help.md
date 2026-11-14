@@ -157,6 +157,9 @@ The **deepsky** example is a stress test: the Milky Way, 1000 real galaxies (fro
 
 Twelve famous **colliding galaxies** (M81 and M82, the Whirlpool, the Antennae, the Mice, Stephan's Quintet, Arp 220 and others, and the Sagittarius stream round the Milky Way) are worked out by a small gravity simulation: two galaxies pass each other, tides pull out tails and bridges, mergers become one body. Each system always shows the same moment of its collision, and each has its own.
 
+## VR and EM
+**VR** shows the scene in a headset (or the Immersive Web Emulator), one picture per eye. **EM** (emulator mode) uses the same headset or emulator connection (head turning, controllers), but draws one plain picture over the whole view, without stereo. Both are red while on; press again to turn off, or press the other to switch. The drive gauges at the bottom only show in car mode.
+
 ## The black hole
 Sagittarius A* (in the Milky Way and the stars scenes) is drawn by a small ray tracer: the light bends round it, so the accretion disc shows above and below the black shadow, with a thin photon ring. The gas is coloured as very hot gas really looks: bluish-white; the side coming towards you is brighter and bluer, the side going away dimmer and redder (Doppler). The disc is wide and thin, of clumpy glowing gas; stars between you and the hole still show in front of it, the ones behind it are hidden by its shadow. Only the area round it is computed, at half resolution.
 
