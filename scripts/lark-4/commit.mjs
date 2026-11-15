@@ -1,0 +1,13 @@
+import {readFileSync,writeFileSync,existsSync} from 'node:fs';
+import {exportBuild} from './export-build.mjs';
+const root=new URL('../../',import.meta.url),p=new URL('models/lark-4-pending.json',root),out=new URL('models/lark-4-tutorial.json',root);
+const pending=JSON.parse(readFileSync(p,'utf8'));
+const journal=existsSync(out)?JSON.parse(readFileSync(out,'utf8')):{format:'spider-build-tutorial',version:1,title:"LARK–4 — four-person lander",units:'metres',chapters:[],events:[],createdAt:new Date().toISOString()};
+if(journal.chapters.some(c=>c.id===pending.id))throw Error('Chapter already committed');
+const start=journal.events.length;
+if(pending.palette)journal.palette=pending.palette;
+for(const op of pending.commands)journal.events.push({...op,chapter:pending.id,index:journal.events.length,duration:op.method==='transform'?1100:650,executedAt:new Date().toISOString(),source:'spider-paint MCP'});
+journal.chapters.push({id:pending.id,title:pending.title,text:pending.text,camera:pending.camera,start,end:journal.events.length});
+writeFileSync(out,JSON.stringify(journal));
+exportBuild(journal);
+console.log(JSON.stringify({chapter:pending.id,operations:pending.commands.length,totalOperations:journal.events.length}));

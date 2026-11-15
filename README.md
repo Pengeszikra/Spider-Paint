@@ -71,6 +71,14 @@ codex mcp add spider-paint -- node "$(pwd)/mcp/server.js"
 
 Then ask it for the viewer's URL and open it. Everything else, also the full tool list, is in [MCP.md](MCP.md).
 
+## Replay a model's construction
+
+[Spider Build v2](models/spider-build-v2.md) saves a model's complete recorded construction
+history in a `.build.json` file, with independent camera and English narration tracks.
+The [LARK–4C tutorial player](models/lark-4-tutorial.html) supports playback, timeline
+seeking, reversible construction steps, cutaway inspection, and separate camera and
+narration controls. Its [complete recording](models/lark-4.build.json) contains 746 steps.
+
 ## About 3Draft
 
 [3Draft](https://github.com/Pengeszikra/3Draft) is a minimalist, AI first 3D engine: a model is plain data that a human, a program and an LLM can all read and write. It has an SVG and a WebGPU renderer, surface picking (with a WebAssembly kernel written in HEXAW), solid booleans and mesh editing.

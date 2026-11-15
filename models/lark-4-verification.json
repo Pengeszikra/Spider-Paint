@@ -1,0 +1,45 @@
+{
+  "objects": 635,
+  "chapters": 26,
+  "operations": 746,
+  "bounds": {
+    "min": [
+      -7.465,
+      0,
+      -20.41
+    ],
+    "max": [
+      7.465,
+      8.621784452575783,
+      3.95
+    ],
+    "size": [
+      14.93,
+      8.621784452575783,
+      24.36
+    ]
+  },
+  "geometrySha256": "d282a0a972023c551f8154a0b92582a383bd68a07f7992800f204de71d991b6d",
+  "liveReplayMaximumError": 4.440892098500626e-16,
+  "crew": 4,
+  "units": "metres",
+  "glassAlpha": 0.1,
+  "variant": "LARK–4C",
+  "hangar": {
+    "clearWidth": 5.5,
+    "clearLength": 7.1,
+    "heightUnderCrane": 3.8,
+    "doorWidth": 4.64,
+    "rampWidth": 4.5
+  },
+  "rooms": [
+    "cockpit",
+    "four-berth quarters",
+    "galley",
+    "washroom/shower",
+    "cargo workshop hangar"
+  ],
+  "nativePrototypes": 133,
+  "nativeInstances": 439,
+  "cutawayObjects": 493
+}

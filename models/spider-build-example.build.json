@@ -1,0 +1,398 @@
+{
+  "$schema": "./spider-build-v2.schema.json",
+  "format": "spider-build-tutorial",
+  "version": 2,
+  "metadata": {
+    "id": "independent-tracks-example",
+    "title": "Independent tracks example",
+    "shortTitle": "TRACKS",
+    "language": "en",
+    "units": "metres"
+  },
+  "timeline": {
+    "timeUnit": "ms",
+    "durationMs": 9000
+  },
+  "assets": {
+    "meshes": {
+      "block": {
+        "positions": [
+          [
+            -0.5,
+            0,
+            -0.5
+          ],
+          [
+            0.5,
+            0,
+            -0.5
+          ],
+          [
+            0.5,
+            0,
+            0.5
+          ],
+          [
+            -0.5,
+            0,
+            0.5
+          ],
+          [
+            -0.5,
+            1,
+            -0.5
+          ],
+          [
+            0.5,
+            1,
+            -0.5
+          ],
+          [
+            0.5,
+            1,
+            0.5
+          ],
+          [
+            -0.5,
+            1,
+            0.5
+          ]
+        ],
+        "faces": [
+          {
+            "v": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "mat": "orange"
+          },
+          {
+            "v": [
+              4,
+              7,
+              6,
+              5
+            ],
+            "mat": "orange"
+          },
+          {
+            "v": [
+              0,
+              4,
+              5,
+              1
+            ],
+            "mat": "orange"
+          },
+          {
+            "v": [
+              3,
+              2,
+              6,
+              7
+            ],
+            "mat": "orange"
+          },
+          {
+            "v": [
+              0,
+              3,
+              7,
+              4
+            ],
+            "mat": "orange"
+          },
+          {
+            "v": [
+              1,
+              5,
+              6,
+              2
+            ],
+            "mat": "orange"
+          }
+        ]
+      },
+      "moved-block": {
+        "positions": [
+          [
+            1.5,
+            0,
+            -0.5
+          ],
+          [
+            2.5,
+            0,
+            -0.5
+          ],
+          [
+            2.5,
+            0,
+            0.5
+          ],
+          [
+            1.5,
+            0,
+            0.5
+          ],
+          [
+            1.5,
+            1,
+            -0.5
+          ],
+          [
+            2.5,
+            1,
+            -0.5
+          ],
+          [
+            2.5,
+            1,
+            0.5
+          ],
+          [
+            1.5,
+            1,
+            0.5
+          ]
+        ],
+        "faces": [
+          {
+            "v": [
+              0,
+              1,
+              2,
+              3
+            ],
+            "mat": "orange"
+          },
+          {
+            "v": [
+              4,
+              7,
+              6,
+              5
+            ],
+            "mat": "orange"
+          },
+          {
+            "v": [
+              0,
+              4,
+              5,
+              1
+            ],
+            "mat": "orange"
+          },
+          {
+            "v": [
+              3,
+              2,
+              6,
+              7
+            ],
+            "mat": "orange"
+          },
+          {
+            "v": [
+              0,
+              3,
+              7,
+              4
+            ],
+            "mat": "orange"
+          },
+          {
+            "v": [
+              1,
+              5,
+              6,
+              2
+            ],
+            "mat": "orange"
+          }
+        ]
+      }
+    },
+    "audio": {}
+  },
+  "scene": {
+    "palette": [
+      {
+        "name": "orange",
+        "color": "#df984b",
+        "alpha": 1
+      }
+    ],
+    "objects": []
+  },
+  "chapters": [
+    {
+      "id": "example",
+      "title": "Independent camera and construction",
+      "startMs": 0,
+      "endMs": 9000
+    }
+  ],
+  "tracks": {
+    "construction": {
+      "steps": [
+        {
+          "id": "add",
+          "timeMs": 1000,
+          "command": {
+            "tool": "add_box",
+            "args": {
+              "name": "example/block",
+              "min": [
+                -0.5,
+                0,
+                -0.5
+              ],
+              "max": [
+                0.5,
+                1,
+                0.5
+              ]
+            }
+          },
+          "changes": [
+            {
+              "type": "put",
+              "object": {
+                "name": "example/block",
+                "meshRef": "block"
+              }
+            }
+          ]
+        },
+        {
+          "id": "move",
+          "timeMs": 4000,
+          "command": {
+            "tool": "transform",
+            "args": {
+              "name": "example/block",
+              "translate": [
+                2,
+                0,
+                0
+              ]
+            }
+          },
+          "changes": [
+            {
+              "type": "put",
+              "object": {
+                "name": "example/block",
+                "meshRef": "moved-block"
+              }
+            }
+          ]
+        },
+        {
+          "id": "remove",
+          "timeMs": 7000,
+          "command": {
+            "tool": "remove",
+            "args": {
+              "name": "example/block"
+            }
+          },
+          "changes": [
+            {
+              "type": "remove",
+              "name": "example/block"
+            }
+          ]
+        }
+      ]
+    },
+    "camera": {
+      "initialPose": {
+        "eye": [
+          4,
+          3,
+          6
+        ],
+        "yaw": -33.69,
+        "pitch": 18
+      },
+      "keyframes": [
+        {
+          "id": "hold",
+          "timeMs": 1000,
+          "transition": "cut",
+          "pose": {
+            "eye": [
+              4,
+              3,
+              6
+            ],
+            "yaw": -33.69,
+            "pitch": 18
+          }
+        },
+        {
+          "id": "orbit",
+          "timeMs": 3000,
+          "transition": "smoothstep",
+          "pose": {
+            "eye": [
+              -4,
+              3,
+              6
+            ],
+            "yaw": 33.69,
+            "pitch": 18
+          }
+        },
+        {
+          "id": "rear",
+          "timeMs": 6000,
+          "transition": "cut",
+          "pose": {
+            "eye": [
+              4,
+              6,
+              -6
+            ],
+            "yaw": -146.31,
+            "pitch": 40
+          }
+        }
+      ],
+      "presets": {}
+    },
+    "narration": {
+      "cues": [
+        {
+          "id": "intro",
+          "channel": "chapter",
+          "language": "en",
+          "startMs": 0,
+          "endMs": 9000,
+          "text": "This nine-second example separates modeling, camera motion and narration."
+        },
+        {
+          "id": "camera-note",
+          "channel": "voiceover",
+          "language": "en",
+          "startMs": 500,
+          "endMs": 3500,
+          "text": "The camera moves while construction holds still."
+        },
+        {
+          "id": "move-note",
+          "channel": "operation",
+          "language": "en",
+          "startMs": 4000,
+          "endMs": 6500,
+          "text": "Move the block two metres along X."
+        }
+      ]
+    }
+  }
+}
