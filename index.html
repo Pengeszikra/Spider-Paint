@@ -926,7 +926,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@55d06f9ad8c533fc4af57cde5e0548784553dc06/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@672e71e4bae24593688914f325568a5687693471/dist/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
@@ -1507,7 +1507,7 @@
     // slower). The cruise, the braking program and the orbit work on the scaled speed.
     const SYSTEM_PACE = 0.2; // the scale per light year of distance (level 1 = 0.25 ly/s · scale)
     let spaceScale = 1;
-    const nearSurface = () => {
+    const nearSurface = (withTarget = true) => {
       const e = eyeNow();
       let d = Infinity;
       for (const o of allObjects()) {
@@ -1515,9 +1515,29 @@
         if (!i || i.far) continue;
         d = Math.min(d, Math.hypot(i.at[0] - e[0], i.at[1] - e[1], i.at[2] - e[2]) - (instSize(i, 'core') || 0));
       }
+      // flying to a target, its surface sets the pace too (the larger wins): leaving one planet for another the speed is not held
+      // down by the planet behind, and near the target the braking program stops the ship at its surface
+      const t = withTarget && locked && lockedObject();
+      // (measured to its middle, so the pace does not fade to nothing at the surface: the braking program does the stopping)
+      if (t?.inst && !t.inst.far) d = Math.max(d, Math.hypot(t.inst.at[0] - e[0], t.inst.at[1] - e[1], t.inst.at[2] - e[2]));
       return d;
     };
     const updateSpaceScale = () => (spaceScale = space() && !drive() ? Math.min(1, Math.max(1e-14, nearSurface() * SYSTEM_PACE)) : 1);
+    // The fly view turns round a pivot FLY_DIST ahead of the eye. Between galaxies 0.05 ly is nothing, but inside a star system it
+    // is thousands of AU: a drag swung the eye out of the system. So in a star map the pivot sits FLY_DIST x spaceScale ahead
+    // (~0.1 % of the distance to the nearest surface), and is brought back to that when it drifts.
+    // (by the nearest surface only: a far target sets the speed, not where the view turns)
+    const flyDist = () => (space() && !drive() ? FLY_DIST * 0.1 * Math.min(1, Math.max(1e-14, nearSurface(false) * SYSTEM_PACE)) : FLY_DIST);
+    const pivotNear = () => {
+      if (!fly || !space() || drive()) return;
+      updateSpaceScale();
+      const d = flyDist(), now = fit.dist ?? FLY_DIST;
+      if (Math.abs(now - d) <= d * 0.2) return;
+      const eye = eyeNow();
+      const f = makeCamera(orbit_({ yaw, pitch }), nothing, 100, { center: [0, 0, 0], radius: 1, dist: 1 }).f;
+      fit.center = eye.map((c, i) => c + f[i] * d);
+      fit.dist = d;
+    };
     const unitNow = () => UNIT * (space() ? spaceScale : 1);
     const shipVelocity = () => {
       const { forward, right, up } = shipBasis();
@@ -1535,7 +1555,7 @@
       yaw = Math.atan2(g[0], -g[2]);
       pitch = Math.max(-LIMIT, Math.min(LIMIT, -Math.asin(Math.max(-1, Math.min(1, g[1])))));
       const f2 = makeCamera(orbit_({ yaw, pitch }), nothing, 100, { center: [0, 0, 0], radius: 1, dist: FLY_DIST }).f;
-      fit.center = eye.map((v, i) => v + f2[i] * FLY_DIST);
+      fit.center = eye.map((v, i) => v + f2[i] * (fit.dist ?? flyDist()));
     };
     const cross3 = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
     const unit3 = (a) => { const l = Math.hypot(...a) || 1; return a.map((v) => v / l); };
@@ -1543,7 +1563,7 @@
       const rv = eyeNow().map((v, i) => v - origin[i]);
       const V = shipVelocity();
       const n = cross3(rv, V);
-      if (Math.hypot(...n) < 1e-12) return false; // no speed across the radius: nothing to swing
+      if (Math.hypot(...n) <= 1e-9 * Math.hypot(...rv) * Math.hypot(...V)) return false; // no speed across the radius: nothing to swing (relative: a planet's orbit is ~1e-9 ly)
       gravity = { origin: [...origin], n: unit3(n), name };
       return true;
     };
@@ -1553,7 +1573,7 @@
       const r = Math.hypot(...rv);
       const t = unit3(cross3(gravity.n, rv)); // along the orbit
       const vt = shipVelocity().reduce((a, v, i) => a + v * t[i], 0);
-      if (r < 1e-9 || vt <= 1e-4) return void ((gravity = null), redraw()); // the spin is used up: on straight
+      if (r < 1e-18 || vt <= 1e-4 * unitNow()) return void ((gravity = null), redraw()); // the spin is used up: on straight (relative to the local pace)
       turnHeading(gravity.n, (vt / r) * dt);
       redraw();
     };
@@ -1621,7 +1641,7 @@
           yaw = Math.atan2(d[0], -d[2]);
           pitch = Math.max(-LIMIT, Math.min(LIMIT, -Math.asin(d[1] / len)));
           fit.center = [...center];
-          fit.radius = Math.max(radius * 1.15, 0.12);
+          fit.radius = space() ? radius * 1.15 : Math.max(radius * 1.15, 0.12); // (no 0.12 floor in a star map: a planet is ~1e-9 ly)
           fit.dist = len;
           fly = false;
           steer = null;
@@ -1692,7 +1712,8 @@
       yaw += (turnBy(yaw, wantYaw) - yaw) * k;
       pitch += (wantPitch - pitch) * k;
       const f = makeCamera(orbit_({ yaw, pitch }), nothing, 100, { center: [0, 0, 0], radius: 1, dist: FLY_DIST }).f;
-      fit.center = eyeBefore.map((c, i) => c + f[i] * FLY_DIST);
+      fit.dist = flyDist();
+      fit.center = eyeBefore.map((c, i) => c + f[i] * fit.dist);
       if (off < 0.01) steer.all = false;
       redraw();
     };
@@ -1804,10 +1825,12 @@
       const eye = gcam?.eye ? [...gcam.eye] : makeCamera(orbit_({ yaw, pitch }), nothing, 100, fit).eye;
       const away = eye.map((e, i) => e - fit.center[i]);
       const len = Math.hypot(...away) || 1;
-      fit.center = eye.map((e, i) => e - (away[i] / len) * FLY_DIST); // the eye stays, the pivot comes to it
-      fit.dist = FLY_DIST;
-      backoff = 1; // the eye is already where it is drawn
       fly = true;
+      updateSpaceScale();
+      const d = flyDist();
+      fit.center = eye.map((e, i) => e - (away[i] / len) * d); // the eye stays, the pivot comes to it
+      fit.dist = d;
+      backoff = 1; // the eye is already where it is drawn
       focused = true;
     };
     const speed = (axis, d) => {
@@ -1840,7 +1863,7 @@
       const cp = Math.cos(pitch);
       const sp = Math.sin(pitch);
       const { forward, right, up: upS } = shipBasis();
-      updateSpaceScale();
+      pivotNear(); // (updates spaceScale too)
       const velocity = () => forward.map((c, i) => c * pace(level.f) + right[i] * pace(level.r) + upS[i] * pace(level.u));
       if (locked && space() && braking) brake(velocity(), dt);
       const v = velocity(); // (after the brake: arriving it set the levels to rest and the throttle back to 1)
@@ -1951,7 +1974,7 @@
       goTo({
         pin: eye,
         center,
-        radius: Math.max(radius * 1.15, 0.12),
+        radius: space() ? radius * 1.15 : Math.max(radius * 1.15, 0.12),
         dist: Math.max(Math.min(len, radius * near), radius * STOP), // `near`: come at least this close (in radii)
         yaw: Math.atan2(d[0], -d[2]),
         pitch: Math.max(-LIMIT, Math.min(LIMIT, -Math.asin(d[1] / len))),
@@ -2163,7 +2186,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@55d06f9ad8c533fc4af57cde5e0548784553dc06/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@672e71e4bae24593688914f325568a5687693471/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -3998,6 +4021,7 @@
         const c = Math.cos(roll), s = Math.sin(roll);
         [dYaw, dPitch] = [dYaw * c - dPitch * s, dPitch * c + dYaw * s]; // banked: the picture's sideways / up-down
       }
+      pivotNear(); // a star map: turn round a point just ahead of the eye, not 0.05 ly ahead
       yaw += dYaw;
       pitch = wrapPitch(pitch + dPitch);
       redraw();
@@ -4009,6 +4033,11 @@
       const f = makeCamera(orbit_({ yaw, pitch }), nothing, 100, { center: [0, 0, 0], radius: 1, dist: FLY_DIST }).f;
       fit.center = eye.map((c, i) => c + f[i] * FLY_DIST);
       fit.dist = FLY_DIST;
+      if (space()) {
+        updateSpaceScale(); // (measured from the pivot just set; close enough to place the real one)
+        fit.center = eye.map((c, i) => c + f[i] * flyDist());
+        fit.dist = flyDist();
+      }
       backoff = 1;
       travel = null; // a turn still under way (the reset of a Clear) must not pull the eye away again
       fly = true;
