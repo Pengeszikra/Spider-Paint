@@ -7,7 +7,7 @@
 // same place stays under it (for picking, positioning, the SVG renderer). Everything is computed relative to the eye in
 // double precision on the CPU and in units of the planet's radius on the GPU, so a planet 10⁻¹⁰ light years big is exact.
 export const PLANET_FLOATS = 36;
-const KINDS = { rock: 0, gas: 1, earth: 2, ice: 3, cloud: 4 };
+const KINDS = { rock: 0, gas: 1, earth: 2, ice: 3, cloud: 4, lava: 5 };
 const rgb = (hex, fallback) => {
     const m = /^#?([0-9a-f]{6})$/i.exec(hex ?? '');
     if (!m)
@@ -135,7 +135,12 @@ fn surf(n : vec3<f32>, lp : vec3<f32>, view : vec3<f32>, i : POut) -> vec3<f32> 
   let s = vec3<f32>(seed * 0.37, seed * 0.11, seed * 0.73);
   var col = i.c0.rgb;
   var extra = vec3<f32>(0.0);
-  if (kind < 0.5) { // rock
+  if (kind > 4.5) { // lava: a dark crust, its cracks glowing (also on the night side)
+    let v = fbm(lp * 4.0 + s);
+    col = mix(i.c0.rgb, i.c1.rgb, smoothstep(0.3, 0.7, v));
+    let cr = abs(fbm(lp * 7.0 + s * 1.3) - 0.5) + abs(fbm(lp * 19.0 + s) - 0.5) * 0.4;
+    extra = i.c2.rgb * (1.0 - smoothstep(0.0, 0.07, cr)) * 1.3 + i.c2.rgb * smoothstep(0.62, 0.8, fbm(lp * 2.0 + s)) * 0.35;
+  } else if (kind < 0.5) { // rock
     let v = fbm(lp * 3.0 + s); let w = fbm(lp * 11.0 + s * 1.7);
     col = mix(i.c0.rgb, i.c1.rgb, smoothstep(0.35, 0.7, v)) * (0.8 + 0.4 * w);
     col = mix(col, i.c2.rgb, smoothstep(0.58, 0.66, fbm(lp * 1.6 + s * 0.3)) * 0.85);
@@ -280,7 +285,12 @@ vec3 surf(vec3 n, vec3 lp, vec3 view) {
   float lit = smoothstep(-0.08, 0.25, ndl) * (0.25 + 0.75 * max(ndl, 0.0)) + 0.025;
   vec3 s = vec3(seed * 0.37, seed * 0.11, seed * 0.73);
   vec3 col = vC0.rgb; vec3 extra = vec3(0.0);
-  if (kind < 0.5) {
+  if (kind > 4.5) {
+    float v = fbm(lp * 4.0 + s);
+    col = mix(vC0.rgb, vC1.rgb, smoothstep(0.3, 0.7, v));
+    float cr = abs(fbm(lp * 7.0 + s * 1.3) - 0.5) + abs(fbm(lp * 19.0 + s) - 0.5) * 0.4;
+    extra = vC2.rgb * (1.0 - smoothstep(0.0, 0.07, cr)) * 1.3 + vC2.rgb * smoothstep(0.62, 0.8, fbm(lp * 2.0 + s)) * 0.35;
+  } else if (kind < 0.5) {
     float v = fbm(lp * 3.0 + s), w = fbm(lp * 11.0 + s * 1.7);
     col = mix(vC0.rgb, vC1.rgb, smoothstep(0.35, 0.7, v)) * (0.8 + 0.4 * w);
     col = mix(col, vC2.rgb, smoothstep(0.58, 0.66, fbm(lp * 1.6 + s * 0.3)) * 0.85);
