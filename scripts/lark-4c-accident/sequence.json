@@ -1,0 +1,1671 @@
+{
+  "metadata": {
+    "title": "LARK\u20134C / LAST LIGHT",
+    "language": "en",
+    "duration": 72,
+    "units": "metres",
+    "pilot": "Betterman",
+    "pilotStandingHeight": 1.8
+  },
+  "blackHole": {
+    "center": [
+      125,
+      12,
+      245
+    ],
+    "radius": 42
+  },
+  "ship": {
+    "pivot": [
+      0,
+      3,
+      -6
+    ],
+    "groups": [
+      {
+        "id": "cockpit",
+        "pivot": [
+          0,
+          3.63,
+          -5.045
+        ],
+        "objects": [
+          "structure/heatshield",
+          "interior/pressure-floor",
+          "structure/floor-crossbeam-front",
+          "structure/floor-crossbeam-rear",
+          "structure/longeron--1",
+          "structure/longeron-1",
+          "structure/upright--1--2.55",
+          "structure/upright--1-0.35",
+          "structure/upright--1-1.8",
+          "structure/upright-1--2.55",
+          "structure/upright-1-0.35",
+          "structure/upright-1-1.8",
+          "structure/roof-shoulder--1",
+          "structure/roof-shoulder-1",
+          "structure/rear-top-crossbar",
+          "structure/centre-top-crossbar",
+          "interior/aisle-strip",
+          "interior/seat-pilot--1/floor-anchor",
+          "interior/seat-pilot-1/floor-anchor",
+          "interior/seat-passenger--1/floor-anchor",
+          "interior/seat-passenger-1/floor-anchor",
+          "interior/seat-pilot--1/pedestal",
+          "interior/seat-pilot-1/pedestal",
+          "interior/seat-passenger--1/pedestal",
+          "interior/seat-passenger-1/pedestal",
+          "interior/seat-pilot--1/cushion",
+          "interior/seat-pilot-1/cushion",
+          "interior/seat-passenger--1/cushion",
+          "interior/seat-passenger-1/cushion",
+          "interior/seat-pilot--1/backrest",
+          "interior/seat-pilot-1/backrest",
+          "interior/seat-passenger--1/backrest",
+          "interior/seat-passenger-1/backrest",
+          "interior/seat-pilot--1/headrest",
+          "interior/seat-pilot-1/headrest",
+          "interior/seat-passenger--1/headrest",
+          "interior/seat-passenger-1/headrest",
+          "interior/seat-pilot--1/armrest--1",
+          "interior/seat-pilot--1/armrest-1",
+          "interior/seat-pilot-1/armrest--1",
+          "interior/seat-pilot-1/armrest-1",
+          "interior/seat-passenger--1/armrest--1",
+          "interior/seat-passenger--1/armrest-1",
+          "interior/seat-passenger-1/armrest--1",
+          "interior/seat-passenger-1/armrest-1",
+          "interior/seat-pilot--1/harness--1",
+          "interior/seat-pilot--1/harness-1",
+          "interior/seat-pilot-1/harness--1",
+          "interior/seat-pilot-1/harness-1",
+          "interior/seat-passenger--1/harness--1",
+          "interior/seat-passenger--1/harness-1",
+          "interior/seat-passenger-1/harness--1",
+          "interior/seat-passenger-1/harness-1",
+          "interior/seat-pilot--1/belt-buckle",
+          "interior/seat-pilot-1/belt-buckle",
+          "interior/seat-passenger--1/belt-buckle",
+          "interior/seat-passenger-1/belt-buckle",
+          "interior/cockpit--1/console-stand",
+          "interior/cockpit-1/console-stand",
+          "interior/cockpit--1/console-body",
+          "interior/cockpit-1/console-body",
+          "interior/cockpit--1/display-frame",
+          "interior/cockpit-1/display-frame",
+          "interior/cockpit--1/display",
+          "interior/cockpit-1/display",
+          "interior/cockpit--1/telemetry-0",
+          "interior/cockpit--1/telemetry-1",
+          "interior/cockpit-1/telemetry-0",
+          "interior/cockpit-1/telemetry-1",
+          "interior/cockpit--1/telemetry-2",
+          "interior/cockpit-1/telemetry-2",
+          "interior/cockpit--1/joystick",
+          "interior/cockpit-1/joystick",
+          "interior/cockpit--1/pedal-left",
+          "interior/cockpit--1/pedal-right",
+          "interior/cockpit-1/pedal-left",
+          "interior/cockpit-1/pedal-right",
+          "interior/centre-console",
+          "interior/centre-emergency-switch",
+          "interior/rear-locker--1/body",
+          "interior/rear-locker-1/body",
+          "interior/rear-locker--1/door",
+          "interior/rear-locker-1/door",
+          "interior/rear-locker--1/handle",
+          "interior/rear-locker-1/handle",
+          "interior/rear-locker--1/mark",
+          "interior/rear-locker-1/mark",
+          "interior/oxygen-bottle--1",
+          "interior/oxygen-bottle-1",
+          "interior/oxygen-band--1",
+          "interior/oxygen-band-1",
+          "interior/first-aid-kit",
+          "interior/first-aid-mark",
+          "interior/first-aid-mark-vertical",
+          "interior/cargo-case--1",
+          "interior/cargo-case-1",
+          "interior/cargo-strap--1",
+          "interior/cargo-strap-1",
+          "structure/door-frame-top",
+          "structure/door-frame-aft",
+          "structure/door-frame-front",
+          "shell/nose/lower-cheek-port",
+          "shell/nose/front-panel-port",
+          "shell/canopy/windshield-port",
+          "shell/canopy/port-facet-front",
+          "shell/canopy/port-facet-rear",
+          "structure/canopy-edge-port",
+          "structure/canopy-shoulder-port",
+          "structure/nose-side-sill-port",
+          "shell/nose/lower-cheek-starboard",
+          "shell/nose/front-panel-starboard",
+          "shell/canopy/windshield-starboard",
+          "shell/canopy/starboard-facet-front",
+          "shell/canopy/starboard-facet-rear",
+          "structure/canopy-edge-starboard",
+          "structure/canopy-shoulder-starboard",
+          "structure/nose-side-sill-starboard",
+          "structure/windshield-centre-mullion",
+          "structure/windshield-upper-crossbar",
+          "structure/windshield-lower-crossbar",
+          "shell/nose/bump-stop",
+          "exterior/armour-port/orange-identification",
+          "exterior/armour-starboard/orange-identification",
+          "exterior/nose/front-inset",
+          "access/pressure-door",
+          "access/threshold",
+          "exterior/nose/lamp-housing--1",
+          "exterior/nose/lamp-housing-1",
+          "exterior/nose/lamp--1",
+          "exterior/nose/lamp-1",
+          "exterior/nose/range-sensor",
+          "exterior/identity/port",
+          "exterior/identity/starboard",
+          "access/door-lamp-housing",
+          "access/door-lamp",
+          "access/threshold-mark--1.84",
+          "access/threshold-mark--1.53",
+          "access/threshold-mark--1.22",
+          "access/threshold-mark--0.91",
+          "aero/tail-crossmember"
+        ],
+        "release": null,
+        "velocity": [
+          2.9330460973083974,
+          1.484610378323123,
+          -0.5389992808923125
+        ],
+        "spin": [
+          0.17352716729510576,
+          -0.09597136597149074,
+          0.22476938053034246
+        ]
+      },
+      {
+        "id": "cockpit-port",
+        "pivot": [
+          -1.7586609780177087,
+          2.62,
+          -0.3939473838356393
+        ],
+        "objects": [
+          "shell/port/rear-panel",
+          "shell/port/front-lower-band",
+          "shell/port/front-upper-band",
+          "shell/port/window-pier--0.39",
+          "shell/port/window-pier-0.75",
+          "shell/port/window-pier-1.89",
+          "shell/port/window-1",
+          "shell/port/window-2",
+          "shell/port/window-sill-1",
+          "shell/port/window-sill-2",
+          "shell/port/aft-chamfer"
+        ],
+        "release": 51,
+        "velocity": [
+          -2.354260785644874,
+          1.3975647354964167,
+          0.9625272490084171
+        ],
+        "spin": [
+          -0.21467707969713956,
+          -0.3224635632475838,
+          -0.23256292243488133
+        ]
+      },
+      {
+        "id": "cockpit-starboard",
+        "pivot": [
+          1.7586609780177087,
+          2.62,
+          -0.3939473838356393
+        ],
+        "objects": [
+          "shell/starboard/front-lower-band",
+          "shell/starboard/front-upper-band",
+          "shell/starboard/window-pier--0.39",
+          "shell/starboard/window-pier-0.75",
+          "shell/starboard/window-pier-1.89",
+          "shell/starboard/window-1",
+          "shell/starboard/window-2",
+          "shell/starboard/window-sill-1",
+          "shell/starboard/window-sill-2",
+          "shell/starboard/rear-panel",
+          "shell/starboard/door-front-pier",
+          "shell/starboard/aft-chamfer"
+        ],
+        "release": 52,
+        "velocity": [
+          1.6709939426742495,
+          1.5834718467202038,
+          -0.9993507796898484
+        ],
+        "spin": [
+          0.028893175185658038,
+          0.03959786202758551,
+          0.16914943049661815
+        ]
+      },
+      {
+        "id": "cockpit-roof",
+        "pivot": [
+          0,
+          3.9854655581462515,
+          -0.27472259760445294
+        ],
+        "objects": [
+          "shell/roof/interior-light-housing--1.85",
+          "shell/roof/interior-light-housing--0.2",
+          "shell/roof/interior-light-housing-1.3",
+          "shell/roof/interior-light--1.85",
+          "shell/roof/interior-light--0.2",
+          "shell/roof/interior-light-1.3",
+          "shell/roof/main-pressure-panel",
+          "shell/roof/shoulder-port",
+          "shell/roof/seam-port",
+          "shell/roof/seam-starboard",
+          "shell/roof/shoulder-starboard",
+          "shell/roof/canopy-transition",
+          "shell/roof/escape-hatch-frame",
+          "shell/roof/escape-hatch",
+          "shell/roof/escape-hatch-handle",
+          "shell/roof/thermal-panel--1/frame",
+          "shell/roof/thermal-panel-1/frame",
+          "shell/roof/thermal-panel--1/surface",
+          "shell/roof/thermal-panel-1/surface",
+          "shell/roof/thermal-panel--1/rib-0",
+          "shell/roof/thermal-panel--1/rib-1",
+          "shell/roof/thermal-panel--1/rib-2",
+          "shell/roof/thermal-panel--1/rib-3",
+          "shell/roof/thermal-panel--1/rib-4",
+          "shell/roof/thermal-panel-1/rib-0",
+          "shell/roof/thermal-panel-1/rib-1",
+          "shell/roof/thermal-panel-1/rib-2",
+          "shell/roof/thermal-panel-1/rib-3",
+          "shell/roof/thermal-panel-1/rib-4"
+        ],
+        "release": 50,
+        "velocity": [
+          2.3876372237224133,
+          2.056790266977623,
+          0.27118142135441303
+        ],
+        "spin": [
+          0.181878975010477,
+          0.28458729085978124,
+          0.13192694143392145
+        ]
+      },
+      {
+        "id": "port-armour",
+        "pivot": [
+          -1.8779583654340202,
+          2.6550000000000002,
+          -0.6480277563773198
+        ],
+        "objects": [
+          "exterior/armour-port/lower-belt",
+          "exterior/armour-port/rear-cap",
+          "exterior/armour-port/aft-maintenance-panel",
+          "exterior/nav-light--1"
+        ],
+        "release": 34,
+        "velocity": [
+          -2.842548658512533,
+          1.3051059640478344,
+          -0.9669676972553134
+        ],
+        "spin": [
+          0.1414655112894252,
+          -0.002323078038170934,
+          -0.27599159873090684
+        ]
+      },
+      {
+        "id": "starboard-armour",
+        "pivot": [
+          0.9500000000000002,
+          3.1799999999999997,
+          -0.6480277563773198
+        ],
+        "objects": [
+          "exterior/armour-starboard/lower-belt",
+          "exterior/armour-starboard/aft-maintenance-panel",
+          "exterior/armour-starboard/rear-cap",
+          "exterior/nav-light-1",
+          "exterior/communications/base",
+          "exterior/communications/mast",
+          "exterior/communications/head"
+        ],
+        "release": 36,
+        "velocity": [
+          3.1386394660454244,
+          1.702120218286291,
+          -0.13192740082740784
+        ],
+        "spin": [
+          0.0038184261647984385,
+          -0.021000268193893137,
+          0.13754730534739792
+        ]
+      },
+      {
+        "id": "port-auxiliary",
+        "pivot": [
+          -2.255,
+          2.7675,
+          -0.3849999999999999
+        ],
+        "objects": [
+          "propulsion/side-pod--1/body",
+          "propulsion/side-pod--1/support--0.15",
+          "propulsion/side-pod--1/support-0.99",
+          "propulsion/side-pod--1/band--0.15",
+          "propulsion/side-pod--1/band-0.99",
+          "propulsion/rcs--1--2.25/mount",
+          "propulsion/rcs--1-1.48/mount",
+          "propulsion/rcs--1--2.25/lateral-nozzle",
+          "propulsion/rcs--1-1.48/lateral-nozzle",
+          "propulsion/rcs--1--2.25/vertical-nozzle",
+          "propulsion/rcs--1-1.48/vertical-nozzle"
+        ],
+        "release": 40,
+        "velocity": [
+          -3.295587151218206,
+          0.5109970194753259,
+          0.5986272422596812
+        ],
+        "spin": [
+          0.12063956039492041,
+          0.23699044371023775,
+          -0.2574649125616998
+        ]
+      },
+      {
+        "id": "starboard-auxiliary",
+        "pivot": [
+          1.1574999999999998,
+          2.3975,
+          -0.3849999999999999
+        ],
+        "objects": [
+          "propulsion/side-pod-1/body",
+          "propulsion/side-pod-1/band--0.15",
+          "propulsion/side-pod-1/band-0.99",
+          "propulsion/side-pod-1/support--0.15",
+          "propulsion/side-pod-1/support-0.99",
+          "propulsion/underfloor-power-pack",
+          "propulsion/rcs-1--2.25/mount",
+          "propulsion/rcs-1-1.48/mount",
+          "propulsion/rcs-1--2.25/lateral-nozzle",
+          "propulsion/rcs-1-1.48/lateral-nozzle",
+          "propulsion/rcs-1--2.25/vertical-nozzle",
+          "propulsion/rcs-1-1.48/vertical-nozzle"
+        ],
+        "release": 41,
+        "velocity": [
+          1.4849419730249793,
+          1.1120299216825515,
+          0.2559011112898588
+        ],
+        "spin": [
+          0.0673514244845137,
+          0.32223629306536167,
+          0.30281809338368476
+        ]
+      },
+      {
+        "id": "mid-frame",
+        "pivot": [
+          0,
+          3.535,
+          -6.38
+        ],
+        "objects": [
+          "extension/structure/crew-underbody",
+          "extension/structure/crew-longeron--1",
+          "extension/structure/crew-longeron-1",
+          "extension/structure/hangar-crossbeam--7",
+          "extension/structure/hangar-crossbeam--10",
+          "extension/structure/hangar-forward-upper-wall",
+          "extension/structure/hangar-upright--1--7",
+          "extension/structure/hangar-upright-1--7",
+          "extension/structure/hangar-shoulder--1--7",
+          "extension/structure/hangar-shoulder-1--7",
+          "extension/structure/hangar-roof-crossbar--7"
+        ],
+        "release": 49,
+        "velocity": [
+          2.7762884054332972,
+          1.7747211295645684,
+          -0.7632102062925696
+        ],
+        "spin": [
+          0.0008767015533521771,
+          -0.11740679605863989,
+          0.22191836147569122
+        ]
+      },
+      {
+        "id": "starboard-quarters",
+        "pivot": [
+          0,
+          2.975,
+          -8.299999999999999
+        ],
+        "objects": [
+          "extension/interior/crew-floor",
+          "extension/interior/hangar-floor",
+          "extension/interior/crew-aisle",
+          "extension/interior/cutaway-partition/bunk-wall",
+          "extension/interior/cutaway-partition/bunk-lintel",
+          "extension/interior/airlock/side-1",
+          "extension/interior/airlock/door-jamb-1",
+          "extension/interior/airlock/header",
+          "extension/interior/airlock/threshold",
+          "extension/interior/airlock/sliding-leaf",
+          "extension/interior/airlock/sliding-stripe",
+          "extension/interior/bunk-0-0/frame",
+          "extension/interior/bunk-0-1/frame",
+          "extension/interior/bunk-1-0/frame",
+          "extension/interior/bunk-1-1/frame",
+          "extension/interior/bunk-0-0/mattress",
+          "extension/interior/bunk-0-1/mattress",
+          "extension/interior/bunk-1-0/mattress",
+          "extension/interior/bunk-1-1/mattress",
+          "extension/interior/bunk-0-0/pillow",
+          "extension/interior/bunk-0-1/pillow",
+          "extension/interior/bunk-1-0/pillow",
+          "extension/interior/bunk-1-1/pillow",
+          "extension/interior/bunk-0-0/headboard",
+          "extension/interior/bunk-0-1/headboard",
+          "extension/interior/bunk-1-0/headboard",
+          "extension/interior/bunk-1-1/headboard",
+          "extension/interior/bunk-0-0/retaining-strap",
+          "extension/interior/bunk-0-1/retaining-strap",
+          "extension/interior/bunk-1-0/retaining-strap",
+          "extension/interior/bunk-1-1/retaining-strap",
+          "extension/interior/bunk-0-0/reading-lamp",
+          "extension/interior/bunk-0-1/reading-lamp",
+          "extension/interior/bunk-1-0/reading-lamp",
+          "extension/interior/bunk-1-1/reading-lamp",
+          "extension/interior/bunk-support-0--1",
+          "extension/interior/bunk-support-0-1",
+          "extension/interior/bunk-support-1--1",
+          "extension/interior/bunk-support-1-1",
+          "extension/interior/bunk-ladder-0--1",
+          "extension/interior/bunk-ladder-0-1",
+          "extension/interior/bunk-ladder-1--1",
+          "extension/interior/bunk-ladder-1-1",
+          "extension/interior/bunk-rung-0-0",
+          "extension/interior/bunk-rung-0-1",
+          "extension/interior/bunk-rung-0-2",
+          "extension/interior/bunk-rung-0-3",
+          "extension/interior/bunk-rung-1-0",
+          "extension/interior/bunk-rung-1-1",
+          "extension/interior/bunk-rung-1-2",
+          "extension/interior/bunk-rung-1-3",
+          "extension/interior/crew/dresser",
+          "extension/interior/crew/drawer-1.84",
+          "extension/interior/crew/drawer-2.18",
+          "extension/interior/crew/drawer-2.52",
+          "extension/interior/crew/drawer-handle-1.84",
+          "extension/interior/crew/drawer-handle-2.18",
+          "extension/interior/crew/drawer-handle-2.52",
+          "extension/interior/crew/locker-light",
+          "extension/interior/cutaway-partition/label-CREW"
+        ],
+        "release": 49,
+        "velocity": [
+          2.4481114932801575,
+          0.9289359020534902,
+          0.9525421522557735
+        ],
+        "spin": [
+          0.17452987178694457,
+          -0.06126880457159132,
+          0.1420045090187341
+        ]
+      },
+      {
+        "id": "aft-frame",
+        "pivot": [
+          0,
+          3.535,
+          -10.2
+        ],
+        "objects": [
+          "extension/structure/hangar-underbody",
+          "extension/structure/hangar-longeron--1",
+          "extension/structure/hangar-longeron-1",
+          "extension/structure/hangar-crossbeam--13.55",
+          "extension/structure/hangar-upright--1--10.15",
+          "extension/structure/hangar-upright-1--10.15",
+          "extension/structure/hangar-upright--1--13.55",
+          "extension/structure/hangar-upright-1--13.55",
+          "extension/structure/hangar-shoulder--1--10.15",
+          "extension/structure/hangar-shoulder--1--13.55",
+          "extension/structure/hangar-shoulder-1--10.15",
+          "extension/structure/hangar-shoulder-1--13.55",
+          "extension/structure/hangar-roof-crossbar--10.15",
+          "extension/structure/hangar-roof-crossbar--13.55"
+        ],
+        "release": 46,
+        "velocity": [
+          2.3823500367812813,
+          1.5853031718637796,
+          -0.014367879368364811
+        ],
+        "spin": [
+          0.1944325795629993,
+          0.009790414199233056,
+          0.14081204946152864
+        ]
+      },
+      {
+        "id": "port-quarters",
+        "pivot": [
+          -1.2574376941012508,
+          2.92,
+          -4.7875000000000005
+        ],
+        "objects": [
+          "extension/interior/wetroom-crosswall",
+          "extension/interior/cutaway-partition/port-pier-0",
+          "extension/interior/cutaway-partition/port-pier-1",
+          "extension/interior/cutaway-partition/port-pier-2",
+          "extension/interior/cutaway-partition/port-pier-3",
+          "extension/interior/cutaway-partition/port-lintel",
+          "extension/interior/cutaway-partition/wetroom-door",
+          "extension/interior/cutaway-partition/wetroom-handle",
+          "extension/interior/airlock/side--1",
+          "extension/interior/airlock/door-jamb--1",
+          "extension/interior/wetroom/toilet-pedestal",
+          "extension/interior/wetroom/toilet-bowl",
+          "extension/interior/wetroom/toilet-seat",
+          "extension/interior/wetroom/cistern",
+          "extension/interior/wetroom/flush",
+          "extension/interior/wetroom/basin-cabinet",
+          "extension/interior/wetroom/basin-top",
+          "extension/interior/wetroom/basin",
+          "extension/interior/wetroom/tap",
+          "extension/interior/wetroom/mirror",
+          "extension/interior/wetroom/shower-tray",
+          "extension/interior/wetroom/shower-pipe",
+          "extension/interior/wetroom/shower-head",
+          "extension/interior/wetroom/shower-screen",
+          "extension/interior/wetroom/drain",
+          "extension/interior/galley/base",
+          "extension/interior/galley/counter",
+          "extension/interior/galley/cupboard--2.25",
+          "extension/interior/galley/cupboard--1.68",
+          "extension/interior/galley/cupboard--1.11",
+          "extension/interior/galley/handle--2.25",
+          "extension/interior/galley/handle--1.68",
+          "extension/interior/galley/handle--1.11",
+          "extension/interior/galley/hotplate",
+          "extension/interior/galley/kettle",
+          "extension/interior/galley/fridge",
+          "extension/interior/galley/fridge-handle",
+          "extension/interior/galley/fold-table",
+          "extension/interior/galley/table-brace",
+          "extension/interior/galley/bench",
+          "extension/interior/cutaway-partition/label-WC",
+          "extension/interior/cutaway-partition/label-GALLEY",
+          "extension/interior/airlock/label"
+        ],
+        "release": 48,
+        "velocity": [
+          -1.3980443194974215,
+          0.5239785917568952,
+          -0.34403722546994686
+        ],
+        "spin": [
+          -0.022647354402579367,
+          0.03958114290144295,
+          -0.20625606358982623
+        ]
+      },
+      {
+        "id": "crane",
+        "pivot": [
+          -0.03750000000000009,
+          5.282500000000001,
+          -10.22
+        ],
+        "objects": [
+          "hangar/crane/rail--1",
+          "hangar/crane/rail-1",
+          "hangar/crane/rail-stop--1--7.2",
+          "hangar/crane/rail-stop--1--13.22",
+          "hangar/crane/rail-stop-1--7.2",
+          "hangar/crane/rail-stop-1--13.22",
+          "hangar/crane/bridge",
+          "hangar/crane/trolley",
+          "hangar/crane/cable",
+          "hangar/crane/hook"
+        ],
+        "release": 44,
+        "velocity": [
+          -1.3682556258514524,
+          1.225769031001255,
+          -0.4208336500450969
+        ],
+        "spin": [
+          0.08519865770358592,
+          -0.11212753788568079,
+          -0.2549061598535627
+        ]
+      },
+      {
+        "id": "hangar-cargo",
+        "pivot": [
+          -0.050000000000000044,
+          2.5275000000000003,
+          -10.25
+        ],
+        "objects": [
+          "hangar/cargo/crate",
+          "hangar/cargo/lid",
+          "hangar/cargo/strap--1",
+          "hangar/cargo/strap-1",
+          "hangar/workshop/bench-base",
+          "hangar/workshop/bench-top",
+          "hangar/workshop/vice",
+          "hangar/workshop/tool-board",
+          "hangar/workshop/tool-0",
+          "hangar/workshop/tool-1",
+          "hangar/workshop/tool-2",
+          "hangar/workshop/tool-3",
+          "hangar/floor/lane--1.56",
+          "hangar/floor/lane-2.52",
+          "hangar/floor/tie-down--2.24--7.6",
+          "hangar/floor/tie-down--2.24--9.4",
+          "hangar/floor/tie-down--2.24--11.2",
+          "hangar/floor/tie-down--2.24--13",
+          "hangar/floor/tie-down-2.6--7.6",
+          "hangar/floor/tie-down-2.6--9.4",
+          "hangar/floor/tie-down-2.6--11.2",
+          "hangar/floor/tie-down-2.6--13",
+          "hangar/workshop/crane-console-body",
+          "hangar/workshop/crane-console-screen",
+          "hangar/workshop/crane-console-indicator",
+          "hangar/workshop/crane-emergency-stop",
+          "hangar/floor/front-stop-line"
+        ],
+        "release": 45,
+        "velocity": [
+          -2.6367980755399913,
+          1.6729378579650076,
+          -0.09672049432992935
+        ],
+        "spin": [
+          0.1978278550086543,
+          0.036909946729429065,
+          -0.12231507238931953
+        ]
+      },
+      {
+        "id": "port-engine",
+        "pivot": [
+          -3.78,
+          3.1,
+          -12.1175
+        ],
+        "objects": [
+          "extension/propulsion/cruise--1/pylon--8.3",
+          "extension/propulsion/cruise--1/pylon--12.65",
+          "extension/propulsion/cruise--1/casing",
+          "extension/propulsion/cruise--1/nozzle",
+          "extension/propulsion/cruise--1/exhaust-lip",
+          "extension/propulsion/cruise--1/intake",
+          "extension/propulsion/cruise--1/intake-hub",
+          "extension/propulsion/cruise--1/band--2.8",
+          "extension/propulsion/cruise--1/band-0.1",
+          "extension/propulsion/cruise--1/band-2.08",
+          "extension/propulsion/cruise--1/intake-spokes"
+        ],
+        "release": 38,
+        "velocity": [
+          -2.8885303334333003,
+          1.411268157279119,
+          -0.9395362483337522
+        ],
+        "spin": [
+          0.22459455172065645,
+          -0.1764921442605555,
+          -0.17908273267559707
+        ]
+      },
+      {
+        "id": "starboard-engine",
+        "pivot": [
+          3.78,
+          3.1,
+          -12.1175
+        ],
+        "objects": [
+          "extension/propulsion/cruise-1/casing",
+          "extension/propulsion/cruise-1/nozzle",
+          "extension/propulsion/cruise-1/exhaust-lip",
+          "extension/propulsion/cruise-1/intake",
+          "extension/propulsion/cruise-1/intake-hub",
+          "extension/propulsion/cruise-1/band--2.8",
+          "extension/propulsion/cruise-1/band-0.1",
+          "extension/propulsion/cruise-1/band-2.08",
+          "extension/propulsion/cruise-1/intake-spokes",
+          "extension/propulsion/cruise-1/pylon--8.3",
+          "extension/propulsion/cruise-1/pylon--12.65"
+        ],
+        "release": 39,
+        "velocity": [
+          2.76025553480722,
+          2.0526563425082713,
+          0.6927065905183554
+        ],
+        "spin": [
+          -0.022570372209884226,
+          0.22000072754453867,
+          0.17829546325840057
+        ]
+      },
+      {
+        "id": "port-lift-engines",
+        "pivot": [
+          -2.165,
+          2.9349999999999996,
+          -8.560000000000002
+        ],
+        "objects": [
+          "extension/propulsion/lift--1--4.9/bell",
+          "extension/propulsion/lift--1--11.5/bell",
+          "extension/propulsion/lift--1--4.9/mount",
+          "extension/propulsion/lift--1--11.5/mount",
+          "extension/propulsion/lift--1--4.9/throat",
+          "extension/propulsion/lift--1--11.5/throat",
+          "extension/propulsion/lift--1--4.9/brace--0.33",
+          "extension/propulsion/lift--1--11.5/brace--0.33",
+          "extension/propulsion/lift--1--4.9/brace-0.33",
+          "extension/propulsion/lift--1--11.5/brace-0.33",
+          "extension/propulsion/aft-rcs--1/mount",
+          "extension/propulsion/aft-rcs--1/side",
+          "extension/propulsion/aft-rcs--1/up",
+          "extension/propulsion/aft-rcs--1/aft"
+        ],
+        "release": 42,
+        "velocity": [
+          -2.389922297000885,
+          1.0211414377670736,
+          0.5295795435085893
+        ],
+        "spin": [
+          0.21544864505995065,
+          -0.29386187898926436,
+          -0.31517525448463857
+        ]
+      },
+      {
+        "id": "starboard-lift-engines",
+        "pivot": [
+          2.165,
+          2.9349999999999996,
+          -8.560000000000002
+        ],
+        "objects": [
+          "extension/propulsion/lift-1--4.9/bell",
+          "extension/propulsion/lift-1--11.5/bell",
+          "extension/propulsion/lift-1--4.9/mount",
+          "extension/propulsion/lift-1--11.5/mount",
+          "extension/propulsion/lift-1--4.9/throat",
+          "extension/propulsion/lift-1--11.5/throat",
+          "extension/propulsion/lift-1--4.9/brace--0.33",
+          "extension/propulsion/lift-1--11.5/brace--0.33",
+          "extension/propulsion/lift-1--4.9/brace-0.33",
+          "extension/propulsion/lift-1--11.5/brace-0.33",
+          "extension/propulsion/aft-rcs-1/mount",
+          "extension/propulsion/aft-rcs-1/side",
+          "extension/propulsion/aft-rcs-1/up",
+          "extension/propulsion/aft-rcs-1/aft"
+        ],
+        "release": 43,
+        "velocity": [
+          2.821057969843969,
+          1.8173456142190845,
+          0.03714485839009285
+        ],
+        "spin": [
+          -0.2456130712525919,
+          0.02678944563958794,
+          0.19090689768083394
+        ]
+      },
+      {
+        "id": "port-cargo-door",
+        "pivot": [
+          -1.3050000000000002,
+          3.6525000000000003,
+          -14.03375
+        ],
+        "objects": [
+          "hangar/gate/jamb--1",
+          "hangar/gate/leaf--1",
+          "hangar/gate/lamp-housing--1",
+          "hangar/gate/lamp--1"
+        ],
+        "release": 40,
+        "velocity": [
+          -2.988447308447212,
+          0.9093093798961491,
+          0.24499332066625357
+        ],
+        "spin": [
+          -0.005195514648221433,
+          0.07021840233355761,
+          -0.23218106071464717
+        ]
+      },
+      {
+        "id": "starboard-cargo-door",
+        "pivot": [
+          0,
+          3.74,
+          -14.026250000000001
+        ],
+        "objects": [
+          "hangar/gate/jamb-1",
+          "hangar/gate/leaf-1",
+          "hangar/gate/header",
+          "hangar/gate/threshold",
+          "hangar/gate/lamp-housing-1",
+          "hangar/gate/lamp-1",
+          "hangar/gate/identity"
+        ],
+        "release": 40.5,
+        "velocity": [
+          1.441245533199981,
+          1.9641501337755471,
+          0.9181612152606249
+        ],
+        "spin": [
+          0.1922419093316421,
+          0.10681350936647505,
+          0.23849920437671246
+        ]
+      },
+      {
+        "id": "quarters-port",
+        "pivot": [
+          -2.402327092632059,
+          2.815,
+          -4.574325876911033
+        ],
+        "objects": [
+          "extension/shell/crew-port/lower",
+          "extension/shell/crew-port/upper",
+          "extension/shell/crew-port/pier--3.46",
+          "extension/shell/crew-port/pier--4.98",
+          "extension/shell/crew-port/pier--6.5",
+          "extension/shell/crew-port/window--4.22",
+          "extension/shell/crew-port/window--5.74",
+          "extension/shell/crew-port/forward-transition",
+          "extension/shell/crew-port/stripe",
+          "extension/shell/crew-port/identity"
+        ],
+        "release": 46,
+        "velocity": [
+          -2.792234273068607,
+          1.627355607552454,
+          0.7973151104524732
+        ],
+        "spin": [
+          -0.14840953785460442,
+          0.3016475162934512,
+          -0.12323155052028596
+        ]
+      },
+      {
+        "id": "quarters-starboard",
+        "pivot": [
+          2.402327092632059,
+          2.815,
+          -4.574325876911033
+        ],
+        "objects": [
+          "extension/shell/crew-starboard/lower",
+          "extension/shell/crew-starboard/upper",
+          "extension/shell/crew-starboard/pier--3.46",
+          "extension/shell/crew-starboard/pier--4.98",
+          "extension/shell/crew-starboard/pier--6.5",
+          "extension/shell/crew-starboard/window--4.22",
+          "extension/shell/crew-starboard/window--5.74",
+          "extension/shell/crew-starboard/forward-transition",
+          "extension/shell/crew-starboard/stripe",
+          "extension/shell/crew-starboard/identity"
+        ],
+        "release": 47,
+        "velocity": [
+          1.648042169539258,
+          0.6473440310452133,
+          0.6091087609529495
+        ],
+        "spin": [
+          -0.19188471150118858,
+          0.2842092116596177,
+          0.294302125396207
+        ]
+      },
+      {
+        "id": "quarters-roof",
+        "pivot": [
+          0,
+          4.30732340349282,
+          -4.642221590325744
+        ],
+        "objects": [
+          "extension/shell/crew-roof/shoulder-port",
+          "extension/shell/crew-roof/shoulder-starboard",
+          "extension/shell/crew-roof/main",
+          "extension/shell/crew-roof/forward-transition",
+          "extension/shell/crew-roof/light-housing--4.2",
+          "extension/shell/crew-roof/light-housing--5.7",
+          "extension/shell/crew-roof/light--4.2",
+          "extension/shell/crew-roof/light--5.7"
+        ],
+        "release": 45,
+        "velocity": [
+          2.2561089497990907,
+          0.5446806696709245,
+          -0.42599294800311327
+        ],
+        "spin": [
+          0.14009026589337736,
+          -0.17176879150792956,
+          0.2986952141206711
+        ]
+      },
+      {
+        "id": "hangar-port",
+        "pivot": [
+          -2.8358116303923415,
+          3.555,
+          -10.44685785265399
+        ],
+        "objects": [
+          "extension/shell/hangar-port/lower",
+          "extension/shell/hangar-port/upper",
+          "extension/shell/hangar-port/pier--6.96",
+          "extension/shell/hangar-port/pier--10.23",
+          "extension/shell/hangar-port/pier--13.5",
+          "extension/shell/hangar-port/window--8.58",
+          "extension/shell/hangar-port/window--11.86",
+          "extension/shell/hangar-port/rear-chamfer"
+        ],
+        "release": 42,
+        "velocity": [
+          -2.331222558999434,
+          1.2505356949288398,
+          0.8361375313252211
+        ],
+        "spin": [
+          0.07411626481916755,
+          -0.008148255315609277,
+          -0.24423537471331658
+        ]
+      },
+      {
+        "id": "hangar-starboard",
+        "pivot": [
+          2.8358116303923415,
+          3.555,
+          -10.44685785265399
+        ],
+        "objects": [
+          "extension/shell/hangar-starboard/lower",
+          "extension/shell/hangar-starboard/upper",
+          "extension/shell/hangar-starboard/pier--6.96",
+          "extension/shell/hangar-starboard/pier--10.23",
+          "extension/shell/hangar-starboard/pier--13.5",
+          "extension/shell/hangar-starboard/window--8.58",
+          "extension/shell/hangar-starboard/window--11.86",
+          "extension/shell/hangar-starboard/rear-chamfer"
+        ],
+        "release": 43,
+        "velocity": [
+          2.7788534726947547,
+          1.5001011613290758,
+          -0.7661292990669608
+        ],
+        "spin": [
+          -0.22484837181400508,
+          -0.15347763649187982,
+          0.12478847264312207
+        ]
+      },
+      {
+        "id": "hangar-roof",
+        "pivot": [
+          0,
+          5.496421173298584,
+          -10.162375334348159
+        ],
+        "objects": [
+          "extension/shell/hangar-roof/shoulder-port",
+          "extension/shell/hangar-roof/shoulder-starboard",
+          "extension/shell/hangar-roof/main",
+          "extension/shell/hangar-roof/forward-transition",
+          "extension/shell/hangar-roof/light-housing--1.25--8.2",
+          "extension/shell/hangar-roof/light-housing--1.25--11.7",
+          "extension/shell/hangar-roof/light-housing-1.25--8.2",
+          "extension/shell/hangar-roof/light-housing-1.25--11.7",
+          "extension/shell/hangar-roof/light--1.25--8.2",
+          "extension/shell/hangar-roof/light--1.25--11.7",
+          "extension/shell/hangar-roof/light-1.25--8.2",
+          "extension/shell/hangar-roof/light-1.25--11.7",
+          "extension/shell/hangar-roof/thermal-frame--1",
+          "extension/shell/hangar-roof/thermal-frame-1",
+          "extension/shell/hangar-roof/thermal-surface--1",
+          "extension/shell/hangar-roof/thermal-surface-1",
+          "extension/shell/hangar-roof/thermal-rib--1-0",
+          "extension/shell/hangar-roof/thermal-rib--1-1",
+          "extension/shell/hangar-roof/thermal-rib--1-2",
+          "extension/shell/hangar-roof/thermal-rib--1-3",
+          "extension/shell/hangar-roof/thermal-rib--1-4",
+          "extension/shell/hangar-roof/thermal-rib--1-5",
+          "extension/shell/hangar-roof/thermal-rib-1-0",
+          "extension/shell/hangar-roof/thermal-rib-1-1",
+          "extension/shell/hangar-roof/thermal-rib-1-2",
+          "extension/shell/hangar-roof/thermal-rib-1-3",
+          "extension/shell/hangar-roof/thermal-rib-1-4",
+          "extension/shell/hangar-roof/thermal-rib-1-5",
+          "extension/shell/hangar-roof/sensor-base",
+          "extension/shell/hangar-roof/sensor-head"
+        ],
+        "release": 41,
+        "velocity": [
+          3.3454985918011517,
+          1.4762551757041367,
+          0.74584586545825
+        ],
+        "spin": [
+          -0.10966554016340524,
+          0.11023154261056334,
+          0.22366400931961833
+        ]
+      },
+      {
+        "id": "port-wing",
+        "pivot": [
+          -5.2075,
+          2.4450000000000003,
+          -10.983107537768383
+        ],
+        "objects": [
+          "aero/main-wing--1/airfoil",
+          "aero/main-wing--1/leading-edge",
+          "aero/main-wing--1/inboard-flap",
+          "aero/main-wing--1/outboard-aileron",
+          "aero/main-wing--1/flap-hinge",
+          "aero/main-wing--1/aileron-hinge",
+          "aero/main-wing--1/flap-actuator",
+          "aero/main-wing--1/tip-marker",
+          "aero/main-wing--1/navigation-light"
+        ],
+        "release": 30,
+        "velocity": [
+          -3.3790791536681355,
+          1.9692691573407501,
+          0.4100499590858817
+        ],
+        "spin": [
+          0.22007084323558956,
+          0.049881917983293535,
+          -0.26706933046691117
+        ]
+      },
+      {
+        "id": "starboard-wing",
+        "pivot": [
+          5.2075,
+          2.4450000000000003,
+          -10.983107537768383
+        ],
+        "objects": [
+          "aero/main-wing-1/flap-actuator",
+          "aero/main-wing-1/tip-marker",
+          "aero/main-wing-1/airfoil",
+          "aero/main-wing-1/leading-edge",
+          "aero/main-wing-1/inboard-flap",
+          "aero/main-wing-1/outboard-aileron",
+          "aero/main-wing-1/flap-hinge",
+          "aero/main-wing-1/aileron-hinge",
+          "aero/main-wing-1/navigation-light"
+        ],
+        "release": 32,
+        "velocity": [
+          1.4063628741074354,
+          1.5622993998695165,
+          -0.8516776021569967
+        ],
+        "spin": [
+          -0.04714860732201487,
+          0.10716070251073688,
+          0.2574741128180176
+        ]
+      },
+      {
+        "id": "port-tail",
+        "pivot": [
+          -3.775,
+          7.1,
+          -13.428384114791676
+        ],
+        "objects": [
+          "aero/tail--1/vertical-fin",
+          "aero/tail--1/rudder",
+          "aero/tail--1/rudder-hinge",
+          "aero/tail--1/horizontal-stabilizer",
+          "aero/tail--1/elevator",
+          "aero/tail--1/elevator-hinge",
+          "aero/tail--1/tip-cap"
+        ],
+        "release": 35,
+        "velocity": [
+          -2.91065006647259,
+          0.5822869583498687,
+          -0.6397003708407283
+        ],
+        "spin": [
+          -0.1969094293890521,
+          -0.06489577316679061,
+          -0.1481888400670141
+        ]
+      },
+      {
+        "id": "starboard-tail",
+        "pivot": [
+          3.775,
+          7.1,
+          -13.428384114791676
+        ],
+        "objects": [
+          "aero/tail-1/vertical-fin",
+          "aero/tail-1/rudder",
+          "aero/tail-1/rudder-hinge",
+          "aero/tail-1/horizontal-stabilizer",
+          "aero/tail-1/elevator",
+          "aero/tail-1/elevator-hinge",
+          "aero/tail-1/tip-cap"
+        ],
+        "release": 36,
+        "velocity": [
+          2.052826765133068,
+          1.7842101974878462,
+          -0.9956713244318962
+        ],
+        "spin": [
+          0.16520898591261357,
+          0.1369032333837822,
+          0.23784379151649773
+        ]
+      }
+    ]
+  },
+  "pilot": {
+    "seat": [
+      -0.92,
+      2.17,
+      1
+    ],
+    "scale": 0.9416558570133998
+  },
+  "tracks": {
+    "motion": {
+      "flight": [
+        {
+          "time": 0,
+          "at": [
+            -70,
+            0,
+            -65
+          ],
+          "angles": [
+            0.02,
+            0.1,
+            0.02
+          ]
+        },
+        {
+          "time": 10,
+          "at": [
+            -55,
+            1,
+            -10
+          ],
+          "angles": [
+            0.01,
+            0.1,
+            0.02
+          ]
+        },
+        {
+          "time": 18,
+          "at": [
+            -30,
+            3,
+            55
+          ],
+          "angles": [
+            0.01,
+            0.05,
+            0.01
+          ]
+        },
+        {
+          "time": 28,
+          "at": [
+            -10,
+            1,
+            108
+          ],
+          "angles": [
+            0.04,
+            -0.18,
+            -0.08
+          ]
+        },
+        {
+          "time": 36,
+          "at": [
+            13,
+            -2,
+            142
+          ],
+          "angles": [
+            0.1,
+            -0.5,
+            -0.2
+          ]
+        },
+        {
+          "time": 48,
+          "at": [
+            49,
+            -7,
+            175
+          ],
+          "angles": [
+            0.23,
+            -0.8,
+            -0.4
+          ]
+        },
+        {
+          "time": 60,
+          "at": [
+            92,
+            -15,
+            208
+          ],
+          "angles": [
+            0.35,
+            -1,
+            -0.7
+          ]
+        },
+        {
+          "time": 72,
+          "at": [
+            130,
+            -24,
+            230
+          ],
+          "angles": [
+            0.4,
+            -1.2,
+            -1
+          ]
+        }
+      ]
+    },
+    "camera": {
+      "shots": [
+        {
+          "id": "approach",
+          "title": "01 \u00b7 The approach",
+          "start": 0,
+          "end": 10,
+          "anchor": "ship",
+          "eye": [
+            [
+              0,
+              15,
+              -75
+            ],
+            [
+              0,
+              12,
+              -60
+            ]
+          ],
+          "target": [
+            [
+              15,
+              5,
+              18
+            ],
+            [
+              20,
+              5,
+              20
+            ]
+          ],
+          "fov": [
+            70,
+            70
+          ],
+          "roll": [
+            0,
+            0.02
+          ]
+        },
+        {
+          "id": "pilot",
+          "title": "02 \u00b7 Betterman at the controls",
+          "start": 10,
+          "end": 17,
+          "anchor": "cockpit",
+          "eye": [
+            [
+              -0.56,
+              3.1,
+              2.65
+            ],
+            [
+              -0.66,
+              3.04,
+              2.4
+            ]
+          ],
+          "target": [
+            [
+              -0.92,
+              2.8,
+              1.08
+            ],
+            [
+              -0.92,
+              2.82,
+              1.08
+            ]
+          ],
+          "fov": [
+            45,
+            39
+          ],
+          "roll": [
+            0,
+            0
+          ]
+        },
+        {
+          "id": "reveal",
+          "title": "03 \u00b7 Too close",
+          "start": 17,
+          "end": 27,
+          "anchor": "ship",
+          "eye": [
+            [
+              -12,
+              9,
+              -60
+            ],
+            [
+              -20,
+              9,
+              -55
+            ]
+          ],
+          "target": [
+            [
+              20,
+              6,
+              14
+            ],
+            [
+              20,
+              7,
+              14
+            ]
+          ],
+          "fov": [
+            72,
+            85
+          ],
+          "roll": [
+            -0.02,
+            0.05
+          ]
+        },
+        {
+          "id": "burn",
+          "title": "04 \u00b7 Escape burn",
+          "start": 27,
+          "end": 37,
+          "anchor": "ship",
+          "eye": [
+            [
+              -45,
+              16,
+              -60
+            ],
+            [
+              -48,
+              16,
+              -64
+            ]
+          ],
+          "target": [
+            [
+              10,
+              5,
+              5
+            ],
+            [
+              8,
+              5,
+              5
+            ]
+          ],
+          "fov": [
+            65,
+            72
+          ],
+          "roll": [
+            -0.02,
+            -0.08
+          ],
+          "shake": 0.035
+        },
+        {
+          "id": "breakup",
+          "title": "05 \u00b7 Structural failure",
+          "start": 37,
+          "end": 46,
+          "anchor": "ship",
+          "eye": [
+            [
+              37,
+              23,
+              -56
+            ],
+            [
+              50,
+              28,
+              -66
+            ]
+          ],
+          "target": [
+            [
+              0,
+              3,
+              -2
+            ],
+            [
+              0,
+              2,
+              -4
+            ]
+          ],
+          "fov": [
+            65,
+            74
+          ],
+          "roll": [
+            0.07,
+            -0.05
+          ],
+          "shake": 0.055
+        },
+        {
+          "id": "last-call",
+          "title": "06 \u00b7 Last transmission",
+          "start": 46,
+          "end": 56,
+          "anchor": "cockpit",
+          "eye": [
+            [
+              -0.6,
+              3.08,
+              2.5
+            ],
+            [
+              -0.45,
+              3.13,
+              2.72
+            ]
+          ],
+          "target": [
+            [
+              -0.92,
+              2.8,
+              1.1
+            ],
+            [
+              -0.92,
+              2.8,
+              1.1
+            ]
+          ],
+          "fov": [
+            43,
+            46
+          ],
+          "roll": [
+            -0.04,
+            0.06
+          ],
+          "shake": 0.018
+        },
+        {
+          "id": "silence",
+          "title": "07 \u00b7 Last light",
+          "start": 56,
+          "end": 72,
+          "anchor": "world",
+          "eye": [
+            [
+              -15,
+              95,
+              -8
+            ],
+            [
+              -25,
+              112,
+              -28
+            ]
+          ],
+          "target": [
+            [
+              120,
+              10,
+              228
+            ],
+            [
+              125,
+              12,
+              245
+            ]
+          ],
+          "fov": [
+            65,
+            72
+          ],
+          "roll": [
+            -0.04,
+            0
+          ]
+        }
+      ]
+    },
+    "narration": {
+      "cues": [
+        {
+          "start": 1,
+          "end": 5,
+          "speaker": "",
+          "text": "LARK\u20134C  /  LAST LIGHT"
+        },
+        {
+          "start": 10.8,
+          "end": 15,
+          "speaker": "BETTERMAN",
+          "text": "LARK\u20134C. Navigation check. Holding course."
+        },
+        {
+          "start": 18,
+          "end": 23,
+          "speaker": "FLIGHT COMPUTER",
+          "text": "Caution. Gravitational gradient increasing."
+        },
+        {
+          "start": 25,
+          "end": 29,
+          "speaker": "BETTERMAN",
+          "text": "That is not a shadow. Full reverse thrust."
+        },
+        {
+          "start": 30,
+          "end": 34,
+          "speaker": "FLIGHT COMPUTER",
+          "text": "Tidal load exceeded. Port wing separation."
+        },
+        {
+          "start": 37.4,
+          "end": 42,
+          "speaker": "BETTERMAN",
+          "text": "Mayday. LARK\u20134C. We are losing the ship."
+        },
+        {
+          "start": 47,
+          "end": 52,
+          "speaker": "BETTERMAN",
+          "text": "If anyone can hear this\u2014"
+        },
+        {
+          "start": 56.5,
+          "end": 60,
+          "speaker": "",
+          "text": "SIGNAL LOST"
+        },
+        {
+          "start": 68,
+          "end": 72,
+          "speaker": "",
+          "text": "LAST LIGHT"
+        }
+      ]
+    }
+  }
+}

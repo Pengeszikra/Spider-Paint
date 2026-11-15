@@ -106,6 +106,9 @@
           "items": {
             "$ref": "#/$defs/object"
           }
+        },
+        "environment": {
+          "$ref": "#/$defs/environment"
         }
       },
       "required": [
@@ -178,6 +181,9 @@
             "cues"
           ],
           "additionalProperties": false
+        },
+        "animation": {
+          "$ref": "#/$defs/animation"
         }
       },
       "required": [
@@ -258,6 +264,14 @@
           "type": "number",
           "minimum": -90,
           "maximum": 90
+        },
+        "roll": {
+          "type": "number"
+        },
+        "fov": {
+          "type": "number",
+          "minimum": 5,
+          "maximum": 150
         }
       },
       "required": [
@@ -657,6 +671,323 @@
         "name"
       ],
       "additionalProperties": true
+    },
+    "cloud": {
+      "type": "object",
+      "properties": {
+        "unit": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "n": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "p": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "r": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "c": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 16777215
+          }
+        },
+        "l": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      },
+      "required": [
+        "unit",
+        "n",
+        "p",
+        "r",
+        "c",
+        "l"
+      ],
+      "additionalProperties": false
+    },
+    "environmentInstance": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "proto": {
+          "type": "string",
+          "minLength": 1
+        },
+        "at": {
+          "$ref": "#/$defs/vec3"
+        },
+        "scale": {
+          "oneOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "object",
+              "additionalProperties": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            }
+          ]
+        },
+        "mats": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "glow": {
+          "type": "number"
+        },
+        "glowColor": {
+          "type": "string",
+          "minLength": 1
+        },
+        "color": {
+          "type": "string",
+          "minLength": 1
+        },
+        "far": {
+          "type": "boolean"
+        },
+        "rot": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "number"
+          }
+        },
+        "pickable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "proto",
+        "at",
+        "scale"
+      ],
+      "additionalProperties": false
+    },
+    "environment": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "const": "3draft-scene"
+        },
+        "version": {
+          "enum": [
+            1,
+            2
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "prototypes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "lods": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "$ref": "#/$defs/mesh"
+                }
+              },
+              "halo": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "lods"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "objects": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/environmentInstance"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "mesh": {
+                    "$ref": "#/$defs/mesh"
+                  }
+                },
+                "required": [
+                  "name",
+                  "mesh"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "cloud": {
+          "$ref": "#/$defs/cloud"
+        },
+        "vehicle": {
+          "enum": [
+            "none",
+            "starship",
+            "car",
+            null
+          ]
+        },
+        "view": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "format",
+        "version",
+        "objects"
+      ],
+      "additionalProperties": false
+    },
+    "animation": {
+      "type": "object",
+      "properties": {
+        "timesMs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "channels": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "matrices": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "minItems": 12,
+                  "maxItems": 12,
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              }
+            },
+            "required": [
+              "id",
+              "matrices"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "bindings": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "object": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "channel": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "object",
+                  "channel"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "object": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "weights": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 4,
+                      "items": {
+                        "type": "array",
+                        "prefixItems": [
+                          {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          {
+                            "type": "number",
+                            "minimum": 0
+                          }
+                        ],
+                        "minItems": 2,
+                        "maxItems": 2
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "object",
+                  "weights"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        }
+      },
+      "required": [
+        "timesMs",
+        "channels",
+        "bindings"
+      ],
+      "additionalProperties": false
     }
   }
 }

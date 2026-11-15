@@ -164,6 +164,9 @@
     #hud[hidden] { display: none; }
     #frame canvas { display: block; }
     #frame canvas[hidden] { display: none; }
+    /* A cinematic story draws the native sky behind its opaque animated foreground. */
+    #frame.story-sky > #gpu, #frame.story-sky > #gl { position: relative; z-index: 1; }
+    #frame.story-sky > #hole, #frame.story-sky > #cloud, #frame.story-sky > #glow { z-index: 0; }
     #layer { position: absolute; inset: 0; }
     #layer:not(.over) { position: static; }
     #stage svg { display: block; max-width: 100%; }
@@ -809,7 +812,7 @@
         <option value="tr74">TR-74 expedition module</option>
         <option value="station-screen">Station screen (a scene on a face)</option>
         <optgroup label="sky catalogues (format 3draft-sky: sky.md)"><option value="sky:trappist-1">TRAPPIST-1 (7 planets, 40 ly)</option></optgroup>
-        <optgroup label="stories (a recorded build)"><option value="story:lark-4">Story: LARK–4C lander build (746 steps)</option><option value="story:spider-build-example">Story: independent tracks (3 steps)</option></optgroup>
+        <optgroup label="stories"><option value="story:lark-4c-accident">Story: LARK–4C / LAST LIGHT</option><option value="story:lark-4">Story: LARK–4C lander build (746 steps)</option><option value="story:spider-build-example">Story: independent tracks (3 steps)</option></optgroup>
         <optgroup id="savedGroup" label="saved here" hidden></optgroup></select>
           <button id="mergeSw" type="button" class="sw on" title="Loading a scene (the list, f↑): on adds it to what is there, off clears the scene first and loads it alone"><i></i>merge</button>
           <select id="vehicle" aria-label="Vehicle: how the camera moves" title="Vehicle: how the camera moves in this scene. starship: T / Tab only turn the ship, it keeps its speed, brakes to the target's surface, 0 orbit / gravity. car: drives on the ground (two fingers: sideways the wheel, up / down the throttle). A scene file may set it (vehicle)">
@@ -891,7 +894,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@a1b5f843cffc326e08cfc9d0d11d817dca234f17/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@847a7f99274b97dab2ed137495e24114195abd56/dist/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
@@ -1060,6 +1063,7 @@
     // local origin (the middle of its base) carries the grid (the plane under it) and the camera looks at that point.
     let bench = null; // { origin: [x, y, z], base: history length at the start, cam: the view to return to }
     let rebuilds = 0; // how many times the scene was merged (debug: __3draft.sky())
+    let storySkin = null; // stable bind geometry; only animation matrices change during a cinematic story
     let holdRebuild = 0; // inside asOneStep the scene is merged once at the end, not after every object
     let rebuildWanted = false;
     const rebuild = () => {
@@ -1069,6 +1073,7 @@
       if (solo && !objs.some((o) => o.id === solo)) solo = null;
       if (solo) objs = objs.filter((o) => o.id === solo);
       if (skinned()) objs = objs.filter((o) => !posing.ids.has(o.id)); // the posed figure is drawn as a GPU skin, not from the scene
+      if (storySkin && mode === 'gpu' && gpu) objs = objs.filter((o) => !storySkin.names.has(o.name) && !isHole(o.inst));
       if (!skyShow.mine || !skyShow.iau) objs = objs.filter((o) => !o.skyLine || skyShow[o.skyLine]); // the sky switches
       let n = 0;
       owners = objs.map((o) => ({ obj: o, start: n, end: (n += o.mesh.faces.length) }));
@@ -2121,7 +2126,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@a1b5f843cffc326e08cfc9d0d11d817dca234f17/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@847a7f99274b97dab2ed137495e24114195abd56/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -2650,7 +2655,9 @@
       const ease1 = 1 - Math.exp(-dtDraw * 9);
       lastDraw = performance.now();
       if (SHOW && !frozen && !travel && !fly) ((yaw += dtDraw * SHOW_SPIN), redraw()); // the turntable: round the model's middle, like A / D on a target
-      const fovGoal = space() ? SPACE_FOV : fly && eyeInScene() ? INSIDE_FOV : FOV0; // the wide lens only once the eye is really in the scene: starting a flight must not change the picture (in space one lens all the time)
+      const storyFov = story?.cameraFov;
+      const fovGoal = storyFov ?? (space() ? SPACE_FOV : fly && eyeInScene() ? INSIDE_FOV : FOV0); // a story's recorded lens is independent of flight controls
+      if (storyFov !== undefined) fovNow = storyFov;
       fovNow += (fovGoal - fovNow) * (fly ? 1 - Math.exp(-dtDraw * 2.2) : ease1); // the lens opens slowly: a quick zoom-out looks like a jump
       if (Math.abs(fovGoal - fovNow) < 1e-3) fovNow = fovGoal;
       else queued || redraw();
@@ -2911,6 +2918,7 @@
       }
 
       frame.style.width = frame.style.height = `${size}px`;
+      frame.classList.toggle('story-sky', Boolean(storySkin && story?.doc.scene.environment && mode === 'gpu' && gpu));
       if (mode === 'gpu' && gpu) {
         canvas.style.width = canvas.style.height = `${size}px`;
         const bg = getComputedStyle(document.documentElement).getPropertyValue('--panel').trim();
@@ -2938,6 +2946,7 @@
             logDepth: sky ? 1e12 : 0,
             planets: shaderPlanets,
             background: rgb,
+            transparent: Boolean(storySkin && story?.doc.scene.environment),
             glow: filmic,
             smooth: smooth ? 40 : 0,
             studio,
@@ -3112,6 +3121,7 @@
           modeEl.title = String(info.message ?? info.reason);
           backends[kind] = null;
           if (posing) showPose(posing.pose);
+          if (story?.doc.tracks.animation) stShow(story.t, true);
           redraw();
         });
         return entry;
@@ -3155,6 +3165,7 @@
         btn.classList.toggle('on', mode === 'gpu');
       }
       if (posing) showPose(posing.pose); // the figure moves over to a GPU skin, or back to CPU-bent meshes
+      if (story?.doc.tracks.animation) stShow(story.t, true);
       redraw();
     };
     // G / the button: svg -> webgpu -> webgl2 -> svg (without WebGPU: svg -> webgl2 -> svg)
@@ -3771,6 +3782,7 @@
     let renderOrigin = null;
     let shiftCache = { mesh: null, o: null, out: null };
     const pickOrigin = () => {
+      if (storySkin) return (renderOrigin = null); // animation channels already use the story's local metre frame
       if (!space() || drive()) return (renderOrigin = null);
       const e = eyeNow();
       let best = null, bd = Infinity;
@@ -5284,7 +5296,7 @@
       return ((hi - lo) * gcam.k) / dist;
     };
     const skinned = () => Boolean(posing && mode === 'gpu' && gpu);
-    const skinNow = () => (skinned() ? { meshes: posing.bind, weights: posing.rig.skin, bones: posing.bones } : undefined);
+    const skinNow = () => storySkin ?? (skinned() ? { meshes: posing.bind, weights: posing.rig.skin, bones: posing.bones } : undefined);
     let poseHint = ''; // a note of pose mode, or why J did nothing
     let objNote = ''; // a line for the object selection (outside edit mode)
     const noteObj = (text) => {
@@ -7940,19 +7952,27 @@
       story.t = Math.max(0, Math.min(t, doc.timeline.durationMs));
       const index = storyFormat.constructionIndexAtTime(doc, story.t);
       const key = `${index}|${story.cutaway}|${story.focus}`;
-      if (force || key !== story.loadedKey) {
+      const cpuAnimation = doc.tracks.animation && (mode !== 'gpu' || !gpu);
+      if (force || key !== story.loadedKey || cpuAnimation) {
         let objects = storyFormat.constructionAt(doc, story.t);
         if (story.cutaway) objects = objects.filter((o) => !stMatch(o.name, doc.presentation?.cutaway?.excludePrefixes));
         const v = doc.presentation?.views?.find((x) => x.id === story.focus);
         if (v) objects = objects.filter((o) => stMatch(o.name, v.includePrefixes) && !stMatch(o.name, v.excludePrefixes));
+        storySkin = cpuAnimation ? null : storyFormat.animationSkin(doc, objects);
+        if (cpuAnimation) objects = storyFormat.sceneAt(doc, story.t).filter((o) => objects.some((b) => b.name === o.name));
         applyScene({ objects });
         story.loadedKey = key;
         story.count = objects.length;
       }
       story.index = index;
+      if (storySkin) storyFormat.animationAt(doc, story.t, storySkin.bones);
       if (stOn('stCam') && !story.cutaway && !story.focus) {
         const c = storyFormat.cameraAt(doc, story.t);
         lookFrom(c.eye, c.yaw, c.pitch);
+        roll = ((c.roll ?? 0) * Math.PI) / 180;
+        story.cameraFov = c.fov === undefined ? undefined : (c.fov * Math.PI) / 180;
+      } else {
+        story.cameraFov = undefined;
       }
       // the narration of the moment: the chapter's text, the operation captions (and voiceover) under the view
       const cues = storyFormat.narrationAt(doc, Math.min(story.t, Math.max(0, doc.timeline.durationMs - 0.001)));
@@ -7964,10 +7984,10 @@
       stEl('stCapTitle').textContent = ch?.title ?? '';
       stEl('stCapText').textContent = op;
       stEl('stChapterText').textContent = text ? said((c) => c.channel === 'chapter') : 'Narration is off.';
-      stEl('stAction').textContent = text ? op || (index ? 'Construction in progress.' : 'The scene is empty.') : `${index} construction steps applied.`;
+      stEl('stAction').textContent = text ? op || (doc.tracks.animation ? 'Animated scene.' : index ? 'Construction in progress.' : 'The scene is empty.') : `${index} construction steps applied.`;
       stEl('stChapter').value = ch?.id ?? '';
       const steps = doc.tracks.construction.steps;
-      stEl('stMeta').textContent = `${index} / ${steps.length} steps · ${story.count ?? 0} objects · ${stFmt(story.t)} / ${stFmt(doc.timeline.durationMs)} · ${doc.metadata.units ?? ''}`;
+      stEl('stMeta').textContent = `${doc.tracks.animation ? `${doc.tracks.animation.channels.length} animation channels` : `${index} / ${steps.length} steps`} · ${story.count ?? 0} objects · ${stFmt(story.t)} / ${stFmt(doc.timeline.durationMs)} · ${doc.metadata.units ?? ''}`;
       const step = steps[index - 1];
       if (step) {
         const args = { ...step.command?.args };
@@ -7980,7 +8000,7 @@
       if (document.activeElement !== slider) slider.value = String(story.t);
       stEl('stClock').textContent = `${stFmt(story.t)} / ${stFmt(doc.timeline.durationMs)}`;
       stEl('stPrev').disabled = story.t === 0;
-      stEl('stNext').disabled = index === steps.length;
+      stEl('stNext').disabled = doc.tracks.animation ? story.t >= doc.timeline.durationMs : index === steps.length;
       for (const b of stEl('stViews').querySelectorAll('[data-view]')) {
         const v = doc.presentation?.views?.find((x) => x.id === b.dataset.view);
         if (v) b.disabled = story.t < (v.availableFromMs ?? 0);
@@ -8028,6 +8048,10 @@
     // a step: the next step's time; back: the time of the group before (steps of one timestamp are one group)
     const stStep = (dir) => {
       if (!story) return;
+      if (story.doc.tracks.animation) {
+        const times = story.doc.chapters.map((c) => c.startMs);
+        return stSeek(dir > 0 ? times.find((t) => t > story.t) ?? story.doc.timeline.durationMs : times.filter((t) => t < story.t).at(-1) ?? 0);
+      }
       const steps = story.doc.tracks.construction.steps;
       if (dir > 0) return stSeek(steps[story.index]?.timeMs ?? story.doc.timeline.durationMs);
       const before = steps.filter((x) => x.timeMs < (steps[story.index - 1]?.timeMs ?? 0));
@@ -8068,7 +8092,8 @@
       }
       if (story) await closeStory(false);
       setVehicle(null);
-      await loadScene({ palette: doc.scene.palette ?? [], objects: [] }, true);
+      await loadScene({ ...doc.scene.environment, palette: doc.scene.palette ?? [], objects: doc.scene.environment?.objects ?? [], vehicle: null }, true);
+      renderOrigin = null;
       story = { doc, base, t: 0, index: -1, playing: false, last: 0, loadedKey: '', cutaway: false, focus: null, raf: 0, count: 0 };
       document.body.classList.add('story');
       stEl('stTitle').textContent = doc.metadata.title ?? 'Story';
@@ -8090,8 +8115,11 @@
       stPause();
       stAudioStop();
       stAudio.clear();
-      const model = keep ? storyFormat.constructionAt(story.doc, story.t) : [];
+      const model = keep ? storyFormat.sceneAt(story.doc, story.t) : [];
+      const environment = story.doc.scene.environment;
+      const palette = story.doc.scene.palette;
       story = null;
+      storySkin = null;
       document.body.classList.remove('story');
       stEl('storyCaption').hidden = true;
       storyPanelEl.hidden = true;
@@ -8099,7 +8127,7 @@
       applyScene({ objects: [] });
       if (model.length) {
         const eye = eyeNow(), y = (yaw * 180) / Math.PI, p = (pitch * 180) / Math.PI;
-        await loadScene({ objects: model }, true);
+        await loadScene({ ...environment, palette, objects: [...(environment?.objects ?? []), ...model], vehicle: null }, true);
         lookFrom(eye, y, p);
       }
     };
@@ -8170,7 +8198,8 @@
       globalThis.__3draft = {
         load: (data) => applyScene(data),
         pickFault: () => (picker.worker?.postMessage({ type: 'pick', ver: picker.ver, cam: null, x: 0, y: 0, cull: true, key: 'fault' }), Boolean(picker.worker)), // (a test: a broken question)
-        story: () => (story ? { title: story.doc.metadata.title, t: story.t, durationMs: story.doc.timeline.durationMs, index: story.index, total: story.doc.tracks.construction.steps.length, objects: story.count, playing: story.playing, cutaway: story.cutaway, focus: story.focus } : null),
+        story: () => (story ? { title: story.doc.metadata.title, t: story.t, durationMs: story.doc.timeline.durationMs, index: story.index, total: story.doc.tracks.construction.steps.length, objects: story.count, playing: story.playing, cutaway: story.cutaway, focus: story.focus, animationChannels: story.doc.tracks.animation?.channels.length ?? 0, bones: storySkin ? Array.from(storySkin.bones) : null } : null),
+        openStory: (data) => openStory(data),
         xr: () => ({ on: Boolean(xrState.session), mono: Boolean(xrState.mono), pressed: xrState.pressed, note: xrNote?.textContent }),
         flight: () => ({ roll: +roll.toFixed(4), vehicle, car: car && { p: car.p, heading: car.heading, v: car.v, steer: car.steer, throttle: car.throttle }, orbit: orbit?.phase ?? null, gravity: gravity && { name: gravity.name }, cruise: { ...cruise }, space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
         aim: () => (aim ? { name: aim.obj.name, px: +aim.px.toFixed(1), depth: aim.depth } : null), under: () => hitObj()?.name ?? null, locked: () => lockedObject()?.name ?? null,
@@ -8292,7 +8321,7 @@
             redraw();
           } else if (c.cmd === 'vehicle') setVehicle(c.vehicle === 'none' ? null : c.vehicle);
           else if (c.cmd === 'scene') await loadScene(c.scene, Boolean(c.replace)); // view_sky: a sky catalogue made into a scene by the server
-          else if (c.cmd === 'example') await (c.replace ? withLoader(c.name, async () => loadScene(await sceneOf(c.name), true)) : addExample(c.name));
+          else if (c.cmd === 'example') await (c.replace && !c.name.startsWith('story:') ? withLoader(c.name, async () => loadScene(await sceneOf(c.name), true)) : addExample(c.name));
           reportView();
         } catch (err) {
           liveEl.textContent = 'bad command';
@@ -8787,7 +8816,7 @@
     draw();
     window.__ready = true;
     // works offline once opened (not in an artifact, nor from a file)
-    if (!EMBED && 'serviceWorker' in navigator && location.protocol.startsWith('http') && !globalThis.claude?.use) navigator.serviceWorker.register('sw.js').catch(() => {}); // the engine and the page script both ran (the watchdog below looks at this)
+    if (!EMBED && 'serviceWorker' in navigator && location.protocol.startsWith('http') && !globalThis.claude?.use) navigator.serviceWorker.register('sw.js').catch(() => {});
     // Leaving by accident: the browser asks first (closing the tab, reloading, typing another address) once something has been made
     // or changed here, and the back button / back gesture (the phone app's back key too) needs pressing twice within two seconds.
     if (!EMBED && !SHOW) {

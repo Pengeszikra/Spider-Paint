@@ -73,6 +73,13 @@ Then ask it for the viewer's URL and open it. Everything else, also the full too
 
 ## Replay a model's construction
 
+[LARK–4C / LAST LIGHT](models/lark-4c-accident.html) is a silent, 72-second native Story
+starring Betterman, with cinematic cameras and the lander's staged breakup beside a
+Deep Sky black hole. Choose **+ scene → stories → LARK–4C / LAST LIGHT**, or load the
+[self-contained story file](models/lark-4c-accident.build.json) with **f↑**. It includes
+one native black hole and a compact background, with no planets or audio.
+See the [scene notes](models/lark-4c-accident.md).
+
 [Spider Build v2](models/spider-build-v2.md) saves a model's complete recorded construction
 history in a `.build.json` file, with independent camera and English narration tracks.
 Open one from the **+ scene** list (*stories*) or with **f↑**: Spider Paint turns into a player (play, steps, time slider, recorded camera, captions, a story panel). The [LARK–4C tutorial player](models/lark-4-tutorial.html) supports playback, timeline

@@ -5,9 +5,18 @@ A minimal 3D scene builder. Fly through a scene, build with solid prisms, and ed
 [Open the keyboard map](#keys) · [The sky guide (a new tab): flying among the stars, and making your own space scene](sky.html)
 
 
-## Stories (a recorded build)
+## Stories (recorded builds and animated scenes)
 
-A **story** (a Spider Build file, `.build.json`) is a recorded build: how a model was put together step by step, with its own camera moves and narration. Load one from the **+ scene** list (the *stories* group) or with **f↑**. While a story is open the console becomes a player: the scene and system controls give way and the **xr** group holds
+A **story** (a Spider Build file, `.build.json`) is a recorded build: how a model was put together step by step, with its own camera moves and narration. Load one from the **+ scene** list (the *stories* group) or with **f↑**. While a story is open the console becomes a player: the scene and system controls give way to the playback controls.
+
+Stories can also contain an animated scene, with moving objects and characters, cinematic
+cameras and a compact native environment. Their camera and captions stay independent
+of object motion. A Deep Sky black hole keeps its usual accretion and light-bending effect.
+Only audio supplied by the story plays; silent stories create no sound. For an animated
+story the step arrows jump between chapters/shots. **✕** retains the objects in their
+current animated poses for ordinary editing. A `?scene=story:name` link opens a bundled Story.
+
+The controls are:
 
 - ⏮ the beginning, ◀ one step back, ▶ / ❚❚ play and pause, ▶ one step forward, ⏭ the finished model, and the speed (0.5–8×)
 - the **time slider**: drag to any moment; going back rebuilds exactly what was there

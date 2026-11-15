@@ -68,6 +68,24 @@ the retained v1 authoring journal. Copy edited v2 tracks to another file before 
 
 ## The MCP server
 
+### LARK–4C cinematic story
+
+`models/lark-4c-accident.build.json` is the silent native **LAST LIGHT** Story, available
+in the stories scene list, f↑, and `?scene=story:lark-4c-accident`. It embeds one Deep Sky hole
+prototype/instance and 2,048 background points in `scene.environment`; no planets or audio.
+Its optional `tracks.animation` stores sampled affine matrices and rigid/skin bindings.
+Camera poses independently include lens and bank. These capabilities are implemented in
+3Draft's `app/story.js` and `app/index.html` and are copied here by the sync. The renderer's
+transparent-background option places the native sky behind opaque animated foregrounds.
+
+Rebuild with `node scripts/lark-4c-accident/build.mjs`, then run its `test.mjs` with
+`node --test` and `browser-test.py` with the local server on port 5173. The `.scene.json`
+is the editable opening; leaving story mode retains the deformed vessel and native sky.
+The old `.html` movie URL redirects to the native Story; there is no separate film player.
+The original LARK construction tutorial is unchanged. Scene notes are in
+`models/lark-4c-accident.md`. Use `node scripts/sync.mjs ../3Draft --local-engine` only for
+local checks against `/3draft/dist/index.js`; the normal release sync always pins the CDN.
+
 `node mcp/server.js` (stdio): the same server as 3Draft's, see `MCP.md`. Sync copies it with three path changes (`../dist/` -> `./engine/`, `../app/serve.js` -> `./serve.js`, the server's name) and the runtime files of `dist/` (no tests, no `.d.ts`). The live viewer is served by `mcp/serve.js`: `/?live` is Spider Paint listening to the MCP scene and the `view_*` commands (`/events`, `/viewer-state`; `sw.js` leaves these alone), `/3draft/app/` the 3Draft viewer from `3DRAFT_DIR` or a sibling `../3Draft` / `../3draft`. The page loads the engine from jsDelivr like on the web, so the pinned commit must be pushed.
 
 ## Running and testing locally

@@ -94,8 +94,9 @@ keyframe** from the previous keyframe, or from the initial pose at time zero:
 
 The last pose holds to the end. A frame at time zero replaces the initial pose immediately.
 Insert a duplicate pose at the intended movement start to create a stationary hold.
-Roll, field-of-view animation and splines are outside v2; the current Spider bridge
-supports eye/yaw/pitch. A player must reject unsupported format versions.
+Native Stories additionally supports optional `roll` and `fov` values in degrees;
+the original debug-bridge tutorial player uses eye/yaw/pitch only. Splines are outside
+v2. A player must reject unsupported format versions.
 
 ## Narration
 
@@ -150,6 +151,36 @@ node --test scripts/spider-build.test.mjs
 Open `http://localhost:5173/models/lark-4-tutorial.html`. To load another recording, use
 `?file=spider-build-example.build.json`. The player also accepts a v1 log and converts it
 in memory. Native `.scene.json` files remain geometry snapshots and are unchanged.
+
+## Native animation and Deep Sky environments
+
+The native Stories player accepts optional `scene.environment` and `tracks.animation`
+sections. Existing build-only files remain valid. An environment is an embedded native
+`3draft-scene` with its prototype instances and optional point cloud; its materials belong
+in the story's main `scene.palette`. This retains `bh-core` instances as native black holes,
+so Spider draws its existing ray-traced accretion and lensing. Embed only the environment
+subset needed for the scene.
+
+`tracks.animation` contains `timesMs` (strictly increasing, beginning at zero), `channels`
+and `bindings`. Each channel has an `id` and one `matrices` entry per sample time. Each
+matrix contains 12 finite numbers: three row-major rows `[x, y, z, translation]` of an affine
+transform. Adjacent captured matrices interpolate linearly; out-of-range times hold the
+nearest pose. Capture rotations densely enough to preserve their shape during blending.
+All channels share the animation clock, independently of construction, camera and
+narration. The GPU supports at most 64 channels.
+
+A binding uses `{ "object": "wing", "channel": "port-wing" }` for a rigid part.
+A skinned binding instead has `weights`: one array per vertex, containing one to four
+`[channelId, weight]` pairs summing to one. Its vertex count must remain compatible across
+construction replacements. Bindings reference the original meshes in the story assets.
+The native player uploads these once and updates only the matrices. `sceneAt(doc, timeMs)`
+creates editable geometry at a moment, triangulating flexible faces. Leaving Stories
+retains this deformed geometry and the native environment.
+
+Camera poses may additionally contain `roll` and `fov`, both in degrees. Lens values must
+be between 5 and 150 degrees. They interpolate independently of motion; cuts still switch
+immediately. See [LARK–4C / LAST LIGHT](lark-4c-accident.md) for a silent example using
+these sections. Its complete recording is `lark-4c-accident.build.json`.
 
 ## Migration and authoring
 
