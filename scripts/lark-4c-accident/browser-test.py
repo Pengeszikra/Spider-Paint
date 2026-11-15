@@ -58,7 +58,7 @@ try:
  print('READY',result,flush=True);assert result.get('ready'),result;assert result['channels']==47
  def seek(ms):
   return ws.evaluate(f"document.getElementById('stTime').value={ms};document.getElementById('stTime').dispatchEvent(new Event('input'));(()=>{{const s=__3draft.story();return{{t:s.t,objects:s.objects,channels:s.animationChannels}}}})()")
- for t in [3000,12000,22000,32000,40000,49000,60000]:
+ for t in [3000,12000,22000,32000,40000,49000,54000,60000,66000]:
   state=seek(t);assert state['t']==t,state;time.sleep(.2)
   shot=ws.send('Page.captureScreenshot',{'format':'png','captureBeyondViewport':False});Path(f'/tmp/lark-native-{t//1000}.png').write_bytes(base64.b64decode(shot['data']))
   print('SHOT',state,flush=True)
@@ -67,7 +67,10 @@ try:
  assert alpha['clear']>0 and alpha['solid']>0,alpha
  assert ws.evaluate("__3draft.objects().filter(o=>/Sagittarius/.test(o.name)).length")==1
  assert not ws.evaluate("__3draft.objects().some(o=>/planet|exoplanet|Mercury|Neptune|Earth/i.test(o.name))")
- before=ws.evaluate('__3draft.story().bones');seek(12000);seek(60000);assert before==ws.evaluate('__3draft.story().bones'),'Reverse/forward seek changed animation'
+ before=ws.evaluate('__3draft.story().bones');seek(12000);seek(66000);assert before==ws.evaluate('__3draft.story().bones'),'Reverse/forward seek changed animation'
+ seek(59000);assert ws.evaluate("__3draft.objects().some(o=>o.name==='betterman/body')")
+ seek(61000);assert not ws.evaluate("__3draft.objects().some(o=>o.name==='betterman/body')"),'Captured cockpit retained its pilot'
+ seek(59000);assert ws.evaluate("__3draft.objects().some(o=>o.name==='betterman/body')"),'Rewinding did not restore the captured pilot'
  seek(0);ws.evaluate("document.getElementById('stSpeed').value='8';document.getElementById('stPlay').click()")
  advanced=ws.evaluate("new Promise(async resolve=>{for(let n=0;n<100;n++){if(__3draft.story().t>0)return resolve(true);await new Promise(r=>setTimeout(r,100))}resolve(false)})")
  assert advanced,'Playback did not advance'
@@ -92,7 +95,7 @@ try:
  result=ws.evaluate("new Promise(async resolve=>{for(let n=0;n<150;n++){if(__3draft.story()?.bones)return resolve(true);await new Promise(r=>setTimeout(r,100))}resolve(false)})")
  assert result,'Native file upload did not open the story'
  assert ws.evaluate('window.__audioCreated')==0
- print('PASS: native story link, seven shots, Deep Sky tracer, compact background, no planets/audio, pause, rewind, free camera, editable exit and f-up upload',flush=True)
+ print('PASS: native story link, seven shots, Deep Sky tracer, compact background, debris capture and restoration, no planets/audio, pause, rewind, free camera, editable exit and f-up upload',flush=True)
 finally:
  p.terminate()
  try:p.wait(timeout=8)

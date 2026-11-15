@@ -8,6 +8,7 @@ export const sub = (a,b) => a.map((v,i)=>v-b[i]);
 export const scale = (v,s) => v.map(x=>x*s);
 export const norm = v => scale(v,1/(Math.hypot(...v)||1));
 export const cross = (a,b) => [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+export const dot = (a,b) => a.reduce((s,v,i)=>s+v*b[i],0);
 export const identity = () => [1,0,0,0,0,1,0,0,0,0,1,0];
 export function matrix(at=[0,0,0], angles=[0,0,0], pivot=[0,0,0], size=1) {
   const [x,y,z]=angles, cx=Math.cos(x),sx=Math.sin(x),cy=Math.cos(y),sy=Math.sin(y),cz=Math.cos(z),sz=Math.sin(z);
@@ -33,14 +34,84 @@ export function shipFrame(film,t) {
   const alarm=ease((t-26)/12), jitter=alarm*.012*Math.sin(t*23);
   return matrix(p.at,[p.angles[0]+jitter,p.angles[1],p.angles[2]+jitter*.5],film.ship.pivot);
 }
+/** Same axis convention as Spider's native holeAxis: tilt about X, then rotate about Y. */
+export function discNormal(film) {
+  const rot=film.blackHole.rot;
+  if(!Array.isArray(rot)||rot.length!==2)throw Error('Debris dynamics requires the native black-hole rotation.');
+  const [a,b]=rot;
+  return [Math.sin(a)*Math.sin(b),Math.cos(a),Math.sin(a)*Math.cos(b)];
+}
+export function discHeight(film,p) {return dot(sub(p,film.blackHole.center),discNormal(film));}
+function dynamics(film) {
+  const p=film.blackHole.debrisDynamics;
+  if(!p)throw Error('Missing debris dynamics settings.');
+  for(const key of ['stepSeconds','gravityMu','softening','discGravity','discHeightSoftening','gasThickness','normalDrag','orbitalDrag','innerShadowFactor']) {
+    if(!Number.isFinite(p[key])||p[key]<=0)throw Error(`Invalid debris dynamics setting: ${key}`);
+  }
+  if(p.stepSeconds>1/30||!Number.isFinite(p.inwardDrift)||p.inwardDrift<0)throw Error('Invalid debris timestep or inward drift.');
+  return p;
+}
+function field(film,p) {
+  const config=dynamics(film),n=discNormal(film),r=sub(p,film.blackHole.center),height=dot(r,n);
+  const radial=sub(r,scale(n,height)),rho=Math.hypot(...radial),outer=13*film.blackHole.radius;
+  return {config,n,r,height,radial,rho,outer};
+}
+/** Softened central gravity plus an approximate symmetric vertical disc field, in m/s². */
+export function debrisAcceleration(film,p) {
+  const {config:c,n,r,height,rho,outer}=field(film,p);
+  const central=scale(r,-c.gravityMu/(dot(r,r)+c.softening*c.softening)**1.5);
+  const vertical=-c.discGravity*height/Math.hypot(height,c.discHeightSoftening)/(1+(rho/outer)**2);
+  return add(central,scale(n,vertical));
+}
+function dampInDisc(film,p,v,dt) {
+  const {config:c,n,height,radial,rho,outer}=field(film,p);
+  // A diffuse outer gas layer avoids an artificial hard boundary at the bright disc edge.
+  const gas=Math.exp(-Math.max(0,rho-outer)/(outer*.35)) * Math.exp(-.5*(height/c.gasThickness)**2);
+  const vn=dot(v,n),planar=sub(v,scale(n,vn)),outward=norm(radial);
+  const circularSpeed=Math.sqrt(c.gravityMu)*rho/(rho*rho+c.softening*c.softening)**.75;
+  const flow=add(scale(cross(n,outward),circularSpeed),scale(outward,-c.inwardDrift*circularSpeed));
+  return add(scale(n,vn*Math.exp(-c.normalDrag*gas*dt)),add(flow,scale(sub(planar,flow),Math.exp(-c.orbitalDrag*gas*dt))));
+}
+const trajectoryCache=new WeakMap();
+/** Fixed-step velocity-Verlet with symmetric gas-drag half-steps; baked, never frame-rate driven. */
+export function debrisTrajectory(film,group) {
+  if(group.release===null)throw Error('The intact cockpit follows the authored flight path.');
+  const signature=JSON.stringify([film.blackHole,film.tracks.motion.flight,film.metadata.duration,group.release,group.pivot,group.velocity]);
+  let cache=trajectoryCache.get(film);if(!cache)trajectoryCache.set(film,(cache=new Map()));
+  const previous=cache.get(group);
+  if(previous?.signature===signature)return previous;
+  const c=dynamics(film),step=c.stepSeconds,maxTime=film.metadata.duration-group.release;
+  const start=point(shipFrame(film,group.release),group.pivot),before=point(shipFrame(film,group.release-.05),group.pivot);
+  let position=start,velocity=add(scale(sub(start,before),20),group.velocity),captureTime=null;
+  const samples=[{time:0,position,velocity}],captureRadius=film.blackHole.radius*c.innerShadowFactor;
+  for(let i=1;i<=Math.ceil(maxTime/step);i++) {
+    const time=Math.min(i*step,maxTime),dt=time-samples.at(-1).time;
+    const drag=dampInDisc(film,position,velocity,dt/2),a=debrisAcceleration(film,position);
+    const half=add(drag,scale(a,dt/2)),next=add(position,scale(half,dt));
+    const nextVelocity=dampInDisc(film,next,add(half,scale(debrisAcceleration(film,next),dt/2)),dt/2);
+    if(Math.hypot(...sub(next,film.blackHole.center))<=captureRadius) {
+      // Resolve the entry along this step, so a captured part never re-emerges on the far side.
+      const r=sub(position,film.blackHole.center),d=sub(next,position),A=dot(d,d),B=2*dot(r,d),C=dot(r,r)-captureRadius*captureRadius;
+      const u=A?clamp((-B-Math.sqrt(Math.max(0,B*B-4*A*C)))/(2*A)):0;
+      const localTime=samples.at(-1).time+dt*u;
+      position=lerp3(position,next,u);velocity=lerp3(velocity,nextVelocity,u);captureTime=group.release+localTime;
+      samples.push({time:localTime,position,velocity});break;
+    }
+    position=next;velocity=nextVelocity;samples.push({time,position,velocity});
+  }
+  const trajectory={signature,samples,captureTime};cache.set(group,trajectory);return trajectory;
+}
+export function debrisState(film,group,t) {
+  const {samples,captureTime}=debrisTrajectory(film,group),elapsed=Math.max(0,t-group.release);
+  if(captureTime!==null&&t>=captureTime)return{position:[...samples.at(-1).position],velocity:[0,0,0],captureTime,captured:true};
+  const i=Math.min(Math.floor(elapsed/dynamics(film).stepSeconds),samples.length-1),a=samples[i],b=samples[i+1]??a;
+  const u=b.time===a.time?0:clamp((elapsed-a.time)/(b.time-a.time));
+  return {position:lerp3(a.position,b.position,u),velocity:lerp3(a.velocity,b.velocity,u),captureTime,captured:false};
+}
 export function fragmentFrame(film,group,t) {
   if(group.release===null||t<=group.release)return shipFrame(film,t);
-  const dt=t-group.release, release=shipFrame(film,group.release), start=point(release,group.pivot);
-  const d=norm(sub(film.blackHole.center,start));
-  // Release inherits the vessel's velocity; tidal acceleration separates fragments.
-  const before=point(shipFrame(film,group.release-.05),group.pivot);
-  const inherited=scale(sub(start,before),20);
-  const at=add(start,add(scale(add(inherited,group.velocity),dt),scale(d,Math.min(dt*dt*.24,100))));
+  const state=debrisState(film,group,t),at=state.position,dt=Math.min(t,state.captureTime??t)-group.release;
+  const release=shipFrame(film,group.release);
   const angles=group.spin.map(v=>v*dt);
   const rotation=matrix([0,0,0],angles);
   const initial=release.slice();initial[3]=initial[7]=initial[11]=0;

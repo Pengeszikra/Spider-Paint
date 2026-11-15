@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {validate,humanoidRig,merge} from '../../mcp/engine/index.js';
+import {validate,humanoidRig,merge,instantiate} from '../../mcp/engine/index.js';
 import {normalizeBuildDocument,animationAt,animationSkin,constructionAt,sceneAt,cameraAt} from '../../models/spider-build-v2.mjs';
-import {fragmentFrame} from './motion.mjs';
+import {fragmentFrame,shipFrame,point,sub,add,scale,dot,cross,norm,discNormal,discHeight,debrisAcceleration,debrisState,debrisTrajectory} from './motion.mjs';
 const read=p=>JSON.parse(readFileSync(new URL('../../'+p,import.meta.url),'utf8'));
 const doc=normalizeBuildDocument(read('models/lark-4c-accident.build.json')),sky=read('models/deepsky.scene.json'),sequence=read('scripts/lark-4c-accident/sequence.json');
 test('one native self-contained story contains the ship, pilot, independent animation and seven camera shots',()=>{
@@ -45,4 +45,55 @@ test('camera/narration edits leave all motion and geometry intact, including the
  assert.deepEqual(animationAt(edited,49000),before);assert.deepEqual(sceneAt(edited,49000),sceneAt(doc,49000));
  const skin=animationSkin(doc,constructionAt(doc,0));assert.equal(skin.meshes.length,562);assert.equal(skin.weights.length,562);
  assert.ok(Number.isFinite(cameraAt(doc,49000).fov));
+});
+test('gravity uses the actual tilted native disc plane and pulls toward it from both sides',()=>{
+ const hole=doc.scene.environment.objects[0],rotated=instantiate({positions:[[0,0,0],[0,1,0]],faces:[]},{at:[0,0,0],scale:1,rot:hole.rot});
+ const n=discNormal(sequence);assert.ok(Math.abs(n[1]-1)>.1,'Disc was accidentally treated as horizontal');
+ rotated.positions[1].forEach((v,i)=>assert.ok(Math.abs(v-n[i])<1e-12));
+ const radial=scale(norm(cross(n,[1,0,0])),70),plane=add(hole.at,radial);
+ assert.ok(Math.abs(discHeight(sequence,plane))<1e-10);
+ assert.ok(dot(debrisAcceleration(sequence,add(plane,scale(n,30))),n)<0);
+ assert.ok(dot(debrisAcceleration(sequence,add(plane,scale(n,-30))),n)>0);
+ assert.ok(Math.abs(dot(debrisAcceleration(sequence,plane),n))<1e-10);
+ const near=Math.hypot(...debrisAcceleration(sequence,add(hole.at,scale(norm(radial),400))));
+ const far=Math.hypot(...debrisAcceleration(sequence,add(hole.at,scale(norm(radial),800))));
+ assert.ok(Math.abs(near/far-4)<.02,'Central gravity does not approach inverse-square falloff');
+});
+test('release preserves position and momentum, then falling parts gain normal speed under gravity',()=>{
+ const g=sequence.ship.groups.find(g=>g.id==='port-wing'),release=point(shipFrame(sequence,g.release),g.pivot);
+ const s=debrisState(sequence,g,g.release),later=debrisState(sequence,g,g.release+2),n=discNormal(sequence);
+ assert.deepEqual(s.position,release);
+ const before=point(shipFrame(sequence,g.release-.05),g.pivot),expected=add(scale(sub(release,before),20),g.velocity);
+ s.velocity.forEach((v,i)=>assert.ok(Math.abs(v-expected[i])<1e-10));
+ assert.ok(dot(later.velocity,n)>dot(s.velocity,n)+1,'Debris drifts at a fixed speed instead of accelerating');
+ assert.ok(Math.abs(discHeight(sequence,later.position))<Math.abs(discHeight(sequence,s.position)));
+ const next=point(fragmentFrame(sequence,g,g.release+1e-7),g.pivot);
+ assert.ok(Math.hypot(...sub(next,release))<1e-4,'Separation teleported the fragment');
+});
+test('surviving fragments settle into the accretion-disc plane and continue orbiting',()=>{
+ const groups=sequence.ship.groups.filter(g=>g.release!==null),live=groups.filter(g=>!debrisState(sequence,g,66).captured);
+ assert.ok(live.length>=10,'Too little debris remains to show the disc convergence');
+ for(const g of live){
+  const s=debrisState(sequence,g,66),last=debrisState(sequence,g,72);
+  assert.ok(Math.abs(discHeight(sequence,s.position))<1,`${g.id} has not reached the disc plane`);
+  assert.ok(Math.abs(discHeight(sequence,last.position))<.1,`${g.id} drifted away from the plane again`);
+  if(!last.captured)assert.ok(Math.hypot(...sub(s.position,last.position))>1,`${g.id} froze in the disc`);
+ }
+});
+test('fixed-step integration converges and seek order cannot alter a debris trajectory',()=>{
+ const g=sequence.ship.groups.find(g=>g.id==='port-wing'),a=debrisState(sequence,g,60);
+ debrisState(sequence,g,35);debrisState(sequence,g,72);assert.deepEqual(debrisState(sequence,g,60),a);
+ const fine=structuredClone(sequence);fine.blackHole.debrisDynamics.stepSeconds/=2;
+ const b=debrisState(fine,fine.ship.groups.find(q=>q.id===g.id),60);
+ assert.ok(Math.hypot(...sub(a.position,b.position))<.02,'Halving the physics step changed the path by more than 2 cm');
+});
+test('captured fragments are removed at the native black-hole shadow and never reappear',()=>{
+ assert.ok(doc.result.debrisDynamics.capturedGroups>0);
+ for(const capture of doc.result.debrisDynamics.captures){
+  const group=sequence.ship.groups.find(g=>g.id===capture.group),trajectory=debrisTrajectory(sequence,group),p=trajectory.samples.at(-1).position;
+  assert.ok(Math.abs(Math.hypot(...sub(p,sequence.blackHole.center))-sequence.blackHole.radius*sequence.blackHole.debrisDynamics.innerShadowFactor)<1e-6);
+  const before=new Set(constructionAt(doc,capture.timeMs-1).map(o=>o.name)),after=new Set(constructionAt(doc,capture.timeMs).map(o=>o.name));
+  assert.ok(group.objects.every(name=>before.has(name)));assert.ok(group.objects.every(name=>!after.has(name)));
+  if(group.id==='cockpit'){assert.ok(before.has('betterman/body'));assert.ok(!after.has('betterman/body'));}
+ }
 });

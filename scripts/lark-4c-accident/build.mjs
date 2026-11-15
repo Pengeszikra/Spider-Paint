@@ -2,8 +2,8 @@
 import {readFileSync,writeFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {instantiate,humanoidRig,boneMatrices} from '../../mcp/engine/index.js';
-import {validateBuildDocument,sceneAt} from '../../../3Draft/app/story.js';
-import {matrix,compose,fragmentFrame,cameraAt,pilotPose,sub,norm,add,scale} from './motion.mjs';
+import {validateBuildDocument,sceneAt} from '../../models/spider-build-v2.mjs';
+import {matrix,compose,fragmentFrame,cameraAt,pilotPose,sub,norm,add,scale,debrisTrajectory,discNormal} from './motion.mjs';
 const root=new URL('../../',import.meta.url),read=p=>JSON.parse(readFileSync(new URL(p,root),'utf8'));
 const sequence=read('scripts/lark-4c-accident/sequence.json');
 const shipSource=read('models/lark-4.scene.json'),pilotSource=read('models/betterman.scene.json'),sky=read('models/deepsky.scene.json');
@@ -24,6 +24,7 @@ const effects=[-1,1].map(side=>{
 // Only its placement and scale change to the local metre frame of the lander sequence.
 const sourceHole=sky.objects.find(o=>o.proto==='hole'&&o.name.startsWith('Sagittarius A*'));
 const hole={...sourceHole,at:sequence.blackHole.center,scale:8,glow:136};
+Object.assign(sequence.blackHole,{center:hole.at,radius:hole.scale,rot:hole.rot});
 // The background is a compact sample of the actual Deep Sky Milky Way cloud behind the hole.
 // Project the selected directions onto a distant backdrop: no nearby planets or other holes.
 const candidates=[];
@@ -65,13 +66,21 @@ for(let ms=0;ms<=72000;ms+=25){
  const c=cameraAt(sequence,ms/1000),d=sub(c.target,c.eye),pose={eye:round(c.eye),yaw:+(Math.atan2(d[0],-d[2])*180/Math.PI).toFixed(7),pitch:+(-Math.atan2(d[1],Math.hypot(d[0],d[2]))*180/Math.PI).toFixed(7),roll:+(c.roll*180/Math.PI).toFixed(7),fov:+c.fov.toFixed(7)};
  keyframes.push({id:`camera-${ms}`,timeMs:ms,transition:sequence.tracks.camera.shots.some(s=>s.start*1000===ms)?'cut':'linear',pose});
 }
+const captures=sequence.ship.groups.filter(g=>g.release!==null).map(g=>({group:g,time:debrisTrajectory(sequence,g).captureTime})).filter(c=>c.time!==null);
+const removals=[{id:'plume-shutdown',timeMs:44000,names:effects.map(e=>e.name)},...captures.map(c=>({id:`capture-${c.group.id}`,timeMs:Math.ceil(c.time*1000),names:[...c.group.objects,...effects.filter(e=>e.group===c.group.id).map(e=>e.name),...(c.group.id==='cockpit'?pilot.map(o=>o.name):[])]}))].sort((a,b)=>a.timeMs-b.timeMs);
+const present=new Set(objects.map(o=>o.name)),steps=[];
+for(const event of removals){
+ const removed=event.names.filter(name=>present.delete(name));if(!removed.length)continue;
+ steps.push({id:event.id,timeMs:event.timeMs,command:{tool:'story_remove',args:{names:removed}},changes:removed.map(name=>({type:'remove',name}))});
+}
 const doc={$schema:'./spider-build-v2.schema.json',format:'spider-build-tutorial',version:2,
  metadata:{id:'lark-4c-accident',title:'LARK–4C / LAST LIGHT',shortTitle:'LAST LIGHT',language:'en',units:'metres'},
  timeline:{timeUnit:'ms',durationMs:72000},assets:{meshes,audio:{}},scene:{palette,objects,environment},
  chapters:sequence.tracks.camera.shots.map(s=>({id:s.id,title:s.title,startMs:s.start*1000,endMs:s.end*1000})),
- tracks:{construction:{steps:[]},animation:{timesMs,channels,bindings},camera:{initialPose:keyframes[0].pose,keyframes,presets:{}},narration:{cues:sequence.tracks.narration.cues.map((c,i)=>({id:`caption-${i}`,startMs:c.start*1000,endMs:c.end*1000,channel:'operation',language:'en',text:(c.speaker?c.speaker+': ':'')+c.text}))}},
+ tracks:{construction:{steps},animation:{timesMs,channels,bindings},camera:{initialPose:keyframes[0].pose,keyframes,presets:{}},narration:{cues:sequence.tracks.narration.cues.map((c,i)=>({id:`caption-${i}`,startMs:c.start*1000,endMs:c.end*1000,channel:'operation',language:'en',text:(c.speaker?c.speaker+': ':'')+c.text}))}},
  result:{pilot:'Betterman',pilotStandingHeight:1.8,shipObjects:ship.length,fragments:sequence.ship.groups.length,shots:7,silent:true,
  environmentSource:'models/deepsky.scene.json',blackHoleSource:sourceHole.name,blackHoles:1,backgroundPoints:cloud.n,planets:0,
+ debrisDynamics:{...sequence.blackHole.debrisDynamics,planeNormal:discNormal(sequence),capturedGroups:captures.length,captures:captures.map(c=>({group:c.group.id,timeMs:Math.ceil(c.time*1000)}))},
  sourceShipSha256:createHash('sha256').update(JSON.stringify(shipSource)).digest('hex')}};
 validateBuildDocument(doc);
 writeFileSync(new URL('models/lark-4c-accident.build.json',root),JSON.stringify(doc));

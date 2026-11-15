@@ -13,7 +13,23 @@
       12,
       245
     ],
-    "radius": 42
+    "radius": 8,
+    "rot": [
+      0.6,
+      0.4
+    ],
+    "debrisDynamics": {
+      "stepSeconds": 0.008333333333333333,
+      "gravityMu": 4000,
+      "softening": 12,
+      "discGravity": 2.4,
+      "discHeightSoftening": 3,
+      "gasThickness": 10,
+      "normalDrag": 1.6,
+      "orbitalDrag": 0.5,
+      "inwardDrift": 0.08,
+      "innerShadowFactor": 2.75
+    }
   },
   "ship": {
     "pivot": [
@@ -171,7 +187,7 @@
           "access/threshold-mark--0.91",
           "aero/tail-crossmember"
         ],
-        "release": null,
+        "release": 56,
         "velocity": [
           2.9330460973083974,
           1.484610378323123,

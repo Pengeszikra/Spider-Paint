@@ -13,6 +13,20 @@ structural groups let the wings, tail, engines, hangar panels and equipment sepa
 different times. Betterman is rigged and seated at the original pilot station; his standing
 height is 1.80 metres. Captions and all player text are English.
 
+After separation, each fragment retains the vessel's momentum and its own initial kick,
+then accelerates under a softened central gravitational field and attraction toward the
+**actual tilted accretion-disc plane**. Gas drag near the disc damps vertical motion and
+draws the debris into a rotating inward stream. The cockpit joins the fall after its last
+interior shot at 56 seconds. Fragments reaching the native black-hole shadow are removed;
+the pilot disappears with the cockpit. By the final shot, the surviving pieces have settled
+into the disc plane and continue moving.
+
+The authoring simulation uses fixed 1/120-second velocity-Verlet steps. Gravity and drag
+strengths are cinematic parameters, not a relativistic simulation. The resulting transforms
+and capture events are saved in the Story, so playback and reverse seeking reproduce the
+same motion without running the simulation in the player. Camera and caption tracks remain
+independent and retain their original timing.
+
 ## One portable story file
 
 `lark-4c-accident.build.json` embeds the ship, character, materials, animation and environment.
@@ -25,6 +39,8 @@ optional animation and environment sections:
   placed in the sequence's local metre coordinate frame; the background is distant.
 - `tracks.animation` contains captured affine transforms for the vessel fragments, Betterman's
   skeleton, and the visual engine plumes. Bind geometry and skin weights stay on the GPU.
+- `tracks.construction` removes captured fragments and extinguished engine plumes at their
+  recorded times; reverse seeking restores the appropriate objects.
 - `tracks.camera` independently contains the cinematic camera poses, cuts, bank and lens.
 - `tracks.narration` independently contains English caption intervals.
 - `assets.audio` is empty; there are no audio cues or sound tracks.
