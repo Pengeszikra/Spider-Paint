@@ -202,10 +202,10 @@
     #charControls .slider em { font-style: normal; text-align: right; color: var(--cream); }
     #charControls .lab { color: var(--muted); }
     #charControls .tick { grid-column: 1 / -1; }
-    #charControls .swatches { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
-    #charControls .swatches button { width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 2px solid #0008; box-shadow: none; }
-    #charControls .swatches button.on { border-color: var(--cream); }
-    #charControls input[type=color] { width: 30px; height: 22px; padding: 0; border: 0; background: none; }
+    /* a material choice: the palette entry's name, its colour as a dot */
+    #charControls .matpick { display: flex; gap: 6px; align-items: center; min-width: 0; }
+    #charControls .matpick i { flex: none; width: 16px; height: 16px; border-radius: 50%; border: 2px solid #0008; }
+    #charControls .matpick select { flex: 1; min-width: 0; }
     #palette.side { top: 0; max-height: none; width: min(88vw, 320px); border-width: 0 0 0 1.5px; border-radius: 0; background: color-mix(in srgb, #0b0b0a 95%, transparent); }
     .side .sidehead { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .side .sidehead b { font: 600 13px/1 var(--font-display); letter-spacing: 0.14em; color: var(--cream); text-transform: uppercase; }
@@ -704,7 +704,7 @@
     <div class="sidehead"><b>characters</b><button id="charClose" type="button" class="slate" aria-label="Close">✕</button></div>
     <div id="charView" title="Drag: turn the figure round"></div>
     <div class="crow" id="charPoseRow"><button type="button" data-pose="stand" class="slate">stand</button><button type="button" data-pose="sit" class="slate">sit</button><button type="button" data-pose="walk" class="slate">walk</button></div>
-    <div class="crow" id="charPresets"><button type="button" data-preset="scientist" class="cream">Scientist</button><button type="button" data-preset="mechanic" class="cream">Mechanic</button><button type="button" data-preset="farmer" class="cream">Farmer</button><button type="button" id="charVary" class="teal" title="Another person in the same role: face, hair, build and colours change, the outfit and the prop stay">variate</button></div>
+    <div class="crow" id="charPresets"><button type="button" data-preset="scientist" class="cream">Scientist</button><button type="button" data-preset="mechanic" class="cream">Mechanic</button><button type="button" data-preset="farmer" class="cream">Farmer</button><button type="button" data-preset="astronaut" class="cream">Astronaut</button><button type="button" id="charVary" class="teal" title="Another person in the same role: face, hair, build, skin and hair change, the outfit and the prop stay">variate</button></div>
     <div id="charControls"></div>
     <div class="crow"><input id="charName" type="text" placeholder="name" maxlength="40" spellcheck="false" autocapitalize="off" aria-label="Character name"><button id="charSave" type="button" class="cream" title="Save these settings under the name (this browser)">save</button><select id="charLib" aria-label="Open a saved character"></select><button id="charForget" type="button" class="slate" title="Forget the saved character with this name">✕</button></div>
     <div class="crow"><button id="charPlace" type="button" class="red" title="Put the figure down at the cross, facing you (one undo step)">place</button><button id="charPick" type="button" class="slate" title="Edit the placed character under the cross (or the target)">edit selected</button><button id="charApply" type="button" class="teal" disabled title="Give the edited settings to that placed character only (one undo step)">apply to selected</button></div>
@@ -860,7 +860,7 @@
           <button id="sceneOpen" type="button" class="cream" title="Add a scene from a .json file">f↑</button>
           <button id="sceneForget" type="button" class="slate" title="Forget the saved scene with the name in the box">✕</button>
           <button id="boolBtn" type="button" class="slate" title="Boolean: select two objects (B), then this; the first taken is A, the second B">bool</button>
-          <button id="charBtn" type="button" class="teal" title="Assets: the character builder. Make a figure from a few sliders, hair, clothes and a prop (presets: scientist, mechanic, farmer), then place it at the cross; edit a placed one">char</button>
+          <button id="charBtn" type="button" class="teal" title="Assets: the character builder. Make a figure from a few sliders, hair, clothes and a prop (presets: scientist, mechanic, farmer, astronaut; every part a palette material), then place it at the cross; edit a placed one">char</button>
           <input id="sceneFile" type="file" accept=".json,application/json" hidden>
         </span>
       </span>
@@ -926,7 +926,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, SKIN_TONES, HAIR_COLORS } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@701fddf62016061cc46380662bf55e4fdb266246/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@5e0773d985e06809a0192b55e809749248022550/dist/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
@@ -2163,7 +2163,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@701fddf62016061cc46380662bf55e4fdb266246/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@5e0773d985e06809a0192b55e809749248022550/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -6787,6 +6787,7 @@
     const charRead = (raw) => {
       if (!raw || typeof raw !== 'object' || !raw.spec) return null;
       const frame = raw.frame && Array.isArray(raw.frame.at) ? { at: raw.frame.at.map(Number), yaw: Number(raw.frame.yaw) || 0, scale: Number(raw.frame.scale) || 1 } : { at: [0, 0, 0], yaw: 0, scale: 1 };
+      charMats(); // its faces name these materials
       return charRecord(raw.spec, ['stand', 'sit', 'walk'].includes(raw.pose) ? raw.pose : 'stand', frame);
     };
     // G / R / S on a character: the move from its old mesh to the new one must be a turn about y, a uniform scale and a shift;
@@ -6899,7 +6900,28 @@
     let charVaryN = 1;
     const CHAR_LABELS = { height: 'height (m)', build: 'build', shoulders: 'shoulders', head: 'head size', jaw: 'jaw', nose: 'nose' };
     const charControls = document.getElementById('charControls');
-    const swatchRow = (key, list) => `<span class="swatches" data-key="${key}">${list.map((c) => `<button type="button" data-c="${c}" style="background:${c}" title="${c}"></button>`).join('')}<input type="color" data-color="${key}"></span>`;
+    // a material choice: the group first (skins, hair, cloth), then every other palette entry; the character materials are
+    // added to the palette when missing, so a palette edit restyles every character made of it
+    const charMats = () => {
+      let added = false;
+      for (const m of characterPalette()) {
+        if (materials.some((x) => x.name === m.name)) continue;
+        materials.push({ ...m });
+        saveMaterial(materials[materials.length - 1]);
+        added = true;
+      }
+      if (added) syncPalette();
+    };
+    const CHAR_GROUPS = { skin: CHARACTER_SKINS, hairMat: CHARACTER_HAIRS, main: CHARACTER_CLOTHS, second: CHARACTER_CLOTHS };
+    const matPick = (key, title) => `<span class="matpick" title="${title}"><i></i><select data-mat="${key}"></select></span>`;
+    const charMatOptions = () => {
+      for (const sel of charControls.querySelectorAll('select[data-mat]')) {
+        const group = CHAR_GROUPS[sel.dataset.mat];
+        const rest = materials.map((m) => m.name).filter((n) => !group.includes(n));
+        const opt = (n) => `<option value="${n}">${n}</option>`;
+        sel.innerHTML = `${group.map(opt).join('')}<optgroup label="palette">${rest.map(opt).join('')}</optgroup>`;
+      }
+    };
     const pickSel = (key, list) => `<select data-key="${key}">${list.map((v) => `<option value="${v}">${v}</option>`).join('')}</select>`;
     const slider = (key) => {
       const [lo, hi] = CHARACTER_RANGES[key];
@@ -6907,9 +6929,9 @@
     };
     charControls.innerHTML = `
       <div class="cgroup"><b>body</b>${pickSel('base', ['female', 'male'])}${slider('height')}${slider('build')}${slider('shoulders')}${slider('head')}</div>
-      <div class="cgroup"><b>face</b>${pickSel('shape', FACE_SHAPES)}${slider('jaw')}${slider('nose')}<span class="lab">skin</span>${swatchRow('skin', SKIN_TONES)}</div>
-      <div class="cgroup"><b>hair</b>${pickSel('hair', HAIR_STYLES)}<label class="tick"><input type="checkbox" data-key="glasses"> glasses</label><span class="lab">beard</span>${pickSel('beard', BEARD_STYLES)}<span class="lab">colour</span>${swatchRow('hairColor', HAIR_COLORS)}</div>
-      <div class="cgroup"><b>outfit</b>${pickSel('outfit', OUTFITS)}<span class="lab">colours</span><span class="swatches"><input type="color" data-color="color" title="the main colour"><input type="color" data-color="color2" title="the second colour (trousers, the shirt under an overall)"></span><span class="lab">prop</span><span>${pickSel('prop', CHAR_PROPS)}</span></div>`;
+      <div class="cgroup"><b>face</b>${pickSel('shape', FACE_SHAPES)}${slider('jaw')}${slider('nose')}<span class="lab">skin</span>${matPick('skin', 'the skin material (palette)')}</div>
+      <div class="cgroup"><b>hair</b>${pickSel('hair', HAIR_STYLES)}<span class="lab">hair</span>${matPick('hairMat', 'the hair material (palette), the beard and brows too')}<label class="tick"><input type="checkbox" data-key="glasses"> glasses</label><span class="lab">beard</span>${pickSel('beard', BEARD_STYLES)}</div>
+      <div class="cgroup"><b>outfit</b>${pickSel('outfit', OUTFITS)}<span class="lab">main</span>${matPick('main', 'the coat, jacket, overall or suit (palette)')}<span class="lab">second</span>${matPick('second', 'the trousers, the shirt under an overall, a suit\'s joints and gloves (palette)')}<label class="tick"><input type="checkbox" data-key="helmet"> helmet (astronaut)</label><span class="lab">prop</span><span>${pickSel('prop', CHAR_PROPS)}</span></div>`;
     // the spec <-> the controls
     const charToControls = () => {
       const s = charSpec;
@@ -6919,11 +6941,14 @@
       set('shape', s.face.shape); set('jaw', s.face.jaw); set('nose', s.face.nose);
       set('hair', s.hair.style); set('beard', s.beard); set('outfit', s.outfit.kind); set('prop', s.prop);
       q('glasses').checked = s.glasses;
-      const col = (k, v) => (charControls.querySelector(`[data-color="${k}"]`).value = v);
-      col('skin', s.face.skin); col('hairColor', s.hair.color); col('color', s.outfit.color); col('color2', s.outfit.color2);
-      for (const sw of charControls.querySelectorAll('.swatches')) {
-        const v = sw.dataset.key === 'skin' ? s.face.skin : s.hair.color;
-        for (const b of sw.querySelectorAll('button')) b.classList.toggle('on', b.dataset.c === v);
+      q('helmet').checked = s.outfit.helmet;
+      q('helmet').parentElement.hidden = s.outfit.kind !== 'astronaut';
+      const val = { skin: s.face.skin, hairMat: s.hair.mat, main: s.outfit.main, second: s.outfit.second };
+      for (const sel of charControls.querySelectorAll('select[data-mat]')) {
+        const v = val[sel.dataset.mat];
+        if (![...sel.options].some((o) => o.value === v)) sel.add(new Option(`${v} (not in the palette)`, v));
+        sel.value = v;
+        sel.previousElementSibling.style.background = paletteMap[v]?.color ?? '#888';
       }
     };
     const charEdit = (k, v) => {
@@ -6935,11 +6960,12 @@
       else if (k === 'jaw' || k === 'nose') s.face[k] = n;
       else if (k === 'skin') s.face.skin = v;
       else if (k === 'hair') s.hair.style = v;
-      else if (k === 'hairColor') s.hair.color = v;
+      else if (k === 'hairMat') s.hair.mat = v;
       else if (k === 'glasses') s.glasses = Boolean(v);
+      else if (k === 'helmet') s.outfit.helmet = Boolean(v);
       else if (k === 'beard') s.beard = v;
       else if (k === 'outfit') s.outfit.kind = v;
-      else if (k === 'color' || k === 'color2') s.outfit[k] = v;
+      else if (k === 'main' || k === 'second') s.outfit[k] = v;
       else if (k === 'prop') s.prop = v;
       charSpec = normalizeCharacter(s);
       charToControls();
@@ -6948,11 +6974,7 @@
     charControls.addEventListener('input', (e) => {
       const el = e.target;
       if (el.dataset.key) charEdit(el.dataset.key, el.type === 'checkbox' ? el.checked : el.value);
-      else if (el.dataset.color) charEdit(el.dataset.color, el.value);
-    });
-    charControls.addEventListener('click', (e) => {
-      const b = e.target.closest('.swatches button');
-      if (b) charEdit(b.parentElement.dataset.key, b.dataset.c);
+      else if (el.dataset.mat) charEdit(el.dataset.mat, el.value);
     });
     // the preview: the engine's SVG view of the figure, turned by a drag; the walk plays while it is chosen
     let charAnim = 0;
@@ -6964,7 +6986,7 @@
       const H = c.height;
       const sit = charPose === 'sit';
       const size = Math.round(Math.max(200, Math.min(charViewEl.clientWidth || 380, charViewEl.clientHeight || 340)));
-      charViewEl.innerHTML = renderView(mesh, orbitView({ yaw: charView.yaw, pitch: charView.pitch }), { points: false, occlude: true, stroke: '#00000030', background: '#1b1c17', size, fit: { center: [0, sit ? H * 0.38 : H * 0.55, sit ? H * 0.12 : 0], radius: H * 0.68 } });
+      charViewEl.innerHTML = renderView(mesh, orbitView({ yaw: charView.yaw, pitch: charView.pitch }), { palette: paletteMap, points: false, occlude: true, stroke: '#00000030', background: '#1b1c17', size, fit: { center: [0, sit ? H * 0.36 : H * 0.5, sit ? H * 0.12 : 0], radius: H * 0.5 } });
       for (const b of document.querySelectorAll('#charPoseRow button')) b.classList.toggle('on', b.dataset.pose === charPose);
       const target = charTarget && allObjects().find((o) => o.id === charTarget && o.character);
       document.getElementById('charApply').disabled = !target;
@@ -7047,6 +7069,7 @@
     });
     // place: a new object at the cross (on the surface under it), facing the eye; one undo step
     const placeCharacter = (spec = charSpec, pose = charPose, at = null, yaw = null) => {
+      charMats();
       let foot = at;
       if (!foot) {
         foot = hit ? [...hit.point] : null;
@@ -7101,6 +7124,8 @@
       if (charPanelEl.hidden) return void cancelAnimationFrame(charAnim);
       const o = pointedObject();
       if (o?.character && o.id !== charTarget) charEditPlaced(o);
+      charMats();
+      charMatOptions();
       charToControls();
       charLibShow();
       requestAnimationFrame(charShow);
