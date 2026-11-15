@@ -4,6 +4,20 @@ A minimal 3D scene builder. Fly through a scene, build with solid prisms, and ed
 
 [Open the keyboard map](#keys)
 
+
+## Stories (a recorded build)
+
+A **story** (a Spider Build file, `.build.json`) is a recorded build: how a model was put together step by step, with its own camera moves and narration. Load one from the **+ scene** list (the *stories* group) or with **f↑**. While a story is open the console becomes a player: the scene and system controls give way and the **xr** group holds
+
+- ⏮ the beginning, ◀ one step back, ▶ / ❚❚ play and pause, ▶ one step forward, ⏭ the finished model, and the speed (0.5–8×)
+- the **time slider**: drag to any moment; going back rebuilds exactly what was there
+- **info**: the story panel (the chapter and its text, what is being built, a chapter list, the views such as exterior / cutaway / rooms, the step's details)
+- **cam**: the recorded camera; switch it off to look round freely while it plays
+- **text**: the captions under the view (and the voice, when the story has one)
+- **?** help, **✕** leave the story (the scene is cleared and the usual controls come back)
+
+Keys: Space play / pause, ← → a step, Home / End the beginning / the end.
+
 ## The screen
 
 - **Top:** a quiet line of readouts: yaw, pitch, speed, pick, objects, view, live. The small box at the top left says what is under the cross and whether a target is set.

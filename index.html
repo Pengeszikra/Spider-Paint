@@ -455,7 +455,28 @@
     #driveGrp:not(.on) { display: none; } /* only with the car */
     #skyGrp:not(.on) { display: none; } /* only with the starship */
     #driveText .brake { color: #ff5a4f; }
-    #xrNote { font: 500 9px/1.2 var(--font-mono, ui-monospace, monospace); color: #9a9d90; max-width: 230px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    /* story mode (a .build.json): the scene and sys groups give way, the xr group holds the player */
+    .story-only { display: none !important; }
+    body.story .story-only { display: flex !important; }
+    body.story #xrNoteRow, body.story footer.console .grp[data-label="scene"], body.story footer.console .grp[data-label="sys"], body.story #driveGrp, body.story #skyGrp { display: none !important; }
+    body.story #xrGrp .row { gap: 6px; align-items: center; }
+    #stTime { width: 170px; accent-color: var(--teal, #2fb8c0); }
+    #stClock { font: 500 10px/1 var(--font-mono); color: var(--cream); min-width: 78px; white-space: nowrap; }
+    #stSpeed { max-width: 58px; }
+    #stExit { padding: 6px 9px; }
+    #storyCaption { position: fixed; left: 50%; bottom: 128px; transform: translateX(-50%); z-index: 5; max-width: min(720px, calc(100vw - 32px)); display: grid; gap: 4px; justify-items: center; text-align: center; pointer-events: none; font: 500 13px/1.45 var(--font-mono); color: var(--cream); text-shadow: 0 1px 4px #000, 0 0 12px #000; }
+    #storyCaption[hidden] { display: none; }
+    #storyCaption b { font: 600 10px/1 var(--font-display); letter-spacing: 0.18em; text-transform: uppercase; color: #e8a45c; }
+    .st-title { font: 600 15px/1.25 var(--font-display); letter-spacing: 0.06em; color: var(--cream); }
+    .st-meta { font: 500 10px/1.5 var(--font-mono); color: #8a8d80; }
+    .st-chapter { font: 500 12px/1.6 var(--font-mono); color: #c9cbbf; white-space: pre-line; }
+    .st-action { padding: 9px 10px; border-left: 3px solid #e8a45c; background: #1a1c16; color: var(--cream); font: 500 12px/1.5 var(--font-mono); white-space: pre-line; min-height: 2.6em; }
+    .st-views { display: flex; flex-wrap: wrap; gap: 6px; }
+    .st-views button { padding: 6px 9px; border-radius: 7px; }
+    #storyPanel select { width: 100%; }
+    #storyPanel pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 10px/1.5 var(--font-mono); color: #9a9d90; }
+    #storyPanel summary { cursor: pointer; color: #9a9d90; }
+    #xrNote { 500 9px/1.2 var(--font-mono, ui-monospace, monospace); color: #9a9d90; max-width: 230px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #xrNote.press { color: #39ff14; }
     body.car footer.console .grp[data-label="sys"] .row > :not(#xrBtn, #emBtn) { display: none; } /* driving: only VR and EM stay of sys */
     #driveGrp.in #wheelGauge { color: #39ff14; }
@@ -619,6 +640,18 @@
     <article id="helpDoc">loading…</article>
   </aside>
 
+  <aside id="storyPanel" class="side wide" hidden aria-label="Story">
+    <div class="sidehead"><b>story</b><button id="storyClose" type="button" class="slate" aria-label="Close">✕</button></div>
+    <div id="stTitle" class="st-title">–</div>
+    <div id="stMeta" class="st-meta"></div>
+    <select id="stChapter" aria-label="Jump to a chapter" title="Jump to a chapter"></select>
+    <div id="stChapterText" class="st-chapter"></div>
+    <div id="stAction" class="st-action"></div>
+    <div id="stViews" class="st-views"></div>
+    <details id="stDetailsBox"><summary>step details</summary><pre id="stDetails"></pre></details>
+  </aside>
+  <div id="storyCaption" hidden><b id="stCapTitle"></b><span id="stCapText"></span></div>
+
   <aside id="palette" class="side" hidden aria-label="Material palette">
     <div class="sidehead"><b>materials</b><button id="palClose" type="button" class="slate" aria-label="Close">✕</button></div>
     <span id="palHint">ctrl+click (cmd on a Mac): paint a face · ctrl+double click: the whole object · i: pick the material under the cross</span>
@@ -751,6 +784,7 @@
         <option value="betterman">Betterman (pose him: J)</option>
         <option value="tr74">TR-74 expedition module</option>
         <option value="station-screen">Station screen (a scene on a face)</option>
+        <optgroup label="stories (a recorded build)"><option value="story:lark-4">Story: LARK–4C lander build (746 steps)</option><option value="story:spider-build-example">Story: independent tracks (3 steps)</option></optgroup>
         <optgroup id="savedGroup" label="saved here" hidden></optgroup></select>
           <button id="mergeSw" type="button" class="sw on" title="Loading a scene (the list, f↑): on adds it to what is there, off clears the scene first and loads it alone"><i></i>merge</button>
           <select id="vehicle" aria-label="Vehicle: how the camera moves" title="Vehicle: how the camera moves in this scene. starship: T / Tab only turn the ship, it keeps its speed, brakes to the target's surface, 0 orbit / gravity. car: drives on the ground (two fingers: sideways the wheel, up / down the throttle). A scene file may set it (vehicle)">
@@ -802,7 +836,24 @@
         <span class="row"><button id="skyIau" type="button" class="sw" title="The constellations as seen from Earth (88 IAU figures, lines between the stars' centres): show or hide all of them"><i></i>figures</button></span>
       </span>
       <span class="grp rows" data-label="xr" id="xrGrp">
-        <span class="row"><span id="xrNote">–</span></span>
+        <span class="row" id="xrNoteRow"><span id="xrNote">–</span></span>
+        <span class="row story-only">
+          <button id="stStart" type="button" class="slate ic" title="Story: the beginning, an empty scene (Home)" aria-label="To the beginning"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14M18 6l-8 6 8 6z"/></svg></button>
+          <button id="stPrev" type="button" class="slate ic" title="Story: one construction step back (←)" aria-label="Step back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+          <button id="stPlay" type="button" class="teal ic" title="Story: play / pause (Space)" aria-label="Play"><svg viewBox="0 0 24 24" aria-hidden="true"><path id="stPlayIcon" d="M8 5l11 7-11 7z"/></svg></button>
+          <button id="stNext" type="button" class="slate ic" title="Story: one construction step forward (→)" aria-label="Step forward"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+          <button id="stEnd" type="button" class="slate ic" title="Story: the end, the finished model (End)" aria-label="To the end"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 5v14M6 6l8 6-8 6z"/></svg></button>
+          <select id="stSpeed" aria-label="Playback speed" title="Playback speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option></select>
+          <button id="stHelp" type="button" class="teal ic" title="Help: every mode and key (?)" aria-label="Help"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.1 1-1.1 1.8M12 17h.01"/></svg></button>
+          <button id="stExit" type="button" class="slate" title="Leave the story: the scene and the system controls come back (the scene is cleared)">✕</button>
+        </span>
+        <span class="row story-only">
+          <input id="stTime" type="range" min="0" max="1" step="1" value="0" aria-label="Story time" title="Story time: drag to any moment of the build">
+          <span id="stClock">0:00</span>
+          <button id="stInfo" type="button" class="sw" title="The story panel: the chapter, what is being built, the views, the step's details"><i></i>info</button>
+          <button id="stCam" type="button" class="sw on" title="Recorded camera: the story moves the eye; off: look round freely while it plays"><i></i>cam</button>
+          <button id="stText" type="button" class="sw on" title="Narration: the captions (and the voice, when the story has one)"><i></i>text</button>
+        </span>
       </span>
       <span class="grp rows" data-label="network" id="netGrp" hidden>
         <span class="row">
@@ -815,7 +866,8 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@f3b9118f81458616f97a5c8e80afd9a206792cd0/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e2bfa68ae3a35ea3f8aa65d0207cbff99ac5cf16/dist/index.js';
+    import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
     const LEG = { base: 0.15 }; // the base of a placed prism
@@ -2016,7 +2068,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@f3b9118f81458616f97a5c8e80afd9a206792cd0/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e2bfa68ae3a35ea3f8aa65d0207cbff99ac5cf16/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -4200,7 +4252,13 @@
         await addScene(data);
         if (data.view && (replace || !mergeOn || !had)) applyView(data.view);
       });
-    const addExample = async (name) => ((startScene = startScene === name ? name : null), withLoader(name.replace(/^saved:/, ''), async () => loadScene(await sceneOf(name))));
+    const addExample = async (name) =>
+      name.startsWith('story:')
+        ? withLoader(name.slice(6), async () => {
+            const url = new URL(`./models/${name.slice(6)}.build.json`, location.href).href; // (a story's audio is relative to it)
+            return openStory(await (await fetch(url)).json(), url);
+          })
+        : ((startScene = startScene === name ? name : null), withLoader(name.replace(/^saved:/, ''), async () => loadScene(await sceneOf(name))));
     const centroid = (ps) => ps.reduce((s, p) => s.map((c, i) => c + p[i] / ps.length), [0, 0, 0]);
     const addScene = async ({ objects: raw, palette: extra, prototypes, start, cloud: points, cloudProtos, vehicle: ride, figures, skyLines, paths }) => {
       const objects = raw.map((o) => (o.proto ? { name: o.name, inst: { ...o, proto: prototypes[o.proto] }, mesh: instantiate(prototypes[o.proto].lods.at(-1), placement(o)), ...(o.pickable === false ? { pickable: false } : {}) } : o));
@@ -4516,7 +4574,8 @@
     const scrim = document.getElementById('scrim');
     const helpEl = document.getElementById('helpPanel');
     const helpDoc = document.getElementById('helpDoc');
-    const sidePanels = [paletteEl, helpEl];
+    const storyPanelEl = document.getElementById('storyPanel');
+    const sidePanels = [paletteEl, helpEl, storyPanelEl];
     const syncScrim = () => (scrim.hidden = keyPanel.hidden);
     const closeModals = () => toggleKeys(false);
     const closeSide = () => {
@@ -7644,6 +7703,7 @@
       if (!f) return;
       try {
         const data = JSON.parse(await f.text());
+        if (data?.format === storyFormat.FORMAT) return void (await openStory(data)); // a story (Spider Build, .build.json)
         if (!Array.isArray(data?.objects) || data.format === '3draft-recording') throw new Error('this is not a scene file');
         if (data.name) nameEl.value = data.name;
         await loadScene(data);
@@ -7651,6 +7711,251 @@
         sceneNote(`file: ${e.message}`);
       }
     });
+    // ---- Story mode: a Spider Build v2 file (.build.json, app/story.js; the spec is in Spider Paint: models/spider-build-v2.md).
+    // A recorded build on a millisecond timeline with three independent tracks: construction (each step's resulting objects:
+    // replay applies them, it does not run the tools), camera (keyframes, cut / linear / smoothstep) and narration (text and
+    // audio cues; channels chapter, operation, voiceover). Loading one (the + scene list's stories, f↑ with a .build.json, MCP
+    // view_example story:name) clears the scene and turns the console into a player: the scene and sys groups give way, the xr
+    // group holds play / pause, steps, the beginning / the end, the speed, the time slider, help and leave, and the switches
+    // info (the story panel), cam (the recorded camera; off: look round freely) and text (captions and voice). The objects of
+    // the moment are the scene's host objects (applyScene); a moved index reloads them, seeking back rebuilds from the start.
+    // Keys while a story is open: Space play / pause, ← → a step, Home / End.
+    let story = null; // { doc, t, index, playing, last, loadedKey, cutaway, focus, raf }
+    const stAudio = new Map();
+    const stEl = (id) => document.getElementById(id);
+    const stFmt = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
+    const stOn = (id) => stEl(id).classList.contains('on');
+    const stMatch = (name, pre) => (pre ?? []).some((p) => name.startsWith(p));
+    const stChapterAt = (t) => story.doc.chapters.find((c) => c.startMs <= t && t < c.endMs) ?? story.doc.chapters.at(-1);
+    const stAudioStop = () => stAudio.forEach((a) => a.pause());
+    const stAudioSync = (cues, force) => {
+      const active = new Set();
+      if (story.playing && stOn('stText'))
+        for (const cue of cues.filter((c) => c.audio)) {
+          active.add(cue.id);
+          let a = stAudio.get(cue.id);
+          if (!a) {
+            const asset = story.doc.assets.audio?.[cue.audio.assetId];
+            if (!asset) continue;
+            a = new Audio(new URL(asset.uri, story.base).href);
+            a.preload = 'auto';
+            stAudio.set(cue.id, a);
+          }
+          const want = (story.t - cue.startMs + (cue.audio.offsetMs ?? 0)) / 1000;
+          a.playbackRate = Number(stEl('stSpeed').value);
+          a.volume = cue.audio.volume ?? 1;
+          if (Number.isFinite(a.duration) && want >= a.duration) {
+            a.pause();
+            continue;
+          }
+          if (force || Math.abs(a.currentTime - want) > 0.3) a.currentTime = want;
+          if (a.paused) a.play().catch(() => {});
+        }
+      for (const [id, a] of stAudio) if (!active.has(id)) a.pause();
+    };
+    const stShow = (t, force = false) => {
+      if (!story) return;
+      const doc = story.doc;
+      story.t = Math.max(0, Math.min(t, doc.timeline.durationMs));
+      const index = storyFormat.constructionIndexAtTime(doc, story.t);
+      const key = `${index}|${story.cutaway}|${story.focus}`;
+      if (force || key !== story.loadedKey) {
+        let objects = storyFormat.constructionAt(doc, story.t);
+        if (story.cutaway) objects = objects.filter((o) => !stMatch(o.name, doc.presentation?.cutaway?.excludePrefixes));
+        const v = doc.presentation?.views?.find((x) => x.id === story.focus);
+        if (v) objects = objects.filter((o) => stMatch(o.name, v.includePrefixes) && !stMatch(o.name, v.excludePrefixes));
+        applyScene({ objects });
+        story.loadedKey = key;
+        story.count = objects.length;
+      }
+      story.index = index;
+      if (stOn('stCam') && !story.cutaway && !story.focus) {
+        const c = storyFormat.cameraAt(doc, story.t);
+        lookFrom(c.eye, c.yaw, c.pitch);
+      }
+      // the narration of the moment: the chapter's text, the operation captions (and voiceover) under the view
+      const cues = storyFormat.narrationAt(doc, Math.min(story.t, Math.max(0, doc.timeline.durationMs - 0.001)));
+      const ch = stChapterAt(story.t);
+      const text = stOn('stText');
+      const said = (pred) => cues.filter(pred).map((c) => c.text).filter(Boolean).join('\n');
+      const op = said((c) => c.channel !== 'chapter');
+      stEl('storyCaption').hidden = !text || (!op && !ch);
+      stEl('stCapTitle').textContent = ch?.title ?? '';
+      stEl('stCapText').textContent = op;
+      stEl('stChapterText').textContent = text ? said((c) => c.channel === 'chapter') : 'Narration is off.';
+      stEl('stAction').textContent = text ? op || (index ? 'Construction in progress.' : 'The scene is empty.') : `${index} construction steps applied.`;
+      stEl('stChapter').value = ch?.id ?? '';
+      const steps = doc.tracks.construction.steps;
+      stEl('stMeta').textContent = `${index} / ${steps.length} steps · ${story.count ?? 0} objects · ${stFmt(story.t)} / ${stFmt(doc.timeline.durationMs)} · ${doc.metadata.units ?? ''}`;
+      const step = steps[index - 1];
+      if (step) {
+        const args = { ...step.command?.args };
+        if (args.positions) ((args.vertexCount = args.positions.length), delete args.positions);
+        if (args.faces) ((args.faceCount = args.faces.length), delete args.faces);
+        stEl('stDetails').textContent = JSON.stringify({ id: step.id, timeMs: step.timeMs, tool: step.command?.tool, args }, null, 2);
+      } else stEl('stDetails').textContent = '';
+      const slider = stEl('stTime');
+      slider.max = String(doc.timeline.durationMs);
+      if (document.activeElement !== slider) slider.value = String(story.t);
+      stEl('stClock').textContent = `${stFmt(story.t)} / ${stFmt(doc.timeline.durationMs)}`;
+      stEl('stPrev').disabled = story.t === 0;
+      stEl('stNext').disabled = index === steps.length;
+      for (const b of stEl('stViews').querySelectorAll('[data-view]')) {
+        const v = doc.presentation?.views?.find((x) => x.id === b.dataset.view);
+        if (v) b.disabled = story.t < (v.availableFromMs ?? 0);
+        const active = b.dataset.view === (story.focus ?? (story.cutaway ? 'cutaway' : 'exterior'));
+        b.classList.toggle('teal', active);
+        b.classList.toggle('slate', !active);
+      }
+      stEl('stPlayIcon').setAttribute('d', story.playing ? 'M7 5h3v14H7zM14 5h3v14h-3z' : 'M8 5l11 7-11 7z');
+      stAudioSync(cues, force);
+      redraw();
+    };
+    const stTick = (now) => {
+      if (!story?.playing) return;
+      const dt = now - story.last;
+      story.last = now;
+      stShow(story.t + dt * Number(stEl('stSpeed').value));
+      if (story.t >= story.doc.timeline.durationMs) stPause();
+      else story.raf = requestAnimationFrame(stTick);
+    };
+    const stPause = () => {
+      if (!story) return;
+      story.playing = false;
+      cancelAnimationFrame(story.raf);
+      stAudioStop();
+      stShow(story.t);
+    };
+    const stPlay = () => {
+      if (!story) return;
+      if (story.playing) return stPause();
+      if (story.t >= story.doc.timeline.durationMs) ((story.cutaway = false), (story.focus = null), stShow(0, true));
+      story.playing = true;
+      story.last = performance.now();
+      stShow(story.t);
+      story.raf = requestAnimationFrame(stTick);
+    };
+    const stSeek = (t) => {
+      if (!story) return;
+      story.playing = false;
+      cancelAnimationFrame(story.raf);
+      stAudioStop();
+      story.focus = null;
+      stShow(t, true);
+      if (story.cutaway) stPreset(story.doc.presentation?.cutaway?.cameraPreset);
+    };
+    // a step: the next step's time; back: the time of the group before (steps of one timestamp are one group)
+    const stStep = (dir) => {
+      if (!story) return;
+      const steps = story.doc.tracks.construction.steps;
+      if (dir > 0) return stSeek(steps[story.index]?.timeMs ?? story.doc.timeline.durationMs);
+      const before = steps.filter((x) => x.timeMs < (steps[story.index - 1]?.timeMs ?? 0));
+      stSeek(before.at(-1)?.timeMs ?? 0);
+    };
+    const stPreset = (id) => {
+      const c = id && story.doc.tracks.camera.presets?.[id];
+      if (c) lookFrom(c.eye, c.yaw, c.pitch);
+    };
+    const stView = (id) => {
+      const doc = story.doc;
+      if (id === 'exterior' || id === 'cutaway') {
+        story.focus = null;
+        story.cutaway = id === 'cutaway';
+        stShow(story.t, true);
+        if (story.cutaway) stPreset(doc.presentation?.cutaway?.cameraPreset);
+        else {
+          const c = storyFormat.cameraAt(doc, story.t);
+          lookFrom(c.eye, c.yaw, c.pitch);
+        }
+        return;
+      }
+      const v = doc.presentation?.views?.find((x) => x.id === id);
+      if (!v) return;
+      story.playing = false;
+      cancelAnimationFrame(story.raf);
+      story.focus = id;
+      story.cutaway = true;
+      stShow(story.t, true);
+      stPreset(v.cameraPreset);
+    };
+    const openStory = async (raw, base = location.href) => {
+      let doc;
+      try {
+        doc = storyFormat.normalizeBuildDocument(raw);
+      } catch (e) {
+        return sceneNote(`story: ${e.message}`);
+      }
+      if (story) closeStory(false);
+      setVehicle(null);
+      await loadScene({ palette: doc.scene.palette ?? [], objects: [] }, true);
+      story = { doc, base, t: 0, index: -1, playing: false, last: 0, loadedKey: '', cutaway: false, focus: null, raf: 0, count: 0 };
+      document.body.classList.add('story');
+      stEl('stTitle').textContent = doc.metadata.title ?? 'Story';
+      stEl('stChapter').replaceChildren(...doc.chapters.map((c) => Object.assign(document.createElement('option'), { value: c.id, textContent: c.title })));
+      stEl('stChapter').hidden = !doc.chapters.length;
+      const views = [['exterior', 'exterior'], ...(doc.presentation?.cutaway ? [['cutaway', 'cutaway']] : []), ...(doc.presentation?.views ?? []).map((v) => [v.id, v.title])];
+      stEl('stViews').replaceChildren(
+        ...(views.length > 1 ? views : []).map(([id, title]) => {
+          const b = Object.assign(document.createElement('button'), { type: 'button', className: 'slate', textContent: title, onclick: () => stView(id) });
+          b.dataset.view = id;
+          return b;
+        }),
+      );
+      stShow(0, true);
+    };
+    const closeStory = (clear = true) => {
+      if (!story) return;
+      stPause();
+      stAudioStop();
+      stAudio.clear();
+      story = null;
+      document.body.classList.remove('story');
+      stEl('storyCaption').hidden = true;
+      storyPanelEl.hidden = true;
+      stEl('stInfo').classList.remove('on');
+      if (clear) applyScene({ objects: [] });
+    };
+    stEl('stPlay').addEventListener('click', (e) => (stPlay(), e.currentTarget.blur()));
+    stEl('stPrev').addEventListener('click', (e) => (stStep(-1), e.currentTarget.blur()));
+    stEl('stNext').addEventListener('click', (e) => (stStep(1), e.currentTarget.blur()));
+    stEl('stStart').addEventListener('click', (e) => (stSeek(0), e.currentTarget.blur()));
+    stEl('stEnd').addEventListener('click', (e) => (stSeek(story?.doc.timeline.durationMs ?? 0), e.currentTarget.blur()));
+    stEl('stTime').addEventListener('input', (e) => stSeek(Number(e.target.value)));
+    stEl('stTime').addEventListener('change', (e) => e.target.blur());
+    stEl('stSpeed').addEventListener('change', (e) => e.target.blur());
+    stEl('stChapter').addEventListener('change', (e) => {
+      const c = story?.doc.chapters.find((x) => x.id === e.target.value);
+      if (c) stSeek(c.startMs);
+      e.target.blur();
+    });
+    stEl('stHelp').addEventListener('click', (e) => (toggleKeys(), e.currentTarget.blur()));
+    stEl('stExit').addEventListener('click', (e) => (closeStory(), e.currentTarget.blur()));
+    stEl('stInfo').addEventListener('click', (e) => {
+      const on = storyPanelEl.hidden;
+      openSide(storyPanelEl, on);
+      e.currentTarget.classList.toggle('on', on);
+      e.currentTarget.blur();
+    });
+    stEl('storyClose').addEventListener('click', () => ((storyPanelEl.hidden = true), stEl('stInfo').classList.remove('on')));
+    for (const id of ['stCam', 'stText'])
+      stEl(id).addEventListener('click', (e) => {
+        e.currentTarget.classList.toggle('on');
+        e.currentTarget.blur();
+        if (story) stShow(story.t, id === 'stText');
+      });
+    // the player's keys come first while a story is open (not while typing)
+    window.addEventListener(
+      'keydown',
+      (e) => {
+        if (!story || e.ctrlKey || e.metaKey || e.altKey || ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
+        const act = { ' ': () => stPlay(), ArrowLeft: () => stStep(-1), ArrowRight: () => stStep(1), Home: () => stSeek(0), End: () => stSeek(story.doc.timeline.durationMs) }[e.key];
+        if (!act) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        act();
+      },
+      true,
+    );
     const mergeSw = document.getElementById('mergeSw');
     mergeSw.classList.toggle('on', mergeOn);
     mergeSw.addEventListener('click', () => {
@@ -7677,6 +7982,7 @@
       globalThis.__3draft = {
         load: (data) => applyScene(data),
         pickFault: () => (picker.worker?.postMessage({ type: 'pick', ver: picker.ver, cam: null, x: 0, y: 0, cull: true, key: 'fault' }), Boolean(picker.worker)), // (a test: a broken question)
+        story: () => (story ? { title: story.doc.metadata.title, t: story.t, durationMs: story.doc.timeline.durationMs, index: story.index, total: story.doc.tracks.construction.steps.length, objects: story.count, playing: story.playing, cutaway: story.cutaway, focus: story.focus } : null),
         xr: () => ({ on: Boolean(xrState.session), mono: Boolean(xrState.mono), pressed: xrState.pressed, note: xrNote?.textContent }),
         flight: () => ({ roll: +roll.toFixed(4), vehicle, car: car && { p: car.p, heading: car.heading, v: car.v, steer: car.steer, throttle: car.throttle }, orbit: orbit?.phase ?? null, gravity: gravity && { name: gravity.name }, cruise: { ...cruise }, space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
         aim: () => (aim ? { name: aim.obj.name, px: +aim.px.toFixed(1), depth: aim.depth } : null), under: () => hitObj()?.name ?? null, locked: () => lockedObject()?.name ?? null,

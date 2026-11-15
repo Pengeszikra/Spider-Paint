@@ -75,7 +75,7 @@ Then ask it for the viewer's URL and open it. Everything else, also the full too
 
 [Spider Build v2](models/spider-build-v2.md) saves a model's complete recorded construction
 history in a `.build.json` file, with independent camera and English narration tracks.
-The [LARK–4C tutorial player](models/lark-4-tutorial.html) supports playback, timeline
+Open one from the **+ scene** list (*stories*) or with **f↑**: Spider Paint turns into a player (play, steps, time slider, recorded camera, captions, a story panel). The [LARK–4C tutorial player](models/lark-4-tutorial.html) supports playback, timeline
 seeking, reversible construction steps, cutaway inspection, and separate camera and
 narration controls. Its [complete recording](models/lark-4.build.json) contains 746 steps.
 

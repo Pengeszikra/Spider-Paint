@@ -1,4 +1,7 @@
-/** Spider Build v2: dependency-free, shared by the browser and Node authoring tools. */
+// (copied from 3Draft app/story.js by scripts/sync.mjs: change it there)
+/** Spider Build v2 (story files, .build.json): dependency-free, shared by the browser and Node authoring tools.
+ * The viewer imports it (story mode); Spider Paint's sync copies it to models/spider-build-v2.mjs there. Its spec, schema
+ * and authoring tools live in Spider Paint (models/spider-build-v2.md). */
 export const FORMAT = 'spider-build-tutorial';
 export const VERSION = 2;
 const copy = value => structuredClone(value);

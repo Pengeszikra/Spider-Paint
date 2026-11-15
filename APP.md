@@ -50,6 +50,8 @@ timeline. See [the format specification](models/spider-build-v2.md),
 [JSON Schema](models/spider-build-v2.schema.json), and the dependency-free
 `models/spider-build-v2.mjs` validator/replay module.
 
+**Stories in the app**: the + scene list's *stories* group (`story:lark-4`, `story:spider-build-example`) and f↑ with a `.build.json` open a recording in Spider Paint itself: the console becomes a player (3Draft's story mode, see its APP.md). `models/spider-build-v2.mjs` is now **copied from 3Draft's `app/story.js` by the sync** (one source; change it there); the spec, schema, tests and authoring scripts stay here. It is in the service worker's shell (the page imports it).
+
 `models/lark-4-tutorial.html` loads `models/lark-4.build.json` through
 `models/spider-build-player.mjs` and embeds the generated viewer using its debug bridge.
 It also accepts `?file=spider-build-example.build.json` or a legacy v1 log. These tutorial
