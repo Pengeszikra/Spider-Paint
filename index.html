@@ -926,7 +926,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@d6e93264db9892e575b4197055e114af7779cd68/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@80de191bd2a244dff6b762e8be5fa3ee41f0c4fe/dist/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
@@ -2186,7 +2186,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@d6e93264db9892e575b4197055e114af7779cd68/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@80de191bd2a244dff6b762e8be5fa3ee41f0c4fe/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -4197,8 +4197,8 @@
       const key = `${skyShow.iau}|${skyShow.mine}|${skyShow.orbit}|${skyFigures.length}|${skyMine.length}|${skyPaths.length}`;
       if (key !== skyMarksCache.key) {
         const marks = [];
-        // the orbits: dashed (6 px dashes and gaps), so a line seen up close reads as a path, not a wire
-        if (skyShow.orbit) for (const p of skyPaths) marks.push({ name: p.name, color: p.color ?? '#9fb4d0', width: 1.2, opacity: 0.55, dash: 6, lines: [p.pts] });
+        // the orbits: thin solid lines at 30 % (drawn relative to the eye, so they stay put up close)
+        if (skyShow.orbit) for (const p of skyPaths) marks.push({ name: p.name, color: p.color ?? '#9fb4d0', width: 1, opacity: 0.3, lines: [p.pts] });
         if (skyShow.iau && skyFigures.length) marks.push({ name: 'figures', ...SKY_LOOK.iau, lines: skyFigures.flatMap((f) => f.pts) });
         if (skyShow.mine && skyMine.length) marks.push({ name: 'star-lines', ...SKY_LOOK.mine, lines: skyMine.map((l) => l.pts) });
         skyMarksCache = { key, marks };
@@ -8923,6 +8923,7 @@
       // ---- record
       let rec = null;
       let tick = 0;
+      const FIELD_KEYS = new Set(['Enter', 'Escape', 'Tab', 'ArrowUp', 'ArrowDown']);
       const capture = (e) => {
         if (!rec || !e.isTrusted || !TYPES.includes(e.type)) return;
         const t = e.target;
@@ -8947,7 +8948,12 @@
           if (e.type === 'wheel') ((r.dx = e.deltaX), (r.dy = e.deltaY), (r.dm = e.deltaMode));
           if (e.detail) r.d = e.detail;
         } else if (e.type === 'keydown' || e.type === 'keyup') {
-          if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement) return; // typing into a field is recorded by its input events
+          // typing into a field is recorded by its input events; the keys that act there (Enter takes a find, Esc closes it, Tab and
+          // the arrows move in its list) are recorded with the field, and played to it
+          if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement) {
+            if (!FIELD_KEYS.has(e.key)) return;
+            r.el = pathOf(t);
+          }
           r.k = e.key;
           r.c = e.code;
           if (e.repeat) r.rp = 1;
@@ -9037,6 +9043,7 @@
           return down;
         }
         if (r.e === 'keydown' || r.e === 'keyup') {
+          if (el) return void el.dispatchEvent(new KeyboardEvent(r.e, { ...base, key: r.k, code: r.c, repeat: !!r.rp })); // a key in a field (Enter in the find box)
           (document.activeElement && document.activeElement !== document.body && document.activeElement.tagName !== 'INPUT' ? document.activeElement : document.body).dispatchEvent(new KeyboardEvent(r.e, { ...base, key: r.k, code: r.c, repeat: !!r.rp }));
           return;
         }
