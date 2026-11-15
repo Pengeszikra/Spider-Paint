@@ -873,7 +873,7 @@ export const createGpu = async (canvas, { sampleCount = 4, onError } = {}) => {
         depth = device.createTexture({ size: [n, n], format: 'depth24plus', sampleCount, usage: GPUTextureUsage.RENDER_ATTACHMENT });
         color = sampleCount > 1 ? device.createTexture({ size: [n, n], format, sampleCount, usage: GPUTextureUsage.RENDER_ATTACHMENT }) : null;
     };
-    const draw = (mesh, view, { size = 400, fit, background = [0.98, 0.98, 0.97], transparent = false, light = {}, material = {}, palette, dpr = globalThis.devicePixelRatio || 1, instances, parts, tonemap = false, smooth = false, studio = false, edges = false, marks, unlit = false, glow = false, skin, screens, logDepth = 0, planets } = {}, readback = false) => {
+    const draw = (mesh, view, { size = 400, fit, background = [0.98, 0.98, 0.97], light = {}, material = {}, palette, dpr = globalThis.devicePixelRatio || 1, instances, parts, tonemap = false, smooth = false, studio = false, edges = false, marks, unlit = false, glow = false, skin, screens, logDepth = 0, planets } = {}, readback = false) => {
         const L = { ...defaultLight, ...light };
         const filmic = tonemap ? { exposure: 1, emit: 2, ...(tonemap === true ? {} : tonemap) } : null;
         const M = { ...defaultMaterial, ...material };
@@ -1111,7 +1111,7 @@ export const createGpu = async (canvas, { sampleCount = 4, onError } = {}) => {
                 {
                     view: color ? color.createView() : target,
                     resolveTarget: color ? target : undefined,
-                    clearValue: transparent ? { r: 0, g: 0, b: 0, a: 0 } : { r: background[0], g: background[1], b: background[2], a: 1 },
+                    clearValue: { r: background[0], g: background[1], b: background[2], a: 1 },
                     loadOp: 'clear',
                     storeOp: color ? 'discard' : 'store',
                 },
@@ -1204,7 +1204,7 @@ export const createGpu = async (canvas, { sampleCount = 4, onError } = {}) => {
                     data[o] = raw[i + (swap ? 2 : 0)];
                     data[o + 1] = raw[i + 1];
                     data[o + 2] = raw[i + (swap ? 0 : 2)];
-                    data[o + 3] = transparent ? raw[i + 3] : 255;
+                    data[o + 3] = 255;
                 }
             }
             out.unmap();

@@ -43,3 +43,4 @@ export { planetInstances, inv4, PLANET_FLOATS } from './planet.js';
 export { skyScene, skyPrototypes, skyAt, starClass, starTint, exoClass, exoRecipe, EXO_RECIPES, SKY_PALETTE, SKY_TYPES, STAR_CLASSES, LY_PER_PC, LY_PER_AU, LY_PER_KM, SUN_RADIUS_LY, EARTH_RADIUS_LY } from './sky.js';
 export { buildEdges, buildMarks, MARK_FLOATS, sceneEdges } from './gpu.js';
 export { humanoidRig, posed, posedJoints, boneMatrices, poseLift, walkPose, HUMANOID_POSES, HUMANOID_JOINTS } from './rig.js';
+export { buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, CHARACTER_PARTS, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS, SKIN_TONES, HAIR_COLORS } from './character.js';

@@ -118,16 +118,11 @@ export function validateBuildDocument(doc) {
   if (duration < 0) fail('timeline.durationMs', 'must be nonnegative');
   const time = (v, path) => {finite(v, path); if (v < 0 || v > duration) fail(path, 'outside timeline');};
   const vec = (v, path) => {array(v, path); if (v.length !== 3) fail(path, 'expected three coordinates'); v.forEach((x, i) => finite(x, `${path}[${i}]`));};
-  const camera = (v, path) => {
-    keys(v, ['eye','yaw','pitch','roll','fov'], path); vec(v.eye, `${path}.eye`); finite(v.yaw, `${path}.yaw`); finite(v.pitch, `${path}.pitch`);
-    if (v.pitch < -90 || v.pitch > 90) fail(path, 'pitch must be between -90 and 90');
-    if (v.roll !== undefined) finite(v.roll, `${path}.roll`);
-    if (v.fov !== undefined) {finite(v.fov, `${path}.fov`); if (v.fov < 5 || v.fov > 150) fail(path, 'fov must be between 5 and 150 degrees');}
-  };
+  const camera = (v, path) => {keys(v, ['eye','yaw','pitch'], path); vec(v.eye, `${path}.eye`); finite(v.yaw, `${path}.yaw`); finite(v.pitch, `${path}.pitch`); if (v.pitch < -90 || v.pitch > 90) fail(path, 'pitch must be between -90 and 90');};
   const unique = (items, path) => {array(items, path); const ids = new Set(); for (const item of items) {object(item,path); string(item.id, `${path}.id`); if (ids.has(item.id)) fail(path, `duplicate id ${item.id}`); ids.add(item.id);}};
   const ordered = (items, field, path) => {let previous = -1; for (const item of items) {time(item[field], `${path}.${field}`); if (item[field] < previous) fail(path, 'times must be nondecreasing'); previous = item[field];}};
   keys(doc.assets, ['meshes','audio'], 'assets'); object(doc.assets.meshes, 'assets.meshes'); object(doc.assets.audio, 'assets.audio');
-  keys(doc.scene, ['palette','objects','environment'], 'scene'); array(doc.scene.palette, 'scene.palette'); array(doc.scene.objects, 'scene.objects');
+  keys(doc.scene, ['palette','objects'], 'scene'); array(doc.scene.palette, 'scene.palette'); array(doc.scene.objects, 'scene.objects');
   const materials = new Set();
   for (const material of doc.scene.palette) {
     object(material, 'scene.palette'); string(material.name, 'scene.palette.name');
@@ -155,7 +150,7 @@ export function validateBuildDocument(doc) {
   const names = new Set();
   const obj = (o, path) => {keys(o, ['name','meshRef'], path); string(o.name, `${path}.name`); string(o.meshRef, `${path}.meshRef`); if (!Object.hasOwn(doc.assets.meshes, o.meshRef)) fail(path, `unknown mesh ${o.meshRef}`);};
   for (const o of doc.scene.objects) {obj(o, 'scene.objects'); if (names.has(o.name)) fail('scene.objects', `duplicate object ${o.name}`); names.add(o.name);}
-  keys(doc.tracks, ['construction','camera','narration','animation'], 'tracks');
+  keys(doc.tracks, ['construction','camera','narration'], 'tracks');
   keys(doc.tracks.construction, ['steps'], 'tracks.construction');
   const steps = doc.tracks.construction.steps;
   unique(steps, 'construction.steps'); ordered(steps, 'timeMs', 'construction.steps');
@@ -172,68 +167,6 @@ export function validateBuildDocument(doc) {
       if (c.type === 'put') {keys(c, ['type','object'], s.id); obj(c.object, s.id); names.add(c.object.name);}
       else if (c.type === 'remove') {keys(c, ['type','name'], s.id); string(c.name, s.id); if (!names.delete(c.name)) fail(s.id, `cannot remove missing object ${c.name}`);}
       else fail(s.id, 'unknown change type');
-    }
-  }
-  if (doc.scene.environment !== undefined) {
-    const env = doc.scene.environment;
-    keys(env, ['format','version','name','prototypes','objects','cloud','view','vehicle'], 'scene.environment');
-    if (env.format !== '3draft-scene' || ![1,2].includes(env.version)) fail('scene.environment', 'expected a native 3Draft scene');
-    object(env.prototypes ?? {}, 'environment.prototypes'); array(env.objects, 'environment.objects');
-    const envNames = new Set(), allNames = new Set(doc.scene.objects.map(o=>o.name));
-    for(const s of steps)for(const c of s.changes)if(c.type==='put')allNames.add(c.object.name);
-    for (const o of env.objects) {
-      object(o, 'environment.objects'); string(o.name, 'environment.object.name');
-      if (envNames.has(o.name) || allNames.has(o.name)) fail('environment.objects', `duplicate object ${o.name}`); envNames.add(o.name);
-      if (o.proto) {
-        if (!Object.hasOwn(env.prototypes ?? {}, o.proto)) fail('environment.objects', `unknown prototype ${o.proto}`);
-        vec(o.at, 'environment.object.at');
-        if (typeof o.scale === 'number') {finite(o.scale, 'environment.object.scale'); if (o.scale <= 0) fail(o.name, 'scale must be positive');}
-        else {object(o.scale, 'environment.object.scale'); for (const s of Object.values(o.scale)) {finite(s,o.name); if(s<=0)fail(o.name,'scale must be positive');}}
-        for (const mat of Object.values(o.mats ?? {})) if (!materials.has(mat)) fail(o.name, `unknown material ${mat}`);
-      } else if (!o.mesh) fail(o.name, 'expected mesh or prototype');
-    }
-    for (const [id, proto] of Object.entries(env.prototypes ?? {})) {
-      array(proto.lods, `environment.prototypes.${id}.lods`); if (!proto.lods.length) fail(id, 'prototype needs a LOD');
-      for (const mesh of proto.lods) {
-        array(mesh.positions, id); array(mesh.faces, id); mesh.positions.forEach(p => vec(p,id));
-        for (const f of mesh.faces) if (!Array.isArray(f.v) || f.v.length < 3 || f.v.some(i => !Number.isInteger(i) || i < 0 || i >= mesh.positions.length)) fail(id, 'invalid prototype face');
-      }
-    }
-    if (env.cloud) {
-      const c=env.cloud; object(c,'environment.cloud'); finite(c.unit,'environment.cloud.unit');
-      if (c.unit <= 0 || !Number.isInteger(c.n) || c.n < 0) fail('environment.cloud','invalid point count or unit');
-      for (const [k,n] of [['p',c.n*3],['r',c.n],['c',c.n],['l',c.n]]) {
-        array(c[k],`environment.cloud.${k}`); if(c[k].length!==n)fail(k,'cloud array length mismatch'); c[k].forEach(v=>finite(v,k));
-      }
-    }
-  }
-  if (doc.tracks.animation !== undefined) {
-    const a=doc.tracks.animation;
-    keys(a,['timesMs','channels','bindings'],'tracks.animation'); array(a.timesMs,'animation.timesMs');
-    if (!a.timesMs.length || a.timesMs[0]!==0) fail('animation.timesMs','must start at time zero');
-    let previous=-1; for(const t of a.timesMs){time(t,'animation.timesMs');if(t<=previous)fail('animation.timesMs','must be strictly increasing');previous=t;}
-    unique(a.channels,'animation.channels'); if(a.channels.length>64)fail('animation.channels','GPU supports at most 64 channels');
-    for(const ch of a.channels){
-      keys(ch,['id','matrices'],ch.id);array(ch.matrices,ch.id);if(ch.matrices.length!==a.timesMs.length)fail(ch.id,'matrix count must match timeline');
-      for(const m of ch.matrices){array(m,ch.id);if(m.length!==12)fail(ch.id,'expected a 3x4 affine matrix');m.forEach(v=>finite(v,ch.id));}
-    }
-    const channels=new Set(a.channels.map(c=>c.id)),known=new Map(doc.scene.objects.map(o=>[o.name,o]));
-    for(const s of steps)for(const c of s.changes)if(c.type==='put')known.set(c.object.name,c.object);
-    array(a.bindings,'animation.bindings');const bound=new Set();
-    for(const b of a.bindings){
-      keys(b,['object','channel','weights'],'animation.binding');string(b.object,'animation.binding.object');
-      if(!known.has(b.object)||bound.has(b.object))fail(b.object,'missing or duplicate animated object');bound.add(b.object);
-      if((b.channel!==undefined)===(b.weights!==undefined))fail(b.object,'use exactly one rigid channel or skin weights');
-      if(b.channel!==undefined){if(!channels.has(b.channel))fail(b.object,'unknown animation channel');}
-      else {
-        array(b.weights,b.object);const mesh=doc.assets.meshes[known.get(b.object).meshRef];
-        if(b.weights.length!==mesh.positions.length)fail(b.object,'weight count must match vertices');
-        for(const s of steps)for(const c of s.changes)if(c.type==='put'&&c.object.name===b.object&&doc.assets.meshes[c.object.meshRef].positions.length!==b.weights.length)fail(b.object,'skin topology changes during construction');
-        for(const w of b.weights){array(w,b.object);if(!w.length||w.length>4)fail(b.object,'expected one to four influences');let sum=0;
-          for(const pair of w){array(pair,b.object);if(pair.length!==2||!channels.has(pair[0]))fail(b.object,'unknown skin channel');finite(pair[1],b.object);if(pair[1]<0)fail(b.object,'negative skin weight');sum+=pair[1];}
-          if(Math.abs(sum-1)>.001)fail(b.object,'skin weights must sum to one');
-        }
-      }
     }
   }
   const cam = doc.tracks.camera;
@@ -308,46 +241,10 @@ export function cameraAt(doc, timeMs) {
     let t = Math.max(0, Math.min(1, (timeMs - previous.timeMs) / (next.timeMs - previous.timeMs)));
     if (next.transition === 'smoothstep') t = t * t * (3 - 2 * t);
     const a = previous.pose, b = next.pose, yawDelta = ((b.yaw - a.yaw + 180) % 360 + 360) % 360 - 180;
-    return {eye: a.eye.map((v, i) => v + (b.eye[i] - v) * t), yaw: a.yaw + yawDelta * t, pitch: a.pitch + (b.pitch - a.pitch) * t,
-      ...((a.roll!==undefined||b.roll!==undefined)?{roll:(a.roll??0)+((b.roll??0)-(a.roll??0))*t}:{}),
-      ...((a.fov!==undefined||b.fov!==undefined)?{fov:(a.fov??b.fov)+((b.fov??a.fov)-(a.fov??b.fov))*t}:{})};
+    return {eye: a.eye.map((v, i) => v + (b.eye[i] - v) * t), yaw: a.yaw + yawDelta * t, pitch: a.pitch + (b.pitch - a.pitch) * t};
   }
   return copy(previous.pose);
 }
 export function narrationAt(doc, timeMs) {
   return doc.tracks.narration.cues.filter(c => c.startMs <= timeMs && timeMs < c.endMs);
-}
-
-/** GPU-ready affine channels. Adjacent captured poses blend at the shared animation clock. */
-export function animationAt(doc,timeMs,out) {
-  const a=doc.tracks.animation;if(!a)return null;
-  out??=new Float32Array(64*12);
-  let lo=0,hi=a.timesMs.length;
-  while(lo<hi){const m=(lo+hi)>>>1;if(a.timesMs[m]<=timeMs)lo=m+1;else hi=m;}
-  const i=Math.max(0,lo-1),j=Math.min(i+1,a.timesMs.length-1);
-  const t=i===j?0:Math.max(0,Math.min(1,(timeMs-a.timesMs[i])/(a.timesMs[j]-a.timesMs[i])));
-  a.channels.forEach((c,k)=>{for(let n=0;n<12;n++)out[k*12+n]=c.matrices[i][n]+(c.matrices[j][n]-c.matrices[i][n])*t;});
-  return out;
-}
-/** Bind geometry and weights are uploaded once. Only `bones` changes during playback. */
-export function animationSkin(doc,objects) {
-  const a=doc.tracks.animation;if(!a)return null;
-  const channels=new Map(a.channels.map((c,i)=>[c.id,i])),bindings=new Map(a.bindings.map(b=>[b.object,b]));
-  const meshes=[],weights=[],names=new Set();
-  for(const o of objects){const b=bindings.get(o.name);if(!b)continue;names.add(o.name);meshes.push(o.mesh);
-    weights.push(b.channel!==undefined?o.mesh.positions.map(()=>[[channels.get(b.channel),1]]):b.weights.map(w=>w.map(([id,v])=>[channels.get(id),v])));
-  }
-  return {meshes,weights,names,bones:new Float32Array(64*12)};
-}
-/** CPU projection for editable snapshots, leaving story mode, and non-GPU rendering. */
-export function sceneAt(doc,timeMs) {
-  const objects=constructionAt(doc,timeMs),skin=animationSkin(doc,objects);
-  if(!skin)return objects;
-  animationAt(doc,timeMs,skin.bones);let m=0;
-  const flexible=new Set(doc.tracks.animation.bindings.filter(b=>b.weights).map(b=>b.object));
-  for(const o of objects){if(!skin.names.has(o.name))continue;const weights=skin.weights[m++];
-    o.mesh.positions=o.mesh.positions.map((p,i)=>{const q=[0,0,0];for(const [j,w] of weights[i])for(let r=0;r<3;r++)q[r]+=w*(skin.bones[j*12+r*4]*p[0]+skin.bones[j*12+r*4+1]*p[1]+skin.bones[j*12+r*4+2]*p[2]+skin.bones[j*12+r*4+3]);return q;});
-    if(flexible.has(o.name))o.mesh.faces=o.mesh.faces.flatMap(f=>f.v.slice(1,-1).map((v,i)=>({...f,v:[f.v[0],v,f.v[i+2]]})));
-  }
-  return objects;
 }

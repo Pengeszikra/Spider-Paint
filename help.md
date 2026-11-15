@@ -5,18 +5,9 @@ A minimal 3D scene builder. Fly through a scene, build with solid prisms, and ed
 [Open the keyboard map](#keys) · [The sky guide (a new tab): flying among the stars, and making your own space scene](sky.html)
 
 
-## Stories (recorded builds and animated scenes)
+## Stories (a recorded build)
 
-A **story** (a Spider Build file, `.build.json`) is a recorded build: how a model was put together step by step, with its own camera moves and narration. Load one from the **+ scene** list (the *stories* group) or with **f↑**. While a story is open the console becomes a player: the scene and system controls give way to the playback controls.
-
-Stories can also contain an animated scene, with moving objects and characters, cinematic
-cameras and a compact native environment. Their camera and captions stay independent
-of object motion. A Deep Sky black hole keeps its usual accretion and light-bending effect.
-Only audio supplied by the story plays; silent stories create no sound. For an animated
-story the step arrows jump between chapters/shots. **✕** retains the objects in their
-current animated poses for ordinary editing. A `?scene=story:name` link opens a bundled Story.
-
-The controls are:
+A **story** (a Spider Build file, `.build.json`) is a recorded build: how a model was put together step by step, with its own camera moves and narration. Load one from the **+ scene** list (the *stories* group) or with **f↑**. While a story is open the console becomes a player: the scene and system controls give way and the **xr** group holds
 
 - ⏮ the beginning, ◀ one step back, ▶ / ❚❚ play and pause, ▶ one step forward, ⏭ the finished model, and the speed (0.5–8×)
 - the **time slider**: drag to any moment; going back rebuilds exactly what was there
@@ -112,6 +103,21 @@ Click a swatch to select it. The sliders change **metal**, **rough**, **alpha**,
 `?play=<url of a recording>` plays one as soon as the page is up. In code (and for Claude): `rec.start()`, `rec.stop()` returns the recording object, `rec.play(object or JSON text)`, `rec.scene()` is a short fingerprint of the scene (compare two runs).
 
 The store pane (and G G from it) is not recorded.
+
+## Characters (the char button)
+
+**char** (scene group) opens the **character builder**: quick, animatable extras for a scene. The figure at the top turns with a drag, and **stand / sit / walk** show it in that pose; every change shows at once.
+
+- **Presets**: **Scientist** (lab coat, tablet), **Mechanic** (bun, overall, wrench), **Farmer** (broad, beard, tomato). After a preset everything stays editable. **variate** makes another person in the same role: a new face, hair, build and colours, while the outfit and the prop stay.
+- **Body**: female or male base, height, build, shoulders, head size (the sliders stop where the poses and the clothes still fit).
+- **Face**: shape (oval, round, square, long), jaw, nose, skin tone.
+- **Hair**: short, curly, bun or bald, its colour, glasses, a beard (full or goatee).
+- **Outfit**: coat, overall or workwear with two colours; one **prop** in the right hand.
+- **save** keeps the settings under a name in this browser; the list next to it opens them again.
+- **place** puts the figure down at the cross, facing you: one object, one **U** step. Place the same preset as often as you like; every copy is its own.
+- **edit selected** takes the character under the cross (or the target) back into the builder; **apply** changes only that one (one U step).
+
+A placed character moves with **G**, turns with **R** and sizes with **S** like any object, and is saved in the scene. A **walking** character walks to and fro along its heading (3 m each way); **freeze** stops it, and while it walks the cross does not pick it (freeze, then edit). Hair and glasses follow the head, the prop the hand, and the clothes the limbs in every pose.
 
 ## Two views: build and store
 

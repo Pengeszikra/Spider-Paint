@@ -164,9 +164,6 @@
     #hud[hidden] { display: none; }
     #frame canvas { display: block; }
     #frame canvas[hidden] { display: none; }
-    /* A cinematic story draws the native sky behind its opaque animated foreground. */
-    #frame.story-sky > #gpu, #frame.story-sky > #gl { position: relative; z-index: 1; }
-    #frame.story-sky > #hole, #frame.story-sky > #cloud, #frame.story-sky > #glow { z-index: 0; }
     #layer { position: absolute; inset: 0; }
     #layer:not(.over) { position: static; }
     #stage svg { display: block; max-width: 100%; }
@@ -185,6 +182,27 @@
     .side { position: fixed; top: 0; right: 0; bottom: 0; z-index: 9; width: min(88vw, 320px); box-sizing: border-box; padding: 12px 14px 104px; overflow-y: auto; background: color-mix(in srgb, #0b0b0a 95%, transparent); border-left: 1.5px solid var(--outline); display: grid; align-content: start; gap: 8px; font: 500 12px/1.3 var(--font-mono); color: var(--muted); }
     .side[hidden] { display: none; }
     .side.wide { width: min(92vw, 430px); }
+    /* the character builder */
+    #charView { width: 100%; height: 340px; flex: none; border-radius: 10px; overflow: hidden; background: #1b1c17; cursor: grab; touch-action: none; }
+    #charView svg { width: 100%; height: 100%; display: block; }
+    #charView svg text { display: none; }
+    #charPanel .crow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    #charPanel .crow button { padding: 6px 10px; border-radius: 8px; }
+    #charPanel #charPoseRow button.on { background: var(--teal); color: #04181a; }
+    #charPanel #charName { flex: 1; min-width: 90px; }
+    #charPanel #charLib { max-width: 140px; }
+    #charControls { display: grid; gap: 8px; }
+    #charControls .cgroup { display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center; padding: 8px; border: 1px solid #ffffff14; border-radius: 10px; }
+    #charControls .cgroup > b { grid-column: 1 / -1; color: var(--cream); font: 600 11px/1 var(--font-display); letter-spacing: 0.14em; text-transform: uppercase; }
+    #charControls .cgroup > select { grid-column: 1 / -1; }
+    #charControls .slider { grid-column: 1 / -1; display: grid; grid-template-columns: 84px 1fr 36px; gap: 6px; align-items: center; }
+    #charControls .slider em { font-style: normal; text-align: right; color: var(--cream); }
+    #charControls .lab { color: var(--muted); }
+    #charControls .tick { grid-column: 1 / -1; }
+    #charControls .swatches { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+    #charControls .swatches button { width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 2px solid #0008; box-shadow: none; }
+    #charControls .swatches button.on { border-color: var(--cream); }
+    #charControls input[type=color] { width: 30px; height: 22px; padding: 0; border: 0; background: none; }
     #palette.side { top: 0; max-height: none; width: min(88vw, 320px); border-width: 0 0 0 1.5px; border-radius: 0; background: color-mix(in srgb, #0b0b0a 95%, transparent); }
     .side .sidehead { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .side .sidehead b { font: 600 13px/1 var(--font-display); letter-spacing: 0.14em; color: var(--cream); text-transform: uppercase; }
@@ -679,6 +697,16 @@
   </aside>
   <div id="storyCaption" hidden><b id="stCapTitle"></b><span id="stCapText"></span></div>
 
+  <aside id="charPanel" class="side wide" hidden aria-label="Character builder">
+    <div class="sidehead"><b>characters</b><button id="charClose" type="button" class="slate" aria-label="Close">✕</button></div>
+    <div id="charView" title="Drag: turn the figure round"></div>
+    <div class="crow" id="charPoseRow"><button type="button" data-pose="stand" class="slate">stand</button><button type="button" data-pose="sit" class="slate">sit</button><button type="button" data-pose="walk" class="slate">walk</button></div>
+    <div class="crow" id="charPresets"><button type="button" data-preset="scientist" class="cream">Scientist</button><button type="button" data-preset="mechanic" class="cream">Mechanic</button><button type="button" data-preset="farmer" class="cream">Farmer</button><button type="button" id="charVary" class="teal" title="Another person in the same role: face, hair, build and colours change, the outfit and the prop stay">variate</button></div>
+    <div id="charControls"></div>
+    <div class="crow"><input id="charName" type="text" placeholder="name" maxlength="40" spellcheck="false" autocapitalize="off" aria-label="Character name"><button id="charSave" type="button" class="cream" title="Save these settings under the name (this browser)">save</button><select id="charLib" aria-label="Open a saved character"></select><button id="charForget" type="button" class="slate" title="Forget the saved character with this name">✕</button></div>
+    <div class="crow"><button id="charPlace" type="button" class="red" title="Put the figure down at the cross, facing you (one undo step)">place</button><button id="charPick" type="button" class="slate" title="Edit the placed character under the cross (or the target)">edit selected</button><button id="charApply" type="button" class="teal" disabled title="Give the edited settings to that placed character only (one undo step)">apply to selected</button></div>
+    <p id="charNote" class="note"></p>
+  </aside>
   <aside id="palette" class="side" hidden aria-label="Material palette">
     <div class="sidehead"><b>materials</b><button id="palClose" type="button" class="slate" aria-label="Close">✕</button></div>
     <span id="palHint">ctrl+click (cmd on a Mac): paint a face · ctrl+double click: the whole object · i: pick the material under the cross</span>
@@ -829,6 +857,7 @@
           <button id="sceneOpen" type="button" class="cream" title="Add a scene from a .json file">f↑</button>
           <button id="sceneForget" type="button" class="slate" title="Forget the saved scene with the name in the box">✕</button>
           <button id="boolBtn" type="button" class="slate" title="Boolean: select two objects (B), then this; the first taken is A, the second B">bool</button>
+          <button id="charBtn" type="button" class="teal" title="Assets: the character builder. Make a figure from a few sliders, hair, clothes and a prop (presets: scientist, mechanic, farmer), then place it at the cross; edit a placed one">char</button>
           <input id="sceneFile" type="file" accept=".json,application/json" hidden>
         </span>
       </span>
@@ -894,7 +923,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@847a7f99274b97dab2ed137495e24114195abd56/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, SKIN_TONES, HAIR_COLORS } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@804839618b7edb1fe8c96ac285ec0af671c209ed/dist/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
@@ -1063,9 +1092,12 @@
     // local origin (the middle of its base) carries the grid (the plane under it) and the camera looks at that point.
     let bench = null; // { origin: [x, y, z], base: history length at the start, cam: the view to return to }
     let rebuilds = 0; // how many times the scene was merged (debug: __3draft.sky())
-    let storySkin = null; // stable bind geometry; only animation matrices change during a cinematic story
     let holdRebuild = 0; // inside asOneStep the scene is merged once at the end, not after every object
     let rebuildWanted = false;
+    // walking characters drawn as a GPU skin are left out of the merged scene (characters, below)
+    let walkHidden = new Set();
+    let walkSkin = null; // { key, figs, meshes, weights, bones }
+    const charHooks = { follow: null, tick: null, read: null };
     const rebuild = () => {
       if (holdRebuild) return void (rebuildWanted = true);
       rebuilds++;
@@ -1073,7 +1105,7 @@
       if (solo && !objs.some((o) => o.id === solo)) solo = null;
       if (solo) objs = objs.filter((o) => o.id === solo);
       if (skinned()) objs = objs.filter((o) => !posing.ids.has(o.id)); // the posed figure is drawn as a GPU skin, not from the scene
-      if (storySkin && mode === 'gpu' && gpu) objs = objs.filter((o) => !storySkin.names.has(o.name) && !isHole(o.inst));
+      if (walkHidden.size) objs = objs.filter((o) => !walkHidden.has(o.id)); // so are the walking characters
       if (!skyShow.mine || !skyShow.iau) objs = objs.filter((o) => !o.skyLine || skyShow[o.skyLine]); // the sky switches
       let n = 0;
       owners = objs.map((o) => ({ obj: o, start: n, end: (n += o.mesh.faces.length) }));
@@ -2126,7 +2158,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@847a7f99274b97dab2ed137495e24114195abd56/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@804839618b7edb1fe8c96ac285ec0af671c209ed/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -2633,6 +2665,7 @@
     const drawFrame = () => {
       fpsFrames++;
       queued = false;
+      charHooks.tick?.(performance.now()); // walking characters
       stepTravel(performance.now());
       stepFly(performance.now());
       measureMotion(performance.now(), eyeNow(), shipBasis().forward); // once a frame, after the moves
@@ -2655,9 +2688,7 @@
       const ease1 = 1 - Math.exp(-dtDraw * 9);
       lastDraw = performance.now();
       if (SHOW && !frozen && !travel && !fly) ((yaw += dtDraw * SHOW_SPIN), redraw()); // the turntable: round the model's middle, like A / D on a target
-      const storyFov = story?.cameraFov;
-      const fovGoal = storyFov ?? (space() ? SPACE_FOV : fly && eyeInScene() ? INSIDE_FOV : FOV0); // a story's recorded lens is independent of flight controls
-      if (storyFov !== undefined) fovNow = storyFov;
+      const fovGoal = space() ? SPACE_FOV : fly && eyeInScene() ? INSIDE_FOV : FOV0; // the wide lens only once the eye is really in the scene: starting a flight must not change the picture (in space one lens all the time)
       fovNow += (fovGoal - fovNow) * (fly ? 1 - Math.exp(-dtDraw * 2.2) : ease1); // the lens opens slowly: a quick zoom-out looks like a jump
       if (Math.abs(fovGoal - fovNow) < 1e-3) fovNow = fovGoal;
       else queued || redraw();
@@ -2918,7 +2949,6 @@
       }
 
       frame.style.width = frame.style.height = `${size}px`;
-      frame.classList.toggle('story-sky', Boolean(storySkin && story?.doc.scene.environment && mode === 'gpu' && gpu));
       if (mode === 'gpu' && gpu) {
         canvas.style.width = canvas.style.height = `${size}px`;
         const bg = getComputedStyle(document.documentElement).getPropertyValue('--panel').trim();
@@ -2946,7 +2976,6 @@
             logDepth: sky ? 1e12 : 0,
             planets: shaderPlanets,
             background: rgb,
-            transparent: Boolean(storySkin && story?.doc.scene.environment),
             glow: filmic,
             smooth: smooth ? 40 : 0,
             studio,
@@ -3121,7 +3150,6 @@
           modeEl.title = String(info.message ?? info.reason);
           backends[kind] = null;
           if (posing) showPose(posing.pose);
-          if (story?.doc.tracks.animation) stShow(story.t, true);
           redraw();
         });
         return entry;
@@ -3165,7 +3193,6 @@
         btn.classList.toggle('on', mode === 'gpu');
       }
       if (posing) showPose(posing.pose); // the figure moves over to a GPU skin, or back to CPU-bent meshes
-      if (story?.doc.tracks.animation) stShow(story.t, true);
       redraw();
     };
     // G / the button: svg -> webgpu -> webgl2 -> svg (without WebGPU: svg -> webgl2 -> svg)
@@ -3782,7 +3809,6 @@
     let renderOrigin = null;
     let shiftCache = { mesh: null, o: null, out: null };
     const pickOrigin = () => {
-      if (storySkin) return (renderOrigin = null); // animation channels already use the story's local metre frame
       if (!space() || drive()) return (renderOrigin = null);
       const e = eyeNow();
       let best = null, bd = Infinity;
@@ -4211,6 +4237,7 @@
     const change = (stale, mesh, wire = stale.wire) => {
       const obj = live(stale) ?? stale;
       delete obj.inst; // an edited instance is an ordinary object from now on
+      charHooks.follow?.(obj, mesh); // a character's frame follows a move, an edit makes it a plain object
       if (obj.textFrame && obj.mesh.positions.length === mesh.positions.length && mesh.positions.length) {
         // a text model that is only moved takes the place its words stand in along
         const d = mesh.positions[0].map((c, i) => c - obj.mesh.positions[0][i]);
@@ -4478,6 +4505,10 @@
           if (o.inst) (live(made) ?? made).inst = { ...o.inst, at: [o.inst.at[0] + dx, o.inst.at[1], o.inst.at[2]], level: -1 };
           if (o.pickable === false) (live(made) ?? made).pickable = false;
           if (o.skyLine) (live(made) ?? made).skyLine = o.skyLine;
+          if (o.character) {
+            const rec = charHooks.read?.(o.character); // a placed character (character builder)
+            if (rec) ((rec.frame.at[0] += dx), ((live(made) ?? made).character = rec));
+          }
         }),
       );
       // the constellation figures: polylines between the centres of the stars just loaded (by name), drawn as GPU lines
@@ -4767,7 +4798,7 @@
     const helpEl = document.getElementById('helpPanel');
     const helpDoc = document.getElementById('helpDoc');
     const storyPanelEl = document.getElementById('storyPanel');
-    const sidePanels = [paletteEl, helpEl, storyPanelEl];
+    const sidePanels = [paletteEl, helpEl, storyPanelEl, document.getElementById('charPanel')];
     const syncScrim = () => (scrim.hidden = keyPanel.hidden);
     const closeModals = () => toggleKeys(false);
     const closeSide = () => {
@@ -5296,7 +5327,7 @@
       return ((hi - lo) * gcam.k) / dist;
     };
     const skinned = () => Boolean(posing && mode === 'gpu' && gpu);
-    const skinNow = () => storySkin ?? (skinned() ? { meshes: posing.bind, weights: posing.rig.skin, bones: posing.bones } : undefined);
+    const skinNow = () => (skinned() ? { meshes: posing.bind, weights: posing.rig.skin, bones: posing.bones } : walkSkin && walkHidden.size ? { meshes: walkSkin.meshes, weights: walkSkin.weights, bones: walkSkin.bones } : undefined);
     let poseHint = ''; // a note of pose mode, or why J did nothing
     let objNote = ''; // a line for the object selection (outside edit mode)
     const noteObj = (text) => {
@@ -6630,6 +6661,7 @@
       if (editing || xf) return hintPose('J poses a figure: leave edit mode (Q) first');
       const body = pointedObject();
       if (!body) return hintPose('J poses a figure: put the cross on it, or target it (T), first');
+      if (body.character) return hintPose('a character: stand, sit or walk are set in the character builder (char, then apply)');
       const objs = figureOf(body);
       let rig;
       try {
@@ -6697,6 +6729,370 @@
       }
       return false;
     };
+    // ---- Characters (the character builder, engine: character.ts). A placed character is an ordinary object (one merged mesh, so
+    // it paints, moves, saves and undoes like any other) that also carries `character`: { format, version, spec, pose, frame, parts }.
+    // The mesh is made from it: the spec's figure (buildCharacter), in its pose (stand, sit, a walk step), turned by the frame's yaw,
+    // scaled and put at frame.at (its feet). G / R / S move the frame with it (charFollow in change()); an edit that bends the mesh
+    // makes it a plain object. Walking characters are drawn as one GPU skin (up to CHAR_SKIN_MAX at a time) and walk to and fro along
+    // their heading; frozen, in the SVG view or while posing they stand in a walk step where they were put.
+    const CHAR_FORMAT = '3draft-character';
+    const CHAR_LIB_KEY = '3draft-characters';
+    const CHAR_SKIN_MAX = 4; // walkers in the skin: 4 x 15 joints of the 64 a skin may have
+    const CHAR_WALK_SPAN = 3.2; // m each way (times the figure's scale)
+    const charCache = new Map(); // spec JSON -> Character (the last 32)
+    const charOf = (spec) => {
+      const key = JSON.stringify(normalizeCharacter(spec));
+      let c = charCache.get(key);
+      if (!c) {
+        c = buildCharacter(JSON.parse(key));
+        charCache.set(key, c);
+        if (charCache.size > 32) charCache.delete(charCache.keys().next().value);
+      } else (charCache.delete(key), charCache.set(key, c));
+      return c;
+    };
+    const charPoseOf = (pose, t = 0.12) => (pose === 'sit' ? HUMANOID_POSES.sit : pose === 'walk' ? walkPose(t) : HUMANOID_POSES.bind ?? {});
+    // the figure in a pose, standing on y = 0 round its own feet (local: looks to +z)
+    const charLocal = (spec, pose, t) => {
+      const c = charOf(spec);
+      return merge(...posed(c.parts.map((p) => p.mesh), c.rig, charPoseOf(pose, t), { ground: true }));
+    };
+    const yawTurn = (p, yaw, s = 1) => [s * (p[0] * Math.cos(yaw) + p[2] * Math.sin(yaw)), s * p[1], s * (-p[0] * Math.sin(yaw) + p[2] * Math.cos(yaw))];
+    const charMesh = (ch) => {
+      const m = charLocal(ch.spec, ch.pose);
+      const { at, yaw, scale: s } = ch.frame;
+      return { ...m, positions: m.positions.map((p) => yawTurn(p, yaw, s).map((c, i) => c + at[i])) };
+    };
+    const charRecord = (spec, pose, frame) => {
+      const c = charOf(spec);
+      return { format: CHAR_FORMAT, version: CHARACTER_VERSION, spec: c.spec, pose, frame, parts: c.parts.map((p) => p.id) };
+    };
+    // a character from a scene file or the library: checked, and brought up to date
+    const charRead = (raw) => {
+      if (!raw || typeof raw !== 'object' || !raw.spec) return null;
+      const frame = raw.frame && Array.isArray(raw.frame.at) ? { at: raw.frame.at.map(Number), yaw: Number(raw.frame.yaw) || 0, scale: Number(raw.frame.scale) || 1 } : { at: [0, 0, 0], yaw: 0, scale: 1 };
+      return charRecord(raw.spec, ['stand', 'sit', 'walk'].includes(raw.pose) ? raw.pose : 'stand', frame);
+    };
+    // G / R / S on a character: the move from its old mesh to the new one must be a turn about y, a uniform scale and a shift;
+    // then the frame follows it. Anything else (an edit) makes it a plain object.
+    let charSetting = false;
+    const charFollow = (obj, mesh) => {
+      if (charSetting || !obj.character) return;
+      const a = obj.mesh.positions, b = mesh.positions;
+      const drop = () => delete obj.character;
+      if (a.length !== b.length || !a.length) return drop();
+      const mid = (ps) => ps.reduce((s, p) => [s[0] + p[0] / ps.length, s[1] + p[1] / ps.length, s[2] + p[2] / ps.length], [0, 0, 0]);
+      const ca = mid(a), cb = mid(b);
+      let far = 0;
+      a.forEach((p, i) => { if (Math.hypot(p[0] - ca[0], p[2] - ca[2]) > Math.hypot(a[far][0] - ca[0], a[far][2] - ca[2])) far = i; });
+      const ra = Math.hypot(...vsub(a[far], ca)), rb = Math.hypot(...vsub(b[far], cb));
+      if (ra < 1e-9) return drop();
+      const s = rb / ra;
+      const th = Math.atan2(b[far][0] - cb[0], b[far][2] - cb[2]) - Math.atan2(a[far][0] - ca[0], a[far][2] - ca[2]);
+      const map = (p) => yawTurn(vsub(p, ca), th, s).map((c, i) => c + cb[i]);
+      const tol = 1e-5 * Math.max(1, ra * s);
+      if (!a.every((p, i) => Math.hypot(...vsub(map(p), b[i])) < tol)) return drop();
+      const f = obj.character.frame;
+      obj.character = { ...obj.character, frame: { at: map(f.at), yaw: f.yaw + th, scale: f.scale * s } };
+    };
+    // put a new mesh and record on a character object (no undo step of its own)
+    const charSet = (o, record, mesh = charMesh(record)) => {
+      const obj = live(o) ?? o;
+      charSetting = true;
+      try {
+        obj.character = record;
+        change(obj, mesh, undefined);
+      } finally {
+        charSetting = false;
+      }
+      walkSkin = null;
+    };
+
+    // ---- walking characters: one GPU skin, the bones turned and moved to where each one walks this frame
+    const charT0 = performance.now();
+    const walkersOn = () => !frozen && mode === 'gpu' && Boolean(gpu) && !posing && !vr;
+    const walkerIds = () => new Set(allObjects().filter((o) => o.character?.pose === 'walk').slice(0, CHAR_SKIN_MAX).map((o) => o.id));
+    const walkFrame = (now) => {
+      if (!walkersOn()) return null;
+      const walkers = allObjects().filter((o) => o.character?.pose === 'walk').slice(0, CHAR_SKIN_MAX);
+      if (!walkers.length) return (walkSkin = null);
+      const key = walkers.map((o) => `${o.id}:${JSON.stringify(o.character.spec)}`).join('|');
+      if (walkSkin?.key !== key) {
+        const figs = walkers.map((o) => ({ id: o.id, c: charOf(o.character.spec) }));
+        const meshes = [], weights = [];
+        figs.forEach((f, k) => {
+          const base = k * f.c.rig.joints.length;
+          f.c.parts.forEach((p, i) => {
+            meshes.push(p.mesh);
+            weights.push(f.c.rig.skin[i].map((w) => w.map(([j, x]) => [j + base, x])));
+          });
+        });
+        walkSkin = { key, figs, meshes, weights, bones: new Float32Array(figs.reduce((n, f) => n + f.c.rig.joints.length * 12, 0)) };
+      }
+      const t = (now - charT0) / 1000;
+      let o12 = 0;
+      for (const f of walkSkin.figs) {
+        const obj = walkers.find((w) => w.id === f.id);
+        const { at, yaw, scale: s } = obj.character.frame;
+        const speed = 1.25 * (f.c.height / 1.75) * s; // m/s, one walk cycle (two steps) per 1.1 s
+        const span = CHAR_WALK_SPAN * s;
+        const d = (t * speed + (f.id.charCodeAt(0) % 7) * 0.37) % (2 * span); // (each one starts somewhere else)
+        const back = d > span;
+        const u = back ? 2 * span - d : d;
+        const heading = yaw + (back ? Math.PI : 0);
+        const pos = yawTurn([0, 0, u], yaw).map((c, i) => c + at[i]);
+        const pose = walkPose(((t * speed) / (1.25 * (f.c.height / 1.75) * s * 1.1)) % 1);
+        const lift = poseLift(f.c.parts.map((p) => p.mesh), f.c.rig, pose);
+        const local = boneMatrices(f.c.rig, pose, { move: [0, lift, 0] });
+        const ch = Math.cos(heading), sh = Math.sin(heading);
+        // world = T(pos) . R_y(heading) . S(s) . local
+        for (let j = 0; j < f.c.rig.joints.length; j++) {
+          const L = local.subarray(j * 12, j * 12 + 12);
+          const row = (r) => [L[r * 4], L[r * 4 + 1], L[r * 4 + 2], L[r * 4 + 3]];
+          const [r0, r1, r2] = [row(0), row(1), row(2)];
+          const out = [
+            r0.map((v, k) => s * (ch * v + sh * r2[k]) + (k === 3 ? pos[0] : 0)),
+            r1.map((v, k) => s * v + (k === 3 ? pos[1] : 0)),
+            r2.map((v, k) => s * (-sh * r0[k] + ch * v) + (k === 3 ? pos[2] : 0)),
+          ];
+          walkSkin.bones.set([...out[0], ...out[1], ...out[2]], o12 + j * 12);
+        }
+        o12 += f.c.rig.joints.length * 12;
+      }
+      return walkSkin;
+    };
+    let walkWas = '';
+    // once a frame: the walkers' bones, the scene without them when they are skinned, and the next frame while they walk
+    const charTick = (now) => {
+      const on = walkersOn() && allObjects().some((o) => o.character?.pose === 'walk');
+      const state = on ? [...walkerIds()].join(',') : '';
+      if (state !== walkWas) ((walkWas = state), (walkHidden = new Set(state.split(',').filter(Boolean))), rebuild());
+      if (!on) return;
+      walkFrame(now);
+      redraw();
+    };
+
+    // ---- the builder panel
+    const charPanelEl = document.getElementById('charPanel');
+    const charViewEl = document.getElementById('charView');
+    const charNoteEl = document.getElementById('charNote');
+    let charSpec = normalizeCharacter(CHARACTER_PRESETS.mechanic);
+    let charPose = 'stand';
+    let charView = { yaw: -0.5, pitch: 0.12, drag: null };
+    let charTarget = null; // the placed character being edited (its id)
+    let charVaryN = 1;
+    const CHAR_LABELS = { height: 'height (m)', build: 'build', shoulders: 'shoulders', head: 'head size', jaw: 'jaw', nose: 'nose' };
+    const charControls = document.getElementById('charControls');
+    const swatchRow = (key, list) => `<span class="swatches" data-key="${key}">${list.map((c) => `<button type="button" data-c="${c}" style="background:${c}" title="${c}"></button>`).join('')}<input type="color" data-color="${key}"></span>`;
+    const pickSel = (key, list) => `<select data-key="${key}">${list.map((v) => `<option value="${v}">${v}</option>`).join('')}</select>`;
+    const slider = (key) => {
+      const [lo, hi] = CHARACTER_RANGES[key];
+      return `<label class="slider"><span>${CHAR_LABELS[key]}</span><input type="range" data-key="${key}" min="${lo}" max="${hi}" step="${key === 'height' ? 0.01 : 0.05}"><em data-out="${key}"></em></label>`;
+    };
+    charControls.innerHTML = `
+      <div class="cgroup"><b>body</b>${pickSel('base', ['female', 'male'])}${slider('height')}${slider('build')}${slider('shoulders')}${slider('head')}</div>
+      <div class="cgroup"><b>face</b>${pickSel('shape', FACE_SHAPES)}${slider('jaw')}${slider('nose')}<span class="lab">skin</span>${swatchRow('skin', SKIN_TONES)}</div>
+      <div class="cgroup"><b>hair</b>${pickSel('hair', HAIR_STYLES)}<label class="tick"><input type="checkbox" data-key="glasses"> glasses</label><span class="lab">beard</span>${pickSel('beard', BEARD_STYLES)}<span class="lab">colour</span>${swatchRow('hairColor', HAIR_COLORS)}</div>
+      <div class="cgroup"><b>outfit</b>${pickSel('outfit', OUTFITS)}<span class="lab">colours</span><span class="swatches"><input type="color" data-color="color" title="the main colour"><input type="color" data-color="color2" title="the second colour (trousers, the shirt under an overall)"></span><span class="lab">prop</span><span>${pickSel('prop', CHAR_PROPS)}</span></div>`;
+    // the spec <-> the controls
+    const charToControls = () => {
+      const s = charSpec;
+      const q = (k) => charControls.querySelector(`[data-key="${k}"]`);
+      const set = (k, v) => { const el = q(k); if (el) el.value = v; const out = charControls.querySelector(`[data-out="${k}"]`); if (out) out.textContent = Number(v).toFixed(2); };
+      set('base', s.base); set('height', s.body.height); set('build', s.body.build); set('shoulders', s.body.shoulders); set('head', s.body.head);
+      set('shape', s.face.shape); set('jaw', s.face.jaw); set('nose', s.face.nose);
+      set('hair', s.hair.style); set('beard', s.beard); set('outfit', s.outfit.kind); set('prop', s.prop);
+      q('glasses').checked = s.glasses;
+      const col = (k, v) => (charControls.querySelector(`[data-color="${k}"]`).value = v);
+      col('skin', s.face.skin); col('hairColor', s.hair.color); col('color', s.outfit.color); col('color2', s.outfit.color2);
+      for (const sw of charControls.querySelectorAll('.swatches')) {
+        const v = sw.dataset.key === 'skin' ? s.face.skin : s.hair.color;
+        for (const b of sw.querySelectorAll('button')) b.classList.toggle('on', b.dataset.c === v);
+      }
+    };
+    const charEdit = (k, v) => {
+      const s = structuredClone(charSpec);
+      const n = Number(v);
+      if (k === 'base') s.base = v;
+      else if (k in s.body) s.body[k] = n;
+      else if (k === 'shape') s.face.shape = v;
+      else if (k === 'jaw' || k === 'nose') s.face[k] = n;
+      else if (k === 'skin') s.face.skin = v;
+      else if (k === 'hair') s.hair.style = v;
+      else if (k === 'hairColor') s.hair.color = v;
+      else if (k === 'glasses') s.glasses = Boolean(v);
+      else if (k === 'beard') s.beard = v;
+      else if (k === 'outfit') s.outfit.kind = v;
+      else if (k === 'color' || k === 'color2') s.outfit[k] = v;
+      else if (k === 'prop') s.prop = v;
+      charSpec = normalizeCharacter(s);
+      charToControls();
+      charShow();
+    };
+    charControls.addEventListener('input', (e) => {
+      const el = e.target;
+      if (el.dataset.key) charEdit(el.dataset.key, el.type === 'checkbox' ? el.checked : el.value);
+      else if (el.dataset.color) charEdit(el.dataset.color, el.value);
+    });
+    charControls.addEventListener('click', (e) => {
+      const b = e.target.closest('.swatches button');
+      if (b) charEdit(b.parentElement.dataset.key, b.dataset.c);
+    });
+    // the preview: the engine's SVG view of the figure, turned by a drag; the walk plays while it is chosen
+    let charAnim = 0;
+    const charShow = () => {
+      if (charPanelEl.hidden) return;
+      const c = charOf(charSpec);
+      const t = charPose === 'walk' ? ((performance.now() - charT0) / 1100) % 1 : 0.12;
+      const mesh = charLocal(charSpec, charPose, t);
+      const H = c.height;
+      const sit = charPose === 'sit';
+      const size = Math.round(Math.max(200, Math.min(charViewEl.clientWidth || 380, charViewEl.clientHeight || 340)));
+      charViewEl.innerHTML = renderView(mesh, orbitView({ yaw: charView.yaw, pitch: charView.pitch }), { points: false, occlude: true, stroke: '#00000030', background: '#1b1c17', size, fit: { center: [0, sit ? H * 0.38 : H * 0.55, sit ? H * 0.12 : 0], radius: H * 0.68 } });
+      for (const b of document.querySelectorAll('#charPoseRow button')) b.classList.toggle('on', b.dataset.pose === charPose);
+      const target = charTarget && allObjects().find((o) => o.id === charTarget && o.character);
+      document.getElementById('charApply').disabled = !target;
+      document.getElementById('charApply').textContent = target ? `apply to ${target.name}` : 'apply to selected';
+      cancelAnimationFrame(charAnim);
+      if (charPose === 'walk') charAnim = requestAnimationFrame(() => setTimeout(charShow, 60));
+    };
+    charViewEl.addEventListener('pointerdown', (e) => ((charView.drag = { x: e.clientX, y: e.clientY, yaw: charView.yaw, pitch: charView.pitch }), charViewEl.setPointerCapture(e.pointerId)));
+    charViewEl.addEventListener('pointermove', (e) => {
+      const d = charView.drag;
+      if (!d) return;
+      charView.yaw = d.yaw - (e.clientX - d.x) * 0.012;
+      charView.pitch = Math.max(-0.6, Math.min(1.2, d.pitch + (e.clientY - d.y) * 0.008));
+      if (charPose !== 'walk') charShow();
+    });
+    charViewEl.addEventListener('pointerup', () => (charView.drag = null));
+    document.getElementById('charPoseRow').addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-pose]');
+      if (b) ((charPose = b.dataset.pose), charShow());
+    });
+    document.getElementById('charPresets').addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-preset]');
+      if (!b) return;
+      charSpec = normalizeCharacter(CHARACTER_PRESETS[b.dataset.preset]);
+      charToControls();
+      charShow();
+    });
+    document.getElementById('charVary').addEventListener('click', () => {
+      charSpec = variateCharacter(charSpec, (charSpec.seed * 31 + charVaryN++ * 7919) % 2147483647 || 1);
+      charToControls();
+      charShow();
+    });
+    const charNote = (t) => (charNoteEl.textContent = t);
+    // the library: named characters in this browser
+    const charLib = () => {
+      try {
+        return JSON.parse(localStorage.getItem(CHAR_LIB_KEY) ?? '{}') ?? {};
+      } catch {
+        return {};
+      }
+    };
+    const charLibEl = document.getElementById('charLib');
+    const charLibShow = () => {
+      const lib = charLib();
+      charLibEl.replaceChildren(Object.assign(document.createElement('option'), { value: '', textContent: Object.keys(lib).length ? 'open saved…' : 'none saved yet' }), ...Object.keys(lib).sort().map((n) => Object.assign(document.createElement('option'), { value: n, textContent: n })));
+    };
+    const charNameEl = document.getElementById('charName');
+    document.getElementById('charSave').addEventListener('click', () => {
+      const name = charNameEl.value.trim() || `${charSpec.role ?? charSpec.base}-${charSpec.seed}`;
+      const lib = charLib();
+      lib[name] = { ...charRecord(charSpec, charPose, { at: [0, 0, 0], yaw: 0, scale: 1 }), name, frame: undefined };
+      try {
+        localStorage.setItem(CHAR_LIB_KEY, JSON.stringify(lib));
+        charNameEl.value = name;
+        charNote(`saved “${name}”`);
+      } catch (err) {
+        charNote(`could not save: ${err.message}`);
+      }
+      charLibShow();
+    });
+    charLibEl.addEventListener('change', () => {
+      const rec = charRead(charLib()[charLibEl.value]);
+      if (!rec) return;
+      charSpec = rec.spec;
+      charPose = rec.pose;
+      charNameEl.value = charLibEl.value;
+      charLibEl.value = '';
+      charToControls();
+      charShow();
+      charNote(`opened “${charNameEl.value}”`);
+    });
+    document.getElementById('charForget').addEventListener('click', () => {
+      const lib = charLib();
+      const name = charNameEl.value.trim();
+      if (!(name in lib)) return charNote('type the name of a saved character to forget it');
+      delete lib[name];
+      localStorage.setItem(CHAR_LIB_KEY, JSON.stringify(lib));
+      charLibShow();
+      charNote(`forgot “${name}”`);
+    });
+    // place: a new object at the cross (on the surface under it), facing the eye; one undo step
+    const placeCharacter = (spec = charSpec, pose = charPose, at = null, yaw = null) => {
+      let foot = at;
+      if (!foot) {
+        foot = hit ? [...hit.point] : null;
+        if (!foot && cam?.at) {
+          const { origin, dir } = ray(cam, cam.at.x, cam.at.y);
+          foot = origin.map((c, i) => c + dir[i] * orbitDist(fit.radius) * 0.6);
+        }
+        foot ??= [...fit.center];
+      }
+      const eye = eyeNow();
+      const face = yaw ?? Math.atan2(eye[0] - foot[0], eye[2] - foot[2]);
+      const record = charRecord(spec, pose, { at: foot.map((v) => +v.toFixed(5)), yaw: +face.toFixed(5), scale: 1 });
+      const name = `${(charNameEl.value.trim() || record.spec.role || 'character').replace(/\s+/g, '-')}-${shortId()}`;
+      const made = create(name, charMesh(record));
+      (live(made) ?? made).character = record;
+      walkSkin = null;
+      rebuild();
+      redraw();
+      charTarget = made.id;
+      charShow();
+      return made;
+    };
+    document.getElementById('charPlace').addEventListener('click', () => {
+      const o = placeCharacter();
+      charNote(`placed ${o.name}${charPose === 'walk' ? ' (walks to and fro; freeze stops it)' : ''} · U takes it back`);
+    });
+    // edit a placed one: its spec into the builder; apply: only that object changes (one undo step)
+    const charEditPlaced = (o = pointedObject()) => {
+      if (!o?.character) return charNote('put the cross on a placed character (or target it, T), then edit');
+      charTarget = o.id;
+      charSpec = normalizeCharacter(o.character.spec);
+      charPose = o.character.pose;
+      charToControls();
+      charShow();
+      charNote(`editing ${o.name}: change it, then apply`);
+    };
+    document.getElementById('charPick').addEventListener('click', () => charEditPlaced());
+    const charApplyTo = (o, spec = charSpec, pose = charPose) => {
+      const obj = live(o);
+      if (!obj?.character) return;
+      const before = { record: obj.character, mesh: obj.mesh };
+      charSet(obj, charRecord(spec, pose, obj.character.frame));
+      history.push(() => has(obj) && charSet(obj, before.record, before.mesh));
+      redraw();
+    };
+    document.getElementById('charApply').addEventListener('click', () => {
+      const o = allObjects().find((x) => x.id === charTarget);
+      if (o) (charApplyTo(o), charNote(`${o.name} changed · U takes it back`));
+    });
+    const openCharacters = () => {
+      openSide(charPanelEl);
+      if (charPanelEl.hidden) return void cancelAnimationFrame(charAnim);
+      const o = pointedObject();
+      if (o?.character && o.id !== charTarget) charEditPlaced(o);
+      charToControls();
+      charLibShow();
+      requestAnimationFrame(charShow);
+    };
+    document.getElementById('charBtn').addEventListener('click', openCharacters);
+    document.getElementById('charClose').addEventListener('click', () => (closeSide(), cancelAnimationFrame(charAnim)));
+    charHooks.follow = charFollow;
+    charHooks.tick = charTick;
+    charHooks.read = charRead;
     // G outside edit mode: grab the target (T) or the object under the cross, whole. Ctrl+D: a copy (a new model, not an instance) that is
     // grabbed at once.
     const grabObject = (o, copied = false) => {
@@ -7830,7 +8226,7 @@
         palette: materials.filter((m) => used.has(m.name)).map((m) => ({ ...m })),
         view: viewOf(),
         ...(vehicle ? { vehicle } : {}),
-        objects: allObjects().map((o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}), ...textPart(o), ...(o.pickable === false ? { pickable: false } : {}), ...(o.skyLine ? { skyLine: o.skyLine } : {}) })),
+        objects: allObjects().map((o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}), ...textPart(o), ...(o.pickable === false ? { pickable: false } : {}), ...(o.skyLine ? { skyLine: o.skyLine } : {}), ...(o.character ? { character: o.character } : {}) })),
         ...(skyFigures.length ? { figures: skyFigures.map(({ id, name, en, lines }) => ({ id, name, en, lines })) } : {}),
         ...(skyMine.length ? { skyLines: skyMine.map((l) => [l.a, l.b]) } : {}),
         ...(skyPaths.length ? { paths: skyPaths } : {}),
@@ -7952,27 +8348,19 @@
       story.t = Math.max(0, Math.min(t, doc.timeline.durationMs));
       const index = storyFormat.constructionIndexAtTime(doc, story.t);
       const key = `${index}|${story.cutaway}|${story.focus}`;
-      const cpuAnimation = doc.tracks.animation && (mode !== 'gpu' || !gpu);
-      if (force || key !== story.loadedKey || cpuAnimation) {
+      if (force || key !== story.loadedKey) {
         let objects = storyFormat.constructionAt(doc, story.t);
         if (story.cutaway) objects = objects.filter((o) => !stMatch(o.name, doc.presentation?.cutaway?.excludePrefixes));
         const v = doc.presentation?.views?.find((x) => x.id === story.focus);
         if (v) objects = objects.filter((o) => stMatch(o.name, v.includePrefixes) && !stMatch(o.name, v.excludePrefixes));
-        storySkin = cpuAnimation ? null : storyFormat.animationSkin(doc, objects);
-        if (cpuAnimation) objects = storyFormat.sceneAt(doc, story.t).filter((o) => objects.some((b) => b.name === o.name));
         applyScene({ objects });
         story.loadedKey = key;
         story.count = objects.length;
       }
       story.index = index;
-      if (storySkin) storyFormat.animationAt(doc, story.t, storySkin.bones);
       if (stOn('stCam') && !story.cutaway && !story.focus) {
         const c = storyFormat.cameraAt(doc, story.t);
         lookFrom(c.eye, c.yaw, c.pitch);
-        roll = ((c.roll ?? 0) * Math.PI) / 180;
-        story.cameraFov = c.fov === undefined ? undefined : (c.fov * Math.PI) / 180;
-      } else {
-        story.cameraFov = undefined;
       }
       // the narration of the moment: the chapter's text, the operation captions (and voiceover) under the view
       const cues = storyFormat.narrationAt(doc, Math.min(story.t, Math.max(0, doc.timeline.durationMs - 0.001)));
@@ -7984,10 +8372,10 @@
       stEl('stCapTitle').textContent = ch?.title ?? '';
       stEl('stCapText').textContent = op;
       stEl('stChapterText').textContent = text ? said((c) => c.channel === 'chapter') : 'Narration is off.';
-      stEl('stAction').textContent = text ? op || (doc.tracks.animation ? 'Animated scene.' : index ? 'Construction in progress.' : 'The scene is empty.') : `${index} construction steps applied.`;
+      stEl('stAction').textContent = text ? op || (index ? 'Construction in progress.' : 'The scene is empty.') : `${index} construction steps applied.`;
       stEl('stChapter').value = ch?.id ?? '';
       const steps = doc.tracks.construction.steps;
-      stEl('stMeta').textContent = `${doc.tracks.animation ? `${doc.tracks.animation.channels.length} animation channels` : `${index} / ${steps.length} steps`} · ${story.count ?? 0} objects · ${stFmt(story.t)} / ${stFmt(doc.timeline.durationMs)} · ${doc.metadata.units ?? ''}`;
+      stEl('stMeta').textContent = `${index} / ${steps.length} steps · ${story.count ?? 0} objects · ${stFmt(story.t)} / ${stFmt(doc.timeline.durationMs)} · ${doc.metadata.units ?? ''}`;
       const step = steps[index - 1];
       if (step) {
         const args = { ...step.command?.args };
@@ -8000,7 +8388,7 @@
       if (document.activeElement !== slider) slider.value = String(story.t);
       stEl('stClock').textContent = `${stFmt(story.t)} / ${stFmt(doc.timeline.durationMs)}`;
       stEl('stPrev').disabled = story.t === 0;
-      stEl('stNext').disabled = doc.tracks.animation ? story.t >= doc.timeline.durationMs : index === steps.length;
+      stEl('stNext').disabled = index === steps.length;
       for (const b of stEl('stViews').querySelectorAll('[data-view]')) {
         const v = doc.presentation?.views?.find((x) => x.id === b.dataset.view);
         if (v) b.disabled = story.t < (v.availableFromMs ?? 0);
@@ -8048,10 +8436,6 @@
     // a step: the next step's time; back: the time of the group before (steps of one timestamp are one group)
     const stStep = (dir) => {
       if (!story) return;
-      if (story.doc.tracks.animation) {
-        const times = story.doc.chapters.map((c) => c.startMs);
-        return stSeek(dir > 0 ? times.find((t) => t > story.t) ?? story.doc.timeline.durationMs : times.filter((t) => t < story.t).at(-1) ?? 0);
-      }
       const steps = story.doc.tracks.construction.steps;
       if (dir > 0) return stSeek(steps[story.index]?.timeMs ?? story.doc.timeline.durationMs);
       const before = steps.filter((x) => x.timeMs < (steps[story.index - 1]?.timeMs ?? 0));
@@ -8092,8 +8476,7 @@
       }
       if (story) await closeStory(false);
       setVehicle(null);
-      await loadScene({ ...doc.scene.environment, palette: doc.scene.palette ?? [], objects: doc.scene.environment?.objects ?? [], vehicle: null }, true);
-      renderOrigin = null;
+      await loadScene({ palette: doc.scene.palette ?? [], objects: [] }, true);
       story = { doc, base, t: 0, index: -1, playing: false, last: 0, loadedKey: '', cutaway: false, focus: null, raf: 0, count: 0 };
       document.body.classList.add('story');
       stEl('stTitle').textContent = doc.metadata.title ?? 'Story';
@@ -8115,11 +8498,8 @@
       stPause();
       stAudioStop();
       stAudio.clear();
-      const model = keep ? storyFormat.sceneAt(story.doc, story.t) : [];
-      const environment = story.doc.scene.environment;
-      const palette = story.doc.scene.palette;
+      const model = keep ? storyFormat.constructionAt(story.doc, story.t) : [];
       story = null;
-      storySkin = null;
       document.body.classList.remove('story');
       stEl('storyCaption').hidden = true;
       storyPanelEl.hidden = true;
@@ -8127,7 +8507,7 @@
       applyScene({ objects: [] });
       if (model.length) {
         const eye = eyeNow(), y = (yaw * 180) / Math.PI, p = (pitch * 180) / Math.PI;
-        await loadScene({ ...environment, palette, objects: [...(environment?.objects ?? []), ...model], vehicle: null }, true);
+        await loadScene({ objects: model }, true);
         lookFrom(eye, y, p);
       }
     };
@@ -8197,9 +8577,10 @@
     if (new URLSearchParams(location.search).has('debug')) {
       globalThis.__3draft = {
         load: (data) => applyScene(data),
+        sceneFile: (name = 'test') => sceneFile(name), // what save / f↓ write
+        loadScene: (data, replace = true) => loadScene(data, replace), // as the scene list / f↑ does (prototypes, characters)
         pickFault: () => (picker.worker?.postMessage({ type: 'pick', ver: picker.ver, cam: null, x: 0, y: 0, cull: true, key: 'fault' }), Boolean(picker.worker)), // (a test: a broken question)
-        story: () => (story ? { title: story.doc.metadata.title, t: story.t, durationMs: story.doc.timeline.durationMs, index: story.index, total: story.doc.tracks.construction.steps.length, objects: story.count, playing: story.playing, cutaway: story.cutaway, focus: story.focus, animationChannels: story.doc.tracks.animation?.channels.length ?? 0, bones: storySkin ? Array.from(storySkin.bones) : null } : null),
-        openStory: (data) => openStory(data),
+        story: () => (story ? { title: story.doc.metadata.title, t: story.t, durationMs: story.doc.timeline.durationMs, index: story.index, total: story.doc.tracks.construction.steps.length, objects: story.count, playing: story.playing, cutaway: story.cutaway, focus: story.focus } : null),
         xr: () => ({ on: Boolean(xrState.session), mono: Boolean(xrState.mono), pressed: xrState.pressed, note: xrNote?.textContent }),
         flight: () => ({ roll: +roll.toFixed(4), vehicle, car: car && { p: car.p, heading: car.heading, v: car.v, steer: car.steer, throttle: car.throttle }, orbit: orbit?.phase ?? null, gravity: gravity && { name: gravity.name }, cruise: { ...cruise }, space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
         aim: () => (aim ? { name: aim.obj.name, px: +aim.px.toFixed(1), depth: aim.depth } : null), under: () => hitObj()?.name ?? null, locked: () => lockedObject()?.name ?? null,
@@ -8211,6 +8592,16 @@
         select: (names) => ((picked = allObjects().filter((o) => names.includes(o.name)).map((o) => o.id)), redraw(), picked.length), // like B round those objects
         place: () => placing && { phase: placing.phase, steps: placing.steps.length, kind: xf?.kind, foot: placing.foot.map((v) => +v.toFixed(3)), n: placing.n.map((v) => +v.toFixed(3)), name: placing.name }, // like opening a scene file: its palette (screens, scene screens) comes too
         screens: () => ({ mode, gpu: Boolean(gpu), kind: activeKind, iframes: screenFrames.size, spots: [...sceneSpots].map(([addr, s]) => ({ addr, ready: s.ready, error: s.error })) }),
+        // the character builder: place(spec | preset name, pose, at, yaw), the placed ones, apply(name, spec, pose), the walk skin
+        chars: {
+          place: (spec, pose = 'stand', at = null, yaw = null) => placeCharacter(normalizeCharacter(typeof spec === 'string' ? CHARACTER_PRESETS[spec] : spec), pose, at, yaw).name,
+          list: () => allObjects().filter((o) => o.character).map((o) => ({ name: o.name, pose: o.character.pose, frame: o.character.frame, role: o.character.spec.role ?? null, base: o.character.spec.base, faces: o.mesh.faces.length, walking: walkHidden.has(o.id) })),
+          apply: (name, spec, pose) => { const o = allObjects().find((x) => x.name === name); if (o) charApplyTo(o, normalizeCharacter(spec ?? o.character.spec), pose ?? o.character.pose); return Boolean(o); },
+          open: () => openCharacters(),
+          // a rigid move as G / R / S make it (through change()): the frame must follow
+          move: (name, d = [0, 0, 0], yaw = 0, s = 1) => { const o = allObjects().find((x) => x.name === name); if (!o) return null; const b = baseCentre(o.mesh); change(o, { ...o.mesh, positions: o.mesh.positions.map((q) => yawTurn(vsub(q, b), yaw, s).map((c, i) => c + b[i] + d[i])) }); return o.character?.frame ?? null; },
+          state: () => ({ spec: charSpec, pose: charPose, target: charTarget, skin: walkSkin ? walkSkin.figs.length : 0 }),
+        },
         pose: () => (posing ? { name: posing.name, anim: posing.anim, objects: posing.objs.map((o) => o.name), joints: posing.joints, skinned: skinned(), rigPx: rigPixels(posing.joints), sceneFaces: scene.faces.length } : null),
         hint: () => poseHint,
         meshes: () => allObjects().map((o) => o.mesh),
@@ -8321,7 +8712,7 @@
             redraw();
           } else if (c.cmd === 'vehicle') setVehicle(c.vehicle === 'none' ? null : c.vehicle);
           else if (c.cmd === 'scene') await loadScene(c.scene, Boolean(c.replace)); // view_sky: a sky catalogue made into a scene by the server
-          else if (c.cmd === 'example') await (c.replace && !c.name.startsWith('story:') ? withLoader(c.name, async () => loadScene(await sceneOf(c.name), true)) : addExample(c.name));
+          else if (c.cmd === 'example') await (c.replace ? withLoader(c.name, async () => loadScene(await sceneOf(c.name), true)) : addExample(c.name));
           reportView();
         } catch (err) {
           liveEl.textContent = 'bad command';
@@ -8816,7 +9207,7 @@
     draw();
     window.__ready = true;
     // works offline once opened (not in an artifact, nor from a file)
-    if (!EMBED && 'serviceWorker' in navigator && location.protocol.startsWith('http') && !globalThis.claude?.use) navigator.serviceWorker.register('sw.js').catch(() => {});
+    if (!EMBED && 'serviceWorker' in navigator && location.protocol.startsWith('http') && !globalThis.claude?.use) navigator.serviceWorker.register('sw.js').catch(() => {}); // the engine and the page script both ran (the watchdog below looks at this)
     // Leaving by accident: the browser asks first (closing the tab, reloading, typing another address) once something has been made
     // or changed here, and the back button / back gesture (the phone app's back key too) needs pressing twice within two seconds.
     if (!EMBED && !SHOW) {
