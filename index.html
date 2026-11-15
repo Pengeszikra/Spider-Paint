@@ -866,7 +866,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@b84c480e2982d581b89f2baf670a87083cb3b9cf/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@ece82c7261dfbb340481c36f8bfd5a507ab47a36/dist/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
@@ -2068,7 +2068,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@b84c480e2982d581b89f2baf670a87083cb3b9cf/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@ece82c7261dfbb340481c36f8bfd5a507ab47a36/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -2873,6 +2873,7 @@
         const gScene = shiftMesh(scene, ro);
         const gFit = ro ? { ...shown_fit, center: vsub(shown_fit.center, ro) } : shown_fit;
         const sunLight = sky ? sunDirection() : null;
+        const shaderPlanets = scenePlanets(ro);
         renderGpu = (readback = false) =>
           gpu[readback ? 'pixels' : 'render'](gScene, view, (xrArgs = { scene: gScene, view, origin: ro, opts: {
             screens,
@@ -2882,6 +2883,7 @@
             size,
             fit: gFit,
             logDepth: sky ? 1e12 : 0,
+            planets: shaderPlanets,
             background: rgb,
             glow: filmic,
             smooth: smooth ? 40 : 0,
@@ -3672,6 +3674,18 @@
         if (!out) partsCache.map.set(m, (out = { ...m, positions: m.positions.map((p) => [p[0] - o[0], p[1] - o[1], p[2] - o[2]]) }));
         return out;
       });
+    };
+    // the shader planets (the engine's planet.ts): every instance with a `planet` recipe, at its place (moved with the floating
+    // origin), its core size, lit from the scene's origin (the Sun of a star map); its plain sphere stays under it
+    const scenePlanets = (o) => {
+      const out = [];
+      const t = performance.now() / 1000;
+      for (const ob of allObjects()) {
+        const i = ob.inst;
+        if (!i?.planet) continue;
+        out.push({ ...i.planet, center: o ? vsub(i.at, o) : i.at, radius: instSize(i, 'core') || 1, light: o ? [-o[0], -o[1], -o[2]] : [0, 0, 0], time: t });
+      }
+      return out.length ? out : undefined;
     };
     const shiftMarks = (marks, o) => (o ? marks.map((m) => ({ ...m, lines: m.lines.map((l) => l.map((p) => [p[0] - o[0], p[1] - o[1], p[2] - o[2]])) })) : marks);
     const shiftScreens = (screens, o) => (o && screens?.length ? screens.map((sc) => ({ ...sc, corners: sc.corners.map((p) => [p[0] - o[0], p[1] - o[1], p[2] - o[2]]) })) : screens);
