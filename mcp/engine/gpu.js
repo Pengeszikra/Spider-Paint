@@ -133,8 +133,40 @@ const emittersOf = (mesh, palette) => {
  * one light at their weighted centre; the brightest MAX_LIGHTS stay. Each light has a reach that grows with the emitting area.
  * Float32Array, LIGHT_FLOATS per light.
  */
-export const sceneLights = (mesh, parts, palette) => {
+export const sceneLights = (mesh, parts, palette, skin) => {
     const list = (parts && parts.length ? parts : [mesh]).map((m) => emittersOf(m, palette)).filter((e) => e.length);
+    if (skin) {
+        const rows = [];
+        skin.meshes.forEach((m, mi) => {
+            if (!emittersOf(m, palette).length)
+                return;
+            for (const f of m.faces) {
+                const s = surfaceOf(f, palette);
+                if (s.emit < 0.05)
+                    continue;
+                let gain = 0;
+                const pts = f.v.map((vi) => {
+                    const p = m.positions[vi], q = [0, 0, 0];
+                    const top = [...skin.weights[mi][vi]].sort((a, b) => b[1] - a[1]).slice(0, 4);
+                    const sum = top.reduce((t, w) => t + w[1], 0) || 1;
+                    for (const [joint, share] of top) {
+                        const w = share / sum, b = joint * 12;
+                        for (let k = 0; k < 3; k++)
+                            q[k] += w * (skin.bones[b + k * 4] * p[0] + skin.bones[b + k * 4 + 1] * p[1] + skin.bones[b + k * 4 + 2] * p[2] + skin.bones[b + k * 4 + 3]);
+                        gain += w * (skin.emission?.[joint] ?? 1) / f.v.length;
+                    }
+                    return q;
+                });
+                const area = Math.hypot(...(faceNormal(pts))), power = area * s.emit * gain;
+                if (power <= 0)
+                    continue;
+                const c = [0, 1, 2].map((k) => pts.reduce((a, p) => a + p[k], 0) / pts.length);
+                rows.push(...c, power, ...colorOf(s.color), area);
+            }
+        });
+        if (rows.length)
+            list.push(new Float32Array(rows));
+    }
     if (!list.length)
         return new Float32Array(0);
     const lo = [Infinity, Infinity, Infinity];
@@ -382,7 +414,7 @@ fn ld(p0 : vec4<f32>) -> vec4<f32> {
   if (u.eye.w > 0.0) { p.z = log2(max(1e-6, u.eye.w * p.w + 1.0)) / log2(u.eye.w * 1e12 + 1.0) * p.w; }
   return p;
 }
-struct Bones { r : array<vec4<f32>, ${3 * 64}> }; // per joint three rows of [cols | shift]
+struct Bones { r : array<vec4<f32>, ${3 * 64}>, emission : array<vec4<f32>, 16> }; // three rows per joint, then emission gains
 @group(0) @binding(1) var<uniform> bones : Bones;
 
 struct VIn { @location(0) pos : vec3<f32>, @location(1) nrm : vec3<f32>, @location(2) col : vec3<f32>, @location(8) mat : vec4<f32>, @location(9) soft : f32 };
@@ -418,12 +450,14 @@ fn bone(k : u32, p : vec4<f32>) -> vec3<f32> {
   var o : VOut;
   var p = vec3<f32>(0.0);
   var n = vec3<f32>(0.0);
+  var emission = 0.0;
   for (var c = 0u; c < 4u; c = c + 1u) {
     let w = i.wt[c];
     if (w > 0.0) {
       let k = u32(i.j[c] + 0.5);
       p = p + bone(k, vec4<f32>(i.pos, 1.0)) * w;
       n = n + bone(k, vec4<f32>(i.nrm, 0.0)) * w;
+      emission = emission + bones.emission[k / 4u][k % 4u] * w;
     }
   }
   o.p = ld(u.vp * vec4<f32>(p, 1.0));
@@ -431,6 +465,7 @@ fn bone(k : u32, p : vec4<f32>) -> vec3<f32> {
   o.c = i.col;
   o.w = p;
   o.m = i.mat;
+  o.m.w = o.m.w * emission;
   o.s = i.soft;
   return o;
 }
@@ -800,7 +835,8 @@ export const createGpu = async (canvas, { sampleCount = 4, onError } = {}) => {
         multisample: { count: sampleCount },
     });
     const uniforms = device.createBuffer({ size: 720, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-    const boneBuffer = device.createBuffer({ size: MAX_BONES * 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    const boneBuffer = device.createBuffer({ size: MAX_BONES * 52, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    const emission = new Float32Array(MAX_BONES);
     const entries = [{ binding: 0, resource: { buffer: uniforms } }, { binding: 1, resource: { buffer: boneBuffer } }];
     const bind = device.createBindGroup({ layout: bindLayout, entries });
     const instBind = device.createBindGroup({ layout: bindLayout, entries });
@@ -994,6 +1030,10 @@ export const createGpu = async (canvas, { sampleCount = 4, onError } = {}) => {
             const b = skin.bones.subarray(0, MAX_BONES * 12);
             if (b.byteLength)
                 device.queue.writeBuffer(boneBuffer, 0, b);
+            emission.fill(1);
+            if (skin.emission)
+                emission.set(skin.emission.subarray(0, MAX_BONES));
+            device.queue.writeBuffer(boneBuffer, MAX_BONES * 48, emission);
         }
         else
             skinSolidCount = skinGlassCount = 0;
@@ -1028,7 +1068,7 @@ export const createGpu = async (canvas, { sampleCount = 4, onError } = {}) => {
         u.set([filmic ? 1 : 0, filmic ? filmic.exposure : 1, filmic ? filmic.emit : 0, S ? 1 : 0], 36);
         u.set([...rig(0.6, 0.8, 0.1), S ? S.fill : 0], 40);
         u.set([...rig(-0.8, 0.3, 0.5), S ? S.rim : 0], 44);
-        const lights = glow ? sceneLights(mesh, parts, palette) : new Float32Array(0);
+        const lights = glow ? sceneLights(mesh, parts, palette, skin) : new Float32Array(0);
         u.set([px, px, px / size, lights.length / LIGHT_FLOATS], 48);
         for (let k = 0; k < lights.length / LIGHT_FLOATS; k++) {
             u.set(lights.subarray(k * LIGHT_FLOATS, k * LIGHT_FLOATS + 4), 52 + k * 4);

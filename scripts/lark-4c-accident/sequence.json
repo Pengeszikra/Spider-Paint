@@ -2,7 +2,7 @@
   "metadata": {
     "title": "LARK\u20134C / LAST LIGHT",
     "language": "en",
-    "duration": 72,
+    "duration": 180,
     "units": "metres",
     "pilot": "Betterman",
     "pilotStandingHeight": 1.8
@@ -27,7 +27,7 @@
       "gasThickness": 10,
       "normalDrag": 1.6,
       "orbitalDrag": 0.5,
-      "inwardDrift": 0.08,
+      "inwardDrift": 0.5,
       "innerShadowFactor": 2.75
     }
   },
@@ -187,7 +187,7 @@
           "access/threshold-mark--0.91",
           "aero/tail-crossmember"
         ],
-        "release": 56,
+        "release": 47,
         "velocity": [
           2.9330460973083974,
           1.484610378323123,
@@ -219,7 +219,7 @@
           "shell/port/window-sill-2",
           "shell/port/aft-chamfer"
         ],
-        "release": 51,
+        "release": 42,
         "velocity": [
           -2.354260785644874,
           1.3975647354964167,
@@ -252,7 +252,7 @@
           "shell/starboard/door-front-pier",
           "shell/starboard/aft-chamfer"
         ],
-        "release": 52,
+        "release": 43,
         "velocity": [
           1.6709939426742495,
           1.5834718467202038,
@@ -302,7 +302,7 @@
           "shell/roof/thermal-panel-1/rib-3",
           "shell/roof/thermal-panel-1/rib-4"
         ],
-        "release": 50,
+        "release": 41,
         "velocity": [
           2.3876372237224133,
           2.056790266977623,
@@ -327,7 +327,7 @@
           "exterior/armour-port/aft-maintenance-panel",
           "exterior/nav-light--1"
         ],
-        "release": 34,
+        "release": 25,
         "velocity": [
           -2.842548658512533,
           1.3051059640478344,
@@ -355,7 +355,7 @@
           "exterior/communications/mast",
           "exterior/communications/head"
         ],
-        "release": 36,
+        "release": 27,
         "velocity": [
           3.1386394660454244,
           1.702120218286291,
@@ -387,7 +387,7 @@
           "propulsion/rcs--1--2.25/vertical-nozzle",
           "propulsion/rcs--1-1.48/vertical-nozzle"
         ],
-        "release": 40,
+        "release": 31,
         "velocity": [
           -3.295587151218206,
           0.5109970194753259,
@@ -420,7 +420,7 @@
           "propulsion/rcs-1--2.25/vertical-nozzle",
           "propulsion/rcs-1-1.48/vertical-nozzle"
         ],
-        "release": 41,
+        "release": 32,
         "velocity": [
           1.4849419730249793,
           1.1120299216825515,
@@ -452,7 +452,7 @@
           "extension/structure/hangar-shoulder-1--7",
           "extension/structure/hangar-roof-crossbar--7"
         ],
-        "release": 49,
+        "release": 40,
         "velocity": [
           2.7762884054332972,
           1.7747211295645684,
@@ -533,7 +533,7 @@
           "extension/interior/crew/locker-light",
           "extension/interior/cutaway-partition/label-CREW"
         ],
-        "release": 49,
+        "release": 40,
         "velocity": [
           2.4481114932801575,
           0.9289359020534902,
@@ -568,7 +568,7 @@
           "extension/structure/hangar-roof-crossbar--10.15",
           "extension/structure/hangar-roof-crossbar--13.55"
         ],
-        "release": 46,
+        "release": 37,
         "velocity": [
           2.3823500367812813,
           1.5853031718637796,
@@ -632,7 +632,7 @@
           "extension/interior/cutaway-partition/label-GALLEY",
           "extension/interior/airlock/label"
         ],
-        "release": 48,
+        "release": 39,
         "velocity": [
           -1.3980443194974215,
           0.5239785917568952,
@@ -663,7 +663,7 @@
           "hangar/crane/cable",
           "hangar/crane/hook"
         ],
-        "release": 44,
+        "release": 35,
         "velocity": [
           -1.3682556258514524,
           1.225769031001255,
@@ -711,7 +711,7 @@
           "hangar/workshop/crane-emergency-stop",
           "hangar/floor/front-stop-line"
         ],
-        "release": 45,
+        "release": 36,
         "velocity": [
           -2.6367980755399913,
           1.6729378579650076,
@@ -743,7 +743,7 @@
           "extension/propulsion/cruise--1/band-2.08",
           "extension/propulsion/cruise--1/intake-spokes"
         ],
-        "release": 38,
+        "release": 29,
         "velocity": [
           -2.8885303334333003,
           1.411268157279119,
@@ -775,7 +775,7 @@
           "extension/propulsion/cruise-1/pylon--8.3",
           "extension/propulsion/cruise-1/pylon--12.65"
         ],
-        "release": 39,
+        "release": 30,
         "velocity": [
           2.76025553480722,
           2.0526563425082713,
@@ -810,7 +810,7 @@
           "extension/propulsion/aft-rcs--1/up",
           "extension/propulsion/aft-rcs--1/aft"
         ],
-        "release": 42,
+        "release": 33,
         "velocity": [
           -2.389922297000885,
           1.0211414377670736,
@@ -845,7 +845,7 @@
           "extension/propulsion/aft-rcs-1/up",
           "extension/propulsion/aft-rcs-1/aft"
         ],
-        "release": 43,
+        "release": 34,
         "velocity": [
           2.821057969843969,
           1.8173456142190845,
@@ -870,7 +870,7 @@
           "hangar/gate/lamp-housing--1",
           "hangar/gate/lamp--1"
         ],
-        "release": 40,
+        "release": 31,
         "velocity": [
           -2.988447308447212,
           0.9093093798961491,
@@ -898,7 +898,7 @@
           "hangar/gate/lamp-1",
           "hangar/gate/identity"
         ],
-        "release": 40.5,
+        "release": 31.5,
         "velocity": [
           1.441245533199981,
           1.9641501337755471,
@@ -929,7 +929,7 @@
           "extension/shell/crew-port/stripe",
           "extension/shell/crew-port/identity"
         ],
-        "release": 46,
+        "release": 37,
         "velocity": [
           -2.792234273068607,
           1.627355607552454,
@@ -960,7 +960,7 @@
           "extension/shell/crew-starboard/stripe",
           "extension/shell/crew-starboard/identity"
         ],
-        "release": 47,
+        "release": 38,
         "velocity": [
           1.648042169539258,
           0.6473440310452133,
@@ -989,7 +989,7 @@
           "extension/shell/crew-roof/light--4.2",
           "extension/shell/crew-roof/light--5.7"
         ],
-        "release": 45,
+        "release": 36,
         "velocity": [
           2.2561089497990907,
           0.5446806696709245,
@@ -1018,7 +1018,7 @@
           "extension/shell/hangar-port/window--11.86",
           "extension/shell/hangar-port/rear-chamfer"
         ],
-        "release": 42,
+        "release": 33,
         "velocity": [
           -2.331222558999434,
           1.2505356949288398,
@@ -1047,7 +1047,7 @@
           "extension/shell/hangar-starboard/window--11.86",
           "extension/shell/hangar-starboard/rear-chamfer"
         ],
-        "release": 43,
+        "release": 34,
         "velocity": [
           2.7788534726947547,
           1.5001011613290758,
@@ -1098,7 +1098,7 @@
           "extension/shell/hangar-roof/sensor-base",
           "extension/shell/hangar-roof/sensor-head"
         ],
-        "release": 41,
+        "release": 32,
         "velocity": [
           3.3454985918011517,
           1.4762551757041367,
@@ -1128,7 +1128,7 @@
           "aero/main-wing--1/tip-marker",
           "aero/main-wing--1/navigation-light"
         ],
-        "release": 30,
+        "release": 21,
         "velocity": [
           -3.3790791536681355,
           1.9692691573407501,
@@ -1158,7 +1158,7 @@
           "aero/main-wing-1/aileron-hinge",
           "aero/main-wing-1/navigation-light"
         ],
-        "release": 32,
+        "release": 23,
         "velocity": [
           1.4063628741074354,
           1.5622993998695165,
@@ -1186,7 +1186,7 @@
           "aero/tail--1/elevator-hinge",
           "aero/tail--1/tip-cap"
         ],
-        "release": 35,
+        "release": 26,
         "velocity": [
           -2.91065006647259,
           0.5822869583498687,
@@ -1214,7 +1214,7 @@
           "aero/tail-1/elevator-hinge",
           "aero/tail-1/tip-cap"
         ],
-        "release": 36,
+        "release": 27,
         "velocity": [
           2.052826765133068,
           1.7842101974878462,
@@ -1240,7 +1240,7 @@
     "motion": {
       "flight": [
         {
-          "time": 0,
+          "time": 0.0,
           "at": [
             -70,
             0,
@@ -1253,7 +1253,7 @@
           ]
         },
         {
-          "time": 10,
+          "time": 6.0,
           "at": [
             -55,
             1,
@@ -1266,7 +1266,7 @@
           ]
         },
         {
-          "time": 18,
+          "time": 10.979999999999999,
           "at": [
             -30,
             3,
@@ -1279,7 +1279,7 @@
           ]
         },
         {
-          "time": 28,
+          "time": 19,
           "at": [
             -10,
             1,
@@ -1292,7 +1292,7 @@
           ]
         },
         {
-          "time": 36,
+          "time": 27,
           "at": [
             13,
             -2,
@@ -1305,7 +1305,7 @@
           ]
         },
         {
-          "time": 48,
+          "time": 39,
           "at": [
             49,
             -7,
@@ -1318,7 +1318,7 @@
           ]
         },
         {
-          "time": 60,
+          "time": 51,
           "at": [
             92,
             -15,
@@ -1331,7 +1331,7 @@
           ]
         },
         {
-          "time": 72,
+          "time": 63,
           "at": [
             130,
             -24,
@@ -1350,47 +1350,47 @@
         {
           "id": "approach",
           "title": "01 \u00b7 The approach",
-          "start": 0,
-          "end": 10,
+          "start": 0.0,
+          "end": 6.0,
           "anchor": "ship",
           "eye": [
             [
-              0,
-              15,
-              -75
+              -16,
+              10,
+              -38
             ],
             [
-              0,
               12,
-              -60
+              7,
+              -26
             ]
           ],
           "target": [
             [
-              15,
-              5,
-              18
+              0,
+              3,
+              -4
             ],
             [
-              20,
-              5,
-              20
+              0,
+              3,
+              -1
             ]
           ],
           "fov": [
-            70,
-            70
+            66,
+            59
           ],
           "roll": [
-            0,
-            0.02
+            -0.08,
+            0.1
           ]
         },
         {
           "id": "pilot",
           "title": "02 \u00b7 Betterman at the controls",
-          "start": 10,
-          "end": 17,
+          "start": 6.0,
+          "end": 10.2,
           "anchor": "cockpit",
           "eye": [
             [
@@ -1428,19 +1428,19 @@
         {
           "id": "reveal",
           "title": "03 \u00b7 Too close",
-          "start": 17,
-          "end": 27,
+          "start": 10.2,
+          "end": 18.0,
           "anchor": "ship",
           "eye": [
             [
-              -12,
-              9,
-              -60
+              -18,
+              10,
+              -46
             ],
             [
-              -20,
-              9,
-              -55
+              -28,
+              7,
+              -35
             ]
           ],
           "target": [
@@ -1467,8 +1467,8 @@
         {
           "id": "burn",
           "title": "04 \u00b7 Escape burn",
-          "start": 27,
-          "end": 37,
+          "start": 18.0,
+          "end": 28,
           "anchor": "ship",
           "eye": [
             [
@@ -1507,8 +1507,8 @@
         {
           "id": "breakup",
           "title": "05 \u00b7 Structural failure",
-          "start": 37,
-          "end": 46,
+          "start": 28,
+          "end": 37,
           "anchor": "ship",
           "eye": [
             [
@@ -1547,8 +1547,8 @@
         {
           "id": "last-call",
           "title": "06 \u00b7 Last transmission",
-          "start": 46,
-          "end": 56,
+          "start": 37,
+          "end": 47,
           "anchor": "cockpit",
           "eye": [
             [
@@ -1587,8 +1587,8 @@
         {
           "id": "silence",
           "title": "07 \u00b7 Last light",
-          "start": 56,
-          "end": 72,
+          "start": 47,
+          "end": 180,
           "anchor": "world",
           "eye": [
             [
@@ -1628,60 +1628,69 @@
     "narration": {
       "cues": [
         {
-          "start": 1,
-          "end": 5,
+          "start": 0.6,
+          "end": 3.0,
           "speaker": "",
           "text": "LARK\u20134C  /  LAST LIGHT"
         },
         {
-          "start": 10.8,
-          "end": 15,
+          "start": 6.48,
+          "end": 9.0,
           "speaker": "BETTERMAN",
           "text": "LARK\u20134C. Navigation check. Holding course."
         },
         {
-          "start": 18,
-          "end": 23,
+          "start": 10.98,
+          "end": 14.88,
           "speaker": "FLIGHT COMPUTER",
           "text": "Caution. Gravitational gradient increasing."
         },
         {
-          "start": 25,
-          "end": 29,
+          "start": 16.44,
+          "end": 20,
           "speaker": "BETTERMAN",
           "text": "That is not a shadow. Full reverse thrust."
         },
         {
-          "start": 30,
-          "end": 34,
+          "start": 21,
+          "end": 25,
           "speaker": "FLIGHT COMPUTER",
           "text": "Tidal load exceeded. Port wing separation."
         },
         {
-          "start": 37.4,
-          "end": 42,
+          "start": 28.4,
+          "end": 33,
           "speaker": "BETTERMAN",
           "text": "Mayday. LARK\u20134C. We are losing the ship."
         },
         {
-          "start": 47,
-          "end": 52,
+          "start": 38,
+          "end": 43,
           "speaker": "BETTERMAN",
           "text": "If anyone can hear this\u2014"
         },
         {
-          "start": 56.5,
-          "end": 60,
+          "start": 47.5,
+          "end": 51,
           "speaker": "",
           "text": "SIGNAL LOST"
         },
         {
-          "start": 68,
-          "end": 72,
+          "start": 59,
+          "end": 63,
           "speaker": "",
           "text": "LAST LIGHT"
         }
       ]
     }
+  },
+  "lighting": {
+    "ambient": 0.055,
+    "diffuse": 0.25,
+    "specular": 0.22,
+    "shininess": 36,
+    "pulsePeriod": 1.2,
+    "pulseMin": 0.025,
+    "pulseMax": 1.4
   }
 }

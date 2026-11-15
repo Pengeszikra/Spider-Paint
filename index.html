@@ -926,7 +926,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, SKIN_TONES, HAIR_COLORS } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@b97a8bebea62bdacca6d6451843e42202418aee3/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, SKIN_TONES, HAIR_COLORS } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@701fddf62016061cc46380662bf55e4fdb266246/dist/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
@@ -2163,7 +2163,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@b97a8bebea62bdacca6d6451843e42202418aee3/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@701fddf62016061cc46380662bf55e4fdb266246/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -2992,6 +2992,7 @@
             unlit: !lightOn,
             marks: gpuMarks,
             skin: skinNow(),
+            material: sceneMaterial,
             light: { direction: sunLight ?? [Math.sin(a) * 0.6, 0.8, Math.cos(a) * 0.6] },
           } }).opts);
         if (vr) {
@@ -3104,6 +3105,7 @@
     let lightAngle = 0.8;
     let smooth = true; // N: smooth shading on the WebGPU view (faces within 40 degrees share normals)
     let studio = true; // K: studio light (key, fill, rim) that follows the camera
+    let sceneMaterial = {}; // saved scene lighting strengths, independent of surface materials
     // the installed app (or ?pwa) has no keyboard and is meant for small screens: no filmic look there
     const EMBED = /[?&]store\b/.test(location.search); // ?store: this page is the store pane of another one (its own engine, its own scene)
     if (EMBED) document.body.classList.add('embed');
@@ -4411,9 +4413,12 @@
       glow: filmic,
       smooth,
       studio,
+      material: { ...sceneMaterial },
       cam: { center: [...fit.center], radius: fit.radius, ...(fit.dist !== undefined ? { dist: fit.dist } : {}), yaw, pitch },
     });
     const applyView = (v) => {
+      sceneMaterial = {};
+      for (const k of ['ambient', 'diffuse', 'specular', 'shininess']) if (Number.isFinite(v.material?.[k]) && v.material[k] >= 0) sceneMaterial[k] = v.material[k];
       // the renderer: a GPU view falls back to WebGL2 (or SVG) where the asked one is missing; the installed app stays on the GPU
       const want = { svg: 'svg', webgl2: 'gl', webgpu: 'gpu' }[v.render];
       const now = mode === 'gpu' ? (activeKind === 'webgl2' ? 'gl' : 'gpu') : 'svg';
@@ -8373,7 +8378,7 @@
         story.count = objects.length;
       }
       story.index = index;
-      if (storySkin) storyFormat.animationAt(doc, story.t, storySkin.bones);
+      if (storySkin) storyFormat.animationAt(doc, story.t, storySkin.bones, storySkin.emission);
       if (stOn('stCam') && !story.cutaway && !story.focus) {
         const c = storyFormat.cameraAt(doc, story.t);
         lookFrom(c.eye, c.yaw, c.pitch);

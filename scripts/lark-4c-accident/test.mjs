@@ -7,9 +7,9 @@ import {fragmentFrame,shipFrame,point,sub,add,scale,dot,cross,norm,discNormal,di
 const read=p=>JSON.parse(readFileSync(new URL('../../'+p,import.meta.url),'utf8'));
 const doc=normalizeBuildDocument(read('models/lark-4c-accident.build.json')),sky=read('models/deepsky.scene.json'),sequence=read('scripts/lark-4c-accident/sequence.json');
 test('one native self-contained story contains the ship, pilot, independent animation and seven camera shots',()=>{
- assert.equal(doc.format,'spider-build-tutorial');assert.equal(doc.timeline.durationMs,72000);assert.equal(doc.chapters.length,7);
- assert.equal(doc.tracks.animation.channels.length,47);assert.equal(doc.scene.objects.length,562);
- const bound=doc.tracks.animation.bindings.map(b=>b.object);assert.equal(new Set(bound).size,bound.length);assert.equal(bound.length,562);
+ assert.equal(doc.format,'spider-build-tutorial');assert.equal(doc.chapters.length,7);
+ assert.equal(doc.tracks.animation.channels.length,49);assert.equal(doc.scene.objects.length,566);
+ const bound=doc.tracks.animation.bindings.map(b=>b.object);assert.equal(new Set(bound).size,bound.length);assert.equal(bound.length,566);
  assert.ok(bound.includes('betterman/body')&&bound.includes('betterman/hair'));
 });
 test('the Deep Sky hole prototype, materials and orientation are reused; only one hole and no planets are embedded',()=>{
@@ -33,7 +33,7 @@ test('all saved geometry is valid and Betterman retains an exact standing height
  assert.ok(Math.abs(height*sequence.pilot.scale-1.8)<1e-10);assert.equal(doc.scene.palette.find(m=>m.name==='l4-glass').alpha,.1);
 });
 test('native animation reproduces the authored fragment matrices and rebuilds exactly after reverse seek',()=>{
- for(const t of [0,12000,30000,40000,49000,60000,72000]){
+ for(const t of [0,12000,30000,40000,49000,60000,doc.timeline.durationMs]){
   const bones=animationAt(doc,t);sequence.ship.groups.forEach((g,i)=>fragmentFrame(sequence,g,t/1000).forEach((v,n)=>assert.ok(Math.abs(v-bones[i*12+n])<.0001)));
  }
  const a=sceneAt(doc,40000);sceneAt(doc,12000);assert.deepEqual(sceneAt(doc,40000),a);
@@ -43,7 +43,7 @@ test('camera/narration edits leave all motion and geometry intact, including the
  const edited=structuredClone(doc),before=animationAt(doc,49000);
  edited.tracks.camera.keyframes=[];edited.tracks.narration.cues=[];
  assert.deepEqual(animationAt(edited,49000),before);assert.deepEqual(sceneAt(edited,49000),sceneAt(doc,49000));
- const skin=animationSkin(doc,constructionAt(doc,0));assert.equal(skin.meshes.length,562);assert.equal(skin.weights.length,562);
+ const skin=animationSkin(doc,constructionAt(doc,0));assert.equal(skin.meshes.length,566);assert.equal(skin.weights.length,566);
  assert.ok(Number.isFinite(cameraAt(doc,49000).fov));
 });
 test('gravity uses the actual tilted native disc plane and pulls toward it from both sides',()=>{
@@ -71,14 +71,30 @@ test('release preserves position and momentum, then falling parts gain normal sp
  assert.ok(Math.hypot(...sub(next,release))<1e-4,'Separation teleported the fragment');
 });
 test('surviving fragments settle into the accretion-disc plane and continue orbiting',()=>{
- const groups=sequence.ship.groups.filter(g=>g.release!==null),live=groups.filter(g=>!debrisState(sequence,g,66).captured);
+ const groups=sequence.ship.groups.filter(g=>g.release!==null),live=groups.filter(g=>!debrisState(sequence,g,52).captured);
  assert.ok(live.length>=10,'Too little debris remains to show the disc convergence');
  for(const g of live){
-  const s=debrisState(sequence,g,66),last=debrisState(sequence,g,72);
+  const s=debrisState(sequence,g,52),last=debrisState(sequence,g,57);
   assert.ok(Math.abs(discHeight(sequence,s.position))<1,`${g.id} has not reached the disc plane`);
   assert.ok(Math.abs(discHeight(sequence,last.position))<.1,`${g.id} drifted away from the plane again`);
   if(!last.captured)assert.ok(Math.hypot(...sub(s.position,last.position))>1,`${g.id} froze in the disc`);
  }
+});
+test('the opening is tighter and the ending follows the last physical capture, leaving no actors or effects',()=>{
+ assert.equal(doc.chapters[0].endMs,6000);assert.equal(doc.chapters[2].endMs,18000);
+ assert.equal(doc.result.debrisDynamics.capturedGroups,sequence.ship.groups.length);
+ const last=Math.max(...doc.result.debrisDynamics.captures.map(c=>c.timeMs));
+ assert.ok(last<=doc.timeline.durationMs&&doc.timeline.durationMs-last<100);
+ assert.ok(constructionAt(doc,last-1).length>0);assert.deepEqual(constructionAt(doc,doc.timeline.durationMs),[]);
+ assert.equal(doc.chapters.at(-1).endMs,doc.timeline.durationMs);
+});
+test('dramatic lighting saves glow, low ambient strength and bright/dim red emission samples',()=>{
+ const v=doc.scene.environment.view;assert.equal(v.glow,true);assert.equal(v.studio,false);assert.ok(v.material.ambient<.1);
+ const mat=doc.scene.palette.find(m=>m.name==='emergency-red');assert.ok(mat.emit>=3);assert.equal(mat.color,'#ff1208');
+ const e=new Float32Array(64),k=doc.tracks.animation.channels.findIndex(c=>c.id==='alarm/cabin');
+ animationAt(doc,8400,undefined,e);assert.ok(e[k]>1);animationAt(doc,9000,undefined,e);assert.ok(e[k]<.05);
+ animationAt(doc,8400,undefined,e);assert.ok(e[k]>1);
+ assert.equal(doc.result.lighting.redLamps,7);
 });
 test('fixed-step integration converges and seek order cannot alter a debris trajectory',()=>{
  const g=sequence.ship.groups.find(g=>g.id==='port-wing'),a=debrisState(sequence,g,60);

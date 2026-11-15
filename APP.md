@@ -74,6 +74,10 @@ the retained v1 authoring journal. Copy edited v2 tracks to another file before 
 in the stories scene list, f↑, and `?scene=story:lark-4c-accident`. It embeds one Deep Sky hole
 prototype/instance and 2,048 background points in `scene.environment`; no planets or audio.
 Its optional `tracks.animation` stores sampled affine matrices and rigid/skin bindings.
+Alarm channels also store sampled `emission` gains. Both GPU backends use the moving
+emissive faces as local lights. The scene saves darker `view.material` strengths, glow
+enabled and studio disabled. The opening reveal ends at 18 seconds; the 69-second ending
+is calculated from the last of all 30 captures, leaving zero actors/effects.
 Camera poses independently include lens and bank. These capabilities are implemented in
 3Draft's `app/story.js` and `app/index.html` and are copied here by the sync. The renderer's
 transparent-background option places the native sky behind opaque animated foregrounds.

@@ -214,8 +214,9 @@ export function validateBuildDocument(doc) {
     let previous=-1; for(const t of a.timesMs){time(t,'animation.timesMs');if(t<=previous)fail('animation.timesMs','must be strictly increasing');previous=t;}
     unique(a.channels,'animation.channels'); if(a.channels.length>64)fail('animation.channels','GPU supports at most 64 channels');
     for(const ch of a.channels){
-      keys(ch,['id','matrices'],ch.id);array(ch.matrices,ch.id);if(ch.matrices.length!==a.timesMs.length)fail(ch.id,'matrix count must match timeline');
+      keys(ch,['id','matrices','emission'],ch.id);array(ch.matrices,ch.id);if(ch.matrices.length!==a.timesMs.length)fail(ch.id,'matrix count must match timeline');
       for(const m of ch.matrices){array(m,ch.id);if(m.length!==12)fail(ch.id,'expected a 3x4 affine matrix');m.forEach(v=>finite(v,ch.id));}
+      if(ch.emission!==undefined){array(ch.emission,ch.id);if(ch.emission.length!==a.timesMs.length)fail(ch.id,'emission count must match timeline');for(const e of ch.emission){finite(e,ch.id);if(e<0)fail(ch.id,'negative emission');}}
     }
     const channels=new Set(a.channels.map(c=>c.id)),known=new Map(doc.scene.objects.map(o=>[o.name,o]));
     for(const s of steps)for(const c of s.changes)if(c.type==='put')known.set(c.object.name,c.object);
@@ -319,7 +320,7 @@ export function narrationAt(doc, timeMs) {
 }
 
 /** GPU-ready affine channels. Adjacent captured poses blend at the shared animation clock. */
-export function animationAt(doc,timeMs,out) {
+export function animationAt(doc,timeMs,out,emission) {
   const a=doc.tracks.animation;if(!a)return null;
   out??=new Float32Array(64*12);
   let lo=0,hi=a.timesMs.length;
@@ -327,6 +328,7 @@ export function animationAt(doc,timeMs,out) {
   const i=Math.max(0,lo-1),j=Math.min(i+1,a.timesMs.length-1);
   const t=i===j?0:Math.max(0,Math.min(1,(timeMs-a.timesMs[i])/(a.timesMs[j]-a.timesMs[i])));
   a.channels.forEach((c,k)=>{for(let n=0;n<12;n++)out[k*12+n]=c.matrices[i][n]+(c.matrices[j][n]-c.matrices[i][n])*t;});
+  if(emission){emission.fill(1);a.channels.forEach((c,k)=>{if(c.emission)emission[k]=c.emission[i]+(c.emission[j]-c.emission[i])*t;});}
   return out;
 }
 /** Bind geometry and weights are uploaded once. Only `bones` changes during playback. */
@@ -337,7 +339,7 @@ export function animationSkin(doc,objects) {
   for(const o of objects){const b=bindings.get(o.name);if(!b)continue;names.add(o.name);meshes.push(o.mesh);
     weights.push(b.channel!==undefined?o.mesh.positions.map(()=>[[channels.get(b.channel),1]]):b.weights.map(w=>w.map(([id,v])=>[channels.get(id),v])));
   }
-  return {meshes,weights,names,bones:new Float32Array(64*12)};
+  return {meshes,weights,names,bones:new Float32Array(64*12),emission:new Float32Array(64).fill(1)};
 }
 /** CPU projection for editable snapshots, leaving story mode, and non-GPU rendering. */
 export function sceneAt(doc,timeMs) {

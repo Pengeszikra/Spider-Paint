@@ -16,6 +16,10 @@ Only audio supplied by the story plays; silent stories create no sound. For an a
 story the step arrows jump between chapters/shots. **✕** retains the objects in their
 current animated poses for ordinary editing. A `?scene=story:name` link opens a bundled Story.
 
+Animated Stories can save darker lighting and pulsing emissive lamps. Their glow lights
+follow the animated parts and illuminate nearby surfaces. Brightness stays synchronized
+with playback, pause and seeking, and the saved scene restores its glow and studio switches.
+
 The controls are:
 
 - ⏮ the beginning, ◀ one step back, ▶ / ❚❚ play and pause, ▶ one step forward, ⏭ the finished model, and the speed (0.5–8×)

@@ -910,6 +910,14 @@
                     "type": "number"
                   }
                 }
+              },
+              "emission": {
+                "description": "Optional per-channel emission multipliers, linearly sampled on timesMs; omitted means 1.",
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "minimum": 0
+                }
               }
             },
             "required": [

@@ -169,6 +169,17 @@ nearest pose. Capture rotations densely enough to preserve their shape during bl
 All channels share the animation clock, independently of construction, camera and
 narration. The GPU supports at most 64 channels.
 
+A channel may also have `emission`, an array of nonnegative finite brightness multipliers
+with the same length as `timesMs`. It interpolates linearly on that clock and defaults to
+1 when omitted. `animationAt(doc, timeMs, matrices, emission)` can fill a reusable 64-entry
+emission array as well as the matrix array. The native WebGPU/WebGL2 player applies these
+gains in the skin shader; emissive faces also become moving local lights when glow is on.
+This animates brightness without rebuilding or uploading bind geometry every frame.
+
+`scene.environment.view` saves `glow`, `light`, `studio` and other native view switches.
+Its optional `material` object saves nonnegative global `ambient`, `diffuse`, `specular`
+and `shininess` strengths, independently of the named surface materials in the palette.
+
 A binding uses `{ "object": "wing", "channel": "port-wing" }` for a rigid part.
 A skinned binding instead has `weights`: one array per vertex, containing one to four
 `[channelId, weight]` pairs summing to one. Its vertex count must remain compatible across
