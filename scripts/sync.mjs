@@ -28,13 +28,14 @@ const steps = [
   ['example path', 'fetch(`../examples/${name}.scene.json`)', 'fetch(`./models/${name}.scene.json`)'],
   // story files (Spider Build v2, .build.json): the format module is 3Draft's app/story.js, copied to models/spider-build-v2.mjs below
   ['story import', "import * as storyFormat from './story.js';", "import * as storyFormat from './models/spider-build-v2.mjs';"],
+  ['sky path', 'fetch(`../examples/${name.slice(4)}.sky.json`)', 'fetch(`./models/${name.slice(4)}.sky.json`)'],
   ['story path', 'new URL(`../examples/${name.slice(6)}.build.json`, location.href)', 'new URL(`./models/${name.slice(6)}.build.json`, location.href)'],
   // the bridge and the globe are shipped (the scene starts with the globe)
-  ['example list', /(<option value="">\+ scene<\/option>\n)[\s\S]*?(\s*<optgroup id="savedGroup")/, (_, head, tail) => `${head}        <option value="bridge">Stone bridge</option>\n        <option value="globe">Globe</option>\n        <option value="stars">Stars (500 nearest)</option>\n        <option value="milkyway">Milky Way (30 000 super-stars)</option>\n        <option value="deepsky">Deep sky (1000 galaxies, 400 black holes, 3000 stars)</option>\n        <option value="stars-plain">Stars (300) + 100 galaxies (point glow)</option>\n        <option value="ex27">EX-27 expedition module</option>\n        <option value="human">Low poly human</option>\n        <option value="betterman">Betterman (pose him: J)</option>\n        <option value="tr74">TR-74 expedition module</option>\n        <option value="station-screen">Station screen (a scene on a face)</option>\n        <optgroup label="stories (a recorded build)"><option value="story:lark-4">Story: LARK–4C lander build (746 steps)</option><option value="story:spider-build-example">Story: independent tracks (3 steps)</option></optgroup>${tail}`],
+  ['example list', /(<option value="">\+ scene<\/option>\n)[\s\S]*?(\s*<optgroup id="savedGroup")/, (_, head, tail) => `${head}        <option value="bridge">Stone bridge</option>\n        <option value="globe">Globe</option>\n        <option value="stars">Stars (500 nearest)</option>\n        <option value="milkyway">Milky Way (30 000 super-stars)</option>\n        <option value="deepsky">Deep sky (1000 galaxies, 400 black holes, 3000 stars)</option>\n        <option value="stars-plain">Stars (300) + 100 galaxies (point glow)</option>\n        <option value="ex27">EX-27 expedition module</option>\n        <option value="human">Low poly human</option>\n        <option value="betterman">Betterman (pose him: J)</option>\n        <option value="tr74">TR-74 expedition module</option>\n        <option value="station-screen">Station screen (a scene on a face)</option>\n        <optgroup label="sky catalogues (format 3draft-sky: sky.md)"><option value="sky:trappist-1">TRAPPIST-1 (7 planets, 40 ly)</option></optgroup>\n        <optgroup label="stories (a recorded build)"><option value="story:lark-4">Story: LARK–4C lander build (746 steps)</option><option value="story:spider-build-example">Story: independent tracks (3 steps)</option></optgroup>${tail}`],
   // the phone's Exa menu gets the low poly human too (its model lives only in this repo)
   ['exa menu', "['empty', 'globe', 'stars', 'stars-plain', 'milkyway', 'deepsky', 'ex27']", "['empty', 'globe', 'stars', 'stars-plain', 'milkyway', 'deepsky', 'ex27', 'human', 'betterman', 'tr74', 'station-screen']"],
   // Spider Paint starts with an empty scene (?deepsky starts with the deep sky, as 3Draft does)
-  ['empty start', "if (!EMBED && !SHOW && !new URLSearchParams(location.search).has('empty') && !new URLSearchParams(location.search).has('play'))", "if (!EMBED && !SHOW && new URLSearchParams(location.search).has('deepsky'))"],
+  ['empty start', "else if (!EMBED && !SHOW && !new URLSearchParams(location.search).has('empty') && !new URLSearchParams(location.search).has('play'))", "else if (!EMBED && !SHOW && new URLSearchParams(location.search).has('deepsky'))"],
   // no MCP server here: the live link is opt-in (?live), so a static server is not polled for /events
   ['live link', "if (!EMBED && !SHOW && ['localhost', '127.0.0.1'].includes(location.hostname) && typeof EventSource", "if (!EMBED && !SHOW && new URLSearchParams(location.search).has('live') && typeof EventSource"],
   // installable on a phone: manifest, icons and theme colour (the files are in this repo, sync does not touch them)
@@ -64,6 +65,10 @@ writeFileSync(join(here, 'index.html'), html);
 mkdirSync(join(here, 'models'), { recursive: true });
 writeFileSync(join(here, 'models/bridge.scene.json'), readFileSync(join(src, 'examples/bridge.scene.json')));
 writeFileSync(join(here, 'help.md'), readFileSync(join(src, 'app/help.md'))); // the help page (Markdown), shown in the side panel
+// the sky guide (a page of its own, opened in a new tab from the help and the sky group) and its example catalogue
+writeFileSync(join(here, 'sky.md'), readFileSync(join(src, 'app/sky.md')));
+writeFileSync(join(here, 'sky.html'), readFileSync(join(src, 'app/sky.html')));
+writeFileSync(join(here, 'models/trappist-1.sky.json'), readFileSync(join(src, 'examples/trappist-1.sky.json')));
 // the globe: the ocean is the half-transparent teal material, so the far side of the earth shows through
 const globe = JSON.parse(readFileSync(join(src, 'examples/globe.scene.json'), 'utf8'));
 const seaMaterial = { color: '#4fb5a5', alpha: 0.55 };

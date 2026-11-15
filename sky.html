@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sky guide</title>
+  <meta name="description" content="A universe browser with nothing to install: how the viewer handles stars, planets, black holes and galaxies, and how to make your own space scene (by hand or with an AI).">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* the sky guide: sky.md shown as a page (opens in its own tab from the viewer's help) */
+    :root {
+      --bg: #0d0e0b; --panel: #15170f; --line: #2a2d22; --text: #d9dbcf; --muted: #8a8d80; --cream: #f2eed8; --teal: #2fb8c0; --code: #1b1e15;
+      --font: 'Inter', system-ui, sans-serif; --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 400 16px/1.6 var(--font); }
+    /* a few stars behind the page */
+    body::before { content: ''; position: fixed; inset: 0; pointer-events: none; opacity: 0.55; background-image:
+      radial-gradient(1px 1px at 12% 18%, #fff 50%, transparent 51%), radial-gradient(1px 1px at 78% 12%, #cfe0ff 50%, transparent 51%),
+      radial-gradient(1.5px 1.5px at 44% 64%, #ffe2b8 50%, transparent 51%), radial-gradient(1px 1px at 90% 80%, #fff 50%, transparent 51%),
+      radial-gradient(1px 1px at 25% 88%, #cfe0ff 50%, transparent 51%), radial-gradient(1px 1px at 63% 36%, #fff 50%, transparent 51%); }
+    .wrap { position: relative; display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 48px; max-width: 1180px; margin: 0 auto; padding: 40px 24px 96px; }
+    nav { position: sticky; top: 24px; align-self: start; max-height: calc(100vh - 48px); overflow: auto; font: 500 13px/1.5 var(--font-mono); }
+    nav .brand { color: var(--cream); font: 700 15px var(--font); letter-spacing: 0.02em; margin-bottom: 16px; display: block; text-decoration: none; }
+    nav .brand small { color: var(--muted); font: 500 11px var(--font-mono); letter-spacing: 0.12em; margin-left: 6px; }
+    nav a { display: block; color: var(--muted); text-decoration: none; padding: 3px 0 3px 10px; border-left: 2px solid transparent; }
+    nav a.h3 { padding-left: 22px; font-size: 12px; }
+    nav a:hover, nav a.on { color: var(--cream); border-left-color: var(--teal); }
+    main { min-width: 0; }
+    h1 { color: var(--cream); font: 700 clamp(28px, 4vw, 40px)/1.15 var(--font); margin: 0 0 18px; letter-spacing: -0.01em; }
+    h2 { color: var(--cream); font: 700 24px/1.25 var(--font); margin: 56px 0 14px; padding-top: 18px; border-top: 1px solid var(--line); }
+    h3 { color: var(--cream); font: 600 18px/1.3 var(--font); margin: 32px 0 10px; }
+    p, li { max-width: 72ch; }
+    a { color: var(--teal); }
+    strong { color: var(--cream); }
+    code { font: 400 0.88em var(--font-mono); background: var(--code); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; color: var(--cream); }
+    pre { background: var(--code); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; overflow: auto; font: 400 13px/1.55 var(--font-mono); }
+    pre code { background: none; border: 0; padding: 0; color: var(--text); }
+    ul, ol { padding-left: 22px; }
+    .table { overflow-x: auto; margin: 14px 0; }
+    table { border-collapse: collapse; font-size: 14px; min-width: 420px; }
+    th, td { text-align: left; vertical-align: top; padding: 7px 12px; border-bottom: 1px solid var(--line); }
+    th { color: var(--muted); font: 600 11px var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; }
+    td:first-child { white-space: nowrap; }
+    .launch { display: flex; flex-wrap: wrap; gap: 10px; margin: 22px 0 6px; }
+    .launch a { display: inline-block; padding: 10px 16px; border-radius: 8px; background: var(--teal); color: #071315; font: 600 14px var(--font-mono); text-decoration: none; }
+    .launch a + a { background: var(--panel); color: var(--cream); border: 1px solid var(--line); }
+    .err { color: #ff8a6a; }
+    @media (max-width: 860px) { .wrap { grid-template-columns: 1fr; gap: 0; padding: 24px 16px 72px; } nav { position: static; max-height: none; margin-bottom: 20px; } nav a.h3 { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav id="toc"><a class="brand" href="./">Sky guide<small>3DRAFT</small></a></nav>
+    <main id="doc"><p>loading the guide…</p></main>
+  </div>
+  <script type="module">
+    // Markdown -> HTML: headings (with anchors), paragraphs, lists, tables, fenced code, inline code, bold, italic, links.
+    // The text is escaped first. External links open in a new tab; links back into the viewer stay in this one.
+    const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const slug = (t) => t.toLowerCase().replace(/<[^>]+>/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const inline = (t) => {
+      const codes = [];
+      t = esc(t).replace(/`([^`]+)`/g, (_, c) => `\u0000${codes.push(c) - 1}\u0000`);
+      t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/\*([^*]+)\*/g, '<em>$1</em>')
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, l, h) => `<a href="${h}"${/^https?:/.test(h) ? ' target="_blank" rel="noopener"' : ''}>${l}</a>`);
+      return t.replace(/\u0000(\d+)\u0000/g, (_, i) => `<code>${codes[i]}</code>`);
+    };
+    const md = (src) => {
+      const out = [], toc = [];
+      const lines = src.replace(/\r/g, '').split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const l = lines[i];
+        let m;
+        if (!l.trim()) continue;
+        if (l.startsWith('```')) {
+          const code = [];
+          while (++i < lines.length && !lines[i].startsWith('```')) code.push(lines[i]);
+          out.push(`<pre><code>${esc(code.join('\n'))}</code></pre>`);
+        } else if ((m = l.match(/^(#{1,3}) (.*)/))) {
+          const n = m[1].length, h = inline(m[2]), id = slug(h);
+          if (n > 1) toc.push([n, id, h.replace(/<[^>]+>/g, '')]);
+          out.push(`<h${n} id="${id}">${h}</h${n}>`);
+        } else if (l.startsWith('|')) {
+          const rows = [];
+          while (i < lines.length && lines[i].startsWith('|')) rows.push(lines[i++]);
+          i--;
+          const cells = (r) => r.replace(/^\||\|$/g, '').split('|').map((c) => inline(c.trim()));
+          const [head, , ...body] = rows;
+          out.push(`<div class="table"><table><thead><tr>${cells(head).map((c) => `<th>${c}</th>`).join('')}</tr></thead><tbody>${body.map((r) => `<tr>${cells(r).map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`);
+        } else if (/^[-*] /.test(l)) {
+          const items = [];
+          while (i < lines.length && /^[-*] /.test(lines[i])) items.push(lines[i++].slice(2));
+          i--;
+          // the first list (the scene links under the title) becomes buttons
+          if (!out.some((x) => x.startsWith('<ul') || x.startsWith('<div class="launch"')) && items.every((t) => /^\[.*\]\(\.\/\?scene=/.test(t)))
+            out.push(`<div class="launch">${items.map((t) => inline(t.match(/^\[[^\]]+\]\([^)]+\)/)[0])).join('')}</div><ul>${items.map((t) => `<li>${inline(t)}</li>`).join('')}</ul>`);
+          else out.push(`<ul>${items.map((t) => `<li>${inline(t)}</li>`).join('')}</ul>`);
+        } else if (/^\d+\. /.test(l)) {
+          const items = [];
+          while (i < lines.length && /^\d+\. /.test(lines[i])) items.push(lines[i++].replace(/^\d+\. /, ''));
+          i--;
+          out.push(`<ol>${items.map((t) => `<li>${inline(t)}</li>`).join('')}</ol>`);
+        } else {
+          const para = [l];
+          while (i + 1 < lines.length && lines[i + 1].trim() && !/^(#|\||[-*] |\d+\. |```)/.test(lines[i + 1])) para.push(lines[++i]);
+          out.push(`<p>${inline(para.join(' '))}</p>`);
+        }
+      }
+      return { html: out.join('\n'), toc };
+    };
+    const doc = document.getElementById('doc'), nav = document.getElementById('toc');
+    try {
+      const res = await fetch('sky.md');
+      if (!res.ok) throw new Error(`sky.md: ${res.status}`);
+      const { html, toc } = md(await res.text());
+      doc.innerHTML = html;
+      nav.insertAdjacentHTML('beforeend', toc.map(([n, id, t]) => `<a class="h${n}" href="#${id}">${t}</a>`).join(''));
+      // the section in view is marked in the contents
+      const links = new Map([...nav.querySelectorAll('a[href^="#"]')].map((a) => [a.getAttribute('href').slice(1), a]));
+      const seen = new IntersectionObserver((es) => {
+        for (const e of es) if (e.isIntersecting) { for (const a of links.values()) a.classList.remove('on'); links.get(e.target.id)?.classList.add('on'); }
+      }, { rootMargin: '0px 0px -70% 0px' });
+      for (const h of doc.querySelectorAll('h2, h3')) seen.observe(h);
+      if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView();
+    } catch (e) {
+      doc.innerHTML = `<p class="err">Could not load the guide (${esc(String(e.message ?? e))}).</p>`;
+    }
+  </script>
+</body>
+</html>

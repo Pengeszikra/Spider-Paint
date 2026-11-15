@@ -1,11 +1,11 @@
-// (copied from 3Draft 0d452c7 by scripts/sync.mjs: change it there)
+// (copied from 3Draft a1b5f84 by scripts/sync.mjs: change it there)
 // The model and its tools. One scene of named objects (meshes), edited by tool calls
 // and judged by the deterministic SVG preview. No I/O except save/load of JSON files
 // under the working directory. The MCP transport is in server.js.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, relative, isAbsolute, extname } from 'node:path';
-import { box, extrude, extrudeFace, moveVertices, faceNormal, faceCenter, merge, rotate, bounds, makeCamera, orbit, pick, renderView, renderSheet, validate, boolean, VIEW_ORDER } from './engine/index.js';
+import { skyScene, SKY_TYPES, box, extrude, extrudeFace, moveVertices, faceNormal, faceCenter, merge, rotate, bounds, makeCamera, orbit, pick, renderView, renderSheet, validate, boolean, VIEW_ORDER } from './engine/index.js';
 
 export class ToolError extends Error {}
 const fail = (message) => {
@@ -431,10 +431,53 @@ export const createScene = () => {
     },
     {
       name: 'view_example',
-      description: 'Load one of the viewer\'s bundled scenes into the open viewer (beside the MCP objects, or instead of everything with replace: true). The names are the viewer\'s scene list, e.g. deepsky (1000 galaxies, 400 black holes, 3000 stars), stars, milkyway, stars-plain, globe, bridge, ex27, betterman (Spider Paint also: human, tr74, station-screen). It is shown in the browser only: render and inspect do not see it.',
+      description: 'Load one of the viewer\'s bundled scenes into the open viewer (beside the MCP objects, or instead of everything with replace: true). The names are the viewer\'s scene list, e.g. deepsky (1000 galaxies, 400 black holes, 3000 stars), stars, milkyway, stars-plain, sky:trappist-1 (a sky catalogue), globe, bridge, ex27, betterman (Spider Paint also: human, tr74, station-screen). It is shown in the browser only: render and inspect do not see it.',
       inputSchema: { type: 'object', properties: { name: { type: 'string' }, replace: { type: 'boolean', description: 'clear the viewer first (default false)' } }, required: ['name'] },
       live: true,
       run: (a) => sendView({ cmd: 'example', name: String(a.name ?? fail('name is required')), replace: Boolean(a.replace) }),
+    },
+    {
+      name: 'view_sky',
+      description: 'Make a space scene from a sky catalogue and show it in the open viewer (the format is app/sky.md, "3draft-sky"): stars, planets, moons, dwarf planets, exoplanets, black holes and galaxies in astronomers\' units. A place is ra / dec (degrees, or "hh mm ss" / "±dd mm ss" strings, or ra_h hours) with dist + unit (ly, pc, kpc, Mpc, AU, kly, Mly, Gly) or parallax (mas), or at [x, y, z] in scene light years (the Sun at the origin, y = equatorial north). A star: spect (e.g. "G2V", "M5.5Ve", "DA"), temp (K), lum (L☉) or absmag or vmag, radius (R☉). A planet / moon goes round another object with around (its name), a (AU) or a_km, optional incl / node / angle (degrees), radius_earth / radius_km / radius_jup, teq (K, else from the star), surface (a planet shader recipe), ring, orbit: true (draw the orbit). A black hole: mass (M☉), radius_ly (drawn size). A galaxy: kind (spiral, elliptical, irregular, dwarf, interacting, early), diameter_kly or radius_ly, incl / pa, arms, bar. Any object: name, info (shown under the name when targeted), category (the find box\'s kind), color. start: { near: name, distance: ly } or { eye, yaw, pitch }. Returns the counts and notes about anything left out; save writes the made scene as a .json file the viewer opens (f↑).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sky: { type: 'object', description: 'the catalogue: { format: "3draft-sky", name, start, objects: [ { type, name, … } ] }', properties: { name: { type: 'string' }, objects: { type: 'array', items: { type: 'object', properties: { type: { type: 'string', enum: [...SKY_TYPES] }, name: { type: 'string' } } } } } },
+          path: { type: 'string', description: 'or read the catalogue from a .json file (relative, inside the server working directory)' },
+          replace: { type: 'boolean', description: 'clear the viewer first (default true)' },
+          save: { type: 'string', description: 'also write the made scene to this .json path' },
+        },
+      },
+      live: true,
+      run: (a) => {
+        if ((a.sky === undefined) === (a.path === undefined)) fail('give exactly one of sky or path');
+        let sky = a.sky;
+        if (a.path !== undefined) {
+          try {
+            sky = JSON.parse(readFileSync(safePath(a.path), 'utf8'));
+          } catch (e) {
+            fail(`could not read the catalogue: ${e.message}`);
+          }
+        }
+        let made;
+        try {
+          made = skyScene(sky);
+        } catch (e) {
+          fail(e.message);
+        }
+        const { scene, warnings, counts } = made;
+        if (!scene.objects.length) fail(`nothing to show: ${warnings.slice(0, 5).join('; ') || 'no objects'}`);
+        if (a.save !== undefined) writeFileSync(safePath(a.save), JSON.stringify(scene));
+        const sent = info.live?.command ? info.live.command({ cmd: 'scene', scene, replace: a.replace !== false }) : 0;
+        return {
+          sent_to: sent,
+          ...(sent ? {} : { note: info.live?.command ? 'no viewer is open: call viewer for the URL and ask the user to open it' : 'the live viewer is off' }),
+          counts,
+          ...(warnings.length ? { notes: warnings } : {}),
+          start: scene.start,
+          ...(a.save !== undefined ? { written: a.save } : {}),
+        };
+      },
     },
     {
       name: 'view_state',

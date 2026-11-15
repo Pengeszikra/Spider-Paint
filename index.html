@@ -355,6 +355,8 @@
     #hud { width: min(46%, 240px); max-width: none; box-sizing: border-box; }
     #hud .row > :first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     #hud .row > :last-child { flex: none; font-variant-numeric: tabular-nums; }
+    #hud .row i.cat { font-style: normal; opacity: 0.6; margin-left: 6px; }
+    #hud .row.info > span { white-space: normal; max-width: 46ch; opacity: 0.75; font-size: 0.92em; line-height: 1.35; }
     #hud .row + .row + .row { margin-top: 4px; }
     #palette { max-height: calc(100dvh - 90px); overflow-y: auto; }
     #palette .sw { box-shadow: none; padding: 0; border-radius: 6px; }
@@ -474,6 +476,8 @@
     #driveGrp { color: #d8d4c6; }
     #driveGrp:not(.on) { display: none; } /* only with the car */
     #skyGrp:not(.on) { display: none; } /* only with the starship */
+    #skyGuide { margin-left: 10px; color: var(--teal, #2fb8c0); font: 600 10px var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; text-decoration: none; align-self: center; }
+    #skyGuide:hover { text-decoration: underline; }
     #driveText .brake { color: #ff5a4f; }
     /* story mode (a .build.json): the scene and sys groups give way, the xr group holds the player */
     .story-only { display: none !important; }
@@ -804,6 +808,7 @@
         <option value="betterman">Betterman (pose him: J)</option>
         <option value="tr74">TR-74 expedition module</option>
         <option value="station-screen">Station screen (a scene on a face)</option>
+        <optgroup label="sky catalogues (format 3draft-sky: sky.md)"><option value="sky:trappist-1">TRAPPIST-1 (7 planets, 40 ly)</option></optgroup>
         <optgroup label="stories (a recorded build)"><option value="story:lark-4">Story: LARK–4C lander build (746 steps)</option><option value="story:spider-build-example">Story: independent tracks (3 steps)</option></optgroup>
         <optgroup id="savedGroup" label="saved here" hidden></optgroup></select>
           <button id="mergeSw" type="button" class="sw on" title="Loading a scene (the list, f↑): on adds it to what is there, off clears the scene first and loads it alone"><i></i>merge</button>
@@ -851,7 +856,7 @@
         </span>
       </span>
       <span class="grp rows" data-label="sky" id="skyGrp" title="The star map's lines (vehicle: starship)">
-        <span class="row"><button id="skyMine" type="button" class="sw" title="Your star lines: V on a star, then V on another one joins their centres with a light yellow glowing bar. This switch shows or hides all of them"><i></i>lines</button></span>
+        <span class="row"><button id="skyMine" type="button" class="sw" title="Your star lines: V on a star, then V on another one joins their centres with a light yellow glowing bar. This switch shows or hides all of them"><i></i>lines</button><a id="skyGuide" href="sky.html" target="_blank" rel="noopener" title="The sky guide (a new tab): flying, how stars, planets, black holes and galaxies are handled, and how to make your own space scene (a sky catalogue, or with an AI through MCP)">guide ↗</a></span>
         <span class="row"><button id="skyOrbit" type="button" class="sw" title="The planets' orbits (and the Moon's): show or hide them"><i></i>orbits</button></span>
         <span class="row"><button id="skyIau" type="button" class="sw" title="The constellations as seen from Earth (88 IAU figures, lines between the stars' centres): show or hide all of them"><i></i>figures</button></span>
       </span>
@@ -886,7 +891,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@0d452c7715b7fa466659e52bcc75308fb1fbe3cc/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@a1b5f843cffc326e08cfc9d0d11d817dca234f17/dist/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
@@ -2017,7 +2022,7 @@
         found = best.map(([r, o]) => [r, findDist(o), o]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).slice(0, FIND_SHOW).map(([, d, o]) => ({ o, d }));
       }
       foundAt = Math.min(foundAt, Math.max(0, found.length - 1));
-      const star = allObjects().length >= 100 && allObjects().some((o) => o.name === 'Sun');
+      const star = space() || (allObjects().length >= 100 && allObjects().some((o) => o.name === 'Sun')); // (a star map: light years)
       const fmt = (d) => (star ? (d >= 1e6 ? `${(d / 1e6).toFixed(1)} Mly` : d >= 1e3 ? `${(d / 1e3).toFixed(1)} kly` : d >= 0.05 ? `${d.toFixed(1)} ly` : lyText(d)) : d.toFixed(1)); // (inside a star system: AU or km)
       const mark = (name) => {
         const at = fold(name).indexOf(q);
@@ -2116,7 +2121,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@0d452c7715b7fa466659e52bcc75308fb1fbe3cc/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@a1b5f843cffc326e08cfc9d0d11d817dca234f17/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -2995,7 +3000,9 @@
         const rows = [];
         if (lockedObj) {
           const b = ballOf(lockedObj);
-          rows.push(`<div class="row lock"><span>◎ ${hudText(lockedObj.name ?? lockedObj.id)}</span></div><div class="row"><span>wasdrf orbit · Tab next · Esc free</span></div>`);
+          // its kind and a sky catalogue's `info` text under the name
+          const cat = categoryOf(lockedObj), info = lockedObj.inst?.info;
+          rows.push(`<div class="row lock"><span>◎ ${hudText(lockedObj.name ?? lockedObj.id)}${cat ? ` <i class="cat">${hudText(cat)}</i>` : ''}</span></div>${info ? `<div class="row info"><span>${hudText(info)}</span></div>` : ''}<div class="row"><span>wasdrf orbit · Tab next · Esc free</span></div>`);
         } else rows.push('<div class="row"><span>T target</span></div><div class="row"><span>&nbsp;</span></div>');
         if (skyFrom && has(skyFrom)) rows.push(`<div class="row lock"><span>V line from ${hudText(skyFrom.name ?? skyFrom.id)} · V on another star · V on empty space: cancel</span></div>`);
         if (under) {
@@ -4273,6 +4280,7 @@
         if (!data) throw new Error('no such saved scene');
         return data;
       }
+      if (name.startsWith('sky:')) return fromSky(await readJson(await fetch(`./models/${name.slice(4)}.sky.json`))); // a sky catalogue (sky.md)
       return globalThis.__EXAMPLES?.[name] ?? readJson(await fetch(`./models/${name}.scene.json`));
     };
     const spanOf = (meshes) => {
@@ -4416,6 +4424,12 @@
         await addScene(data);
         if (data.view && (replace || !mergeOn || !had)) applyView(data.view);
       });
+    // a sky catalogue ('3draft-sky', src/sky.ts) -> a scene; its warnings go to the scene note
+    const fromSky = (sky) => {
+      const { scene, warnings } = skyScene(sky);
+      if (warnings.length) sceneNote(`sky: ${warnings.length} note${warnings.length > 1 ? 's' : ''}: ${warnings.slice(0, 3).join('; ')}${warnings.length > 3 ? ' …' : ''}`);
+      return scene;
+    };
     const addExample = async (name) =>
       name.startsWith('story:')
         ? withLoader(name.slice(6), async () => {
@@ -4762,7 +4776,7 @@
           .replace(/`([^`]+)`/g, '<code>$1</code>')
           .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
           .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-          .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+          .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, l, h) => `<a href="${h}"${/^https?:|\.html\b/.test(h) ? ' target="_blank" rel="noopener"' : ''}>${l}</a>`); // (another page: a new tab, the scene stays)
       const out = [];
       const lines = src.replace(/\r/g, '').split('\n');
       for (let i = 0; i < lines.length; i++) {
@@ -7870,6 +7884,7 @@
       try {
         const data = JSON.parse(await f.text());
         if (data?.format === storyFormat.FORMAT) return void (await openStory(data)); // a story (Spider Build, .build.json)
+        if (data?.format === '3draft-sky') return void (await loadScene(fromSky(data))); // a sky catalogue (sky.md)
         if (!Array.isArray(data?.objects) || data.format === '3draft-recording') throw new Error('this is not a scene file');
         if (data.name) nameEl.value = data.name;
         await loadScene(data);
@@ -8276,6 +8291,7 @@
             roll = ((c.roll ?? 0) * Math.PI) / 180;
             redraw();
           } else if (c.cmd === 'vehicle') setVehicle(c.vehicle === 'none' ? null : c.vehicle);
+          else if (c.cmd === 'scene') await loadScene(c.scene, Boolean(c.replace)); // view_sky: a sky catalogue made into a scene by the server
           else if (c.cmd === 'example') await (c.replace ? withLoader(c.name, async () => loadScene(await sceneOf(c.name), true)) : addExample(c.name));
           reportView();
         } catch (err) {
@@ -8763,7 +8779,10 @@
     if (EMBED) seedStore();
     // the starting scene is the deep sky (?empty starts with nothing; a recording to play, a show or an artifact keep their own start)
     let startScene = null;
-    if (!EMBED && !SHOW && new URLSearchParams(location.search).has('deepsky'))
+    // ?scene=<a value of the + scene list> starts with that one instead (deepsky, stars, sky:trappist-1, story:…; sky.md links here)
+    const sceneParam = new URLSearchParams(location.search).get('scene');
+    if (!EMBED && !SHOW && sceneParam) setTimeout(() => addExample(sceneParam).catch((e) => sceneNote(`scene: ${e.message}`)), 0);
+    else if (!EMBED && !SHOW && new URLSearchParams(location.search).has('deepsky'))
       (startScene = 'deepsky'), setTimeout(() => withLoader('deepsky', async () => loadScene(await sceneOf('deepsky'), true)).catch((e) => sceneNote(`scene: ${e.message}`)), 0); // (alone: never merged into something already there)
     draw();
     window.__ready = true;

@@ -1,0 +1,17 @@
+{
+  "format": "3draft-sky",
+  "version": 1,
+  "name": "TRAPPIST-1",
+  "info": "An ultracool red dwarf 40.7 light years away with seven Earth-sized planets (Agol et al. 2021). The orbits are drawn in one plane; their real tilt to us is 89.7°.",
+  "start": { "near": "TRAPPIST-1 e" },
+  "objects": [
+    { "type": "star", "name": "TRAPPIST-1", "ra": "23 06 29.37", "dec": "-05 02 29.0", "dist": 12.47, "unit": "pc", "spect": "M8V", "temp": 2566, "radius": 0.119, "lum": 0.000553, "info": "M8V red dwarf, 0.09 solar masses" },
+    { "type": "planet", "name": "TRAPPIST-1 b", "around": "TRAPPIST-1", "a": 0.01154, "radius_earth": 1.116, "teq": 398, "incl": 20, "node": 40, "orbit": true },
+    { "type": "planet", "name": "TRAPPIST-1 c", "around": "TRAPPIST-1", "a": 0.0158, "radius_earth": 1.097, "teq": 340, "incl": 20, "node": 40, "orbit": true },
+    { "type": "planet", "name": "TRAPPIST-1 d", "around": "TRAPPIST-1", "a": 0.02227, "radius_earth": 0.788, "teq": 286, "incl": 20, "node": 40, "orbit": true },
+    { "type": "planet", "name": "TRAPPIST-1 e", "around": "TRAPPIST-1", "a": 0.02925, "radius_earth": 0.92, "teq": 250, "incl": 20, "node": 40, "orbit": true, "info": "In the habitable zone" },
+    { "type": "planet", "name": "TRAPPIST-1 f", "around": "TRAPPIST-1", "a": 0.03849, "radius_earth": 1.045, "teq": 218, "incl": 20, "node": 40, "orbit": true },
+    { "type": "planet", "name": "TRAPPIST-1 g", "around": "TRAPPIST-1", "a": 0.04683, "radius_earth": 1.129, "teq": 197, "incl": 20, "node": 40, "orbit": true },
+    { "type": "planet", "name": "TRAPPIST-1 h", "around": "TRAPPIST-1", "a": 0.06189, "radius_earth": 0.755, "teq": 172, "incl": 20, "node": 40, "orbit": true }
+  ]
+}

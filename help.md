@@ -2,7 +2,7 @@
 
 A minimal 3D scene builder. Fly through a scene, build with solid prisms, and edit them like a woodworker: saw, move, scale, extrude. This page is `help.md`; edit that file and the panel follows.
 
-[Open the keyboard map](#keys)
+[Open the keyboard map](#keys) · [The sky guide (a new tab): flying among the stars, and making your own space scene](sky.html)
 
 
 ## Stories (a recorded build)
