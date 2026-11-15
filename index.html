@@ -437,6 +437,7 @@
     #findList:empty { display: none; }
     #findList div { display: flex; justify-content: space-between; gap: 12px; padding: 6px 14px; color: #c9cbbf; cursor: pointer; }
     #findList div span:last-child { color: #8a8d80; white-space: nowrap; }
+    #findList div i { font-style: normal; color: #8a8d80; font-size: 11px; margin-left: 6px; }
     #findList div.sel { background: #2fb8c033; color: var(--cream); }
     #findList b { color: #39ff14; font-weight: 600; }
     input[type=text], input[type=search], textarea { -webkit-user-select: text; user-select: text; }
@@ -885,7 +886,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@692d3abe7acd7a92a3d8df88dd5a0da27e2acce4/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@0d452c7715b7fa466659e52bcc75308fb1fbe3cc/dist/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
@@ -1964,6 +1965,27 @@
       for (const ch of name) if (ch === q[i]) i++;
       return i === q.length ? 4 : -1;
     };
+    // what a sky object is: its own `category`, else from its fields (a black hole, a galaxy by its recipe's kind, an exoplanet by its
+    // class, a star by its spectral class); shown beside the name in the box and searched like the name
+    const STAR_CAT = { O: 'blue O-type star', B: 'blue-white B-type star', A: 'white A-type star', F: 'yellow-white F-type star', G: 'yellow G-type star', K: 'orange K-type star', M: 'red M-type star', D: 'white dwarf star', L: 'brown dwarf', X: 'star' };
+    const GAL_CAT = { S: 'spiral galaxy', E: 'elliptical galaxy', I: 'irregular galaxy', D: 'dwarf galaxy', P: 'interacting galaxies', H: 'early universe galaxy' };
+    const EXO_SIZE = { rock: 'rocky', sub: 'sub-Neptune', nep: 'Neptune-like', jup: 'gas giant' };
+    const EXO_HEAT = { lava: 'lava', hot: 'hot', warm: 'warm', temp: 'temperate', cold: 'cold', froz: 'frozen' };
+    const categoryOf = (o) => {
+      const i = o.inst;
+      if (o.category ?? i?.category) return o.category ?? i.category;
+      if (!i) return '';
+      const core = i.mats?.core ?? '';
+      if (core === 'bh-core') return 'black hole';
+      if (i.galaxy) return GAL_CAT[i.galaxy.kind] ?? 'galaxy';
+      if (i.exo) {
+        const [size, heat] = String(i.exo.class).split('-');
+        return `${EXO_HEAT[heat] ?? ''} ${EXO_SIZE[size] ?? ''} exoplanet`.replace(/\s+/g, ' ').trim();
+      }
+      if (i.planet) return 'planet';
+      if (core.startsWith('star-')) return STAR_CAT[core.slice(5)] ?? 'star';
+      return '';
+    };
     const findDist = (o) => {
       const s = (gcam?.eye ? [...gcam.eye] : eyeNow());
       return Math.hypot(...vsub(o.figure ? o.figure.centre : ballOf(o).center, s));
@@ -1975,13 +1997,20 @@
         const hits = [];
         for (const o of allObjects()) {
           if (!o.mesh.positions.length || !owners.some((w) => w.obj.id === o.id)) continue;
-          const r = findRank(fold(o.name ?? o.id), q);
+          let r = findRank(fold(o.name ?? o.id), q);
+          // the category: a word of it (or all of it) counts as a word start of the name, so "planet" lists the nearest planets
+          const c = categoryOf(o);
+          if (c && (r < 0 || r > 2)) {
+            const rc = findRank(fold(c), q);
+            if (rc >= 0 && rc <= 3) r = r < 0 ? Math.max(2, rc) : Math.min(r, Math.max(2, rc));
+          }
           if (r >= 0) hits.push([r, o]);
         }
         // the constellation figures, by their Latin and English names: taking one turns the view to its middle
         if (skyShow.iau)
           for (const f of skyFigures) {
-            const r = Math.min(...[f.name, f.en].filter(Boolean).map((n) => findRank(fold(n), q)).map((x) => (x < 0 ? 99 : x)));
+            const rc = findRank('constellation', q);
+            const r = Math.min(...[f.name, f.en].filter(Boolean).map((n) => findRank(fold(n), q)).map((x) => (x < 0 ? 99 : x)), rc >= 0 && rc <= 3 ? Math.max(2, rc) : 99);
             if (r < 99) hits.push([r, { id: `figure:${f.id}:${f.name}`, name: `${f.name} (constellation)`, figure: f }]);
           }
         const best = hits.length > 400 ? hits.filter((h) => h[0] <= 2).concat(hits.filter((h) => h[0] > 2).slice(0, 400)) : hits;
@@ -1989,12 +2018,12 @@
       }
       foundAt = Math.min(foundAt, Math.max(0, found.length - 1));
       const star = allObjects().length >= 100 && allObjects().some((o) => o.name === 'Sun');
-      const fmt = (d) => (star ? (d >= 1e6 ? `${(d / 1e6).toFixed(1)} Mly` : d >= 1e3 ? `${(d / 1e3).toFixed(1)} kly` : `${d.toFixed(1)} ly`) : d.toFixed(1));
+      const fmt = (d) => (star ? (d >= 1e6 ? `${(d / 1e6).toFixed(1)} Mly` : d >= 1e3 ? `${(d / 1e3).toFixed(1)} kly` : d >= 0.05 ? `${d.toFixed(1)} ly` : lyText(d)) : d.toFixed(1)); // (inside a star system: AU or km)
       const mark = (name) => {
         const at = fold(name).indexOf(q);
         return at < 0 ? hudText(name) : `${hudText(name.slice(0, at))}<b>${hudText(name.slice(at, at + q.length))}</b>${hudText(name.slice(at + q.length))}`;
       };
-      findList.innerHTML = found.map((f, i) => `<div class="${i === foundAt ? 'sel' : ''}" data-i="${i}"><span>${mark(String(f.o.name ?? f.o.id))}</span><span>${fmt(f.d)}</span></div>`).join('');
+      findList.innerHTML = found.map((f, i) => `<div class="${i === foundAt ? 'sel' : ''}" data-i="${i}"><span>${mark(String(f.o.name ?? f.o.id))}${f.o.figure ? '' : (() => { const c = categoryOf(f.o); return c ? ` <i>${mark(c)}</i>` : ''; })()}</span><span>${fmt(f.d)}</span></div>`).join('');
     };
     const openFind = () => {
       if (editing || posing || xf || vr) return;
@@ -2087,7 +2116,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@692d3abe7acd7a92a3d8df88dd5a0da27e2acce4/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@0d452c7715b7fa466659e52bcc75308fb1fbe3cc/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
