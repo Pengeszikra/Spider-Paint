@@ -99,6 +99,7 @@ const mcpSteps = {
   'server.js': [["from '../dist/index.js'", "from './engine/index.js'"], ["serverInfo: { name: '3draft', version }", "serverInfo: { name: 'spider-paint', version }"], ['3draft MCP server ${version} ready on stdio', 'Spider Paint MCP server (3Draft ${version}) ready on stdio']],
   'scene.js': [["from '../dist/index.js'", "from './engine/index.js'"]],
   'live.js': [["from '../app/serve.js'", "from './serve.js'"]],
+  'http.js': [["from '../dist/index.js'", "from './engine/index.js'"]], // the public HTTP server (api/mcp.mjs)
 };
 for (const [file, reps] of Object.entries(mcpSteps)) {
   let text = readFileSync(join(src, 'mcp', file), 'utf8');

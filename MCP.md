@@ -2,6 +2,26 @@
 
 This file is for the AI (and the person setting it up). Spider Paint carries an MCP server: `mcp/server.js`, stdio, no dependencies, Node 18+. Through it an AI builds 3D models with tools, looks at them as SVG renders, and steers the live viewer in the browser: the Spider Paint page and, when a 3Draft checkout sits beside this repo, the 3Draft viewer too. The server, its tools and the engine (`mcp/engine/`) are copied from 3Draft by `scripts/sync.mjs`, so it runs from this repo alone.
 
+## Public endpoint (Gemini, ChatGPT, any web MCP client)
+
+**`https://spider-paint.vercel.app/api/mcp`** is a public Streamable HTTP MCP server: no install, no sign-in (choose "no authentication" where a client asks). It is `api/mcp.mjs`, a Vercel function around `mcp/http.js`, and it is stateless: it writes no files and cannot steer an open viewer, so every result carries an `open_url` link that opens the scene in Spider Paint.
+
+- **Gemini:** Customize → Connectors → **+ Custom** → MCP Server URL: `https://spider-paint.vercel.app/api/mcp` → Next.
+- **ChatGPT:** Settings → Apps / Connectors → create a custom connector (developer mode) with the same URL, authentication: none.
+- **Claude:** Settings → Connectors → Add custom connector, same URL.
+
+Tools:
+
+| tool | what it does |
+| --- | --- |
+| `build_model` | runs model steps (`add_box`, `add_extrusion`, `add_mesh`, `transform`, `extrude_face`, `move_vertices`, `boolean`, `recolor`, `remove`, `list`, `inspect`, …) and returns the objects, an SVG render and an `open_url` (`/#scene=…`, the whole scene packed into the link); pass that link back as `from` to keep building |
+| `sky_scene` | a 3draft-sky catalogue (stars, planets, orbits) → a `#sky=…` link, optionally `target` to lock onto one body |
+| `find` | searches the Deep Sky catalogue (stars, galaxies, nebulae, planets) → name, kind, distance and a `?scene=deepsky&target=…` link |
+| `examples` | the bundled scenes with their links |
+| `sky_guide` | the sky catalogue guide (sky.md) |
+
+Links hold the scene in the URL fragment (deflate-raw, base64url), so they never reach a server; very large scenes (over ~200 KB of link) are refused.
+
 ## Set up
 
 From the Spider Paint folder:

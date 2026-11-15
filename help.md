@@ -14,7 +14,7 @@ cameras and a compact native environment. Their camera and captions stay indepen
 of object motion. A Deep Sky black hole keeps its usual accretion and light-bending effect.
 Only audio supplied by the story plays; silent stories create no sound. For an animated
 story the step arrows jump between chapters/shots. **✕** retains the objects in their
-current animated poses for ordinary editing. A `?scene=story:name` link opens a bundled Story.
+current animated poses for ordinary editing. A `?scene=story:name` link opens a bundled Story. A `#scene=…` or `#sky=…` link (made by the public MCP server) carries a whole scene or sky catalogue in the address, and `?target=name` flies to that object once the scene is open.
 
 Animated Stories can save darker lighting and pulsing emissive lamps. Their glow lights
 follow the animated parts and illuminate nearby surfaces. Brightness stays synchronized
