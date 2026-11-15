@@ -926,7 +926,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@672e71e4bae24593688914f325568a5687693471/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@d6e93264db9892e575b4197055e114af7779cd68/dist/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
@@ -2186,7 +2186,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@672e71e4bae24593688914f325568a5687693471/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@d6e93264db9892e575b4197055e114af7779cd68/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -4035,8 +4035,9 @@
       fit.dist = FLY_DIST;
       if (space()) {
         updateSpaceScale(); // (measured from the pivot just set; close enough to place the real one)
-        fit.center = eye.map((c, i) => c + f[i] * flyDist());
-        fit.dist = flyDist();
+        const d = flyDist(); // (once: a second call would measure from the half-moved pivot)
+        fit.center = eye.map((c, i) => c + f[i] * d);
+        fit.dist = d;
       }
       backoff = 1;
       travel = null; // a turn still under way (the reset of a Clear) must not pull the eye away again
@@ -4196,7 +4197,8 @@
       const key = `${skyShow.iau}|${skyShow.mine}|${skyShow.orbit}|${skyFigures.length}|${skyMine.length}|${skyPaths.length}`;
       if (key !== skyMarksCache.key) {
         const marks = [];
-        if (skyShow.orbit) for (const p of skyPaths) marks.push({ name: p.name, color: p.color ?? '#9fb4d0', width: 1, opacity: 0.45, lines: [p.pts] });
+        // the orbits: dashed (6 px dashes and gaps), so a line seen up close reads as a path, not a wire
+        if (skyShow.orbit) for (const p of skyPaths) marks.push({ name: p.name, color: p.color ?? '#9fb4d0', width: 1.2, opacity: 0.55, dash: 6, lines: [p.pts] });
         if (skyShow.iau && skyFigures.length) marks.push({ name: 'figures', ...SKY_LOOK.iau, lines: skyFigures.flatMap((f) => f.pts) });
         if (skyShow.mine && skyMine.length) marks.push({ name: 'star-lines', ...SKY_LOOK.mine, lines: skyMine.map((l) => l.pts) });
         skyMarksCache = { key, marks };

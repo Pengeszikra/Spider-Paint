@@ -103,17 +103,19 @@ void main() { outColor = uUnlit > 0.5 ? vec4(0.85, 0.85, 0.85, 0.55) : vec4(0.0,
 // the marks: thick round-capped segments expanded to screen-space quads, over everything (see the WGSL vsm/fsm)
 const GL_VERT_MARK = `#version 300 es
 precision highp float;
-uniform mat4 uVp; uniform vec3 uRes; uniform float uLd;
-layout(location = 0) in vec3 aA; layout(location = 1) in vec3 aB; layout(location = 2) in vec4 aCol; layout(location = 3) in float aW;
-out vec2 vQ; out vec4 vCol; out vec2 vH;
+uniform mat4 uVp; uniform vec3 uRes; uniform float uLd; uniform float uFocal;
+layout(location = 0) in vec3 aA; layout(location = 1) in vec3 aB; layout(location = 2) in vec4 aCol; layout(location = 3) in float aW; layout(location = 4) in vec3 aDash;
+out vec2 vQ; out vec4 vCol; out vec2 vH; out vec2 vDash;
 void main() {
+  // the points are relative to the eye (buildMarks, in doubles), uVp is the eye-centred view-projection
   vec4 ca = uVp * vec4(aA, 1.0);
   vec4 cb = uVp * vec4(aB, 1.0);
+  float sa = aDash.y, sb = aDash.z;
   float e = uLd > 0.0 ? 1e-13 : 0.001; // (with log depth anything just in front of the eye is drawn)
   gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
   if (ca.w < e && cb.w < e) return;
-  if (ca.w < e) ca = mix(ca, cb, (e - ca.w) / (cb.w - ca.w));
-  if (cb.w < e) cb = mix(cb, ca, (e - cb.w) / (ca.w - cb.w));
+  if (ca.w < e) { float k = (e - ca.w) / (cb.w - ca.w); ca = mix(ca, cb, k); sa = mix(sa, sb, k); }
+  if (cb.w < e) { float k = (e - cb.w) / (ca.w - cb.w); cb = mix(cb, ca, k); sb = mix(sb, sa, k); }
   vec2 half_ = uRes.xy * 0.5;
   vec2 pa = ca.xy / ca.w * half_;
   vec2 pb = cb.xy / cb.w * half_;
@@ -129,15 +131,22 @@ void main() {
   vec2 pos = pa + d * along + n * across;
   gl_Position = vec4(pos / half_, 0.0, 1.0);
   vQ = vec2(along, across); vCol = aCol; vH = vec2(len, hw);
+  // the dash phase in pixels (length along the line / depth x focal length: linear on screen, so it runs on across joints)
+  float f = len > 0.0001 ? along / len : cx[gl_VertexID];
+  vDash = vec2(mix(sa / ca.w, sb / cb.w, f) * uFocal, aDash.x * uRes.z);
 }`;
 const GL_FRAG_MARK = `#version 300 es
 precision highp float;
-in vec2 vQ; in vec4 vCol; in vec2 vH;
+in vec2 vQ; in vec4 vCol; in vec2 vH; in vec2 vDash;
 out vec4 outColor;
 void main() {
   float dx = max(max(-vQ.x, vQ.x - vH.x), 0.0);
   float dist = length(vec2(dx, vQ.y));
   float cov = clamp(vH.y + 0.5 - dist, 0.0, 1.0);
+  if (vDash.y > 0.0) {
+    float px = fract(vDash.x / (2.0 * vDash.y)) * 2.0 * vDash.y; // a dash, then a gap as long; half a pixel of soft edge
+    cov *= clamp(min(px, vDash.y - px) + 0.5, 0.0, 1.0);
+  }
   outColor = vec4(vCol.rgb, vCol.a * cov);
 }`;
 const GL_FRAG = /* glsl */ `#version 300 es
@@ -292,6 +301,7 @@ export const createGl = async (canvas, { onError } = {}) => {
     const markVp = gl.getUniformLocation(markProg, 'uVp');
     const markLd = gl.getUniformLocation(markProg, 'uLd');
     const markRes = gl.getUniformLocation(markProg, 'uRes');
+    const markFocal = gl.getUniformLocation(markProg, 'uFocal');
     const meshU = uni(meshProg);
     const instU = uni(instProg);
     const skinU = uni(skinProg);
@@ -340,6 +350,7 @@ export const createGl = async (canvas, { onError } = {}) => {
         attr(1, 3, s, 12, 1);
         attr(2, 4, s, 24, 1);
         attr(3, 1, s, 40, 1);
+        attr(4, 3, s, 44, 1);
     });
     let markCount = 0;
     let edgeCount = 0;
@@ -709,13 +720,24 @@ export const createGl = async (canvas, { onError } = {}) => {
             gl.depthMask(true);
             gl.disable(gl.BLEND);
         }
-        const markData = marks?.length ? buildMarks(marks) : null;
+        // the marks relative to the eye, drawn with the eye-centred matrix (an orbit far from the origin stays put near the camera)
+        const markEye = xr ? xr.eye : cam.eye;
+        const markData = marks?.length ? buildMarks(marks, markEye) : null;
         markCount = markData ? markData.length / MARK_FLOATS : 0;
         if (markCount && markData) {
+            let vpe;
+            if (xr) {
+                const v = Float32Array.from(xr.view);
+                v[12] = v[13] = v[14] = 0;
+                vpe = mul4(xr.projection, v);
+            }
+            else
+                vpe = viewProjection({ ...cam, eye: [0, 0, 0] }, nearPlane(cam, mesh));
             gl.bindBuffer(gl.ARRAY_BUFFER, markBuf);
             gl.bufferData(gl.ARRAY_BUFFER, markData, gl.DYNAMIC_DRAW);
             gl.useProgram(markProg);
-            gl.uniformMatrix4fv(markVp, false, vp);
+            gl.uniformMatrix4fv(markVp, false, vpe);
+            gl.uniform1f(markFocal, cam.ortho ? 0 : cam.k * (px / size));
             gl.uniform1f(markLd, ld);
             gl.uniform3f(markRes, px, px, px / size);
             gl.disable(gl.DEPTH_TEST);

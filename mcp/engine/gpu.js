@@ -36,29 +36,53 @@ export const mul4 = (a, b) => {
         }
     return m;
 };
-/** Floats of one mark segment: a (xyz), b (xyz), colour (rgba), width in CSS pixels, one spare. */
-export const MARK_FLOATS = 12;
+/**
+ * Floats of one mark segment: a (xyz), b (xyz), colour (rgba), width in CSS pixels, dash length in CSS pixels (0: solid), and
+ * the distance along its polyline at a and at b (from the polyline's point nearest to the eye).
+ */
+export const MARK_FLOATS = 14;
 const colorOf = (css) => {
     const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec((css ?? '#0b7285').trim());
     const h = m ? (m[1].length === 3 ? [...m[1]].map((c) => c + c).join('') : m[1]) : '0b7285';
     return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
 };
-/** One instance per segment of every polyline of every mark (a zero-length segment is a round point). */
-export const buildMarks = (marks) => {
+/**
+ * One instance per segment of every polyline of every mark (a zero-length segment is a round point). With `eye` the points are
+ * made relative to it here, in doubles, and the renderer draws them with the eye-centred matrix: a float32 world position far
+ * from the origin (an orbit 30 AU out, seen from a few thousand km) would snap from frame to frame.
+ */
+export const buildMarks = (marks, eye = [0, 0, 0]) => {
     let n = 0;
     for (const m of marks)
         for (const l of m.lines)
             n += Math.max(1, l.length - 1);
     const out = new Float32Array(n * MARK_FLOATS);
+    const [ex, ey, ez] = eye;
     let o = 0;
     for (const m of marks) {
         const [r, g, b] = colorOf(m.color);
+        const dash = m.dash && m.dash > 0 ? m.dash : 0;
         for (const l of m.lines) {
             const segs = l.length > 1 ? l.length - 1 : 1;
+            // the distance along the line, counted from its point nearest to the eye (small numbers where the dashes are big on screen)
+            let s = null;
+            if (dash && l.length > 1) {
+                s = [0];
+                for (let i = 1; i < l.length; i++)
+                    s.push(s[i - 1] + Math.hypot(l[i][0] - l[i - 1][0], l[i][1] - l[i - 1][1], l[i][2] - l[i - 1][2]));
+                let near = 0, nd = Infinity;
+                l.forEach((q, i) => {
+                    const d = (q[0] - ex) ** 2 + (q[1] - ey) ** 2 + (q[2] - ez) ** 2;
+                    if (d < nd)
+                        ((nd = d), (near = i));
+                });
+                const s0 = s[near];
+                s = s.map((v) => v - s0);
+            }
             for (let i = 0; i < segs; i++) {
                 const a = l[i];
                 const c = l[Math.min(i + 1, l.length - 1)];
-                out.set([a[0], a[1], a[2], c[0], c[1], c[2], r, g, b, m.opacity ?? 1, m.width ?? 2], o);
+                out.set([a[0] - ex, a[1] - ey, a[2] - ez, c[0] - ex, c[1] - ey, c[2] - ez, r, g, b, m.opacity ?? 1, m.width ?? 2, dash, s ? s[i] : 0, s ? s[Math.min(i + 1, l.length - 1)] : 0], o);
                 o += MARK_FLOATS;
             }
         }
@@ -406,6 +430,8 @@ struct U {
   res : vec4<f32>,     // marks: canvas pixels (x, y), device pixels per CSS pixel (z); w: number of glow lights
   lpos : array<vec4<f32>, 16>, // glow lights: xyz position, w reach
   lcol : array<vec4<f32>, 16>, // rgb colour times intensity
+  vpe : mat4x4<f32>,   // the marks: the view-projection with the eye at the origin (their points come relative to the eye)
+  mk : vec4<f32>,      // the marks: x = device pixels per unit of (length / depth) (the focal length in pixels)
 };
 @group(0) @binding(0) var<uniform> u : U;
 // logarithmic depth (u.eye.w = 1 / the smallest distance that needs depth; 0: the usual depth from the projection)
@@ -521,16 +547,19 @@ struct IIn {
 }
 
 // the marks: thick round-capped segments, expanded to screen-space quads, drawn over everything (no depth test)
-struct MOut { @builtin(position) p : vec4<f32>, @location(0) q : vec2<f32>, @location(1) c : vec4<f32>, @location(2) h : vec3<f32> };
-@vertex fn vsm(@builtin(vertex_index) vi : u32, @location(0) a : vec3<f32>, @location(1) b : vec3<f32>, @location(2) col : vec4<f32>, @location(3) wd : f32) -> MOut {
+struct MOut { @builtin(position) p : vec4<f32>, @location(0) q : vec2<f32>, @location(1) c : vec4<f32>, @location(2) h : vec3<f32>, @location(3) dsh : vec2<f32> };
+@vertex fn vsm(@builtin(vertex_index) vi : u32, @location(0) a : vec3<f32>, @location(1) b : vec3<f32>, @location(2) col : vec4<f32>, @location(3) wd : f32, @location(4) dl : vec3<f32>) -> MOut {
   var o : MOut;
-  var ca = u.vp * vec4<f32>(a, 1.0);
-  var cb = u.vp * vec4<f32>(b, 1.0);
+  // the points are relative to the eye (buildMarks, in doubles): the eye-centred matrix keeps them exact near the camera
+  var ca = u.vpe * vec4<f32>(a, 1.0);
+  var cb = u.vpe * vec4<f32>(b, 1.0);
+  var sa = dl.y;
+  var sb = dl.z;
   let e = select(0.001, 1e-13, u.eye.w > 0.0); // (with log depth anything just in front of the eye is drawn)
   o.p = vec4<f32>(2.0, 2.0, 2.0, 1.0);
   if (ca.w < e && cb.w < e) { return o; }
-  if (ca.w < e) { ca = mix(ca, cb, (e - ca.w) / (cb.w - ca.w)); }
-  if (cb.w < e) { cb = mix(cb, ca, (e - cb.w) / (ca.w - cb.w)); }
+  if (ca.w < e) { let k = (e - ca.w) / (cb.w - ca.w); ca = mix(ca, cb, k); sa = mix(sa, sb, k); }
+  if (cb.w < e) { let k = (e - cb.w) / (ca.w - cb.w); cb = mix(cb, ca, k); sb = mix(sb, sa, k); }
   let half = vec2<f32>(u.res.x, u.res.y) * 0.5;
   let pa = ca.xy / ca.w * half;
   let pb = cb.xy / cb.w * half;
@@ -551,12 +580,22 @@ struct MOut { @builtin(position) p : vec4<f32>, @location(0) q : vec2<f32>, @loc
   o.q = vec2<f32>(along, across);
   o.c = col;
   o.h = vec3<f32>(len, hw, 0.0);
+  // the dash phase in pixels: length along the line over depth, times the focal length; s / w interpolates linearly on screen,
+  // so the pattern runs on across the joints between the segments
+  let f = select(along / len, t, len <= 0.0001);
+  o.dsh = vec2<f32>(mix(sa / ca.w, sb / cb.w, f) * u.mk.x, dl.x * u.res.z);
   return o;
 }
 @fragment fn fsm(i : MOut) -> @location(0) vec4<f32> {
   let dx = max(max(-i.q.x, i.q.x - i.h.x), 0.0);
   let dist = length(vec2<f32>(dx, i.q.y));
-  let cov = clamp(i.h.y + 0.5 - dist, 0.0, 1.0);
+  var cov = clamp(i.h.y + 0.5 - dist, 0.0, 1.0);
+  if (i.dsh.y > 0.0) {
+    // a dash, then a gap of the same length; half a pixel of soft edge
+    let m = i.dsh.x / (2.0 * i.dsh.y) - floor(i.dsh.x / (2.0 * i.dsh.y));
+    let px = m * 2.0 * i.dsh.y;
+    cov = cov * clamp(min(px, i.dsh.y - px) + 0.5, 0.0, 1.0);
+  }
   return vec4<f32>(i.c.rgb, i.c.a * cov);
 }
 
@@ -821,6 +860,7 @@ export const createGpu = async (canvas, { sampleCount = 4, onError } = {}) => {
                         { shaderLocation: 1, offset: 12, format: 'float32x3' },
                         { shaderLocation: 2, offset: 24, format: 'float32x4' },
                         { shaderLocation: 3, offset: 40, format: 'float32' },
+                        { shaderLocation: 4, offset: 44, format: 'float32x3' },
                     ],
                 },
             ],
@@ -834,7 +874,7 @@ export const createGpu = async (canvas, { sampleCount = 4, onError } = {}) => {
         depthStencil: { format: 'depth24plus', depthWriteEnabled: false, depthCompare: 'always' },
         multisample: { count: sampleCount },
     });
-    const uniforms = device.createBuffer({ size: 720, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    const uniforms = device.createBuffer({ size: 800, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     const boneBuffer = device.createBuffer({ size: MAX_BONES * 52, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     const emission = new Float32Array(MAX_BONES);
     const entries = [{ binding: 0, resource: { buffer: uniforms } }, { binding: 1, resource: { buffer: boneBuffer } }];
@@ -1058,8 +1098,10 @@ export const createGpu = async (canvas, { sampleCount = 4, onError } = {}) => {
         // studio rig, relative to the camera: key upper left in front, fill from the right, rim from behind and above
         const rig = (f, r, up) => norm([0, 1, 2].map((k) => -cam.f[k] * f + cam.r[k] * r + cam.u[k] * up));
         const S = studio ? { fill: 0.4, rim: 1, ...(studio === true ? {} : studio) } : null;
-        const u = new Float32Array(52 + MAX_LIGHTS * 8);
+        const u = new Float32Array(52 + MAX_LIGHTS * 8 + 20);
         u.set(viewProjection(cam, nearPlane(cam, mesh)), 0);
+        u.set(viewProjection({ ...cam, eye: [0, 0, 0] }, nearPlane(cam, mesh)), 52 + MAX_LIGHTS * 8); // the marks' eye-centred matrix
+        u.set([cam.ortho ? 0 : cam.k * (px / size), 0, 0, 0], 52 + MAX_LIGHTS * 8 + 16);
         u.set([...(S ? rig(0.7, -0.5, 0.6) : norm(L.direction)), unlit ? 1 : 0], 16);
         u.set([...L.sky, 0], 20);
         u.set([...L.ground, 0], 24);
@@ -1095,7 +1137,7 @@ export const createGpu = async (canvas, { sampleCount = 4, onError } = {}) => {
                 planetCount = pi.count;
             }
         }
-        const markData = marks?.length ? buildMarks(marks) : null;
+        const markData = marks?.length ? buildMarks(marks, cam.eye) : null;
         markCount = markData ? markData.length / MARK_FLOATS : 0;
         if (markData && markData.byteLength) {
             if (markData.byteLength > markCapacity) {
