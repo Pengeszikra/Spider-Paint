@@ -121,17 +121,17 @@ The store pane (and G G from it) is not recorded.
 
 **char** (scene group) opens the **character builder**: quick, animatable extras for a scene. The figure at the top turns with a drag, and **stand / sit / walk** show it in that pose; every change shows at once.
 
-- **Presets**: **Scientist** (lab coat, tablet), **Mechanic** (bun, overall, wrench), **Farmer** (broad, beard, tomato), **Astronaut** (suit, helmet with a gold visor, a small pack). After a preset everything stays editable. **variate** makes another person in the same role: a new face, hair, build, skin and hair, while the outfit and the prop stay.
+- **Presets**: **Scientist** (lab coat, glasses, tablet), **Mechanic** (bun, overall, wrench), **Space crew** (a Moonbase-style tunic: beige with the left sleeve in the department's colour, a black collar and belt, flared trousers, a commlock in hand), **Astronaut** (suit, helmet with a gold visor, a small pack). After a preset everything stays editable. **variate** makes another person in the same role: a new face, hair, build, skin and hair (a crew member's sleeve colour too), while the outfit and the prop stay.
 - **Body**: female or male base, height, build, shoulders, head size (the sliders stop where the poses and the clothes still fit).
 - **Face**: shape (oval, round, square, long), jaw, nose, skin.
-- **Hair**: short, curly, bun or bald, its material, glasses, a beard (full or goatee).
-- **Outfit**: coat, overall, workwear or astronaut (helmet on or off), a **main** and a **second** material; one **prop** in the right hand.
+- **Hair**: short, long, bun or bald (flat locks over a cap, like paper-craft hair), its material, glasses, a beard (full or goatee).
+- **Outfit**: coat, overall, workwear, crew or astronaut (helmet on or off), a **main** and a **second** material (crew: the tunic and the left sleeve); one **prop** in the right hand (tablet, wrench, commlock).
 - **No colour pickers: every part is a palette material.** Skin, hair and cloth are chosen from the palette (the character's own entries, skin-1 to skin-7, hair-…, denim, lab-white, suit-white…, are added to the palette when missing; the list offers every other palette entry too). Edit a material in the palette (P) and every character made of it changes.
 - **save** keeps the settings under a name in this browser; the list next to it opens them again.
 - **place** puts the figure down at the cross, facing you: one object, one **U** step. Place the same preset as often as you like; every copy is its own.
 - **edit selected** takes the character under the cross (or the target) back into the builder; **apply** changes only that one (one U step).
 
-A placed character moves with **G**, turns with **R** and sizes with **S** like any object, and is saved in the scene. A **walking** character walks to and fro along its heading (3 m each way); **freeze** stops it, and while it walks the cross does not pick it (freeze, then edit). The figure is a few meshes: the body (trunk and legs, one closed surface), the arms, the head, the hair (and beard), the gear (glasses, a coat's skirt, straps, a helmet) and the prop. The body and the arms bend smoothly at the joints; the clothes are the body's own surface in cloth materials, so they cannot come off in any pose. Hair and glasses follow the head, the prop the hand.
+A placed character moves with **G**, turns with **R** and sizes with **S** like any object, and is saved in the scene. A **walking** character walks to and fro along its heading (3 m each way); **freeze** stops it, and while it walks the cross does not pick it (freeze, then edit). The figure is stylized, about six heads tall with a big round head, and a few meshes: the body (trunk and legs, one closed surface), the arms, the head, the face (eyes, brows and mouth as flat plates lying just over the skin, like a face drawn on with 5 + V), the hair (and beard), the gear (glasses, a coat's skirt, straps, a belt, a helmet) and the prop. The body and the arms bend smoothly at the joints; the clothes are the body's own surface in cloth materials, so they cannot come off in any pose. Hair and glasses follow the head, the prop the hand. Smooth shading (the SMOOTH switch) is meant for them.
 
 ## Two views: build and store
 
