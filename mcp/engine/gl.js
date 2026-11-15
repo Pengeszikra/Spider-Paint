@@ -111,7 +111,9 @@ void main() {
   vec4 ca = uVp * vec4(aA, 1.0);
   vec4 cb = uVp * vec4(aB, 1.0);
   float sa = aDash.y, sb = aDash.z;
-  float e = uLd > 0.0 ? 1e-13 : 0.001; // (with log depth anything just in front of the eye is drawn)
+  // the near cut: with log depth anything just in front of the eye is drawn, but never nearer than 1e-5 of the segment's far end:
+  // a point cut at w ~ 0 lands ~1e15 px away, where float32 loses the line's direction and stray lines flash across the screen
+  float e = max(uLd > 0.0 ? 1e-13 : 0.001, 1e-5 * max(ca.w, cb.w));
   gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
   if (ca.w < e && cb.w < e) return;
   if (ca.w < e) { float k = (e - ca.w) / (cb.w - ca.w); ca = mix(ca, cb, k); sa = mix(sa, sb, k); }
@@ -119,6 +121,28 @@ void main() {
   vec2 half_ = uRes.xy * 0.5;
   vec2 pa = ca.xy / ca.w * half_;
   vec2 pb = cb.xy / cb.w * half_;
+  // the screen guard band: the segment is cut to 4x the picture before the quad is built, so no corner lies far off screen (a real
+  // GPU's rasteriser may mangle a triangle with a corner ~1e12 px away: a stray line across the picture)
+  {
+    float G = max(half_.x, half_.y) * 4.0;
+    vec2 dd = pb - pa;
+    float t0 = 0.0, t1 = 1.0;
+    for (int k = 0; k < 4; k++) {
+      float pp = k == 0 ? -dd.x : k == 1 ? dd.x : k == 2 ? -dd.y : dd.y;
+      float qq = k == 0 ? pa.x + G : k == 1 ? G - pa.x : k == 2 ? pa.y + G : G - pa.y;
+      if (abs(pp) < 1e-20) { if (qq < 0.0) return; }
+      else { float r = qq / pp; if (pp < 0.0) t0 = max(t0, r); else t1 = min(t1, r); }
+    }
+    if (t0 > t1) return;
+    vec2 na = pa + dd * t0, nb = pa + dd * t1;
+    // the dash distance and the depth follow the cut (s / w is linear on screen)
+    float qa = sa / ca.w, qb = sb / cb.w;
+    float ia = 1.0 / ca.w, ib = 1.0 / cb.w;
+    float ja = mix(ia, ib, t0), jb = mix(ia, ib, t1);
+    sa = mix(qa, qb, t0) / ja; sb = mix(qa, qb, t1) / jb;
+    ca.w = 1.0 / ja; cb.w = 1.0 / jb;
+    pa = na; pb = nb;
+  }
   float len = length(pb - pa);
   vec2 d = len > 0.0001 ? (pb - pa) / len : vec2(1.0, 0.0);
   float hw = aW * uRes.z * 0.5;

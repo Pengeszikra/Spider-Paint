@@ -926,7 +926,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@80de191bd2a244dff6b762e8be5fa3ee41f0c4fe/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@f3c677be9374a3461e1dde62252764be9c8fe193/dist/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
@@ -2186,7 +2186,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@80de191bd2a244dff6b762e8be5fa3ee41f0c4fe/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@f3c677be9374a3461e1dde62252764be9c8fe193/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -4198,13 +4198,69 @@
       if (key !== skyMarksCache.key) {
         const marks = [];
         // the orbits: thin solid lines at 30 % (drawn relative to the eye, so they stay put up close)
-        if (skyShow.orbit) for (const p of skyPaths) marks.push({ name: p.name, color: p.color ?? '#9fb4d0', width: 1, opacity: 0.3, lines: [p.pts] });
-        if (skyShow.iau && skyFigures.length) marks.push({ name: 'figures', ...SKY_LOOK.iau, lines: skyFigures.flatMap((f) => f.pts) });
-        if (skyShow.mine && skyMine.length) marks.push({ name: 'star-lines', ...SKY_LOOK.mine, lines: skyMine.map((l) => l.pts) });
-        skyMarksCache = { key, marks };
+        if (skyShow.orbit) for (const p of skyPaths) marks.push({ name: p.name, near: true, color: p.color ?? '#9fb4d0', width: 1, opacity: 0.3, lines: [p.pts] });
+        if (skyShow.iau && skyFigures.length) marks.push({ name: 'figures', sky: true, ...SKY_LOOK.iau, lines: skyFigures.flatMap((f) => f.pts) });
+        if (skyShow.mine && skyMine.length) marks.push({ name: 'star-lines', sky: true, ...SKY_LOOK.mine, lines: skyMine.map((l) => l.pts) });
+        skyMarksCache = { key, marks, eye: null, out: marks };
       }
-      return skyMarksCache.marks;
+      // Constellation figures and star lines are drawn on the sky, not as 3D chords: a chord between a star in front and one behind
+      // runs past the eye, and on screen it became a line from the star to the edge that jumped as the view turned. Each star is
+      // put on a sphere round the eye in its direction, and each segment is a great-circle arc in pieces of at most SKY_ARC.
+      const eye = gcam?.eye;
+      if (!eye || !skyMarksCache.marks.some((m) => m.sky || m.near)) return skyMarksCache.marks;
+      const c = skyMarksCache;
+      if (c.eye && c.eye[0] === eye[0] && c.eye[1] === eye[1] && c.eye[2] === eye[2]) return c.out;
+      const dirOf = (q) => { const d = [q[0] - eye[0], q[1] - eye[1], q[2] - eye[2]]; const l = Math.hypot(...d) || 1; return [d[0] / l, d[1] / l, d[2] / l]; };
+      const onSky = (line) => {
+        const out = [];
+        for (let i = 0; i < line.length; i++) {
+          const b = dirOf(line[i]);
+          if (i > 0) {
+            const a = dirOf(line[i - 1]);
+            const th = Math.acos(Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2])));
+            const n = Math.max(1, Math.ceil(th / SKY_ARC));
+            for (let k = 1; k < n; k++) {
+              const t = k / n, m = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+              const l = Math.hypot(...m) || 1;
+              out.push([eye[0] + (m[0] / l) * SKY_R, eye[1] + (m[1] / l) * SKY_R, eye[2] + (m[2] / l) * SKY_R]);
+            }
+          }
+          out.push([eye[0] + b[0] * SKY_R, eye[1] + b[1] * SKY_R, eye[2] + b[2] * SKY_R]);
+        }
+        return out;
+      };
+      // An orbit is a polyline of ~256 points: a chord misses the true orbit by up to r (1 - cos(pi / 256)), ~200 000 km for Uranus,
+      // which shows as the line passing beside the planet up close. Near the eye its segments are refined along a Catmull-Rom curve
+      // through the neighbouring points (error ~1000 km there), into pieces of ~2 % of their distance to the eye.
+      const nearRefine = (line) => {
+        const n = line.length;
+        if (n < 4) return line;
+        const closed = Math.hypot(line[0][0] - line[n - 1][0], line[0][1] - line[n - 1][1], line[0][2] - line[n - 1][2]) < 1e-12;
+        const at = (i) => (closed ? line[((i % (n - 1)) + (n - 1)) % (n - 1)] : line[Math.max(0, Math.min(n - 1, i))]);
+        const out = [line[0]];
+        for (let i = 0; i < n - 1; i++) {
+          const a = line[i], b = line[i + 1];
+          const len = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+          const mid = [(a[0] + b[0]) / 2 - eye[0], (a[1] + b[1]) / 2 - eye[1], (a[2] + b[2]) / 2 - eye[2]];
+          const d = Math.max(Math.hypot(...mid) - len / 2, len * 1e-3);
+          const k = Math.min(64, Math.ceil(len / (d * 0.02)));
+          if (k > 1) {
+            const p0 = at(i - 1), p3 = at(i + 2);
+            for (let j = 1; j < k; j++) {
+              const t = j / k, t2 = t * t, t3 = t2 * t;
+              out.push([0, 1, 2].map((c) => 0.5 * (2 * a[c] + (-p0[c] + b[c]) * t + (2 * p0[c] - 5 * a[c] + 4 * b[c] - p3[c]) * t2 + (-p0[c] + 3 * a[c] - 3 * b[c] + p3[c]) * t3)));
+            }
+          }
+          out.push(b);
+        }
+        return out;
+      };
+      c.out = c.marks.map((m) => (m.sky ? { ...m, lines: m.lines.map(onSky) } : m.near ? { ...m, lines: m.lines.map(nearRefine) } : m));
+      c.eye = [...eye];
+      return c.out;
     };
+    const SKY_ARC = (4 * Math.PI) / 180; // the longest straight piece of a figure line on the sky
+    const SKY_R = 1; // the radius of that sky round the eye (the marks are drawn relative to the eye, without depth)
     const skyCentre = (name) => {
       const o = allObjects().find((x) => x.name === name);
       return o ? [...ballOf(o).center] : null;

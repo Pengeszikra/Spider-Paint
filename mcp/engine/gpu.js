@@ -555,14 +555,48 @@ struct MOut { @builtin(position) p : vec4<f32>, @location(0) q : vec2<f32>, @loc
   var cb = u.vpe * vec4<f32>(b, 1.0);
   var sa = dl.y;
   var sb = dl.z;
-  let e = select(0.001, 1e-13, u.eye.w > 0.0); // (with log depth anything just in front of the eye is drawn)
+  // the near cut: with log depth anything just in front of the eye is drawn, but never nearer than 1e-5 of the segment's far end
+  // (a point cut at w ~ 0 lands ~1e15 px away, where float32 loses the line's direction: stray lines across the screen)
+  let e = max(select(0.001, 1e-13, u.eye.w > 0.0), 1e-5 * max(ca.w, cb.w));
   o.p = vec4<f32>(2.0, 2.0, 2.0, 1.0);
   if (ca.w < e && cb.w < e) { return o; }
   if (ca.w < e) { let k = (e - ca.w) / (cb.w - ca.w); ca = mix(ca, cb, k); sa = mix(sa, sb, k); }
   if (cb.w < e) { let k = (e - cb.w) / (ca.w - cb.w); cb = mix(cb, ca, k); sb = mix(sb, sa, k); }
   let half = vec2<f32>(u.res.x, u.res.y) * 0.5;
-  let pa = ca.xy / ca.w * half;
-  let pb = cb.xy / cb.w * half;
+  var pa = ca.xy / ca.w * half;
+  var pb = cb.xy / cb.w * half;
+  // the screen guard band: the segment is cut to 4x the picture before the quad is built, so no corner lies far off screen (a real
+  // GPU's rasteriser may mangle a triangle with a corner ~1e12 px away: a stray line across the picture)
+  {
+    let G = max(half.x, half.y) * 4.0;
+    let dd = pb - pa;
+    var t0 = 0.0;
+    var t1 = 1.0;
+    let ps = array<f32, 4>(-dd.x, dd.x, -dd.y, dd.y);
+    let qs = array<f32, 4>(pa.x + G, G - pa.x, pa.y + G, G - pa.y);
+    for (var k = 0; k < 4; k++) {
+      let pp = ps[k];
+      let qq = qs[k];
+      if (abs(pp) < 1e-20) { if (qq < 0.0) { return o; } }
+      else { let r = qq / pp; if (pp < 0.0) { t0 = max(t0, r); } else { t1 = min(t1, r); } }
+    }
+    if (t0 > t1) { return o; }
+    let na = pa + dd * t0;
+    let nb = pa + dd * t1;
+    // the dash distance and the depth follow the cut (s / w is linear on screen)
+    let qa = sa / ca.w;
+    let qb = sb / cb.w;
+    let ia = 1.0 / ca.w;
+    let ib = 1.0 / cb.w;
+    let ja = mix(ia, ib, t0);
+    let jb = mix(ia, ib, t1);
+    sa = mix(qa, qb, t0) / ja;
+    sb = mix(qa, qb, t1) / jb;
+    ca.w = 1.0 / ja;
+    cb.w = 1.0 / jb;
+    pa = na;
+    pb = nb;
+  }
   let len = length(pb - pa);
   var d = vec2<f32>(1.0, 0.0);
   if (len > 0.0001) { d = (pb - pa) / len; }
