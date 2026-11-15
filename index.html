@@ -866,7 +866,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e2bfa68ae3a35ea3f8aa65d0207cbff99ac5cf16/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4 } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@b84c480e2982d581b89f2baf670a87083cb3b9cf/dist/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
@@ -2068,7 +2068,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e2bfa68ae3a35ea3f8aa65d0207cbff99ac5cf16/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@b84c480e2982d581b89f2baf670a87083cb3b9cf/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -7885,7 +7885,7 @@
       } catch (e) {
         return sceneNote(`story: ${e.message}`);
       }
-      if (story) closeStory(false);
+      if (story) await closeStory(false);
       setVehicle(null);
       await loadScene({ palette: doc.scene.palette ?? [], objects: [] }, true);
       story = { doc, base, t: 0, index: -1, playing: false, last: 0, loadedKey: '', cutaway: false, focus: null, raf: 0, count: 0 };
@@ -7903,17 +7903,24 @@
       );
       stShow(0, true);
     };
-    const closeStory = (clear = true) => {
+    // leaving: the model of the moment (the whole of it, not the cutaway) stays in the scene as ordinary objects; the eye stays
+    const closeStory = async (keep = true) => {
       if (!story) return;
       stPause();
       stAudioStop();
       stAudio.clear();
+      const model = keep ? storyFormat.constructionAt(story.doc, story.t) : [];
       story = null;
       document.body.classList.remove('story');
       stEl('storyCaption').hidden = true;
       storyPanelEl.hidden = true;
       stEl('stInfo').classList.remove('on');
-      if (clear) applyScene({ objects: [] });
+      applyScene({ objects: [] });
+      if (model.length) {
+        const eye = eyeNow(), y = (yaw * 180) / Math.PI, p = (pitch * 180) / Math.PI;
+        await loadScene({ objects: model }, true);
+        lookFrom(eye, y, p);
+      }
     };
     stEl('stPlay').addEventListener('click', (e) => (stPlay(), e.currentTarget.blur()));
     stEl('stPrev').addEventListener('click', (e) => (stStep(-1), e.currentTarget.blur()));
@@ -7943,12 +7950,12 @@
         e.currentTarget.blur();
         if (story) stShow(story.t, id === 'stText');
       });
-    // the player's keys come first while a story is open (not while typing)
+    // the player's keys come first while a story is open (not while typing); Space stays the speed stop
     window.addEventListener(
       'keydown',
       (e) => {
         if (!story || e.ctrlKey || e.metaKey || e.altKey || ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
-        const act = { ' ': () => stPlay(), ArrowLeft: () => stStep(-1), ArrowRight: () => stStep(1), Home: () => stSeek(0), End: () => stSeek(story.doc.timeline.durationMs) }[e.key];
+        const act = { ArrowLeft: () => stStep(-1), ArrowRight: () => stStep(1), Home: () => stSeek(0), End: () => stSeek(story.doc.timeline.durationMs) }[e.key];
         if (!act) return;
         e.preventDefault();
         e.stopImmediatePropagation();
