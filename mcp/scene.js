@@ -1,11 +1,11 @@
-// (copied from 3Draft b7e6581 by scripts/sync.mjs: change it there)
+// (copied from 3Draft 8b36e93 by scripts/sync.mjs: change it there)
 // The model and its tools. One scene of named objects (meshes), edited by tool calls
 // and judged by the deterministic SVG preview. No I/O except save/load of JSON files
 // under the working directory. The MCP transport is in server.js.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, relative, isAbsolute, extname } from 'node:path';
-import { skyScene, SKY_TYPES, box, extrude, extrudeFace, moveVertices, faceNormal, faceCenter, merge, rotate, bounds, makeCamera, orbit, pick, renderView, renderSheet, validate, boolean, VIEW_ORDER } from './engine/index.js';
+import { skyScene, SKY_TYPES, box, extrude, extrudeFace, moveVertices, faceNormal, faceCenter, merge, rotate, bounds, makeCamera, orbit, pick, renderView, renderSheet, validate, boolean, VIEW_ORDER, triangulate, buildCharacter, normalizeCharacter, variateCharacter, posed, walkPose, HUMANOID_POSES, CHARACTER_PRESETS } from './engine/index.js';
 
 export class ToolError extends Error {}
 const fail = (message) => {
@@ -62,6 +62,64 @@ const extent = (mesh) => {
     }
   }
   return { min: rv(min), max: rv(max) };
+};
+
+// ---- vectors, rotations and a ray cast, for place_on (the G G of the viewer) and the rotations of transform
+const vsub = (a, b) => a.map((v, i) => v - b[i]);
+const vdot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const vcross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const vnorm = (a) => {
+  const l = Math.hypot(...a);
+  return l > 0 ? a.map((v) => v / l) : a;
+};
+// rotate every point by `angle` (radians) round the unit `axis` through `pivot` (Rodrigues)
+const turnAbout = (mesh, axis, angle, pivot) => {
+  if (!angle) return mesh;
+  const k = vnorm(axis), c = Math.cos(angle), sn = Math.sin(angle);
+  return {
+    ...mesh,
+    positions: mesh.positions.map((p) => {
+      const v = vsub(p, pivot), kv = vcross(k, v), d = vdot(k, v);
+      return [0, 1, 2].map((i) => pivot[i] + v[i] * c + kv[i] * sn + k[i] * d * (1 - c));
+    }),
+  };
+};
+// turn the mesh round `pivot` so that its up (+y) points along `n`
+const upTo = (mesh, n, pivot) => {
+  const u = vnorm(n), d = Math.max(-1, Math.min(1, u[1]));
+  if (d > 1 - 1e-9) return mesh;
+  if (d < -1 + 1e-9) return turnAbout(mesh, [1, 0, 0], Math.PI, pivot);
+  return turnAbout(mesh, vcross([0, 1, 0], u), Math.acos(d), pivot);
+};
+// the nearest face of `targets` ([name, mesh] pairs) along the ray; the normal faces the ray's origin
+const castRay = (targets, origin, dir) => {
+  const D = vnorm(dir);
+  let best = null;
+  for (const [n, mesh] of targets) {
+    mesh.faces.forEach((f, fi) => {
+      const pts = f.v.map((k) => mesh.positions[k]);
+      for (const [a, b, c] of triangulate(pts)) {
+        const A = pts[a], e1 = vsub(pts[b], A), e2 = vsub(pts[c], A), P = vcross(D, e2), det = vdot(e1, P);
+        if (det * det <= 1e-24 * vdot(e1, e1) * vdot(e2, e2)) continue;
+        const T = vsub(origin, A), u = vdot(T, P) / det;
+        if (u < 0 || u > 1) continue;
+        const Q = vcross(T, e1), v = vdot(D, Q) / det;
+        if (v < 0 || u + v > 1) continue;
+        const t = vdot(e2, Q) / det;
+        if (t > 1e-9 && (!best || t < best.t)) {
+          let normal = vnorm(faceNormal(pts));
+          if (vdot(normal, D) > 0) normal = normal.map((x) => -x);
+          best = { t, object: n, face: fi, point: origin.map((o, i) => o + D[i] * t), normal };
+        }
+      }
+    });
+  }
+  return best;
+};
+// the foot of a mesh: the middle of the bottom of its bounding box (for a figure: the middle of where it stands)
+const footOf = (mesh) => {
+  const { min, max } = extent(mesh);
+  return [(min[0] + max[0]) / 2, min[1], (min[2] + max[2]) / 2];
 };
 
 const safePath = (p) => {
@@ -183,21 +241,31 @@ export const createScene = () => {
     },
     {
       name: 'transform',
-      description: 'Scale, then rotate around the Y axis, then move an object. Scale and rotation are about the center of its bounding box.',
+      description: 'Scale, then rotate round X, then round Z, then round Y, then move an object. Scale and rotations are about the center of its bounding box (or about `pivot`). Rotations are degrees, counter-clockwise looking from the + end of the axis towards the origin (right-hand rule): rotate_y 90 turns +x into -z, rotate_x 90 turns +y into +z, rotate_z 90 turns +x into +y.',
       inputSchema: {
         type: 'object',
-        properties: { name: nameSchema, scale: { description: 'Positive number, or [sx, sy, sz].', oneOf: [{ type: 'number' }, vec3Schema] }, rotate_y: { type: 'number', description: 'degrees, counter-clockwise seen from above' }, move: { ...vec3Schema, description: 'translation [dx, dy, dz]' } },
+        properties: {
+          name: nameSchema,
+          scale: { description: 'Positive number, or [sx, sy, sz].', oneOf: [{ type: 'number' }, vec3Schema] },
+          rotate_x: { type: 'number', description: 'degrees round the X axis (tilts forward / back)' },
+          rotate_z: { type: 'number', description: 'degrees round the Z axis (tilts left / right)' },
+          rotate_y: { type: 'number', description: 'degrees, counter-clockwise seen from above' },
+          pivot: { ...vec3Schema, description: 'the point to scale and rotate about, default the center of the bounding box (e.g. a hinge, or the foot to tip a thing over)' },
+          move: { ...vec3Schema, description: 'translation [dx, dy, dz]' },
+        },
         required: ['name'],
       },
       run: (a) => {
         let mesh = need(a.name);
         const { min, max } = extent(mesh);
-        const c = [0, 1, 2].map((i) => (min[i] + max[i]) / 2);
+        const c = a.pivot !== undefined ? vec3(a.pivot, 'pivot') : [0, 1, 2].map((i) => (min[i] + max[i]) / 2);
         if (a.scale !== undefined) {
           const s = isNum(a.scale) ? [a.scale, a.scale, a.scale] : vec3(a.scale, 'scale');
           if (!s.every((v) => v > 0)) fail('scale must be positive');
           mesh = { ...mesh, positions: mesh.positions.map((p) => p.map((v, i) => c[i] + (v - c[i]) * s[i])) };
         }
+        if (a.rotate_x !== undefined) mesh = turnAbout(mesh, [1, 0, 0], (number(a.rotate_x, 'rotate_x') * Math.PI) / 180, c);
+        if (a.rotate_z !== undefined) mesh = turnAbout(mesh, [0, 0, 1], (number(a.rotate_z, 'rotate_z') * Math.PI) / 180, c);
         if (a.rotate_y !== undefined) {
           const yaw = (number(a.rotate_y, 'rotate_y') * Math.PI) / 180;
           mesh = rotate(mesh, { yaw }, c);
@@ -208,6 +276,122 @@ export const createScene = () => {
         }
         objects.set(a.name, mesh);
         return summary(a.name, mesh);
+      },
+    },
+    {
+      name: 'place_on',
+      description: 'Put an object down on the surface of others, like the viewer\'s G G: its foot (the middle of the bottom of its bounding box; for a character the middle of where it stands) goes onto the surface point, and with align "normal" its up turns to the surface normal (a thing on a slope, a ball, a wall). Say where with `at` [x, z] (dropped straight down there: the highest surface under that spot), or `point` (+ `normal`) from pick, or a ray (`from` + `dir`). Default: straight down at the object\'s own x, z. Returns the new bounds and the surface it landed on.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          name: nameSchema,
+          onto: { description: 'the object(s) to land on (a name or a list); default every other object', oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+          at: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2, description: '[x, z]: drop straight down onto the surface at this spot (default: the object\'s own x, z, or the middle of `onto` when it is a single object)' },
+          point: { ...vec3Schema, description: 'a surface point (e.g. from pick); no ray is cast' },
+          normal: { ...vec3Schema, description: 'the surface normal at `point` (default up)' },
+          from: { ...vec3Schema, description: 'cast a ray from here …' },
+          dir: { ...vec3Schema, description: '… in this direction (e.g. [1, 0, 0] to hang a picture on a wall to the +x)' },
+          align: { type: 'string', enum: ['up', 'normal'], description: 'up (default): the object stays upright; normal: its up turns to the surface normal' },
+          turn: { type: 'number', description: 'degrees to turn it round its up axis first (counter-clockwise seen from above)' },
+          gap: { type: 'number', description: 'lift it off the surface by this much along the normal (default 0)' },
+        },
+        required: ['name'],
+      },
+      run: (a) => {
+        let mesh = need(a.name);
+        const ontoNames = a.onto === undefined ? [...objects.keys()].filter((n) => n !== a.name) : [a.onto].flat();
+        ontoNames.forEach((n) => (n === a.name ? fail('an object cannot be placed on itself') : need(n)));
+        const targets = ontoNames.map((n) => [n, objects.get(n)]);
+        if (!targets.length) fail('there is nothing to place it on: add another object, or say `onto`');
+        let surface;
+        if (a.point !== undefined) {
+          surface = { object: null, point: vec3(a.point, 'point'), normal: vnorm(vec3(a.normal, 'normal', [0, 1, 0])) };
+        } else {
+          let origin, dir;
+          if (a.from !== undefined || a.dir !== undefined) {
+            origin = vec3(a.from, 'from');
+            dir = vec3(a.dir, 'dir');
+          } else {
+            let xz;
+            if (a.at !== undefined) {
+              if (!Array.isArray(a.at) || a.at.length !== 2 || !a.at.every(isNum)) fail('at must be [x, z]');
+              xz = a.at;
+            } else if (ontoNames.length === 1 && a.onto !== undefined) {
+              const e = extent(targets[0][1]);
+              xz = [(e.min[0] + e.max[0]) / 2, (e.min[2] + e.max[2]) / 2];
+            } else {
+              const f = footOf(mesh);
+              xz = [f[0], f[2]];
+            }
+            const top = Math.max(...targets.map(([, m]) => extent(m).max[1]));
+            origin = [xz[0], top + 1, xz[1]];
+            dir = [0, -1, 0];
+          }
+          surface = castRay(targets, origin, dir);
+          if (!surface) fail(`the ray from [${rv(origin)}] along [${rv(dir)}] hits nothing of ${ontoNames.join(', ')}`);
+        }
+        let foot = footOf(mesh);
+        if (a.turn !== undefined) mesh = rotate(mesh, { yaw: (number(a.turn, 'turn') * Math.PI) / 180 }, foot);
+        const align = a.align ?? 'up';
+        if (align !== 'up' && align !== 'normal') fail('align must be "up" or "normal"');
+        if (align === 'normal') mesh = upTo(mesh, surface.normal, foot);
+        const up = align === 'normal' ? surface.normal : [0, 1, 0];
+        const gap = number(a.gap, 'gap', { fallback: 0 });
+        const goal = surface.point.map((v, i) => v + up[i] * gap);
+        const d = vsub(goal, foot);
+        mesh = { ...mesh, positions: mesh.positions.map((p) => p.map((v, i) => v + d[i])) };
+        objects.set(a.name, mesh);
+        return { ...summary(a.name, mesh), surface: { object: surface.object, point: rv(surface.point), normal: rv(surface.normal) } };
+      },
+    },
+    {
+      name: 'add_character',
+      description: 'Add a character from the viewer\'s character builder: a stylized figure (about 1.6-1.9 tall, the units are metres) in a few meshes merged into one object, its feet on y = 0 at `at`, facing `yaw`. Presets: scientist, mechanic, crew (Space 1999 style uniform), astronaut. `seed` makes a random variation of the preset, `spec` overrides any field of the builder\'s spec (base: "male" | "female", body: { height, build, shoulders, head }, face: { shape, skin }, hair: { style, mat }, outfit: { kind, main, second, helmet }, prop). Pose: stand, sit (the seat under the hips at about 0.44) or walk (one stride). Give `onto` (and `at`) to stand it on a surface, as place_on.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          name: nameSchema,
+          preset: { type: 'string', enum: Object.keys(CHARACTER_PRESETS), description: 'default crew' },
+          seed: { type: 'integer', description: 'a random variation of the preset (face, hair, colours)' },
+          spec: { type: 'object', description: 'fields that override the preset (see the description)' },
+          pose: { type: 'string', enum: ['stand', 'sit', 'walk'], description: 'default stand' },
+          at: { ...vec3Schema, description: 'where it stands (the middle of its feet), default [0, 0, 0]; with onto only x and z count' },
+          yaw: { type: 'number', description: 'degrees: 0 faces +z, 90 faces +x, 180 faces -z' },
+          onto: { description: 'stand it on the surface of this object (or these), straight down at `at`', oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+          replace: replaceSchema,
+        },
+        required: ['name'],
+      },
+      run: (a) => {
+        name(a.name);
+        if (objects.has(a.name) && !a.replace) fail(`"${a.name}" already exists; pass replace: true to overwrite it, or pick another name.`);
+        const preset = a.preset ?? 'crew';
+        if (!CHARACTER_PRESETS[preset]) fail(`unknown preset "${preset}"; one of ${Object.keys(CHARACTER_PRESETS).join(', ')}`);
+        if (a.spec !== undefined && (typeof a.spec !== 'object' || Array.isArray(a.spec) || a.spec === null)) fail('spec must be an object');
+        const P = CHARACTER_PRESETS[preset], o = a.spec ?? {};
+        const merged = { ...P, ...o, body: { ...P.body, ...o.body }, face: { ...P.face, ...o.face }, hair: { ...P.hair, ...o.hair }, outfit: { ...P.outfit, ...o.outfit } };
+        let spec = normalizeCharacter(merged);
+        if (a.seed !== undefined) spec = variateCharacter(spec, Math.trunc(number(a.seed, 'seed')));
+        const pose = a.pose ?? 'stand';
+        if (!['stand', 'sit', 'walk'].includes(pose)) fail('pose must be stand, sit or walk');
+        const c = buildCharacter(spec);
+        const local = merge(...posed(c.parts.map((p) => p.mesh), c.rig, pose === 'sit' ? HUMANOID_POSES.sit : pose === 'walk' ? walkPose(0.12) : (HUMANOID_POSES.bind ?? {}), { ground: true }));
+        const at = vec3(a.at, 'at', [0, 0, 0]);
+        const yaw = (number(a.yaw, 'yaw', { fallback: 0 }) * Math.PI) / 180;
+        const cy = Math.cos(yaw), sy = Math.sin(yaw);
+        let mesh = { positions: local.positions.map((p) => [at[0] + p[0] * cy + p[2] * sy, at[1] + p[1], at[2] - p[0] * sy + p[2] * cy]), faces: local.faces.map((f) => ({ ...f, v: [...f.v] })) };
+        let surface;
+        if (a.onto !== undefined) {
+          const names = [a.onto].flat();
+          const targets = names.map((n) => [n, need(n)]);
+          const top = Math.max(...targets.map(([, m]) => extent(m).max[1]));
+          surface = castRay(targets, [at[0], top + 1, at[2]], [0, -1, 0]);
+          if (!surface) fail(`nothing of ${names.join(', ')} under x ${at[0]}, z ${at[2]}`);
+          const d = [0, surface.point[1] - at[1], 0];
+          mesh = { ...mesh, positions: mesh.positions.map((p) => p.map((v, i) => v + d[i])) };
+        }
+        objects.set(a.name, mesh);
+        return { ...summary(a.name, mesh), preset, pose, base: spec.base, height: r6(spec.body.height), ...(surface ? { surface: { object: surface.object, point: rv(surface.point) } } : {}) };
       },
     },
     {
