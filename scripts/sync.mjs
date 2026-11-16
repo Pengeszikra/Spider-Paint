@@ -3,8 +3,9 @@
 //   node scripts/sync.mjs ../3Draft
 //
 // Reads app/index.html and examples/bridge.scene.json from a 3Draft checkout and writes
-// index.html and models/bridge.scene.json here. The engine is not copied: the page imports it
-// from jsDelivr, pinned to the 3Draft commit it was taken from. Every step is an exact text
+// index.html and models/bridge.scene.json here. The engine (3Draft's dist/) is copied beside the page into engine/<commit>/,
+// so the page never waits for a CDN to pick up a new commit (jsDelivr answered 404 for the first minutes after each release, and
+// the page stayed dead); the commit in the path keeps a cached old engine from meeting a new page. Every step is an exact text
 // replacement; if one no longer matches (the viewer changed), the script stops and says which.
 
 import { execFileSync } from 'node:child_process';
@@ -15,13 +16,18 @@ import { join, resolve } from 'node:path';
 const src = resolve(process.argv[2] ?? '../3Draft');
 const here = resolve(new URL('..', import.meta.url).pathname);
 const commit = execFileSync('git', ['-C', src, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
-const engine = process.argv.includes('--local-engine') ? '/3draft/dist/index.js' : `https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@${commit}/dist/index.js`;
+const engineRel = `engine/${commit.slice(0, 12)}`;
+const engine = process.argv.includes('--local-engine') ? '/3draft/dist/index.js' : `./${engineRel}/index.js`;
+// the engine beside the page: engine/<commit>/ (the old ones go)
+rmSync(join(here, 'engine'), { recursive: true, force: true });
+mkdirSync(join(here, engineRel), { recursive: true });
+for (const f of readdirSync(join(src, 'dist'))) if (f.endsWith('.js') && !f.endsWith('.test.js')) copyFileSync(join(src, 'dist', f), join(here, engineRel, f));
 
 const steps = [
   ['title', '<title>3Draft Viewer</title>', '<title>Spider Paint</title>'],
   ['header', '<h1>3Draft<span>viewer</span></h1>', '<h1>Spider Paint<span>3Draft</span></h1>'],
   ['engine import', "from '../dist/index.js';", `from '${engine}';`],
-  ['worker engine', "new URL('../dist/index.js', import.meta.url).href", `'${engine}'`],
+  ['worker engine', "new URL('../dist/index.js', import.meta.url).href", `new URL('${engine}', import.meta.url).href`],
   // the table example is gone; the prisms keep the old table leg's base
   ['table import', "import { LEG, table } from '../examples/table-model.js';", 'const LEG = { base: 0.15 }; // the base of a placed prism'],
   ['table scene', "      if (name === 'table') return { objects: [{ name: 'table', mesh: table }] };\n", ''],

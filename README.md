@@ -90,7 +90,7 @@ narration controls. Its [complete recording](models/lark-4.build.json) contains 
 
 [3Draft](https://github.com/Pengeszikra/3Draft) is a minimalist, AI first 3D engine: a model is plain data that a human, a program and an LLM can all read and write. It has an SVG and a WebGPU renderer, surface picking (with a WebAssembly kernel written in HEXAW), solid booleans and mesh editing.
 
-The engine is not in this repo. The page imports it from jsDelivr, pinned to the 3Draft commit it was taken from. Development happens in the 3Draft repo, where this program is the viewer. From time to time the viewer becomes Spider Paint again: `node scripts/sync.mjs ../3Draft` copies the viewer, the bridge and the globe, and pins the engine to that commit.
+The engine is copied into this repo by the sync, into `engine/<commit>/` beside the page (it used to come from jsDelivr, which answered 404 for the first minutes after every new commit and left the page dead). Development happens in the 3Draft repo, where this program is the viewer. From time to time the viewer becomes Spider Paint again: `node scripts/sync.mjs ../3Draft` copies the viewer, the bridge and the globe, and pins the engine to that commit.
 
 ## Install on a phone (PWA)
 

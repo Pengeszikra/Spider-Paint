@@ -12,7 +12,8 @@ Branch: `master` (the 2015 original is kept untouched in branch `2015-sept-11`).
 | `help.md` | copied from `3Draft/app/help.md` by the sync |
 | `models/*.scene.json` | example scenes the page fetches. `bridge` and `betterman` (the figure for pose mode, `J`) are copied from 3Draft by the sync, as are `globe, stars, stars-plain, milkyway, deepsky, ex27`; `human, tr74, station-screen` live only here, and so does `WU-3463-Wyoming-UP-3463.json` (the station that `station-screen` plays on its monitor through a scene screen) |
 | `scripts/sync.mjs` | the generator (see below) |
-| `sw.js` | service worker: caches page, models, icons and the pinned engine so the app works offline |
+| `sw.js` | service worker: caches page, models, icons and the engine so the app works offline |
+| `engine/<commit>/` | **generated** by the sync: 3Draft's `dist/*.js` (the engine), served beside the page; the commit in the path keeps a cached old engine away from a new page |
 | `manifest.webmanifest`, `icons/`, `favicon.svg` | PWA install files (sync does not touch them) |
 | `mcp/server.js`, `mcp/scene.js`, `mcp/live.js`, `mcp/engine/`, `mcp/package.json` | **generated** by the sync: 3Draft's MCP server, tools and live link, with the engine's runtime files, so `node mcp/server.js` runs from this repo alone |
 | `mcp/serve.js` | this repo's own: the live viewer's static server (Spider Paint at `/?live`, a 3Draft checkout at `/3draft/app/`; no `sw.js`, which would cache the live stream) |
@@ -31,7 +32,7 @@ node scripts/sync.mjs ../3draft        # sibling checkout; must print "Spider Pa
 git add -A && git commit -m "Sync 3Draft: <what changed> (cache v110)" && git push origin master
 ```
 
-Do 3Draft's own release first (bump, build, test, commit, **push**): the page imports the engine from `https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@<commit>/dist/index.js`, so the commit the sync pins must already be on GitHub. Vercel deploys `master` on push.
+Do 3Draft's own release first (bump, build, test, commit, push). The sync copies the engine into `engine/<commit>/` and the page imports it from there (no more jsDelivr: a fresh commit answered 404 there for minutes, and every page loaded in that window stayed dead). Vercel deploys `master` on push.
 
 If you forget to raise `CACHE`, installed phones keep the old shell. Always raise it when any shipped file changed.
 
