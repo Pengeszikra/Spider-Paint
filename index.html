@@ -937,7 +937,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@93ae796821d318a58531f012d937f7298c7177a9/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@fa79aa74cd7e54ee01bf1e430873562d4964d0c2/dist/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2200,7 +2200,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@93ae796821d318a58531f012d937f7298c7177a9/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@fa79aa74cd7e54ee01bf1e430873562d4964d0c2/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -9834,27 +9834,42 @@
       for (const g of navigator.getGamepads?.() ?? []) {
         if (!g || !g.connected) continue;
         const b = (i) => Boolean(g.buttons[i]?.pressed);
-        if (g.mapping === 'xr-standard' || g.hand) out.push({ hand: g.hand || (/left/i.test(g.id) ? 'left' : 'right'), axes: [...g.axes], buttons: g.buttons.map((x) => x.pressed) });
-        else {
+        // (an XR controller handed over outside a session, e.g. by an emulator extension, is left alone: it belongs to VR)
+        if (g.mapping === 'xr-standard' || g.hand) continue;
+        if (g.mapping !== 'standard' || g.axes.length < 4) continue;
+        {
           out.push({ hand: 'left', axes: [0, 0, g.axes[0] ?? 0, g.axes[1] ?? 0], buttons: [b(6), b(4), false, b(10), b(2), b(3)] });
           out.push({ hand: 'right', axes: [0, 0, g.axes[2] ?? 0, g.axes[3] ?? 0], buttons: [b(7), b(5), false, b(11), b(0), b(1)] });
         }
       }
       return out;
     };
+    let padWoke = false; // (nothing happens until a stick or a button is really used: a pad that only says hello does nothing)
     const padLoop = (now) => {
       padTimer = 0;
-      const pads = padsNow();
+      let pads;
+      try {
+        pads = padsNow();
+      } catch (err) {
+        return void console.warn('[pad] getGamepads failed:', err?.message ?? err);
+      }
       if (!pads.length) return;
       padTimer = requestAnimationFrame(padLoop);
       if (xrState.session) return void (padLast = now); // (in VR the session's frame reads them)
       const dt = padLast ? Math.min(0.1, (now - padLast) / 1000) : 0;
       padLast = now;
-      const active = pads.some((p) => p.axes.some((v) => Math.abs(v) > XR_DEAD) || p.buttons.some(Boolean));
-      xrFly(pads, dt, now);
+      const active = pads.some((p) => p.axes.some((v) => Math.abs(v) > XR_STEP_AT) || p.buttons.some(Boolean));
+      if (!padWoke && !active) return;
+      padWoke = true;
+      try {
+        xrFly(pads, dt, now);
+      } catch (err) {
+        console.warn('[pad]', err?.message ?? err);
+      }
       if (active) redraw();
     };
     window.addEventListener('gamepadconnected', (e) => {
+      if (e.gamepad?.mapping !== 'standard') return; // (XR controllers and unknown layouts: only in VR)
       sceneNote(`controller: ${e.gamepad.id} · sticks: A / D and nod (left), W / S and roll (right)`);
       if (!padTimer) padTimer = requestAnimationFrame(padLoop);
     });
@@ -9876,7 +9891,11 @@
       // the controllers: the stick to the car, the buttons to the note and a flash
       const pads = xrPads(session);
       xrDrive(pads, dt, now);
-      xrFly(pads, dt, now);
+      try {
+        xrFly(pads, dt, now);
+      } catch (err) {
+        xrLog(`controllers: ${err?.message ?? err}`, true);
+      }
       if (session !== xrState.session) return; // (X left VR)
       const pressed = pads.map((p) => p.buttons.map((b, i) => (b ? `${p.hand[0] ?? '?'}${i}` : '')).filter(Boolean).join(' ')).filter(Boolean).join(' ');
       if (pressed) xrState.flashUntil = now + 150;

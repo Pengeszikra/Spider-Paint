@@ -1,4 +1,4 @@
-// (copied from 3Draft 93ae796 by scripts/sync.mjs: change it there)
+// (copied from 3Draft fa79aa7 by scripts/sync.mjs: change it there)
 // The live link: the MCP process also serves the viewer and pushes the scene to it.
 //   GET /app/      the viewer (same files as `npm run app`)
 //   GET /scene     the scene as JSON
