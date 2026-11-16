@@ -10054,6 +10054,13 @@
       // A bare XR test must never depend on the heavyweight scene update.
       // This isolates session/layer/framebuffer/eye rendering from Spider Paint entirely.
       if (XR_TEST === '1') {
+        const xPressed = [...session.inputSources].some((src) => src.handedness === 'left' && Boolean(src.gamepad?.buttons?.[4]?.pressed));
+        if (xPressed && !xrState.testXPressed) {
+          xrLog('isolated XR test: left X pressed; ending session');
+          session.end();
+          return;
+        }
+        xrState.testXPressed = xPressed;
         const pose = frame.getViewerPose(xrState.space);
         const layer = session.renderState.baseLayer;
         const gl = gpu?.context;
@@ -10212,6 +10219,7 @@
       xrState.frames = 0;
       xrState.errs = 0;
       xrState.frameErrs = 0;
+      xrState.testXPressed = false;
       xrLog(`start ${mono ? 'EM' : 'VR'} · ${navigator.userAgent}${XR_TEST ? ` · xrtest ${XR_TEST}` : ''}`);
       if (!xr) return (xrLog('navigator.xr is missing', true), xrSay('no WebXR here (on a Mac: the Immersive Web Emulator)'));
       // The session first, straight from the click (as three.js does): requestSession needs the user's gesture, and that only
