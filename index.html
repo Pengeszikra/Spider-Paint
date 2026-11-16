@@ -517,10 +517,12 @@
     #stClock { font: 500 10px/1 var(--font-mono); color: var(--cream); min-width: 78px; white-space: nowrap; }
     #stSpeed { max-width: 58px; }
     #stExit { padding: 6px 9px; }
-    #storyCaption { position: fixed; left: 50%; bottom: 128px; transform: translateX(-50%); z-index: 5; max-width: min(1600px, calc(100vw - 32px)); display: grid; gap: 10px; justify-items: center; text-align: center; pointer-events: none; font: 500 min(39px, 6.5vw)/1.3 var(--font-mono); color: var(--cream); text-shadow: 0 1px 4px #000, 0 0 12px #000; }
+    #storyCaption { position: fixed; left: 0; right: 0; margin-inline: auto; width: fit-content; bottom: 128px; z-index: 5; max-width: min(1600px, calc(100vw - 32px)); display: grid; gap: 10px; justify-items: center; text-align: center; pointer-events: none; font: 500 min(39px, 6.5vw)/1.3 var(--font-mono); color: var(--cream); text-shadow: 0 1px 4px #000, 0 0 12px #000; }
     #storyCaption[hidden] { display: none; }
     /* story text three times the console size, so it reads from across the room (smaller on a phone) */
-    #storyCaption b { font: 600 min(30px, 5vw)/1.15 var(--font-display); letter-spacing: 0.18em; text-transform: uppercase; color: #e8a45c; }
+    /* the chapter title under the text: the box grows upward from the bottom, so the title stays put whether the text runs to
+       one, two or three lines */
+    #storyCaption b { order: 2; font: 600 min(30px, 5vw)/1.15 var(--font-display); letter-spacing: 0.18em; text-transform: uppercase; color: #e8a45c; }
     .st-title { font: 600 15px/1.25 var(--font-display); letter-spacing: 0.06em; color: var(--cream); }
     .st-meta { font: 500 10px/1.5 var(--font-mono); color: #8a8d80; }
     .st-chapter { font: 500 12px/1.6 var(--font-mono); color: #c9cbbf; white-space: pre-line; }
@@ -934,7 +936,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@60541f57051fd97eef9aa25a1ad9eb0bb36b71d5/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@b7e658102c2d9a520bc9d43d6e34b7431ae89f98/dist/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
@@ -2195,7 +2197,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@60541f57051fd97eef9aa25a1ad9eb0bb36b71d5/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@b7e658102c2d9a520bc9d43d6e34b7431ae89f98/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
