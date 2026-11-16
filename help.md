@@ -209,7 +209,7 @@ In edit mode the pointer also finds the far side of a face, so from inside a hul
 Pressing **Q** with the eye inside the object (inside its bounding box, e.g. flying in a hull) does not move the camera: you stay where you are, and leaving edit mode does not move it either.
 
 ## VR (WebXR)
-**VR** (in the sys group at the bottom) shows the scene in a headset (on a Mac: install the Meta Immersive Web Emulator extension in Chrome, then press enter VR). The head turns the view; a controller button tints the sky green for a moment and shows in the note beside the button. In the car the right stick drives: sideways the wheel (it comes back to the middle when you let go), up / down the gas (it stays where you leave it). exit (or ending it in the headset) gives the normal view back.
+**VR** (in the sys group at the bottom) shows the scene in a headset (on a Mac: install the Meta Immersive Web Emulator extension in Chrome, then press enter VR). The head turns the view; a controller button shows in the note beside the button. In the car the right stick drives: sideways the wheel (it comes back to the middle when you let go), up / down the gas (it stays where you leave it). exit (or ending it in the headset) gives the normal view back.
 
 **Meta Quest 3 controllers** (flying, in space and on the ground). The same controls work outside VR too, with any gamepad the browser hands over (a standard gamepad: the left / right stick and the triggers, bumpers and face buttons in the Touch places; it wakes up at its first real push); X then does nothing. XR controllers (and those an emulator extension shows outside VR) only count in VR. VR starts only when you press VR.
 
