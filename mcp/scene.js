@@ -1,4 +1,4 @@
-// (copied from 3Draft 40eca61 by scripts/sync.mjs: change it there)
+// (copied from 3Draft 0cb45d6 by scripts/sync.mjs: change it there)
 // The model and its tools. One scene of named objects (meshes), edited by tool calls
 // and judged by the deterministic SVG preview. No I/O except save/load of JSON files
 // under the working directory. The MCP transport is in server.js.

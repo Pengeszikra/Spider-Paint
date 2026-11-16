@@ -70,6 +70,8 @@ if (html.includes('../dist/') || html.includes('../examples/')) throw new Error(
 
 writeFileSync(join(here, 'index.html'), html);
 writeFileSync(join(here, 'xr-test.html'), readFileSync(join(src, 'app/xr-test.html'))); // the WebXR loop alone, for a headset that stays black
+// the same test scene in VR through three.js and through the 3Draft engine (its engine import points at engine/<commit>/)
+writeFileSync(join(here, 'xr-compare.html'), readFileSync(join(src, 'app/xr-compare.html'), 'utf8').replace("from '../dist/index.js'", `from './${engineRel}/index.js'`));
 mkdirSync(join(here, 'models'), { recursive: true });
 writeFileSync(join(here, 'models/bridge.scene.json'), readFileSync(join(src, 'examples/bridge.scene.json')));
 writeFileSync(join(here, 'help.md'), readFileSync(join(src, 'app/help.md'))); // the help page (Markdown), shown in the side panel

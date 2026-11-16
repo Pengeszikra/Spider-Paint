@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>XR compare: three.js vs 3Draft</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #111; color: #e8e4d8; font: 16px/1.45 ui-monospace, Menlo, monospace; }
+    header { display: flex; gap: 12px; align-items: center; padding: 14px 16px; flex-wrap: wrap; }
+    h1 { font-size: 17px; margin: 0 10px 0 0; }
+    button { font: 700 18px/1 ui-monospace, monospace; padding: 16px 22px; border-radius: 12px; border: 0; cursor: pointer; }
+    #three { background: #2aa7b5; color: #071214; }
+    #draft { background: #d9a441; color: #1a1205; }
+    button:disabled { opacity: 0.35; }
+    p { margin: 0 16px 10px; color: #a9a59a; max-width: 820px; }
+    pre { margin: 10px 16px 24px; padding: 14px; background: #000; border-radius: 10px; white-space: pre-wrap; word-break: break-word; font-size: 15px; }
+    .err { color: #ff6b4a; }
+    .ok { color: #7be08a; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>XR compare</h1>
+    <button id="three" disabled>three.js VR</button>
+    <button id="draft" disabled>3Draft VR</button>
+  </header>
+  <p>The same scene twice: a turning teal cube 1.5 m ahead at eye height, a lying golden egg to the right, a floor grid and
+    stars round you. <b>three.js</b> draws it with its own renderer and WebXRManager; <b>3Draft</b> with the 3Draft engine's WebGL2
+    renderer (the viewer's), in the plainest WebXR loop. If three.js shows it and 3Draft does not, the fault is in the 3Draft
+    renderer; if both show it, it is in the viewer around it. Leave VR with the Meta button or the left X; the log below
+    (the newest line last) tells what happened. 3Draft's background is dark blue, three.js's near black.</p>
+  <pre id="log"></pre>
+  <script type="module">
+    import { createGl, box, lathe, merge } from './engine/0cb45d6c8551/index.js';
+
+    const logEl = document.getElementById('log');
+    const log = (msg, cls = '') => {
+      const div = document.createElement('div');
+      div.textContent = `${new Date().toISOString().slice(11, 19)} ${msg}`;
+      if (cls) div.className = cls;
+      logEl.append(div);
+      (cls === 'err' ? console.error : console.log)('[xr-compare]', msg);
+    };
+    window.addEventListener('error', (e) => log(`page error: ${e.message}`, 'err'));
+    window.addEventListener('unhandledrejection', (e) => log(`unhandled: ${e.reason?.message ?? e.reason}`, 'err'));
+    log(navigator.userAgent);
+
+    // ---- the scene, in metres; the floor is y = 0 (local-floor), the eye ~1.6 m up
+    const sceneMesh = (() => {
+      const parts = [box({ size: [0.4, 0.4, 0.4], at: [0, 0, 0], color: '#2aa7b5' })];
+      // (the cube turns: it is rebuilt every frame from this one, see cubeAt)
+      return parts[0];
+    })();
+    const egg = (() => {
+      const pts = [];
+      for (let i = 0; i <= 16; i++) {
+        const u = -0.45 + (0.9 * i) / 16;
+        pts.push([u, 0.15 * Math.sqrt(Math.max(0, 1 - (u / 0.45) ** 2))]);
+      }
+      return lathe(pts, { origin: [1, 1.2, -2], right: [1, 0, 0], up: [0, 1, 0], normal: [0, 0, 1] }, 24, { color: '#d9a441' });
+    })();
+    const grid = (() => {
+      const lines = [];
+      for (let i = -10; i <= 10; i++) {
+        lines.push(box({ size: [10, 0.01, 0.015], at: [0, 0, i * 0.5], color: '#4fb3bf' }));
+        lines.push(box({ size: [0.015, 0.01, 10], at: [i * 0.5, 0, 0], color: '#4fb3bf' }));
+      }
+      return merge(...lines);
+    })();
+    const stars = (() => {
+      const out = [];
+      let seed = 7;
+      const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+      for (let i = 0; i < 500; i++) {
+        const u = rnd() * 2 - 1, a = rnd() * Math.PI * 2, r = Math.sqrt(1 - u * u);
+        out.push(box({ size: [0.25, 0.25, 0.25], at: [50 * r * Math.cos(a), 50 * u, 50 * r * Math.sin(a)], color: '#ffffff' }));
+      }
+      return merge(...out);
+    })();
+    const cubeAt = (t) => {
+      const c1 = Math.cos(t), s1 = Math.sin(t), c2 = Math.cos(t * 0.77), s2 = Math.sin(t * 0.77);
+      return { ...sceneMesh, positions: sceneMesh.positions.map(([x, y, z]) => {
+        [y, z] = [y * c2 - z * s2, y * s2 + z * c2];
+        [x, z] = [x * c1 + z * s1, -x * s1 + z * c1];
+        return [x, y + 1.4, z - 1.5];
+      }) };
+    };
+    const still = merge(egg, grid, stars);
+    log(`scene: cube, egg, grid, ${500} stars (${still.faces.length + sceneMesh.faces.length} faces)`);
+
+    // ---- WebXR support
+    const threeBtn = document.getElementById('three'), draftBtn = document.getElementById('draft');
+    let running = null;
+    (async () => {
+      if (!navigator.xr) return log('navigator.xr is missing: no WebXR here', 'err');
+      const ok = await navigator.xr.isSessionSupported('immersive-vr').catch((e) => (log(`isSessionSupported: ${e.message}`, 'err'), false));
+      log(`immersive-vr supported: ${ok}`, ok ? 'ok' : 'err');
+      threeBtn.disabled = draftBtn.disabled = !ok;
+    })();
+
+    // ---- three.js (r170), fetched now so the click stays the user's gesture
+    const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
+    const threeReady = import(THREE_URL).then((m) => (log(`three.js r${m.REVISION} loaded`), m), (e) => (log(`three.js did not load: ${e.message}`, 'err'), null));
+    threeBtn.onclick = async () => {
+      if (running) return running.end();
+      const THREE = await threeReady;
+      if (!THREE) return;
+      let session;
+      try {
+        session = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor'] });
+      } catch (e) {
+        return log(`three.js: requestSession failed: ${e.name}: ${e.message}`, 'err');
+      }
+      log('three.js: session created', 'ok');
+      const canvas = document.createElement('canvas');
+      canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:5';
+      document.body.append(canvas);
+      session.addEventListener('end', () => canvas.remove());
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer.xr.enabled = true;
+      renderer.xr.setReferenceSpaceType('local-floor');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x05060a);
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x334455, 1.2));
+      const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+      sun.position.set(2, 4, 1);
+      scene.add(sun);
+      const cube = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), new THREE.MeshStandardMaterial({ color: 0x2aa7b5 }));
+      cube.position.set(0, 1.4, -1.5);
+      scene.add(cube);
+      const eggM = new THREE.Mesh(new THREE.SphereGeometry(0.15, 24, 16), new THREE.MeshStandardMaterial({ color: 0xd9a441 }));
+      eggM.scale.set(3, 1, 1);
+      eggM.position.set(1, 1.2, -2);
+      scene.add(eggM);
+      scene.add(new THREE.GridHelper(10, 20, 0x4fb3bf, 0x4fb3bf));
+      const camera = new THREE.PerspectiveCamera(70, 1, 0.05, 200);
+      let frames = 0;
+      renderer.setAnimationLoop((t) => {
+        cube.rotation.set(t / 1300, t / 1000, 0);
+        renderer.render(scene, camera);
+        if (++frames === 1 || frames === 120) log(`three.js: frame ${frames}, presenting ${renderer.xr.isPresenting}`);
+      });
+      running = session;
+      session.addEventListener('end', () => {
+        log(`three.js: session ended after ${frames} frames`);
+        renderer.setAnimationLoop(null);
+        renderer.dispose();
+        running = null;
+      });
+      try {
+        await renderer.xr.setSession(session);
+        log('three.js: setSession ok');
+      } catch (e) {
+        log(`three.js: setSession failed: ${e.message}`, 'err');
+        session.end();
+      }
+    };
+
+    // ---- 3Draft: the engine's WebGL2 renderer straight into the XR layer, nothing else
+    // 3Draft's GL shaders take a WebGPU-style projection (depth 0..w) and turn it into GL's (-w..w) themselves, so the eye's
+    // OpenGL projection is converted first: z' = (z + w) / 2
+    const engineProjection = (P) => {
+      const m = Float32Array.from(P);
+      for (const i of [2, 6, 10, 14]) m[i] = (P[i] + P[i + 1]) * 0.5;
+      return m;
+    };
+    draftBtn.onclick = async () => {
+      if (running) return running.end();
+      let session;
+      try {
+        session = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor'] });
+      } catch (e) {
+        return log(`3Draft: requestSession failed: ${e.name}: ${e.message}`, 'err');
+      }
+      log('3Draft: session created', 'ok');
+      running = session;
+      let frames = 0, errors = 0;
+      session.addEventListener('end', () => {
+        log(`3Draft: session ended after ${frames} frames, ${errors} errors`);
+        running = null;
+      });
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 64;
+        // (in the page, so an emulator that draws into the canvas shows it; a headset draws into the layer)
+        canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:5';
+        document.body.append(canvas);
+        session.addEventListener('end', () => canvas.remove());
+        const gpu = await createGl(canvas);
+        const gl = gpu.context;
+        log(`3Draft: engine renderer ready · ${gl.getParameter(gl.VERSION)}`);
+        canvas.addEventListener('webglcontextlost', () => log('3Draft: WebGL context LOST', 'err'));
+        await gl.makeXRCompatible();
+        log('3Draft: makeXRCompatible ok');
+        const layer = new XRWebGLLayer(session, gl, { antialias: true, depth: true, stencil: false, alpha: false });
+        session.updateRenderState({ baseLayer: layer, depthNear: 0.05, depthFar: 200 });
+        log(`3Draft: layer ${layer.framebufferWidth}×${layer.framebufferHeight}`);
+        let space;
+        try {
+          space = await session.requestReferenceSpace('local-floor');
+        } catch {
+          space = await session.requestReferenceSpace('local');
+          log('3Draft: local-floor refused, local used');
+        }
+        const onFrame = (t, frame) => {
+          session.requestAnimationFrame(onFrame);
+          frames++;
+          try {
+            const pose = frame.getViewerPose(space);
+            if (!pose) return frames < 5 && log(`3Draft: frame ${frames}: no pose`);
+            const L = session.renderState.baseLayer;
+            const mesh = merge(still, cubeAt(t / 1000));
+            for (const v of pose.views) {
+              const vp = L.getViewport(v);
+              if (!vp) continue;
+              const p = v.transform.position;
+              gpu.render(mesh, 'persp', {
+                size: 64,
+                background: [0.03, 0.05, 0.14],
+                smooth: 40,
+                studio: true,
+                xr: { framebuffer: L.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: engineProjection(v.projectionMatrix), view: v.transform.inverse.matrix, eye: [p.x, p.y, p.z] },
+              });
+              if (frames <= 2) log(`3Draft: frame ${frames}, ${v.eye} eye ${vp.x},${vp.y} ${vp.width}×${vp.height}`);
+            }
+            for (let e = gl.getError(), n = 0; e !== gl.NO_ERROR && n < 4; e = gl.getError(), n++) if (errors++ < 10) log(`3Draft: GL error 0x${e.toString(16)} (frame ${frames})`, 'err');
+            if (frames === 120) log('3Draft: 120 frames drawn', 'ok');
+          } catch (e) {
+            if (errors++ < 5) log(`3Draft: frame ${frames}: ${e.name}: ${e.message}`, 'err');
+          }
+        };
+        session.requestAnimationFrame(onFrame);
+      } catch (e) {
+        log(`3Draft: set-up failed: ${e.name}: ${e.message}`, 'err');
+        session.end();
+      }
+    };
+  </script>
+</body>
+</html>
