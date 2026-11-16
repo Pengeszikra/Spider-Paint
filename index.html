@@ -3014,8 +3014,8 @@
         const gFit = ro ? { ...shown_fit, center: vsub(shown_fit.center, ro) } : shown_fit;
         const sunLight = sky ? sunDirection() : null;
         const shaderPlanets = scenePlanets(ro);
-        renderGpu = (readback = false) =>
-          gpu[readback ? 'pixels' : 'render'](gScene, view, (xrArgs = { scene: gScene, view, origin: ro, opts: {
+        // Prepare the XR scene even when the desktop canvas is not drawn.
+        xrArgs = { scene: gScene, view, origin: ro, opts: {
             screens,
             palette: paletteMap,
             parts: shiftParts(sceneParts, ro),
@@ -3035,7 +3035,8 @@
             skin: skinNow(),
             material: sceneMaterial,
             light: { direction: sunLight ?? [Math.sin(a) * 0.6, 0.8, Math.cos(a) * 0.6] },
-          } }).opts);
+          } };
+        renderGpu = (readback = false) => gpu[readback ? 'pixels' : 'render'](gScene, view, xrArgs.opts);
         if (vr) {
           // two eyes: the same camera shifted along its right vector, drawn one after the other and copied to the eye canvases
           const W = innerWidth, H = innerHeight, half = Math.floor(W / 2);
@@ -3054,7 +3055,7 @@
             cv.getContext('2d').drawImage(canvas, 0, 0, square, square, (half - square) / 2, (H - square) / 2, square, square);
           });
           for (const n of eyeNotes) n.textContent = [...flightEl.children].map((c) => c.textContent).filter(Boolean).join('  ');
-        } else renderGpu();
+        } else if (!xrState.session) renderGpu(); // headset renders the two eyes; do not draw the desktop canvas first
         drawBridge(size, lens);
         layer.className = 'over';
         layer.innerHTML = ''; // the marks are drawn by the GPU itself
@@ -10099,16 +10100,34 @@
         if (S !== 1) ((m[12] *= S), (m[13] *= S), (m[14] *= S));
         return mul4(m, toHead);
       };
+      // The XR device gives an OpenGL projection in metres, but the 3Draft shader
+      // expects a WebGPU-style 0..1 depth projection. The star scene is in
+      // light-years: convert the clipping distances to scene units as well.
+      const xrProjection = (raw) => {
+        const glP = Float32Array.from(raw);
+        const near = 0.05 * S;
+        const far = space() ? 1e9 : 1e5;
+        glP[10] = -(far + near) / (far - near);
+        glP[14] = -(2 * far * near) / (far - near);
+        const engineP = Float32Array.from(glP);
+        // OpenGL [-w,+w] -> 3Draft/WebGPU [0,+w].
+        for (const i of [2, 6, 10, 14]) engineP[i] = (glP[i] + glP[i + 1]) * 0.5;
+        return { glP, engineP };
+      };
       const sky = now < xrState.flashUntil ? [0.08, 0.35, 0.12] : (xrArgs.opts.background ?? [0.02, 0.02, 0.03]);
       if (xrState.mono) {
         const w = layer.framebufferWidth, h = layer.framebufferHeight;
-        const P = [...pose.views[0].projectionMatrix];
+        const { glP: P, engineP } = xrProjection(pose.views[0].projectionMatrix);
         P[0] = P[5] / (w / h);
         P[8] = 0;
         P[9] = 0;
+        engineP[0] = P[0];
+        engineP[5] = P[5];
+        engineP[8] = 0;
+        engineP[9] = 0;
         const eye = toScene(pose.transform.position);
         const Vm = eyeView(pose.transform.inverse.matrix);
-        gpu.render(xrArgs.scene, xrArgs.view, { ...xrArgs.opts, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [0, 0, w, h], projection: P, view: Vm, eye } });
+        gpu.render(xrArgs.scene, xrArgs.view, { ...xrArgs.opts, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [0, 0, w, h], projection: engineP, view: Vm, eye } });
         return void xrSkyDraw(gl, P, Vm, h, xrArgs.origin);
       }
       for (const v of pose.views) {
@@ -10116,8 +10135,9 @@
         if (!vp) continue;
         const eye = toScene(v.transform.position);
         const Ve = eyeView(v.transform.inverse.matrix);
-        gpu.render(xrArgs.scene, xrArgs.view, { ...xrArgs.opts, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: v.projectionMatrix, view: Ve, eye } });
-        xrSkyDraw(gl, v.projectionMatrix, Ve, vp.height, xrArgs.origin);
+        const { glP, engineP } = xrProjection(v.projectionMatrix);
+        gpu.render(xrArgs.scene, xrArgs.view, { ...xrArgs.opts, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: engineP, view: Ve, eye } });
+        xrSkyDraw(gl, glP, Ve, vp.height, xrArgs.origin);
         if (XR_TEST === '2') xrTestDraw(gl, v, vp, t / 1000);
         if (n <= 3) xrGlErrors(gl, `the ${v.eye} eye, frame ${n}`);
       }
