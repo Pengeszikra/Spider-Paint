@@ -24,24 +24,61 @@
     <h1>XR compare</h1>
     <button id="three" disabled>three.js VR</button>
     <button id="draft" disabled>3Draft VR</button>
+    <span id="relay" style="font-size:18px">remote log: <b id="code" style="font-size:26px;color:#7be08a">····</b></span>
   </header>
+  <canvas id="flat" width="320" height="320" style="display:block;margin:0 16px 10px;width:240px;height:240px;border-radius:10px;background:#000" title="3Draft's WebGL2 renderer outside VR"></canvas>
   <p>The same scene twice: a turning teal cube 1.5 m ahead at eye height, a lying golden egg to the right, a floor grid and
     stars round you. <b>three.js</b> draws it with its own renderer and WebXRManager; <b>3Draft</b> with the 3Draft engine's WebGL2
     renderer (the viewer's), in the plainest WebXR loop. If three.js shows it and 3Draft does not, the fault is in the 3Draft
-    renderer; if both show it, it is in the viewer around it. Leave VR with the Meta button or the left X; the log below
-    (the newest line last) tells what happened. 3Draft's background is dark blue, three.js's near black.</p>
+    renderer; if both show it, it is in the viewer around it. Leave VR with the <b>left X</b> (or the Meta button); the log below
+    (the newest line last) tells what happened. 3Draft's background is dark blue, three.js's near black. The small picture is
+    3Draft's WebGL2 renderer outside VR. <b>Remote log:</b> every line also goes to ntfy.sh under the code above (tell the code to
+    the assistant: it reads the log live from there).</p>
   <pre id="log"></pre>
   <script type="module">
-    import { createGl, box, lathe, merge } from './engine/0cb45d6c8551/index.js';
+    import { createGl, box, lathe, merge, orbit } from './engine/8590d2f78764/index.js';
 
     const logEl = document.getElementById('log');
+    // the remote log: lines are sent in batches to a public ntfy.sh topic named by a random code (nothing private goes there:
+    // the browser, WebGL facts, errors), so the log can be read on another device while the headset is on
+    const code = Array.from(crypto.getRandomValues(new Uint8Array(4)), (b) => 'abcdefghjkmnpqrstuvwxyz23456789'[b % 31]).join('');
+    document.getElementById('code').textContent = code;
+    const topic = `spider-xr-${code}`;
+    let outbox = [], sending = false;
+    const flush = async () => {
+      if (sending || !outbox.length) return;
+      sending = true;
+      const body = outbox.join('\n');
+      outbox = [];
+      try {
+        await fetch(`https://ntfy.sh/${topic}`, { method: 'POST', body });
+      } catch (e) {
+        console.warn('[xr-compare] remote log failed', e);
+      }
+      sending = false;
+    };
+    setInterval(flush, 1000);
     const log = (msg, cls = '') => {
+      const line = `${new Date().toISOString().slice(11, 19)} ${msg}`;
       const div = document.createElement('div');
-      div.textContent = `${new Date().toISOString().slice(11, 19)} ${msg}`;
+      div.textContent = line;
       if (cls) div.className = cls;
       logEl.append(div);
+      outbox.push(`${cls === 'err' ? '!! ' : ''}${line}`);
       (cls === 'err' ? console.error : console.log)('[xr-compare]', msg);
     };
+    // every shader that does not compile and every program that does not link, in any WebGL2 context of the page
+    {
+      const P = WebGL2RenderingContext.prototype, compile = P.compileShader, link = P.linkProgram;
+      P.compileShader = function (sh) {
+        compile.call(this, sh);
+        if (!this.getShaderParameter(sh, this.COMPILE_STATUS)) log(`shader compile failed: ${this.getShaderInfoLog(sh)}`, 'err');
+      };
+      P.linkProgram = function (pr) {
+        link.call(this, pr);
+        if (!this.getProgramParameter(pr, this.LINK_STATUS)) log(`program link failed: ${this.getProgramInfoLog(pr)}`, 'err');
+      };
+    }
     window.addEventListener('error', (e) => log(`page error: ${e.message}`, 'err'));
     window.addEventListener('unhandledrejection', (e) => log(`unhandled: ${e.reason?.message ?? e.reason}`, 'err'));
     log(navigator.userAgent);
@@ -88,7 +125,21 @@
     };
     const still = merge(egg, grid, stars);
     log(`scene: cube, egg, grid, ${500} stars (${still.faces.length + sceneMesh.faces.length} faces)`);
+    // 3Draft's WebGL2 renderer outside VR (and the GPU's limits): does the renderer itself work on this device?
+    try {
+      const flat = await createGl(document.getElementById('flat'), { onError: (m) => log(`3Draft flat: ${m}`, 'err') });
+      const g = flat.context;
+      const dbg = g.getExtension('WEBGL_debug_renderer_info');
+      log(`GPU: ${dbg ? g.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : g.getParameter(g.RENDERER)} · max vertex uniform vectors ${g.getParameter(g.MAX_VERTEX_UNIFORM_VECTORS)} · fragment ${g.getParameter(g.MAX_FRAGMENT_UNIFORM_VECTORS)} · textures ${g.getParameter(g.MAX_TEXTURE_SIZE)} · vertex attribs ${g.getParameter(g.MAX_VERTEX_ATTRIBS)}`);
+      flat.render(merge(still, cubeAt(0.6)), orbit({ yaw: 0.3, pitch: 0.25 }), { size: 240, background: [0.03, 0.05, 0.14], smooth: 40, studio: true, fit: { center: [0.4, 1.2, -1.6], radius: 1.6 } });
+      for (let e = g.getError(), n = 0; e !== g.NO_ERROR && n < 4; e = g.getError(), n++) log(`3Draft flat: GL error 0x${e.toString(16)}`, 'err');
+      log('3Draft flat (outside VR): drawn — the small picture should show the cube and the egg', 'ok');
+    } catch (e) {
+      log(`3Draft flat (outside VR) failed: ${e.message}`, 'err');
+    }
 
+    // the left controller's X (xr-standard button 4): leave VR
+    const leftX = (session) => [...session.inputSources].some((src) => src.handedness === 'left' && Boolean(src.gamepad?.buttons?.[4]?.pressed));
     // ---- WebXR support
     const threeBtn = document.getElementById('three'), draftBtn = document.getElementById('draft');
     let running = null;
@@ -137,6 +188,7 @@
       const camera = new THREE.PerspectiveCamera(70, 1, 0.05, 200);
       let frames = 0;
       renderer.setAnimationLoop((t) => {
+        if (leftX(session)) return session.end();
         cube.rotation.set(t / 1300, t / 1000, 0);
         renderer.render(scene, camera);
         if (++frames === 1 || frames === 120) log(`three.js: frame ${frames}, presenting ${renderer.xr.isPresenting}`);
@@ -204,6 +256,7 @@
           log('3Draft: local-floor refused, local used');
         }
         const onFrame = (t, frame) => {
+          if (leftX(session)) return session.end();
           session.requestAnimationFrame(onFrame);
           frames++;
           try {
