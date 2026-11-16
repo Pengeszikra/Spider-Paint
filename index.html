@@ -937,7 +937,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@eac424eb38e90e54bd667632a8f0bae7809c3848/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@f25403028b057ace34c3575621bf870550039594/dist/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2200,7 +2200,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@eac424eb38e90e54bd667632a8f0bae7809c3848/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@f25403028b057ace34c3575621bf870550039594/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -9766,6 +9766,153 @@
     };
     const xrPads = (session) =>
       [...session.inputSources].filter((src) => src.gamepad).map((src) => ({ hand: src.handedness, axes: [...src.gamepad.axes], buttons: src.gamepad.buttons.map((b) => b.pressed) }));
+    // ---- The sky in the headset. On the desktop the star glows (a 2D canvas) and the galaxies' point clouds (their own WebGL2
+    // canvas) lie over the 3D picture; a headset has only the XR layer of the main WebGL2 context, so here both are drawn into it
+    // as GL points, after the scene, per eye, with that eye's matrices: the clouds as on the desktop (a sharp point of 1.3–2.4 px
+    // that dims with its size far away), the glows as soft sprites of the glow's natural size (1.2–48 px, fading below 2 px, giving
+    // way to a galaxy's own cloud or a ball that shows). Added light, no depth test (as on the desktop).
+    let xrSkyGl = null;
+    const XR_GLOW_FLOATS = 8;
+    let xrGlowCache = { key: '', data: null, n: 0 };
+    const hexRgb = (c) => {
+      const h = /^#[0-9a-f]{6}$/i.test(c ?? '') ? c : '#ffffff';
+      const base = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+      const lum = (base[0] + base[1] + base[2]) / 3;
+      return base.map((v) => Math.max(0, Math.min(255, lum + (v - lum) * 1.8)) / 255); // (pushed like the desktop glow sprite)
+    };
+    // the glowing stars and galaxies, as cloud-like records: position, glow radius, colour, kind (0 a star, 1 a galaxy with a cloud)
+    const xrGlowData = () => {
+      const stars = allObjects().filter((o) => o.inst?.glow && !isHole(o.inst));
+      const key = `${stars.length}:${stars[0]?.id ?? ''}:${stars[stars.length - 1]?.id ?? ''}:${liveSky.set.size}`;
+      if (xrGlowCache.key === key) return xrGlowCache;
+      const data = new Float32Array(stars.length * XR_GLOW_FLOATS);
+      stars.forEach((o, n) => {
+        const i = o.inst, c = hexRgb(i.glowColor ?? i.color), k = n * XR_GLOW_FLOATS;
+        data.set([i.at[0], i.at[1], i.at[2], i.glow, c[0], c[1], c[2], i.far && (i.cloud || liveSky.set.has(i)) ? i.scale || 1 : 0], k);
+      });
+      return (xrGlowCache = { key, data, n: stars.length });
+    };
+    const xrSkyInit = (gl) => {
+      const sh = (type, src) => { const x = gl.createShader(type); gl.shaderSource(x, src); gl.compileShader(x); if (!gl.getShaderParameter(x, gl.COMPILE_STATUS)) xrLog(`sky shader: ${gl.getShaderInfoLog(x)}`, true); return x; };
+      const program = (vs, fs) => {
+        const p = gl.createProgram();
+        gl.attachShader(p, sh(gl.VERTEX_SHADER, vs));
+        gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs));
+        gl.linkProgram(p);
+        if (!gl.getProgramParameter(p, gl.LINK_STATUS)) xrLog(`sky program: ${gl.getProgramInfoLog(p)}`, true);
+        return p;
+      };
+      const head = `#version 300 es
+        in vec3 aPos; in float aRad; in vec3 aCol; in float aLum;
+        uniform mat4 uP, uV; uniform vec3 uShift; uniform float uScale; // uScale: pixels per unit at depth 1 (this eye)
+        out vec3 vCol; out float vA;
+        `;
+      const cloudVs = head + `void main() {
+          vec4 e = uV * vec4(aPos - uShift, 1.0);
+          float depth = -e.z;
+          if (depth < 1e-6) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; vA = 0.0; vCol = vec3(0.0); return; }
+          gl_Position = uP * e;
+          gl_Position.z = 0.0;
+          float nat = aRad * uScale / depth;
+          gl_PointSize = clamp(nat, 1.3, 2.4) * 2.0;
+          float a = aLum * (nat < 1.3 ? (nat / 1.3) * (nat / 1.3) : 1.0) * (1.0 + 0.6 * smoothstep(1.3, 12.0, nat));
+          a *= 1.0 - smoothstep(400.0, 1600.0, nat);
+          vA = a; vCol = aCol;
+        }`;
+      const glowVs = head + `void main() {
+          vec4 e = uV * vec4(aPos - uShift, 1.0);
+          float depth = -e.z;
+          if (depth < 1e-6) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); gl_PointSize = 0.0; vA = 0.0; vCol = vec3(0.0); return; }
+          gl_Position = uP * e;
+          gl_Position.z = 0.0;
+          float nat = aRad * uScale / depth;
+          float fade = nat < 2.0 ? (nat / 2.0) * (nat / 2.0) : 1.0;
+          float big = aLum > 0.0 ? aLum * uScale / depth : 0.0; // a galaxy with its own cloud: the glow gives way once it is big
+          float a = fade * (nat > 20.0 ? 0.55 : 0.9) * (big > 30.0 ? max(0.0, 1.0 - (big - 30.0) / 60.0) : 1.0);
+          gl_PointSize = clamp(nat, 1.2, 48.0) * 2.0;
+          vA = a; vCol = aCol;
+        }`;
+      const cloudFs = `#version 300 es
+        precision mediump float; in vec3 vCol; in float vA; out vec4 o;
+        void main() { float r = length(gl_PointCoord * 2.0 - 1.0); if (r > 1.0) discard; o = vec4(vCol * vA * exp(-r * r * 6.0) * 0.5, 1.0); }`;
+      const glowFs = `#version 300 es
+        precision mediump float; in vec3 vCol; in float vA; out vec4 o;
+        void main() {
+          float r = length(gl_PointCoord * 2.0 - 1.0);
+          if (r > 1.0) discard;
+          // the desktop sprite's gradient: a whitened core, the colour, a soft edge
+          vec3 core = mix(vCol, vec3(1.0), 0.35);
+          vec3 c = r < 0.15 ? mix(core, vCol, r / 0.15) : vCol;
+          float a = r < 0.15 ? mix(1.0, 0.95, r / 0.15) : r < 0.5 ? mix(0.95, 0.3, (r - 0.15) / 0.35) : mix(0.3, 0.0, (r - 0.5) / 0.5);
+          o = vec4(c * a * vA, 1.0);
+        }`;
+      const mk = (vs, fs) => {
+        const prog = program(vs, fs);
+        return { prog, U: Object.fromEntries(['uP', 'uV', 'uShift', 'uScale'].map((n) => [n, gl.getUniformLocation(prog, n)])), loc: (n) => gl.getAttribLocation(prog, n) };
+      };
+      const cloudP = mk(cloudVs, cloudFs), glowP = mk(glowVs, glowFs);
+      const buffer = (P) => {
+        const vao = gl.createVertexArray(), buf = gl.createBuffer();
+        gl.bindVertexArray(vao);
+        gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+        [['aPos', 3, 0], ['aRad', 1, 3], ['aCol', 3, 4], ['aLum', 1, 7]].forEach(([n, c, o]) => {
+          const l = P.loc(n);
+          if (l < 0) return;
+          gl.enableVertexAttribArray(l);
+          gl.vertexAttribPointer(l, c, gl.FLOAT, false, 32, o * 4);
+        });
+        gl.bindVertexArray(null);
+        return { vao, buf, loaded: null };
+      };
+      xrLog('sky in the headset: ready');
+      return { cloudP, glowP, cloud: buffer(cloudP), live: buffer(cloudP), glow: buffer(glowP) };
+    };
+    const xrSkyDraw = (gl, P, V, vpHeight, xrOrigin) => {
+      if (!space() && !cloud && !liveSky.n) return;
+      const G = (xrSkyGl ??= xrSkyInit(gl));
+      const scale = (P[5] * vpHeight) / 2; // pixels per unit at depth 1, this eye
+      const o = xrOrigin ?? [0, 0, 0];
+      const load = (b, data, usage) => {
+        if (b.loaded === data) return;
+        gl.bindBuffer(gl.ARRAY_BUFFER, b.buf);
+        gl.bufferData(gl.ARRAY_BUFFER, data, usage);
+        b.loaded = data;
+      };
+      gl.disable(gl.DEPTH_TEST);
+      gl.depthMask(false);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_COLOR);
+      const use = (Pg, shift) => {
+        gl.useProgram(Pg.prog);
+        gl.uniformMatrix4fv(Pg.U.uP, false, P);
+        gl.uniformMatrix4fv(Pg.U.uV, false, V);
+        gl.uniform3fv(Pg.U.uShift, shift);
+        gl.uniform1f(Pg.U.uScale, scale);
+      };
+      if (cloud?.n) {
+        load(G.cloud, cloud.data, gl.STATIC_DRAW);
+        use(G.cloudP, o);
+        gl.bindVertexArray(G.cloud.vao);
+        gl.drawArrays(gl.POINTS, 0, cloud.n);
+      }
+      if (liveSky.n) {
+        load(G.live, liveSky.data, gl.DYNAMIC_DRAW);
+        use(G.cloudP, vsub(o, liveSky.origin)); // (the live points are relative to their own origin)
+        gl.bindVertexArray(G.live.vao);
+        gl.drawArrays(gl.POINTS, 0, liveSky.n);
+      }
+      const glow = xrGlowData();
+      if (glow.n) {
+        load(G.glow, glow.data, gl.DYNAMIC_DRAW);
+        use(G.glowP, o);
+        gl.bindVertexArray(G.glow.vao);
+        gl.drawArrays(gl.POINTS, 0, glow.n);
+      }
+      gl.bindVertexArray(null);
+      gl.disable(gl.BLEND);
+      gl.depthMask(true);
+      gl.enable(gl.DEPTH_TEST);
+    };
     // ---- Meta Quest 3 (Touch Plus, the xr-standard mapping: axes 2 / 3 the stick, buttons 0 trigger, 1 grip, 3 stick press,
     // 4 A / X, 5 B / Y). Flying (not driving):
     //   left stick  sideways: A / D (the side speed levels, a step per push, repeating while held); up / down: nod (pitch)
@@ -9950,13 +10097,16 @@
         P[8] = 0;
         P[9] = 0;
         const eye = toScene(pose.transform.position);
-        return void gpu.render(xrArgs.scene, xrArgs.view, { ...xrArgs.opts, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [0, 0, w, h], projection: P, view: mul4(pose.transform.inverse.matrix, toHead), eye } });
+        const Vm = mul4(pose.transform.inverse.matrix, toHead);
+        gpu.render(xrArgs.scene, xrArgs.view, { ...xrArgs.opts, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [0, 0, w, h], projection: P, view: Vm, eye } });
+        return void xrSkyDraw(gl, P, Vm, h, xrArgs.origin);
       }
       for (const v of pose.views) {
         const vp = layer.getViewport(v);
         if (!vp) continue;
         const eye = toScene(v.transform.position);
         gpu.render(xrArgs.scene, xrArgs.view, { ...xrArgs.opts, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: v.projectionMatrix, view: mul4(v.transform.inverse.matrix, toHead), eye } });
+        xrSkyDraw(gl, v.projectionMatrix, mul4(v.transform.inverse.matrix, toHead), vp.height, xrArgs.origin);
         if (XR_TEST === '2') xrTestDraw(gl, v, vp, t / 1000);
         if (n <= 3) xrGlErrors(gl, `the ${v.eye} eye, frame ${n}`);
       }
