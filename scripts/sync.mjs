@@ -63,6 +63,7 @@ for (const [name, from, to] of steps) {
 if (html.includes('../dist/') || html.includes('../examples/')) throw new Error('sync: a path into the 3Draft repo is left in index.html');
 
 writeFileSync(join(here, 'index.html'), html);
+writeFileSync(join(here, 'xr-test.html'), readFileSync(join(src, 'app/xr-test.html'))); // the WebXR loop alone, for a headset that stays black
 mkdirSync(join(here, 'models'), { recursive: true });
 writeFileSync(join(here, 'models/bridge.scene.json'), readFileSync(join(src, 'examples/bridge.scene.json')));
 writeFileSync(join(here, 'help.md'), readFileSync(join(src, 'app/help.md'))); // the help page (Markdown), shown in the side panel

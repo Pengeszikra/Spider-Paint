@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebXR test</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #111; color: #e8e4d8; font: 15px/1.45 ui-monospace, Menlo, monospace; }
+    header { display: flex; gap: 10px; align-items: center; padding: 12px 16px; flex-wrap: wrap; }
+    h1 { font-size: 16px; margin: 0 12px 0 0; }
+    button { font: 600 15px/1 ui-monospace, monospace; padding: 12px 18px; border-radius: 10px; border: 0; background: #2aa7b5; color: #071214; cursor: pointer; }
+    button.red { background: #e2452a; color: #fff; }
+    button:disabled { opacity: 0.4; }
+    canvas { display: block; width: min(480px, calc(100vw - 32px)); aspect-ratio: 1; margin: 0 16px; border-radius: 10px; background: #000; }
+    pre { margin: 12px 16px 24px; padding: 12px; background: #000; border-radius: 10px; white-space: pre-wrap; word-break: break-word; font-size: 14px; max-height: 60vh; overflow: auto; }
+    .err { color: #ff6b4a; }
+    p { margin: 0 16px; color: #a9a59a; max-width: 760px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>WebXR test</h1>
+    <button id="enter" disabled>Enter VR</button>
+    <button id="copy" class="red" hidden>copy log</button>
+  </header>
+  <p>The smallest WebXR loop, apart from the 3Draft renderer: a WebGL2 context, an XRWebGLLayer and the session's own
+    requestAnimationFrame. In the headset you should see a turning cube 1.5 m in front of you over a grid floor, the left eye
+    on a dark red, the right eye on a dark blue background. The log below records the session, the framebuffer, both eyes'
+    viewports and every WebGL error; it stays here after you leave VR (and in this browser's storage).</p>
+  <canvas id="c"></canvas>
+  <pre id="log"></pre>
+  <script>
+    const logEl = document.getElementById('log');
+    const lines = [];
+    const t0 = performance.now();
+    const log = (msg, err = false) => {
+      const line = `${((performance.now() - t0) / 1000).toFixed(2)}s ${msg}`;
+      lines.push(line);
+      (err ? console.error : console.log)('[xr-test]', msg);
+      const div = document.createElement('div');
+      div.textContent = line;
+      if (err) div.className = 'err';
+      logEl.append(div);
+      try { localStorage.setItem('xr-test-log', lines.slice(-400).join('\n')); } catch {}
+    };
+    try {
+      const prev = localStorage.getItem('xr-test-log');
+      if (prev) log(`(the previous run's log is in localStorage 'xr-test-log', ${prev.split('\n').length} lines)`);
+    } catch {}
+    log(`user agent: ${navigator.userAgent}`);
+
+    // ---- WebGL2
+    const canvas = document.getElementById('c');
+    canvas.width = canvas.height = 480;
+    const gl = canvas.getContext('webgl2', { xrCompatible: true, antialias: false, alpha: false });
+    if (!gl) log('no WebGL2 context', true);
+    else log(`WebGL2: ${gl.getParameter(gl.VERSION)} · ${gl.getParameter(gl.SHADING_LANGUAGE_VERSION)} · renderer ${gl.getParameter(gl.RENDERER)}`);
+    canvas.addEventListener('webglcontextlost', (e) => (e.preventDefault(), log('WebGL context LOST', true)));
+    canvas.addEventListener('webglcontextrestored', () => log('WebGL context restored (resources must be made again)', true));
+    let errCount = 0;
+    const glErr = (where) => {
+      for (let e = gl.getError(), n = 0; e !== gl.NO_ERROR && n < 8; e = gl.getError(), n++) {
+        if (errCount++ < 40) log(`GL error 0x${e.toString(16)} after ${where}`, true);
+      }
+    };
+
+    const vs = `#version 300 es
+      in vec3 aPos; in vec3 aCol; uniform mat4 uP, uV, uM; out vec3 vCol;
+      void main() { vCol = aCol; gl_Position = uP * uV * uM * vec4(aPos, 1.0); }`;
+    const fs = `#version 300 es
+      precision highp float; in vec3 vCol; out vec4 o; void main() { o = vec4(vCol, 1.0); }`;
+    const shader = (type, src) => {
+      const s = gl.createShader(type);
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) log(`shader: ${gl.getShaderInfoLog(s)}`, true);
+      return s;
+    };
+    const prog = gl.createProgram();
+    gl.attachShader(prog, shader(gl.VERTEX_SHADER, vs));
+    gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, fs));
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) log(`link: ${gl.getProgramInfoLog(prog)}`, true);
+    const U = { P: gl.getUniformLocation(prog, 'uP'), V: gl.getUniformLocation(prog, 'uV'), M: gl.getUniformLocation(prog, 'uM') };
+    // a cube (each face its own colour) and a grid floor, as triangles / lines
+    const tris = [], lines3 = [];
+    const faces = [[[1, 0, 0], [0.9, 0.3, 0.2]], [[-1, 0, 0], [0.2, 0.8, 0.4]], [[0, 1, 0], [0.95, 0.85, 0.3]], [[0, -1, 0], [0.4, 0.4, 0.45]], [[0, 0, 1], [0.25, 0.55, 0.95]], [[0, 0, -1], [0.85, 0.4, 0.85]]];
+    for (const [n, c] of faces) {
+      const a = n.findIndex((v) => v !== 0), b = (a + 1) % 3, d = (a + 2) % 3;
+      const corner = (s, t) => { const p = [0, 0, 0]; p[a] = n[a] * 0.2; p[b] = s * 0.2; p[d] = t * 0.2; return p; };
+      for (const [s, t] of [[-1, -1], [1, -1], [1, 1], [-1, -1], [1, 1], [-1, 1]]) tris.push(...corner(s, t), ...c);
+    }
+    for (let i = -5; i <= 5; i++) {
+      lines3.push(i * 0.5, 0, -2.5, 0.3, 0.6, 0.6, i * 0.5, 0, 2.5, 0.3, 0.6, 0.6);
+      lines3.push(-2.5, 0, i * 0.5, 0.3, 0.6, 0.6, 2.5, 0, i * 0.5, 0.3, 0.6, 0.6);
+    }
+    const vao = (data) => {
+      const v = gl.createVertexArray();
+      gl.bindVertexArray(v);
+      const b = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, b);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+      const aPos = gl.getAttribLocation(prog, 'aPos'), aCol = gl.getAttribLocation(prog, 'aCol');
+      gl.enableVertexAttribArray(aPos);
+      gl.vertexAttribPointer(aPos, 3, gl.FLOAT, false, 24, 0);
+      gl.enableVertexAttribArray(aCol);
+      gl.vertexAttribPointer(aCol, 3, gl.FLOAT, false, 24, 12);
+      gl.bindVertexArray(null);
+      return { v, n: data.length / 6 };
+    };
+    const cube = vao(tris), grid = vao(lines3);
+    glErr('setup');
+
+    // matrices (column-major)
+    const perspective = (fovy, aspect, near, far) => {
+      const f = 1 / Math.tan(fovy / 2), nf = 1 / (near - far);
+      return [f / aspect, 0, 0, 0, 0, f, 0, 0, 0, 0, (far + near) * nf, -1, 0, 0, 2 * far * near * nf, 0];
+    };
+    const model = (t, y) => {
+      const c = Math.cos(t), s = Math.sin(t);
+      return [c, 0, -s, 0, 0, 1, 0, 0, s, 0, c, 0, 0, y, -1.5, 1];
+    };
+    const translate = (x, y, z) => [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1];
+    const draw = (P, V, t, floorY) => {
+      gl.useProgram(prog);
+      gl.uniformMatrix4fv(U.P, false, P);
+      gl.uniformMatrix4fv(U.V, false, V);
+      gl.uniformMatrix4fv(U.M, false, model(t, floorY + 1.4));
+      gl.bindVertexArray(cube.v);
+      gl.drawArrays(gl.TRIANGLES, 0, cube.n);
+      gl.uniformMatrix4fv(U.M, false, translate(0, floorY, 0));
+      gl.bindVertexArray(grid.v);
+      gl.drawArrays(gl.LINES, 0, grid.n);
+      gl.bindVertexArray(null);
+    };
+
+    // the page preview (before VR): the same scene from 2 m behind
+    let xrSession = null;
+    const preview = (now) => {
+      if (xrSession) return;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, 480, 480);
+      gl.clearColor(0.08, 0.08, 0.1, 1);
+      gl.enable(gl.DEPTH_TEST);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      draw(perspective(1, 1, 0.05, 100), translate(0, -1.6, -1), now / 1000, 0);
+      requestAnimationFrame(preview);
+    };
+    requestAnimationFrame(preview);
+
+    // ---- WebXR
+    const enter = document.getElementById('enter');
+    const copyBtn = document.getElementById('copy');
+    copyBtn.hidden = false;
+    copyBtn.onclick = () => navigator.clipboard?.writeText(lines.join('\n')).then(() => log('log copied'), (e) => log(`copy failed: ${e.message}`, true));
+    (async () => {
+      if (!navigator.xr) return log('navigator.xr is missing: no WebXR in this browser', true);
+      const vr = await navigator.xr.isSessionSupported('immersive-vr').catch((e) => (log(`isSessionSupported failed: ${e.message}`, true), false));
+      log(`immersive-vr supported: ${vr}`);
+      enter.disabled = !vr;
+    })();
+    let refSpace = null, layer = null, frames = 0, floor = 0;
+    const onFrame = (t, frame) => {
+      const session = frame.session;
+      session.requestAnimationFrame(onFrame);
+      frames++;
+      const pose = frame.getViewerPose(refSpace);
+      if (!pose) {
+        if (frames < 5 || frames % 300 === 0) log(`frame ${frames}: no viewer pose (tracking lost?)`);
+        return;
+      }
+      const L = session.renderState.baseLayer;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, L.framebuffer);
+      gl.disable(gl.SCISSOR_TEST);
+      gl.clearColor(0.05, 0.05, 0.07, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      gl.enable(gl.DEPTH_TEST);
+      if (frames <= 3) log(`frame ${frames}: ${pose.views.length} views · framebuffer ${L.framebufferWidth}×${L.framebufferHeight} · emulatedPosition ${pose.emulatedPosition}`);
+      pose.views.forEach((view, i) => {
+        const vp = L.getViewport(view);
+        if (!vp) return frames <= 3 && log(`frame ${frames}: no viewport for view ${i} (${view.eye})`, true);
+        gl.viewport(vp.x, vp.y, vp.width, vp.height);
+        gl.enable(gl.SCISSOR_TEST);
+        gl.scissor(vp.x, vp.y, vp.width, vp.height);
+        const left = view.eye !== 'right';
+        gl.clearColor(left ? 0.25 : 0.05, 0.05, left ? 0.05 : 0.25, 1); // left eye red, right eye blue
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.disable(gl.SCISSOR_TEST);
+        draw(view.projectionMatrix, view.transform.inverse.matrix, t / 1000, floor);
+        if (frames <= 3) log(`  ${view.eye} eye: viewport ${vp.x},${vp.y} ${vp.width}×${vp.height}`);
+      });
+      glErr(`frame ${frames}`);
+      if (frames === 90) log('90 frames drawn (about a second and a half): the loop runs');
+    };
+    const start = async () => {
+      if (xrSession) return xrSession.end();
+      let session;
+      try {
+        session = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor'] });
+      } catch (e) {
+        return log(`requestSession failed: ${e.name}: ${e.message}`, true);
+      }
+      xrSession = session;
+      enter.textContent = 'Exit VR';
+      enter.classList.add('red');
+      log(`session created · blend ${session.environmentBlendMode} · visibility ${session.visibilityState} · frame rate ${session.frameRate ?? '?'}`);
+      session.addEventListener('visibilitychange', () => log(`visibility: ${session.visibilityState}`));
+      session.addEventListener('end', () => {
+        log(`session ended after ${frames} frames`);
+        xrSession = null;
+        frames = 0;
+        enter.textContent = 'Enter VR';
+        enter.classList.remove('red');
+        requestAnimationFrame(preview);
+      });
+      session.addEventListener('selectstart', (e) => log(`select (${e.inputSource.handedness})`));
+      try {
+        await gl.makeXRCompatible();
+        log('makeXRCompatible: ok');
+      } catch (e) {
+        log(`makeXRCompatible failed: ${e.message}`, true);
+      }
+      try {
+        layer = new XRWebGLLayer(session, gl, { antialias: true, depth: true });
+        session.updateRenderState({ baseLayer: layer, depthNear: 0.05, depthFar: 1000 });
+        log(`XRWebGLLayer: framebuffer ${layer.framebufferWidth}×${layer.framebufferHeight} · antialias ${layer.antialias} · ignoreDepthValues ${layer.ignoreDepthValues} · fixedFoveation ${layer.fixedFoveation ?? '-'}`);
+      } catch (e) {
+        log(`XRWebGLLayer failed: ${e.message}`, true);
+        return session.end();
+      }
+      try {
+        refSpace = await session.requestReferenceSpace('local-floor');
+        floor = 0;
+        log('reference space: local-floor');
+      } catch {
+        refSpace = await session.requestReferenceSpace('local');
+        floor = -1.6;
+        log('reference space: local (local-floor refused); the floor is put 1.6 m below the head');
+      }
+      glErr('session setup');
+      session.requestAnimationFrame(onFrame);
+      log('session.requestAnimationFrame: asked for the first frame');
+    };
+    enter.onclick = start;
+  </script>
+</body>
+</html>

@@ -211,7 +211,9 @@ Pressing **Q** with the eye inside the object (inside its bounding box, e.g. fly
 ## VR (WebXR)
 **VR** (in the sys group at the bottom) shows the scene in a headset (on a Mac: install the Meta Immersive Web Emulator extension in Chrome, then press enter VR). The head turns the view; a controller button tints the sky green for a moment and shows in the note beside the button. In the car the right stick drives: sideways the wheel (it comes back to the middle when you let go), up / down the gas (it stays where you leave it). exit (or ending it in the headset) gives the normal view back.
 
-**Meta Quest 3 controllers** (flying, in space and on the ground). In space the whole cockpit turns with the ship (heading, nod, roll); on the ground the horizon stays level.
+**Meta Quest 3 controllers** (flying, in space and on the ground). The same controls work outside VR too, with any gamepad the browser hands over (the left / right stick and the triggers, bumpers and face buttons in the Touch places); X then does nothing. VR starts only when you press VR.
+
+**If the headset stays black:** open `xr-test.html` (Spider Paint: spider-paint.vercel.app/xr-test.html) on the headset: the smallest WebXR loop without 3Draft (a turning cube over a grid, the left eye on red, the right eye on blue) with a log of the session, the framebuffer, both eyes' viewports and the WebGL errors. If that works, open the viewer with `?xrtest=1` (the same cube through the viewer's own context and session) and `?xrtest=2` (the cube and the scene). After every VR session the viewer shows its XR log (click it to close); a dark red headset means the session runs but the 3Draft picture is missing (the log says why). In space the whole cockpit turns with the ship (heading, nod, roll); on the ground the horizon stays level.
 
 | control | does |
 | --- | --- |
