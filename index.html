@@ -886,7 +886,7 @@
           <button id="rec" type="button" class="red" title="Record: starts from an empty scene and writes every move and key into a JSON file when you press it again">rec</button>
           <button id="play" type="button" class="slate" title="Play: pick a recording (JSON) and watch it build the scene again from an empty one; press again to stop">play</button>
           <button id="xrBtn" type="button" class="slate" title="VR (on: red): show the scene in a headset, one picture per eye (immersive-vr; on a Mac: the Meta Immersive Web Emulator). The right stick drives the car: sideways the wheel, up / down the gas">VR</button>
-          <button id="emBtn" type="button" class="slate" title="EM, emulator mode (on: red): the same WebXR session (head pose, controllers), but one plain picture over the whole view instead of the two eyes">EM</button>
+          <button id="emBtn" type="button" class="slate" title="TEMPORARY: a three.js WebXR test scene (a cube, a floor grid, a star field) in the headset, to compare with 3Draft's VR. Shift+click: the old EM (emulator mode)">EM</button>
           <input id="playFile" type="file" accept=".json,application/json" hidden>
         </span>
       </span>
@@ -937,7 +937,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@ea5fa88f4d817610ce186756e388d92d60c406f5/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@ffb190d8ecc5b5fdfbbc0cac40ad6194629f2a37/dist/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2200,7 +2200,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@ea5fa88f4d817610ce186756e388d92d60c406f5/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@ffb190d8ecc5b5fdfbbc0cac40ad6194629f2a37/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -10201,7 +10201,100 @@
       session.requestAnimationFrame(xrFrame);
     };
     xrBtn?.addEventListener('click', () => (toggleXr(false), xrBtn.blur()));
-    emBtn?.addEventListener('click', () => (toggleXr(true), emBtn.blur()));
+    // ---- TEMPORARY: a three.js WebXR test (the EM button; Shift+click is the old EM). The same headset and browser through
+    // three.js's WebXRManager: a turning cube 1.5 m ahead, a floor grid, a star field 50 m round you, lit, both eyes. If this shows
+    // and 3Draft's VR does not, the difference is in 3Draft's pipeline; if this is black too, it is the browser / headset / page.
+    // three.js is fetched (when WebXR is there) once the page has loaded, so the click still counts as the user's gesture.
+    const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
+    let threeMod = null, threeXr = null;
+    const loadThree = () => (threeMod ??= import(THREE_URL).catch((e) => ((threeMod = null), Promise.reject(e))));
+    if (navigator.xr) window.addEventListener('load', () => setTimeout(() => loadThree().then(() => xrLog('three.js: loaded (EM test)')).catch((e) => xrLog(`three.js did not load: ${e.message}`, true)), 2000));
+    const toggleThreeXr = async () => {
+      if (threeXr) return threeXr.session?.end();
+      if (xrState.session) return xrSay('end 3Draft\'s VR first');
+      xrState.log = [];
+      xrLog(`three.js test · ${navigator.userAgent}`);
+      if (!navigator.xr) return (xrLog('navigator.xr is missing', true), showXrLog(), xrSay('no WebXR here'));
+      let THREE;
+      try {
+        THREE = await loadThree();
+      } catch (e) {
+        xrLog(`three.js did not load: ${e.message}`, true);
+        return showXrLog();
+      }
+      xrLog(`three.js r${THREE.REVISION}`);
+      const canvas = document.createElement('canvas');
+      canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:20;pointer-events:none';
+      document.body.append(canvas);
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
+      renderer.setSize(innerWidth, innerHeight, false);
+      renderer.xr.enabled = true;
+      renderer.xr.setReferenceSpaceType('local-floor');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x05060a);
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x334455, 1.2));
+      const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+      sun.position.set(2, 4, 1);
+      scene.add(sun);
+      const cube = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4), new THREE.MeshStandardMaterial({ color: 0x2aa7b5, roughness: 0.5 }));
+      cube.position.set(0, 1.4, -1.5);
+      scene.add(cube);
+      const egg = new THREE.Mesh(new THREE.SphereGeometry(0.25, 32, 16), new THREE.MeshStandardMaterial({ color: 0xd9a441, metalness: 0.6, roughness: 0.35 }));
+      egg.scale.set(1.8, 0.6, 1);
+      egg.position.set(1, 1.2, -2);
+      scene.add(egg);
+      scene.add(new THREE.GridHelper(10, 20, 0x4fb3bf, 0x2a3a40));
+      const n = 3000, pos = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) {
+        const u = Math.random() * 2 - 1, a = Math.random() * Math.PI * 2, r = Math.sqrt(1 - u * u);
+        pos.set([50 * r * Math.cos(a), 50 * u, 50 * r * Math.sin(a)], i * 3);
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 2, sizeAttenuation: false })));
+      const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.05, 200);
+      camera.position.set(0, 1.6, 0);
+      let frames = 0;
+      renderer.setAnimationLoop((t) => {
+        cube.rotation.set(t / 1300, t / 1000, 0);
+        renderer.render(scene, camera);
+        if (++frames === 1 || frames === 90) {
+          const s = renderer.xr.getSession(), l = s?.renderState.baseLayer;
+          xrLog(`three.js frame ${frames}: presenting ${renderer.xr.isPresenting}${l ? ` · framebuffer ${l.framebufferWidth}×${l.framebufferHeight}` : ''}`);
+        }
+      });
+      let session;
+      try {
+        session = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor'] });
+      } catch (e) {
+        xrLog(`requestSession failed: ${e.name}: ${e.message}`, true);
+        renderer.setAnimationLoop(null);
+        renderer.dispose();
+        canvas.remove();
+        return showXrLog();
+      }
+      xrLog(`session created · blend ${session.environmentBlendMode}`);
+      threeXr = { session, renderer, canvas };
+      emBtn?.classList.replace('slate', 'red');
+      session.addEventListener('end', () => {
+        xrLog(`three.js session ended after ${frames} frames`);
+        renderer.setAnimationLoop(null);
+        renderer.dispose();
+        canvas.remove();
+        threeXr = null;
+        emBtn?.classList.replace('red', 'slate');
+        showXrLog();
+      });
+      try {
+        await renderer.xr.setSession(session);
+        xrLog('renderer.xr.setSession: ok');
+      } catch (e) {
+        xrLog(`renderer.xr.setSession failed: ${e.message}`, true);
+        session.end();
+      }
+    };
+    emBtn?.addEventListener('click', (e) => ((e.shiftKey ? toggleXr(true) : toggleThreeXr()), emBtn.blur()));
     if (!navigator.xr) xrSay('no WebXR in this browser');
 
     if (EMBED) seedStore();
