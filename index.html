@@ -10079,7 +10079,11 @@
         }
         return;
       }
-      if (xrState.frames === 0) xrLog('first native XR frame reached; updating scene');
+      // Count the frame before scene work: a failure in drawFrame must not
+      // produce an endless "first native XR frame" spam that evicts the error.
+      const frameNo = ++xrState.frames;
+      xrState.phase = 'controllers';
+      if (frameNo === 1) xrLog('first native XR frame reached; updating scene');
       const now = performance.now();
       const dt = xrState.last ? Math.min(0.1, (now - xrState.last) / 1000) : 0;
       xrState.last = now;
@@ -10104,10 +10108,12 @@
       xrNote?.classList.toggle('press', Boolean(pressed));
       // one frame of the program (it also renders the desktop picture and leaves xrArgs)
       queued = false;
+      xrState.phase = 'drawFrame';
       drawFrame();
+      xrState.phase = 'viewerPose';
       const pose = frame.getViewerPose(xrState.space);
       const layer = session.renderState.baseLayer;
-      const n = ++xrState.frames;
+      const n = frameNo;
       const gl = gpu?.context;
       if (!pose || !layer || !gl || (!xrArgs && XR_TEST !== '1')) {
         const why = !pose ? 'no viewer pose' : !layer ? 'no base layer' : !gl ? 'no WebGL2 context' : 'no picture to draw yet (xrArgs: the view is not the WebGL2 view, or the frame did not render)';
@@ -10122,6 +10128,7 @@
         return;
       }
       if (n <= 3) xrLog(`frame ${n}: ${pose.views.length} views · framebuffer ${layer.framebufferWidth}×${layer.framebufferHeight} · ${pose.views.map((v) => { const vp = layer.getViewport(v); return `${v.eye} ${vp ? `${vp.x},${vp.y} ${vp.width}×${vp.height}` : 'no viewport'}`; }).join(' · ')}${XR_TEST ? ` · test ${XR_TEST}` : ''}`);
+      xrState.phase = 'xrRig and eye transforms';
       const { origin: worldOrigin, forward: F, right: Rt, up: U, scale: S } = xrRig();
       const origin = xrArgs.origin ? vsub(worldOrigin, xrArgs.origin) : worldOrigin; // (the floating origin)
       const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -10171,6 +10178,7 @@
         const eye = toScene(v.transform.position);
         const Ve = eyeView(v.transform.inverse.matrix);
         const { glP, engineP } = xrProjection(v.projectionMatrix);
+        xrState.phase = `render ${v.eye} eye`;
         gpu.render(xrArgs.scene, xrArgs.view, { ...xrArgs.opts, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: engineP, view: Ve, eye } });
         xrSkyDraw(gl, glP, Ve, vp.height, xrArgs.origin);
         if (XR_TEST === '2') xrTestDraw(gl, v, vp, t / 1000);
@@ -10182,7 +10190,13 @@
       try {
         xrFrameBody(t, frame);
       } catch (err) {
-        if ((xrState.frameErrs = (xrState.frameErrs ?? 0) + 1) <= 5) xrLog(`frame ${xrState.frames}: ${err?.message ?? err} · ${String(err?.stack ?? '').split('\n')[1]?.trim() ?? ''}`, true);
+        const count = xrState.frameErrs = (xrState.frameErrs ?? 0) + 1;
+        const details = `frame ${xrState.frames}, phase ${xrState.phase ?? 'unknown'}: ${err?.name ?? 'Error'}: ${err?.message ?? err}\n${err?.stack ?? ''}`;
+        if (count <= 5) {
+          xrLog(details, true);
+          // Keep this apart from the capped rolling log so the first error survives.
+          try { localStorage.setItem('3draft-xr-error', details); } catch {}
+        }
         // If the scene or renderer throws, paint magenta to distinguish a render
         // exception from a session that never produced any XR frames.
         const gl = gpu?.context, layer = xrState.session?.renderState.baseLayer;
@@ -10219,6 +10233,8 @@
       xrState.frames = 0;
       xrState.errs = 0;
       xrState.frameErrs = 0;
+      xrState.phase = 'session setup';
+      try { localStorage.removeItem('3draft-xr-error'); } catch {}
       xrState.testXPressed = false;
       xrLog(`start ${mono ? 'EM' : 'VR'} · ${navigator.userAgent}${XR_TEST ? ` · xrtest ${XR_TEST}` : ''}`);
       if (!xr) return (xrLog('navigator.xr is missing', true), xrSay('no WebXR here (on a Mac: the Immersive Web Emulator)'));
