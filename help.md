@@ -117,6 +117,17 @@ Click a swatch to select it. The sliders change **metal**, **rough**, **alpha**,
 
 The store pane (and G G from it) is not recorded.
 
+## Groups and joints (mechanics)
+
+- **Ctrl+G** groups the objects selected with **B**: from then on **G** (and G G, R, S) on any of them takes the whole group. **Ctrl+Shift+G** ungroups the selection's groups (or the group under the cross). Groups are named group-1, group-2, …; the AI can name them over MCP. They are saved with the scene.
+- **Joints** join two objects: a *holder* and a *held part*. For now the AI makes them (the MCP `connect` tool); the viewer saves them with the scene and keeps to them. Moving the holder carries what it holds.
+  - **glue**: the two move together (G on either takes both).
+  - **hinge**: the held part turns round a line (a door round its side). **G** on it turns it round the hinge as you move the pointer round, inside its limit; a click or **Enter** keeps it (one **U** step), **Esc** takes it back.
+  - **pivot**: a ball joint: **G** turns the part round the point, round the view's axis; **X Y Z** lock a world axis; the limits hold per axis.
+  - **rail**: **G** slides the part along the rail, following the pointer, between its limits.
+  - **spring**: the held part hangs on a spring: move it (or its holder) and it swings back to the rest length, damped; a spring object (a coil) stretches between the ends. **freeze** stops the springs.
+- Try the **Mechanics** scene (+ scene list): a hinged door, a cart on a rail carrying a lamp, a lever on a pivot, a weight on a spring and a grouped table.
+
 ## Games (Fifth Percent)
 
 A game brings scenes together: **Fifth Percent** (the scene list, *games*, or `?scene=game:fifth-percent`) is the starship's command bridge in the Deep Sky universe. The universe is drawn first and the bridge over it, so the stars show through the bridge's open window. **C** (or the **helm ⇄ walk** button, top right) switches between two modes:

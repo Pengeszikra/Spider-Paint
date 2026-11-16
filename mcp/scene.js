@@ -1,11 +1,11 @@
-// (copied from 3Draft 0fa3bf2 by scripts/sync.mjs: change it there)
+// (copied from 3Draft e3f1cf2 by scripts/sync.mjs: change it there)
 // The model and its tools. One scene of named objects (meshes), edited by tool calls
 // and judged by the deterministic SVG preview. No I/O except save/load of JSON files
 // under the working directory. The MCP transport is in server.js.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, relative, isAbsolute, extname } from 'node:path';
-import { skyScene, SKY_TYPES, box, extrude, extrudeFace, moveVertices, faceNormal, faceCenter, merge, rotate, bounds, makeCamera, orbit, pick, ray as camRay, renderView, renderSheet, validate, boolean, VIEW_ORDER, triangulate, buildCharacter, normalizeCharacter, variateCharacter, posed, walkPose, HUMANOID_POSES, CHARACTER_PRESETS } from './engine/index.js';
+import { skyScene, SKY_TYPES, box, extrude, extrudeFace, moveVertices, faceNormal, faceCenter, merge, rotate, bounds, makeCamera, orbit, pick, ray as camRay, renderView, renderSheet, validate, boolean, VIEW_ORDER, triangulate, buildCharacter, normalizeCharacter, variateCharacter, posed, walkPose, HUMANOID_POSES, CHARACTER_PRESETS, makeJoint, jointNow, hingeTo, pivotTo, railTo, carried, moveMesh, springMesh } from './engine/index.js';
 
 export class ToolError extends Error {}
 const fail = (message) => {
@@ -47,7 +47,7 @@ const parseMesh = (positions, faces, fallbackColor) => {
     v.forEach((k) => {
       if (!Number.isInteger(k) || k < 0 || k >= positions.length) fail(`faces[${i}].v has index ${k}, but there are ${positions.length} positions`);
     });
-    return { v: [...v], color: color(f.color, fallbackColor) };
+    return { v: [...v], color: color(f.color, fallbackColor), ...(typeof f.mat === 'string' ? { mat: f.mat } : {}) };
   });
   return { positions: positions.map((p) => [...p]), faces: out };
 };
@@ -127,6 +127,26 @@ const footOf = (mesh) => {
   return [(min[0] + max[0]) / 2, min[1], (min[2] + max[2]) / 2];
 };
 
+// the map that takes mesh `a` to mesh `b` (same vertices moved by a turn, a uniform size and a move), from three spread vertices
+const rigidBetween = (a, b) => {
+  const P = a.positions, Q = b.positions;
+  let i1 = 0, d1 = -1;
+  P.forEach((p, i) => { const d = Math.hypot(...vsub(p, P[0])); if (d > d1) ((d1 = d), (i1 = i)); });
+  const u = vnorm(vsub(P[i1], P[0]));
+  let i2 = 0, d2 = -1;
+  P.forEach((p, i) => { const w = vsub(p, P[0]); const d = Math.hypot(...vsub(w, u.map((x) => x * vdot(w, u)))); if (d > d2) ((d2 = d), (i2 = i)); });
+  const frame = (X, i) => {
+    const x = vnorm(vsub(X[i1], X[0])), z = vnorm(vcross(x, vsub(X[i2], X[0]))), y = vcross(z, x);
+    return { o: X[0], R: [x, y, z], s: Math.hypot(...vsub(X[i1], X[0])) };
+  };
+  if (d1 <= 0 || d2 <= 1e-12) { const t = vsub(Q[0], P[0]); return (p) => p.map((v, k) => v + t[k]); }
+  const fa = frame(P), fb = frame(Q), k = fb.s / fa.s;
+  return (p) => {
+    const w = vsub(p, fa.o), l = fa.R.map((r) => vdot(r, w));
+    return [0, 1, 2].map((c) => fb.o[c] + k * (fb.R[0][c] * l[0] + fb.R[1][c] * l[1] + fb.R[2][c] * l[2]));
+  };
+};
+
 const safePath = (p) => {
   if (typeof p !== 'string' || !p) fail('path must be a string');
   const full = resolve(process.cwd(), p);
@@ -157,7 +177,32 @@ export const createScene = () => {
   let rev = 0; // grows with every change, so a viewer can tell it is up to date
   const info = { live: null }; // set by the server: { url, clients() }
 
-  const data = () => ({ format: '3draft-scene', version: 1, rev, objects: [...objects].map(([n, mesh]) => ({ name: n, mesh })) });
+  const groups = new Map(); // object name -> group name (objects of one group move as one)
+  let joints = []; // the joints (src/joints.ts): glue, pivot, hinge, rail, spring
+  const data = () => ({ format: '3draft-scene', version: 1, rev, objects: [...objects].map(([n, mesh]) => ({ name: n, mesh, ...(groups.has(n) ? { group: groups.get(n) } : {}) })), ...(joints.length ? { joints } : {}) });
+  const linked = () => [...objects.keys()].map((n) => ({ name: n, group: groups.get(n) }));
+  // the objects that move with `n` (its group, what is glued to it, what it holds), all moved by f(mesh) -> mesh
+  const moveWith = (n, f) => {
+    const names = carried([n], linked(), joints);
+    for (const m of names) objects.set(m, f(objects.get(m)));
+    stretchSprings();
+    return names;
+  };
+  // the objects carried by `n` follow its move from `before` to `after` (the rigid map that takes the one mesh to the other)
+  const carriedMove = (n, before, after) => {
+    const others = carried([n], linked(), joints).filter((m) => m !== n);
+    if (!others.length) return [];
+    const map = rigidBetween(before, after);
+    for (const m of others) objects.set(m, { ...objects.get(m), positions: objects.get(m).positions.map(map) });
+    return others;
+  };
+  const stretchSprings = () => {
+    for (const j of joints) if (j.spring && objects.has(j.spring.object) && objects.has(j.a) && objects.has(j.b)) objects.set(j.spring.object, springMesh(j, objects.get(j.a), objects.get(j.b)));
+  };
+  const dropLinks = (n) => {
+    groups.delete(n);
+    joints = joints.filter((j) => j.a !== n && j.b !== n);
+  };
 
   const need = (n) => objects.get(name(n)) ?? fail(`no object named "${n}". Use list to see the objects.`);
   // the sensing set (what the cursor of the viewer would feel): every object except the ignored ones; sense, pick and place_on
@@ -169,6 +214,16 @@ export const createScene = () => {
     [...ex, ...inc].forEach(need);
     const base = only !== undefined ? names(only, 'only').map((n) => (need(n), n)) : [...objects.keys()].filter((n) => !ignored.has(n) || inc.has(n));
     return base.filter((n) => !ex.has(n)).map((n) => [n, objects.get(n)]);
+  };
+  const groupList = () => {
+    const out = {};
+    for (const [n, g] of groups) (out[g] ??= []).push(n);
+    return out;
+  };
+  const nowOut = (j) => {
+    const n = jointNow(j, objects.get(j.a), objects.get(j.b));
+    const r = (x) => (Array.isArray(x) ? (Array.isArray(x[0]) ? x.map(rv) : rv(x)) : r6(x));
+    return Object.fromEntries(Object.entries(n).map(([k, v]) => [k, typeof v === 'string' ? v : r(v)]));
   };
   const senseProps = {
     exclude: { description: 'leave these objects out of the sensing for this call (to see through them: to place behind or into them)', oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
@@ -304,8 +359,10 @@ export const createScene = () => {
           const d = vec3(a.move, 'move');
           mesh = { ...mesh, positions: mesh.positions.map((p) => p.map((v, i) => v + d[i])) };
         }
+        const along = carriedMove(a.name, objects.get(a.name), mesh);
         objects.set(a.name, mesh);
-        return summary(a.name, mesh);
+        stretchSprings();
+        return { ...summary(a.name, mesh), ...(along.length ? { moved_along: along } : {}) };
       },
     },
     {
@@ -376,8 +433,10 @@ export const createScene = () => {
         const goal = surface.point.map((v, i) => v + up[i] * gap);
         const d = vsub(goal, foot);
         mesh = { ...mesh, positions: mesh.positions.map((p) => p.map((v, i) => v + d[i])) };
+        const along = carriedMove(a.name, objects.get(a.name), mesh);
         objects.set(a.name, mesh);
-        return { ...summary(a.name, mesh), surface: { object: surface.object, point: rv(surface.point), normal: rv(surface.normal), ...(surface.t !== undefined ? { distance: r6(surface.t) } : {}) } };
+        stretchSprings();
+        return { ...summary(a.name, mesh), ...(along.length ? { moved_along: along } : {}), surface: { object: surface.object, point: rv(surface.point), normal: rv(surface.normal), ...(surface.t !== undefined ? { distance: r6(surface.t) } : {}) } };
       },
     },
     {
@@ -467,6 +526,137 @@ export const createScene = () => {
         for (const n of names(a.sense, 'sense')) (need(n), ignored.delete(n));
         for (const n of [...ignored]) if (!objects.has(n)) ignored.delete(n);
         return { sensed: [...objects.keys()].filter((n) => !ignored.has(n)), ignored: [...ignored] };
+      },
+    },
+    {
+      name: 'group',
+      description: 'Make a group: the objects move as one (in the viewer a G on any of them takes the whole group; the user groups a B selection with Ctrl+G). `objects` join the group `name` (leaving any group they were in); `rename` gives the group a new name. Returns every group.',
+      inputSchema: {
+        type: 'object',
+        properties: { name: { type: 'string', description: 'the group\'s name' }, objects: { type: 'array', items: { type: 'string' }, description: 'the objects to put in it' }, rename: { type: 'string', description: 'a new name for the group' } },
+        required: ['name'],
+      },
+      run: (a) => {
+        const g = name(a.name);
+        if (a.objects !== undefined) {
+          if (!Array.isArray(a.objects) || !a.objects.length) fail('objects must be a non-empty list of names');
+          a.objects.forEach((n) => (need(n), groups.set(n, g)));
+        } else if (![...groups.values()].includes(g)) fail(`no group named "${g}"; give objects to make it`);
+        if (a.rename !== undefined) {
+          const to = name(a.rename);
+          for (const [n, x] of groups) if (x === g) groups.set(n, to);
+        }
+        return { groups: groupList() };
+      },
+    },
+    {
+      name: 'ungroup',
+      description: 'Break a group up: its objects move on their own again (joints stay).',
+      inputSchema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
+      run: (a) => {
+        const members = [...groups].filter(([, g]) => g === a.name).map(([n]) => n);
+        if (!members.length) fail(`no group named "${a.name}"`);
+        members.forEach((n) => groups.delete(n));
+        return { ungrouped: members, groups: groupList() };
+      },
+    },
+    {
+      name: 'connect',
+      description: 'Join two objects with a joint (the basic mechanics). `a` holds, `b` is held: moving a carries b along; b itself moves only as the joint allows (move_joint here, a drag in the viewer). Kinds: glue (a and b move together; `contact`: the touching point, line or face as points), pivot (b turns about the point `at`, a ball joint; `limits` { x: [min, max], y, z } degrees round the world axes from the pose now), hinge (b turns about a line: `edge` [i, j], two vertex indices of b, e.g. a door\'s vertical side, or `axis` [[x,y,z], [x,y,z]]; `limit` [min, max] degrees, positive counter-clockwise looking from the second point towards the first), rail (b slides along the polyline `path` of a, its point `slider` (default its vertex nearest the rail) on the rail; `limit` [min, max] distance along the rail from its start), spring (b hangs on a spring from `at` on a to `at_b` on b; `rest_length` (default the distance now), `stiffness` (default 40), `damping` (default 3), `ends` [glue | pivot, glue | pivot]; `spring_object`: an object to stretch between the ends, its line `spring_line` [i, j] (default its longest side); the viewer animates it). Every geometry is in world coordinates now and then sticks to the objects. Returns the joint and its state.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          type: { type: 'string', enum: ['glue', 'pivot', 'hinge', 'rail', 'spring'] },
+          a: { type: 'string', description: 'the holder' },
+          b: { type: 'string', description: 'the held part' },
+          name: { type: 'string', description: 'the joint\'s name (default type-a-b)' },
+          at: { ...vec3Schema, description: 'pivot: the point; glue: the contact point; spring: the end on a' },
+          at_b: { ...vec3Schema, description: 'spring: the end on b' },
+          contact: { type: 'array', items: vec3Schema, description: 'glue: the contact as points (a point, a line of 2, a face of 3+)' },
+          edge: { type: 'array', items: { type: 'integer' }, minItems: 2, maxItems: 2, description: 'hinge: the line as two vertex indices of b (see get_mesh)' },
+          axis: { type: 'array', items: vec3Schema, minItems: 2, maxItems: 2, description: 'hinge: the line as two points' },
+          path: { type: 'array', items: vec3Schema, minItems: 2, description: 'rail: the polyline (it belongs to a)' },
+          slider: { ...vec3Schema, description: 'rail: the point of b on the rail' },
+          limit: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2, description: 'hinge: [min, max] degrees; rail: [min, max] distance along the rail' },
+          limits: { type: 'object', description: 'pivot: { x: [min, max], y: [min, max], z: [min, max] } degrees', properties: { x: { type: 'array', items: { type: 'number' } }, y: { type: 'array', items: { type: 'number' } }, z: { type: 'array', items: { type: 'number' } } } },
+          rest_length: { type: 'number' },
+          stiffness: { type: 'number' },
+          damping: { type: 'number' },
+          ends: { type: 'array', items: { type: 'string', enum: ['glue', 'pivot'] }, minItems: 2, maxItems: 2 },
+          spring_object: { type: 'string' },
+          spring_line: { type: 'array', items: { type: 'integer' }, minItems: 2, maxItems: 2 },
+        },
+        required: ['type', 'a', 'b'],
+      },
+      run: (a) => {
+        const A = need(a.a), B = need(a.b);
+        if (a.a === a.b) fail('a joint needs two different objects');
+        const jname = a.name !== undefined ? name(a.name) : `${a.type}-${a.a}-${a.b}`;
+        if (joints.some((j) => j.name === jname)) fail(`a joint named "${jname}" exists; disconnect it or give another name`);
+        const pair = (v, what) => (Array.isArray(v) && v.length === 2 && v.every(isNum) ? v : fail(`${what} must be [min, max]`));
+        const spec = { name: jname, type: a.type, a: a.a, b: a.b };
+        if (a.at !== undefined) spec.at = vec3(a.at, 'at');
+        if (a.at_b !== undefined) spec.bAt = vec3(a.at_b, 'at_b');
+        if (a.contact !== undefined) spec.contact = a.contact.map((p, i) => vec3(p, `contact[${i}]`));
+        if (a.edge !== undefined) {
+          const [i, k] = a.edge;
+          if (![i, k].every((x) => Number.isInteger(x) && x >= 0 && x < B.positions.length) || i === k) fail(`edge must be two different vertex indices of ${a.b} (0..${B.positions.length - 1})`);
+          spec.axis = [B.positions[i], B.positions[k]];
+        } else if (a.axis !== undefined) spec.axis = a.axis.map((p, i) => vec3(p, `axis[${i}]`));
+        if (a.path !== undefined) spec.path = a.path.map((p, i) => vec3(p, `path[${i}]`));
+        if (a.slider !== undefined) spec.slider = vec3(a.slider, 'slider');
+        if (a.limit !== undefined) spec.limit = pair(a.limit, 'limit');
+        if (a.limits !== undefined) {
+          spec.limits = {};
+          for (const k of ['x', 'y', 'z']) if (a.limits[k] !== undefined) spec.limits[k] = pair(a.limits[k], `limits.${k}`);
+        }
+        if (a.rest_length !== undefined) spec.restLength = number(a.rest_length, 'rest_length', { min: 0 });
+        if (a.stiffness !== undefined) spec.stiffness = number(a.stiffness, 'stiffness', { min: 0 });
+        if (a.damping !== undefined) spec.damping = number(a.damping, 'damping', { min: 0 });
+        if (a.ends !== undefined) spec.ends = a.ends;
+        if (a.spring_object !== undefined) spec.spring = { object: a.spring_object, mesh: need(a.spring_object), ...(a.spring_line ? { line: a.spring_line } : {}) };
+        let j;
+        try {
+          j = makeJoint(spec, A, B);
+        } catch (e) {
+          fail(e.message);
+        }
+        joints.push(j);
+        return { joint: { name: j.name, type: j.type, a: j.a, b: j.b }, now: nowOut(j) };
+      },
+    },
+    {
+      name: 'disconnect',
+      description: 'Take a joint away (by its name; see joints).',
+      inputSchema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] },
+      run: (a) => {
+        const n = joints.length;
+        joints = joints.filter((j) => j.name !== a.name);
+        if (joints.length === n) fail(`no joint named "${a.name}"`);
+        return { removed: a.name, joints: joints.length };
+      },
+    },
+    {
+      name: 'joints',
+      description: 'The joints and groups now: each joint\'s kind, holder (a), held part (b), its limits and its state (a hinge\'s angle, a pivot\'s angles, a rail\'s position, a spring\'s length) with its geometry in world coordinates.',
+      inputSchema: { type: 'object', properties: {} },
+      annotations: { readOnlyHint: true },
+      run: () => ({ joints: joints.map((j) => ({ name: j.name, type: j.type, a: j.a, b: j.b, ...(j.limit ? { limit: j.limit } : {}), ...(j.limits ? { limits: j.limits } : {}), ...(j.type === 'spring' ? { rest_length: j.restLength, stiffness: j.stiffness, damping: j.damping, ends: j.ends, ...(j.spring ? { spring_object: j.spring.object } : {}) } : {}), now: nowOut(j) })), groups: groupList() }),
+    },
+    {
+      name: 'move_joint',
+      description: 'Move a held part as its joint allows, kept inside the limits: a hinge to `angle` (degrees from the pose it was connected in), a pivot to `angles` [x, y, z] (degrees round the world axes), a rail to `position` (distance along the rail). What b holds moves along. Returns the state reached (clamped).',
+      inputSchema: { type: 'object', properties: { name: { type: 'string' }, angle: { type: 'number' }, angles: vec3Schema, position: { type: 'number' } }, required: ['name'] },
+      run: (a) => {
+        const j = joints.find((x) => x.name === a.name) ?? fail(`no joint named "${a.name}"`);
+        const A = objects.get(j.a), B = objects.get(j.b);
+        let r;
+        if (j.type === 'hinge') r = hingeTo(j, A, B, number(a.angle, 'angle'));
+        else if (j.type === 'pivot') r = pivotTo(j, A, B, vec3(a.angles, 'angles'));
+        else if (j.type === 'rail') r = railTo(j, A, B, number(a.position, 'position'));
+        else fail(`a ${j.type} cannot be moved like this (glue holds still; a spring moves by itself in the viewer)`);
+        const moved = moveWith(j.b, (m) => moveMesh(m, r.move));
+        return { name: j.name, now: nowOut(j), moved };
       },
     },
     {
@@ -576,12 +766,15 @@ export const createScene = () => {
       run: (a) => {
         need(a.name);
         objects.delete(a.name);
+        dropLinks(a.name);
         return { removed: a.name, objects: objects.size };
       },
     },
     { name: 'clear', description: 'Remove every object.', inputSchema: { type: 'object', properties: {} }, run: () => {
       const n = objects.size;
       objects.clear();
+      groups.clear();
+      joints = [];
       return { removed: n };
     } },
     {
@@ -658,8 +851,11 @@ export const createScene = () => {
           next.set(o.name, parseMesh(o.mesh?.positions, o.mesh?.faces));
         }
         objects.clear();
+        groups.clear();
         for (const [k, v] of next) objects.set(k, v);
-        return { objects: objects.size };
+        for (const o of parsed.objects) if (typeof o.group === 'string' && o.group) groups.set(o.name, o.group);
+        joints = Array.isArray(parsed.joints) ? parsed.joints.filter((j) => j && objects.has(j.a) && objects.has(j.b)) : [];
+        return { objects: objects.size, groups: new Set(groups.values()).size, joints: joints.length };
       },
     },
     // ---- The open viewer (the live link): these do not change the scene, they steer what the browser shows

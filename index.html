@@ -849,6 +849,7 @@
         <option value="human">Low poly human</option>
         <option value="betterman">Betterman (pose him: J)</option>
         <option value="command-bridge">Command bridge (2 crew at the desk)</option>
+        <option value="mechanics">Mechanics (hinge, rail, pivot, spring, group)</option>
         <optgroup label="games (format 3draft-game)"><option value="game:fifth-percent">Fifth Percent: the starship bridge in the Deep Sky</option></optgroup>
         <option value="tr74">TR-74 expedition module</option>
         <option value="station-screen">Station screen (a scene on a face)</option>
@@ -936,7 +937,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@0fa3bf290d5ad3d56c76c8323eb1136c4e939929/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e3f1cf24f50c018347968f7a65c50040f7b2b4c0/dist/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
@@ -1095,6 +1096,7 @@
     let scene = nothing; // what is on screen and what picking sees: all objects (or the isolated one)
     let owners = []; // [{ obj, start, end }]: which object owns which faces of `scene`
     let cam = null; // camera of the last drawn frame
+    let joints = []; // the joints of the scene (src/joints.ts; a / b are object ids here, names in a scene file), see Mechanics
     let game = null; // a running game (3draft-game: a universe scene and a ship drawn over it), see loadGame
     let gcam = null; // the camera of every frame (cam only exists while the pointer is over the view)
     let drawing = { left: 0, top: 0 }; // where the square drawing starts, in client pixels
@@ -2197,7 +2199,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@0fa3bf290d5ad3d56c76c8323eb1136c4e939929/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e3f1cf24f50c018347968f7a65c50040f7b2b4c0/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -2707,6 +2709,7 @@
       charHooks.tick?.(performance.now()); // walking characters
       stepTravel(performance.now());
       gameStep(performance.now()); // a game: the walk on the bridge
+      jointTick(performance.now()); // the joints: a held part's drag, the springs
       asShip(() => {
         stepFly(performance.now());
         measureMotion(performance.now(), eyeNow(), shipBasis().forward); // once a frame, after the moves
@@ -4337,7 +4340,7 @@
     const save = (obj, op) => col && enqueue(op, () => unsaved.delete(obj.id));
     // the stored document of an object; the lines drawn on it ride along
     const textPart = (o) => (o.text !== undefined ? { text: o.text, textFrame: o.textFrame } : {}); // a text model keeps its words and where they stand, so they can be fixed
-    const docOf = (o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}), ...textPart(o), ...(o.pickable === false ? { pickable: false } : {}), ...(o.skyLine ? { skyLine: o.skyLine } : {}) });
+    const docOf = (o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}), ...textPart(o), ...(o.pickable === false ? { pickable: false } : {}), ...(o.skyLine ? { skyLine: o.skyLine } : {}), ...(o.group ? { group: o.group } : {}) });
     const shortId = () => Math.random().toString(36).slice(2, 6).padEnd(4, '0'); // prism-{id}
     const uid = (name) => `${name}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
     const create = (name, mesh) => {
@@ -4401,6 +4404,8 @@
     // Clear: every object goes; one U brings them all back.
     const clearScene = () => {
       if (!gameLoading) endGame();
+      joints = [];
+      springV.clear();
       setCloud(null);
       skyFigures = [];
       skyMine = [];
@@ -4600,7 +4605,8 @@
           })
         : ((startScene = startScene === name ? name : null), withLoader(name.replace(/^saved:/, ''), async () => loadScene(await sceneOf(name))));
     const centroid = (ps) => ps.reduce((s, p) => s.map((c, i) => c + p[i] / ps.length), [0, 0, 0]);
-    const addScene = async ({ objects: raw, palette: extra, prototypes, start, cloud: points, cloudProtos, vehicle: ride, figures, skyLines, paths }) => {
+    const addScene = async ({ objects: raw, palette: extra, prototypes, start, cloud: points, cloudProtos, vehicle: ride, figures, skyLines, paths, joints: rawJoints }) => {
+      const madeIds = new Map(); // name -> id of the objects made by this load (for the joints)
       loaderStep(`building ${raw.length} objects`);
       await new Promise((r) => requestAnimationFrame(() => r()));
       const objects = raw.map((o) => (o.proto ? { name: o.name, inst: { ...o, proto: prototypes[o.proto] }, mesh: instantiate(prototypes[o.proto].lods.at(-1), placement(o)), ...(o.pickable === false ? { pickable: false } : {}) } : o));
@@ -4624,6 +4630,8 @@
         objects.forEach((o) => {
           const mesh = dx ? { ...o.mesh, positions: o.mesh.positions.map(([x, y, z]) => [x + dx, y, z]) } : o.mesh;
           const made = create(o.name, mesh);
+          if (!madeIds.has(o.name)) madeIds.set(o.name, made.id);
+          if (typeof o.group === 'string' && o.group) (live(made) ?? made).group = o.group;
           if (o.text !== undefined) Object.assign(live(made) ?? made, { text: o.text, textFrame: o.textFrame && { ...o.textFrame, origin: o.textFrame.origin.map((c, i) => (i === 0 ? c + dx : c)) } });
           if (o.inst) (live(made) ?? made).inst = { ...o.inst, at: [o.inst.at[0] + dx, o.inst.at[1], o.inst.at[2]], level: -1 };
           if (o.pickable === false) (live(made) ?? made).pickable = false;
@@ -4634,6 +4642,11 @@
           }
         }),
       );
+      // the joints: by the names of the objects just made
+      for (const j of rawJoints ?? []) {
+        const a = madeIds.get(j.a), b = madeIds.get(j.b);
+        if (a && b) joints.push({ ...j, a, b, ...(j.spring && madeIds.get(j.spring.object) ? { spring: { ...j.spring, object: madeIds.get(j.spring.object) } } : {}) });
+      }
       // the constellation figures: polylines between the centres of the stars just loaded (by name), drawn as GPU lines
       if (figures?.length) {
         const at = new Map();
@@ -6043,7 +6056,7 @@
       redraw();
     };
     const startGroup = (kind) => {
-      const objs = pickedObjs();
+      const objs = withCarried(pickedObjs());
       if (!objs.length) return false;
       const fake = groupObj(objs);
       startXf(kind, { obj: fake, ids: fake.mesh.positions.map((_, i) => i), group: objs, axisVec: kind === 'rotate' ? [0, 1, 0] : null }); // (R turns round the up axis)
@@ -8051,6 +8064,194 @@
       g.eyeY = (Number.isFinite(fl) ? fl : 0) + g.walk.eyeHeight;
       redraw();
     };
+    // ---- Mechanics: groups and joints (src/joints.ts). A group (o.group, a name) moves as one: G on any of them takes them all
+    // (as a B selection). Ctrl+G groups the B selection (named group-1, group-2, …; the AI can name them over MCP), Ctrl+Shift+G
+    // ungroups the selection's groups (or the pointed one's). Joints come from a scene (the MCP connect tool): a holder (a) carries
+    // what it holds (b) rigidly: glue both ways, pivot / hinge / rail one way; a held part moves only as its joint allows: G on it
+    // turns a hinge (round its line) or a pivot (round the view's axis through it, X Y Z lock a world axis), or slides a rail, inside
+    // the limits; a click or Enter keeps it (one U step), Esc takes it back. A spring's held part is not carried: each frame it is
+    // pulled towards the rest length (springStep, damped), and the spring object is stretched between the ends.
+    const jointsOut = () =>
+      joints
+        .map((j) => {
+          const a = allObjects().find((o) => o.id === j.a), b = allObjects().find((o) => o.id === j.b);
+          if (!a || !b) return null;
+          const sp = j.spring && allObjects().find((o) => o.id === j.spring.object);
+          return { ...j, a: a.name, b: b.name, ...(j.spring ? { spring: { ...j.spring, object: sp?.name ?? j.spring.object } } : {}) };
+        })
+        .filter(Boolean);
+    const linkedNow = () => allObjects().map((o) => ({ name: o.id, group: o.group }));
+    const liveJoints = () => joints.filter((j) => has({ id: j.a }) && has({ id: j.b }));
+    // the objects that move with these when they are moved freely (their groups, what is glued to them, what they hold)
+    const withCarried = (objs) => {
+      if (!objs.length) return objs;
+      const js = liveJoints();
+      if (!js.length && !objs.some((o) => o.group)) return objs;
+      const ids = carriedBy(objs.map((o) => o.id), linkedNow(), js);
+      return ids.map((id) => allObjects().find((o) => o.id === id)).filter(Boolean);
+    };
+    let groupCount = 0;
+    const setGroup = (list, g) => {
+      const before = list.map((o) => [o, o.group]);
+      history.push(() => before.forEach(([o, was]) => { const x = live(o); if (x) { if (was) x.group = was; else delete x.group; if (x.host) save(x, () => col.doc(x.id).set(docOf(x))); } }));
+      for (const o of list) {
+        const x = live(o) ?? o;
+        if (g) x.group = g;
+        else delete x.group;
+        if (x.host) save(x, () => col.doc(x.id).set(docOf(x)));
+      }
+    };
+    const groupNow = () => {
+      const list = pickedObjs();
+      if (list.length < 2) return sceneNote('Ctrl+G: select at least two objects with B first');
+      const used = new Set(allObjects().map((o) => o.group).filter(Boolean));
+      let g;
+      do g = `group-${++groupCount}`; while (used.has(g));
+      setGroup(list, g);
+      noteObj(`${g}: ${list.length} objects move as one (G on any of them) · Ctrl+Shift+G ungroups`);
+      redraw();
+    };
+    const ungroupNow = () => {
+      const from = pickedObjs().length ? pickedObjs() : [pointedObject()].filter(Boolean);
+      const names = new Set(from.map((o) => o.group).filter(Boolean));
+      if (!names.size) return sceneNote('Ctrl+Shift+G: no group in the selection or under the cross');
+      const list = allObjects().filter((o) => names.has(o.group));
+      setGroup(list, null);
+      picked = [];
+      noteObj(`ungrouped ${[...names].join(', ')}: ${list.length} objects move on their own again`);
+      redraw();
+    };
+    // a held part: G turns or slides it as its joint allows (jdrag)
+    let jdrag = null; // { j, a, b, moved: [{ obj, mesh0 }], s0, c, a0, acc, axis, lock, value }
+    const startJointDrag = (o) => {
+      const j = holderOf(o.id, liveJoints());
+      const a = allObjects().find((x) => x.id === j.a);
+      if (!gcam || !a) return;
+      const moved = withCarried([o]).map((x) => ({ obj: x, orig: x.mesh, mesh0: x.mesh }));
+      const now = jointNow(j, a.mesh, o.mesh);
+      const centre = j.type === 'hinge' ? now.axis[0].map((v, i) => (v + now.axis[1][i]) / 2) : j.type === 'pivot' ? now.point : bounds(o.mesh).center;
+      const sc = project(gcam, centre);
+      const pp = panelPointer ?? { x: gcam.size / 2, y: gcam.size / 2 };
+      jdrag = { j, a, b: o, moved, A: a.mesh, B0: o.mesh, c: { x: sc.x, y: sc.y }, a0: Math.atan2(pp.y - sc.y, pp.x - sc.x), last: Math.atan2(pp.y - sc.y, pp.x - sc.x), acc: 0, lock: null, now0: now, value: null };
+      const what = { hinge: 'turns round its hinge', pivot: 'turns round its pivot (X Y Z lock an axis)', rail: 'slides along its rail' }[j.type];
+      noteObj(`${o.name} ${what} · click or Enter keeps it, Esc takes it back`);
+      jointDragUpdate();
+    };
+    const jointDragUpdate = () => {
+      const d = jdrag;
+      if (!d || !gcam || !panelPointer) return;
+      const { j } = d;
+      let r;
+      if (j.type === 'rail') {
+        // the rail point nearest the pointer on the screen
+        const path = d.now0.path;
+        let best = null;
+        for (let i = 0; i + 1 < path.length; i++) {
+          const p = project(gcam, path[i]), q = project(gcam, path[i + 1]);
+          if (p.depth <= 0 || q.depth <= 0) continue;
+          const dx = q.x - p.x, dy = q.y - p.y, L2 = dx * dx + dy * dy;
+          const t = L2 > 0 ? Math.max(0, Math.min(1, ((panelPointer.x - p.x) * dx + (panelPointer.y - p.y) * dy) / L2)) : 0;
+          const dist = Math.hypot(p.x + dx * t - panelPointer.x, p.y + dy * t - panelPointer.y);
+          if (!best || dist < best.dist) best = { dist, w: path[i].map((v, k) => v + (path[i + 1][k] - v) * t) };
+        }
+        if (!best) return;
+        r = railNear(j, d.A, d.B0, best.w);
+        d.value = `${r.position.toFixed(3)} along the rail`;
+      } else {
+        const ang = Math.atan2(panelPointer.y - d.c.y, panelPointer.x - d.c.x);
+        let step = ang - d.last;
+        if (step > Math.PI) step -= 2 * Math.PI;
+        if (step < -Math.PI) step += 2 * Math.PI;
+        d.acc += step;
+        d.last = ang;
+        const fwd = gcam.f; // the camera's forward: a turn on the screen is a turn round it
+        if (j.type === 'hinge') {
+          const [p0, p1] = d.now0.axis;
+          const u = p1.map((v, i) => v - p0[i]);
+          const sign = u[0] * fwd[0] + u[1] * fwd[1] + u[2] * fwd[2] > 0 ? 1 : -1; // (screen y points down)
+          r = hingeTo(j, d.A, d.B0, d.now0.angle + (sign * d.acc * 180) / Math.PI);
+          d.value = `${r.angle.toFixed(1)}°${j.limit ? ` (limit ${j.limit[0]}…${j.limit[1]})` : ''}`;
+        } else {
+          const axis = d.lock ? { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] }[d.lock] : fwd.map((v) => -v);
+          const sign = d.lock ? (axis[0] * fwd[0] + axis[1] * fwd[1] + axis[2] * fwd[2] > 0 ? 1 : -1) : -1;
+          r = pivotTurn(j, d.A, d.B0, axis, (sign * d.acc * 180) / Math.PI);
+          d.value = `x ${r.angles[0].toFixed(0)}° y ${r.angles[1].toFixed(0)}° z ${r.angles[2].toFixed(0)}°${d.lock ? ` · round ${d.lock.toUpperCase()}` : ''}`;
+        }
+      }
+      for (const m of d.moved) {
+        const x = live(m.obj);
+        if (x) x.mesh = moveMesh(m.mesh0, r.move);
+      }
+      stretchSprings();
+      rebuild();
+      noteObj(`${d.b.name}: ${d.value} · click or Enter keeps it, Esc takes it back`);
+    };
+    const endJointDrag = (keep) => {
+      const d = jdrag;
+      if (!d) return;
+      jdrag = null;
+      const finals = d.moved.map((m) => [m, live(m.obj)?.mesh ?? m.mesh0]);
+      for (const m of d.moved) { const x = live(m.obj); if (x) x.mesh = m.orig; }
+      if (keep) asOneStep(() => finals.forEach(([m, mesh]) => { if (has(m.obj)) { history.push(() => has(m.obj) && change(m.obj, m.orig)); change(m.obj, mesh); } }));
+      stretchSprings();
+      rebuild();
+      noteObj(keep ? `${d.b.name}: ${d.value ?? 'kept'}` : '');
+      redraw();
+    };
+    window.addEventListener('keydown', (e) => {
+      if (!jdrag) return;
+      const k = e.key.toLowerCase();
+      if (k === 'enter' || k === 'escape') return void (e.preventDefault(), e.stopImmediatePropagation(), endJointDrag(k === 'enter'));
+      if (jdrag.j.type === 'pivot' && ['x', 'y', 'z'].includes(k) && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        jdrag.lock = jdrag.lock === k ? null : k;
+        // (start the turn again from here round the new axis)
+        jdrag.B0 = live(jdrag.b)?.mesh ?? jdrag.B0;
+        jdrag.moved = jdrag.moved.map((m) => ({ ...m, mesh0: live(m.obj)?.mesh ?? m.mesh0 }));
+        jdrag.acc = 0;
+        redraw();
+      }
+    }, true);
+    stage.addEventListener('pointerdown', (e) => {
+      if (!jdrag || e.button !== 0) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      endJointDrag(true);
+    }, true);
+    // the spring objects follow their ends
+    const stretchSprings = () => {
+      for (const j of liveJoints()) {
+        if (!j.spring) continue;
+        const a = allObjects().find((o) => o.id === j.a), b = allObjects().find((o) => o.id === j.b), sp = allObjects().find((o) => o.id === j.spring.object);
+        if (a && b && sp) sp.mesh = springMesh(j, a.mesh, b.mesh);
+      }
+    };
+    // every frame: the joint drag follows the pointer, the springs swing
+    const springV = new Map(); // joint name -> velocity
+    let jointLast = 0;
+    const jointTick = (now) => {
+      const dt = Math.min(0.05, jointLast ? (now - jointLast) / 1000 : 0);
+      jointLast = now;
+      if (jdrag) jointDragUpdate();
+      if (frozen || !dt) return;
+      const busy = new Set([...(xf?.group?.map((g) => g.obj.id) ?? []), ...(xf?.obj?.id ? [xf.obj.id] : []), ...(jdrag ? jdrag.moved.map((m) => m.obj.id) : [])]);
+      let any = false;
+      for (const j of liveJoints()) {
+        if (j.type !== 'spring' || busy.has(j.b)) continue;
+        const a = allObjects().find((o) => o.id === j.a), b = allObjects().find((o) => o.id === j.b);
+        const st = springStep(j, a.mesh, b.mesh, springV.get(j.name) ?? [0, 0, 0], dt);
+        springV.set(j.name, st.v);
+        if (Math.hypot(...st.move.t) < 1e-9) continue;
+        for (const x of withCarried([b])) x.mesh = moveMesh(x.mesh, st.move);
+        any = true;
+      }
+      if (any) {
+        stretchSprings();
+        rebuild();
+        redraw();
+      }
+    };
     // the bridge over the universe: the same lens and size, the player's eye; transparent where nothing of the ship is
     const drawBridge = (size, lens) => {
       const g = game;
@@ -8102,6 +8303,11 @@
         if (document.body.classList.contains('zen')) return void toggleZen(false);
       }
       if ((editing || xf) && editKey(e)) return;
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'g' && !editing) {
+        e.preventDefault(); // (not the browser's find next)
+        if (!e.repeat) (e.shiftKey ? ungroupNow() : groupNow());
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'd') {
         e.preventDefault(); // not the browser's bookmark
         if (!e.repeat) duplicate();
@@ -8116,6 +8322,16 @@
         if (picked.length && pickedObjs().length) {
           // the selection moves together (G G: placed together, held where the pointer is on one of them)
           lastG = under && picked.includes(under.id) ? { t: performance.now(), id: 'group', point: [...h.point], normal: [...h.normal] } : null;
+          startGroup('grab');
+          return;
+        }
+        if (o && holderOf(o.id, joints)) return void startJointDrag(o); // a held part moves as its joint allows
+        const along = o ? withCarried([o]) : [];
+        if (along.length > 1) {
+          // a group, or what is glued to it / held by it: they move as one (as a B selection)
+          picked = along.map((x) => x.id);
+          lastG = under && picked.includes(under.id) ? { t: performance.now(), id: 'group', point: [...h.point], normal: [...h.normal] } : null;
+          noteObj(`${o.group ? `group ${o.group}` : `${o.name} and what is joined to it`} · ${picked.length} objects · Ctrl+Shift+G ungroups`);
           startGroup('grab');
           return;
         }
@@ -8576,7 +8792,8 @@
         palette: materials.filter((m) => used.has(m.name)).map((m) => ({ ...m })),
         view: viewOf(),
         ...(vehicle ? { vehicle } : {}),
-        objects: allObjects().map((o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}), ...textPart(o), ...(o.pickable === false ? { pickable: false } : {}), ...(o.skyLine ? { skyLine: o.skyLine } : {}), ...(o.character ? { character: o.character } : {}) })),
+        objects: allObjects().map((o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}), ...textPart(o), ...(o.pickable === false ? { pickable: false } : {}), ...(o.skyLine ? { skyLine: o.skyLine } : {}), ...(o.character ? { character: o.character } : {}), ...(o.group ? { group: o.group } : {}) })),
+        ...(jointsOut().length ? { joints: jointsOut() } : {}),
         ...(skyFigures.length ? { figures: skyFigures.map(({ id, name, en, lines }) => ({ id, name, en, lines })) } : {}),
         ...(skyMine.length ? { skyLines: skyMine.map((l) => [l.a, l.b]) } : {}),
         ...(skyPaths.length ? { paths: skyPaths } : {}),
@@ -8989,6 +9206,10 @@
         },
         // put the eye at a point of the scene (fly view), looking along yaw / pitch (degrees)
         eye: (x, y, z, yawDeg, pitchDeg) => lookFrom([x, y, z], yawDeg, pitchDeg),
+        joints: () => liveJoints().map((j) => ({ name: j.name, type: j.type, now: jointNow(j, allObjects().find((o) => o.id === j.a).mesh, allObjects().find((o) => o.id === j.b).mesh) })),
+        groups: () => Object.fromEntries([...new Set(allObjects().map((o) => o.group).filter(Boolean))].map((g) => [g, allObjects().filter((o) => o.group === g).map((o) => o.name)])),
+        centre: (name) => { const o = allObjects().find((x) => x.name === name); if (!o || !gcam) return null; const a = project(gcam, bounds(o.mesh).center); return { x: a.x + drawing.left, y: a.y + drawing.top }; }, // (client pixels)
+        jdrag: () => jdrag && { b: jdrag.b.name, type: jdrag.j.type, value: jdrag.value },
         game: () => game && { name: game.name, mode: game.mode, pos: game.pos.map((v) => +v.toFixed(3)), eyeY: +game.eyeY.toFixed(3), ship: game.ship, yaw, pitch, bridge: !bridgeCanvas.hidden },
         state: () => ({ solo: solo ? 1 : 0, faces: scene.faces.length, objects: allObjects().length, db: Boolean(col), palette: !paletteEl.hidden, cursor: getComputedStyle(stage).cursor, center: fit.center, dist: fit.dist, radius: fit.radius, level: { ...level }, yaw, pitch, eye: eyeNow(), shown: gcam?.eye, fov: +(fovNow * 180 / Math.PI).toFixed(1), zoom: +zoomNow.toFixed(3), fly, placed: placed.length }),
         grab: async () => {
