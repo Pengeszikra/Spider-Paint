@@ -1,11 +1,11 @@
-// (copied from 3Draft 8b36e93 by scripts/sync.mjs: change it there)
+// (copied from 3Draft 0fa3bf2 by scripts/sync.mjs: change it there)
 // The model and its tools. One scene of named objects (meshes), edited by tool calls
 // and judged by the deterministic SVG preview. No I/O except save/load of JSON files
 // under the working directory. The MCP transport is in server.js.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, relative, isAbsolute, extname } from 'node:path';
-import { skyScene, SKY_TYPES, box, extrude, extrudeFace, moveVertices, faceNormal, faceCenter, merge, rotate, bounds, makeCamera, orbit, pick, renderView, renderSheet, validate, boolean, VIEW_ORDER, triangulate, buildCharacter, normalizeCharacter, variateCharacter, posed, walkPose, HUMANOID_POSES, CHARACTER_PRESETS } from './engine/index.js';
+import { skyScene, SKY_TYPES, box, extrude, extrudeFace, moveVertices, faceNormal, faceCenter, merge, rotate, bounds, makeCamera, orbit, pick, ray as camRay, renderView, renderSheet, validate, boolean, VIEW_ORDER, triangulate, buildCharacter, normalizeCharacter, variateCharacter, posed, walkPose, HUMANOID_POSES, CHARACTER_PRESETS } from './engine/index.js';
 
 export class ToolError extends Error {}
 const fail = (message) => {
@@ -91,10 +91,12 @@ const upTo = (mesh, n, pivot) => {
   if (d < -1 + 1e-9) return turnAbout(mesh, [1, 0, 0], Math.PI, pivot);
   return turnAbout(mesh, vcross([0, 1, 0], u), Math.acos(d), pivot);
 };
-// the nearest face of `targets` ([name, mesh] pairs) along the ray; the normal faces the ray's origin
-const castRay = (targets, origin, dir) => {
+// the nearest face of `targets` ([name, mesh] pairs) along the ray; the normal faces the ray's origin. With all: every hit,
+// nearest first, each with `facing`: true where the ray meets the face's outside (entering a closed object), false inside
+const castRay = (targets, origin, dir, { all = false } = {}) => {
   const D = vnorm(dir);
   let best = null;
+  const hits = [];
   for (const [n, mesh] of targets) {
     mesh.faces.forEach((f, fi) => {
       const pts = f.v.map((k) => mesh.positions[k]);
@@ -106,15 +108,18 @@ const castRay = (targets, origin, dir) => {
         const Q = vcross(T, e1), v = vdot(D, Q) / det;
         if (v < 0 || u + v > 1) continue;
         const t = vdot(e2, Q) / det;
-        if (t > 1e-9 && (!best || t < best.t)) {
-          let normal = vnorm(faceNormal(pts));
-          if (vdot(normal, D) > 0) normal = normal.map((x) => -x);
-          best = { t, object: n, face: fi, point: origin.map((o, i) => o + D[i] * t), normal };
+        if (t > 1e-9 && (all || !best || t < best.t)) {
+          const out = vnorm(faceNormal(pts));
+          const facing = vdot(out, D) < 0;
+          const hit = { t, object: n, face: fi, point: origin.map((o, i) => o + D[i] * t), normal: facing ? out : out.map((x) => -x), facing };
+          if (all) hits.push(hit);
+          else best = hit;
+          break; // (one hit a face: a ray along a diagonal would meet both its triangles)
         }
       }
     });
   }
-  return best;
+  return all ? hits.sort((a, b) => a.t - b.t) : best;
 };
 // the foot of a mesh: the middle of the bottom of its bounding box (for a figure: the middle of where it stands)
 const footOf = (mesh) => {
@@ -155,6 +160,31 @@ export const createScene = () => {
   const data = () => ({ format: '3draft-scene', version: 1, rev, objects: [...objects].map(([n, mesh]) => ({ name: n, mesh })) });
 
   const need = (n) => objects.get(name(n)) ?? fail(`no object named "${n}". Use list to see the objects.`);
+  // the sensing set (what the cursor of the viewer would feel): every object except the ignored ones; sense, pick and place_on
+  // look only at these. A call can narrow it further (exclude) or widen it (include: also ignored ones).
+  const ignored = new Set();
+  const names = (v, what) => (v === undefined ? [] : [v].flat().map((n) => (typeof n === 'string' ? n : fail(`${what} must be a name or a list of names`))));
+  const sensed = ({ exclude, include, only } = {}) => {
+    const ex = new Set(names(exclude, 'exclude')), inc = new Set(names(include, 'include'));
+    [...ex, ...inc].forEach(need);
+    const base = only !== undefined ? names(only, 'only').map((n) => (need(n), n)) : [...objects.keys()].filter((n) => !ignored.has(n) || inc.has(n));
+    return base.filter((n) => !ex.has(n)).map((n) => [n, objects.get(n)]);
+  };
+  const senseProps = {
+    exclude: { description: 'leave these objects out of the sensing for this call (to see through them: to place behind or into them)', oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+    include: { description: 'take these in for this call even if the sensing set ignores them', oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+  };
+  const hitOut = (h, eye) => ({ object: h.object, face: h.face, point: rv(h.point), normal: rv(h.normal), distance: r6(h.t), ...(h.facing === undefined ? {} : { outside: h.facing }) });
+  // a ray from the camera of a render (same view and size as render) through the pixel x, y
+  const pixelRay = (a) => {
+    if (!objects.size) fail('the scene is empty');
+    const { mesh } = combined();
+    const view = viewOf(a, 'persp');
+    if (view === 'sheet') fail('a single view is needed, not the sheet');
+    const size = number(a.size, 'size', { min: 64, max: 2000, fallback: 320 });
+    const cam = makeCamera(view, mesh, size, bounds(mesh));
+    return camRay(cam, number(a.x, 'x'), number(a.y, 'y'));
+  };
   const put = (n, mesh, replace) => {
     name(n);
     if (objects.has(n) && !replace) fail(`"${n}" already exists; pass replace: true to overwrite it, or pick another name.`);
@@ -280,7 +310,7 @@ export const createScene = () => {
     },
     {
       name: 'place_on',
-      description: 'Put an object down on the surface of others, like the viewer\'s G G: its foot (the middle of the bottom of its bounding box; for a character the middle of where it stands) goes onto the surface point, and with align "normal" its up turns to the surface normal (a thing on a slope, a ball, a wall). Say where with `at` [x, z] (dropped straight down there: the highest surface under that spot), or `point` (+ `normal`) from pick, or a ray (`from` + `dir`). Default: straight down at the object\'s own x, z. Returns the new bounds and the surface it landed on.',
+      description: 'Put an object down on the surface of others, like the viewer\'s G G: its foot (the middle of the bottom of its bounding box; for a character the middle of where it stands) goes onto the surface point, and with align "normal" its up turns to the surface normal (a thing on a slope, a ball, a wall). Say where with `at` [x, z] (dropped straight down there: the highest surface under that spot), or a pixel `x`, `y` of a render (the ray from the camera, like the viewer\'s cursor; view / yaw / pitch / size as render), or `point` (+ `normal`) from sense / pick, or a ray (`from` + `dir`). Default: straight down at the object\'s own x, z. It lands on the sensing set (see sensing) without itself, or on `onto`; exclude / include change the set for this call (exclude a wall to place behind it). Returns the new bounds and the surface it landed on with its distance along the ray.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -291,6 +321,10 @@ export const createScene = () => {
           normal: { ...vec3Schema, description: 'the surface normal at `point` (default up)' },
           from: { ...vec3Schema, description: 'cast a ray from here …' },
           dir: { ...vec3Schema, description: '… in this direction (e.g. [1, 0, 0] to hang a picture on a wall to the +x)' },
+          x: { type: 'number', description: 'a pixel of a render: cast from the camera through it (with y, and view / yaw / pitch / size as for render)' },
+          y: { type: 'number' },
+          view: viewProps.view, yaw: viewProps.yaw, pitch: viewProps.pitch, size: viewProps.size,
+          ...senseProps,
           align: { type: 'string', enum: ['up', 'normal'], description: 'up (default): the object stays upright; normal: its up turns to the surface normal' },
           turn: { type: 'number', description: 'degrees to turn it round its up axis first (counter-clockwise seen from above)' },
           gap: { type: 'number', description: 'lift it off the surface by this much along the normal (default 0)' },
@@ -299,7 +333,7 @@ export const createScene = () => {
       },
       run: (a) => {
         let mesh = need(a.name);
-        const ontoNames = a.onto === undefined ? [...objects.keys()].filter((n) => n !== a.name) : [a.onto].flat();
+        const ontoNames = a.onto === undefined ? sensed(a).map(([n]) => n).filter((n) => n !== a.name) : names(a.onto, 'onto').filter((n) => !names(a.exclude, 'exclude').includes(n));
         ontoNames.forEach((n) => (n === a.name ? fail('an object cannot be placed on itself') : need(n)));
         const targets = ontoNames.map((n) => [n, objects.get(n)]);
         if (!targets.length) fail('there is nothing to place it on: add another object, or say `onto`');
@@ -308,7 +342,9 @@ export const createScene = () => {
           surface = { object: null, point: vec3(a.point, 'point'), normal: vnorm(vec3(a.normal, 'normal', [0, 1, 0])) };
         } else {
           let origin, dir;
-          if (a.from !== undefined || a.dir !== undefined) {
+          if (a.x !== undefined || a.y !== undefined) {
+            ({ origin, dir } = pixelRay(a));
+          } else if (a.from !== undefined || a.dir !== undefined) {
             origin = vec3(a.from, 'from');
             dir = vec3(a.dir, 'dir');
           } else {
@@ -327,7 +363,7 @@ export const createScene = () => {
             origin = [xz[0], top + 1, xz[1]];
             dir = [0, -1, 0];
           }
-          surface = castRay(targets, origin, dir);
+          surface = castRay(targets, origin, dir, { all: true }).find((h) => h.facing) ?? null; // (front faces, as the cursor)
           if (!surface) fail(`the ray from [${rv(origin)}] along [${rv(dir)}] hits nothing of ${ontoNames.join(', ')}`);
         }
         let foot = footOf(mesh);
@@ -341,7 +377,7 @@ export const createScene = () => {
         const d = vsub(goal, foot);
         mesh = { ...mesh, positions: mesh.positions.map((p) => p.map((v, i) => v + d[i])) };
         objects.set(a.name, mesh);
-        return { ...summary(a.name, mesh), surface: { object: surface.object, point: rv(surface.point), normal: rv(surface.normal) } };
+        return { ...summary(a.name, mesh), surface: { object: surface.object, point: rv(surface.point), normal: rv(surface.normal), ...(surface.t !== undefined ? { distance: r6(surface.t) } : {}) } };
       },
     },
     {
@@ -392,6 +428,45 @@ export const createScene = () => {
         }
         objects.set(a.name, mesh);
         return { ...summary(a.name, mesh), preset, pose, base: spec.base, height: r6(spec.body.height), ...(surface ? { surface: { object: surface.object, point: rv(surface.point) } } : {}) };
+      },
+    },
+    {
+      name: 'sense',
+      description: 'Feel the scene along a ray, as the viewer\'s cursor does from the camera: through pixel (x, y) of a render (same view and size as render), or from `from` along `dir`. Returns the first surface (object, face, point, normal, distance from the eye or `from`) and `hits`: everything along the ray, nearest first, with `outside` true where the ray enters an object and false where it leaves it, so you can see what is behind and how thick it is. Only the sensing set counts (see sensing); exclude / include change it for this call. Use the point and normal with place_on (point + normal), or give place_on the same pixel.',
+      inputSchema: { type: 'object', properties: { ...viewProps, x: { type: 'number' }, y: { type: 'number' }, from: vec3Schema, dir: vec3Schema, ...senseProps, limit: { type: 'integer', description: 'at most this many hits (default 12)' } } },
+      annotations: { readOnlyHint: true },
+      run: (a) => {
+        const r = a.from !== undefined || a.dir !== undefined ? { origin: vec3(a.from, 'from'), dir: vec3(a.dir, 'dir') } : pixelRay(a);
+        const targets = sensed(a);
+        const hits = castRay(targets, r.origin, r.dir, { all: true });
+        const limit = Math.trunc(number(a.limit, 'limit', { min: 1, max: 200, fallback: 12 }));
+        const first = hits.find((h) => h.facing) ?? null;
+        return { ray: { from: rv(r.origin), dir: rv(vnorm(r.dir)) }, sensed: targets.map(([n]) => n), first: first && hitOut(first), hits: hits.slice(0, limit).map((h) => hitOut(h)) };
+      },
+    },
+    {
+      name: 'sensing',
+      description: 'The sensing set: which objects sense, pick and place_on feel (the viewer\'s cursor feels everything; here you choose). New objects are sensed. ignore takes objects out (e.g. a wall to place things behind it, a box to place into it), sense puts them back, only senses just these, reset senses everything again. Returns the sensed and the ignored objects.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          ignore: { description: 'take these out of the sensing', oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+          sense: { description: 'put these back into the sensing', oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+          only: { description: 'sense only these (all others ignored)', oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+          reset: { type: 'boolean', description: 'sense every object again' },
+        },
+      },
+      run: (a) => {
+        if (a.reset) ignored.clear();
+        if (a.only !== undefined) {
+          const keep = new Set(names(a.only, 'only').map((n) => (need(n), n)));
+          for (const n of objects.keys()) if (!keep.has(n)) ignored.add(n);
+          for (const n of keep) ignored.delete(n);
+        }
+        for (const n of names(a.ignore, 'ignore')) (need(n), ignored.add(n));
+        for (const n of names(a.sense, 'sense')) (need(n), ignored.delete(n));
+        for (const n of [...ignored]) if (!objects.has(n)) ignored.delete(n);
+        return { sensed: [...objects.keys()].filter((n) => !ignored.has(n)), ignored: [...ignored] };
       },
     },
     {
@@ -540,18 +615,17 @@ export const createScene = () => {
     },
     {
       name: 'pick',
-      description: 'What is at pixel (x, y) of a render? Uses the same camera and size as render. Returns the object, its face index, the 3D point, the surface normal and the distance. Use it to find coordinates to place or stack things.',
-      inputSchema: { type: 'object', properties: { ...viewProps, x: { type: 'number' }, y: { type: 'number' } }, required: ['x', 'y'] },
+      description: 'What is at pixel (x, y) of a render? Uses the same camera and size as render. Returns the object, its face index, the 3D point, the surface normal and the distance. Use it to find coordinates to place or stack things. Only the sensing set counts (see sensing; exclude / include for this call); sense also lists what lies behind.',
+      inputSchema: { type: 'object', properties: { ...viewProps, x: { type: 'number' }, y: { type: 'number' }, ...senseProps }, required: ['x', 'y'] },
       annotations: { readOnlyHint: true },
       run: (a) => {
-        const { mesh, owners } = combined();
-        const view = viewOf(a, 'persp');
-        if (view === 'sheet') fail('pick needs a single view, not the sheet');
-        const size = number(a.size, 'size', { min: 64, max: 2000, fallback: 320 });
-        const hit = pick(mesh, makeCamera(view, mesh, size, bounds(mesh)), number(a.x, 'x'), number(a.y, 'y'));
-        if (!hit) return { hit: null };
-        const o = owners.find((w) => hit.face >= w.start && hit.face < w.end);
-        return { hit: { object: o.name, face: hit.face - o.start, point: rv(hit.point), normal: rv(hit.normal), distance: r6(hit.distance), color: hit.color } };
+        if (viewOf(a, 'persp') === 'sheet') fail('pick needs a single view, not the sheet');
+        if (!objects.size) return { hit: null };
+        const { origin, dir } = pixelRay(a);
+        const hits = castRay(sensed(a), origin, dir, { all: true }).filter((h) => h.facing); // (like the viewer: front faces)
+        if (!hits.length) return { hit: null };
+        const h = hits[0];
+        return { hit: { ...hitOut(h), color: objects.get(h.object).faces[h.face].color } };
       },
     },
     {
