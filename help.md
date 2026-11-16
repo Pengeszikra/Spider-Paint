@@ -26,7 +26,7 @@ The controls are:
 - the **time slider**: drag to any moment; going back rebuilds exactly what was there
 - **info**: the story panel (the chapter and its text, what is being built, a chapter list, the views such as exterior / cutaway / rooms, the step's details)
 - **cam**: the recorded camera; switch it off to look round freely while it plays
-- **text**: the captions under the view (and the voice, when the story has one)
+- **text**: the captions under the view, in large type so they read from a distance (and the voice, when the story has one)
 - **?** help, **✕** leave the story: the model of that moment stays in the scene as ordinary objects, and the usual controls come back
 
 Keys: ← → a step, Home / End the beginning / the end (Space stays the speed stop).
