@@ -24,6 +24,7 @@
     <h1>XR compare</h1>
     <button id="three" disabled>three.js VR</button>
     <button id="draft" disabled>3Draft VR</button>
+    <button id="draft2" disabled style="background:#c9772b;color:#1a1205">3Draft VR · layer like three.js</button>
     <span id="relay" style="font-size:18px">remote log: <b id="code" style="font-size:26px;color:#7be08a">····</b></span>
   </header>
   <canvas id="flat" width="320" height="320" style="display:block;margin:0 16px 10px;width:240px;height:240px;border-radius:10px;background:#000" title="3Draft's WebGL2 renderer outside VR"></canvas>
@@ -36,7 +37,7 @@
     the assistant: it reads the log live from there).</p>
   <pre id="log"></pre>
   <script type="module">
-    import { createGl, box, lathe, merge, orbit } from './engine/8590d2f78764/index.js';
+    import { createGl, box, lathe, merge, orbit } from './engine/a8c344bc4d49/index.js';
 
     const logEl = document.getElementById('log');
     // the remote log: lines are sent in batches to a public ntfy.sh topic named by a random code (nothing private goes there:
@@ -141,13 +142,13 @@
     // the left controller's X (xr-standard button 4): leave VR
     const leftX = (session) => [...session.inputSources].some((src) => src.handedness === 'left' && Boolean(src.gamepad?.buttons?.[4]?.pressed));
     // ---- WebXR support
-    const threeBtn = document.getElementById('three'), draftBtn = document.getElementById('draft');
+    const threeBtn = document.getElementById('three'), draftBtn = document.getElementById('draft'), draft2Btn = document.getElementById('draft2');
     let running = null;
     (async () => {
       if (!navigator.xr) return log('navigator.xr is missing: no WebXR here', 'err');
       const ok = await navigator.xr.isSessionSupported('immersive-vr').catch((e) => (log(`isSessionSupported: ${e.message}`, 'err'), false));
       log(`immersive-vr supported: ${ok}`, ok ? 'ok' : 'err');
-      threeBtn.disabled = draftBtn.disabled = !ok;
+      threeBtn.disabled = draftBtn.disabled = draft2Btn.disabled = !ok;
     })();
 
     // ---- three.js (r170), fetched now so the click stays the user's gesture
@@ -217,19 +218,46 @@
       for (const i of [2, 6, 10, 14]) m[i] = (P[i] + P[i + 1]) * 0.5;
       return m;
     };
-    draftBtn.onclick = async () => {
+    // a GL call tracer: for the first frames, every call on the XR context is followed by getError, and the first failing call
+    // (its name and arguments) goes to the log, so a 0x506 says which call the headset refused
+    const traceGl = (gl, tag) => {
+      const getError = gl.getError.bind(gl);
+      const st = { on: false, reported: 0 };
+      const proto = WebGL2RenderingContext.prototype;
+      for (const name of Object.getOwnPropertyNames(proto)) {
+        if (name === 'getError' || name === 'constructor') continue;
+        const d = Object.getOwnPropertyDescriptor(proto, name);
+        if (typeof d?.value !== 'function') continue;
+        const orig = d.value;
+        gl[name] = function (...args) {
+          const r = orig.apply(this, args);
+          if (st.on && st.reported < 6) {
+            const e = getError();
+            if (e) {
+              st.reported++;
+              const arg = args.map((a) => (typeof a === 'number' ? (a > 1000 ? `0x${a.toString(16)}` : a) : a === null ? 'null' : a?.constructor?.name ?? typeof a)).join(', ');
+              log(`${tag}: GL error 0x${e.toString(16)} from ${name}(${arg}) · framebuffer binding: ${(() => { const fb = proto.getParameter.call(this, this.FRAMEBUFFER_BINDING); return fb ? 'the XR layer' : 'null (the canvas)'; })()}`, 'err');
+            }
+          }
+          return r;
+        };
+      }
+      gl.getError = getError;
+      return st;
+    };
+    const startDraft = async (layerInit, tag) => {
       if (running) return running.end();
       let session;
       try {
         session = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor'] });
       } catch (e) {
-        return log(`3Draft: requestSession failed: ${e.name}: ${e.message}`, 'err');
+        return log(`${tag}: requestSession failed: ${e.name}: ${e.message}`, 'err');
       }
-      log('3Draft: session created', 'ok');
+      log(`${tag}: session created`, 'ok');
       running = session;
       let frames = 0, errors = 0;
       session.addEventListener('end', () => {
-        log(`3Draft: session ended after ${frames} frames, ${errors} errors`);
+        log(`${tag}: session ended after ${frames} frames, ${errors} errors`);
         running = null;
       });
       try {
@@ -241,19 +269,21 @@
         session.addEventListener('end', () => canvas.remove());
         const gpu = await createGl(canvas);
         const gl = gpu.context;
-        log(`3Draft: engine renderer ready · ${gl.getParameter(gl.VERSION)}`);
-        canvas.addEventListener('webglcontextlost', () => log('3Draft: WebGL context LOST', 'err'));
+        log(`${tag}: engine renderer ready · ${gl.getParameter(gl.VERSION)}`);
+        canvas.addEventListener('webglcontextlost', () => log(`${tag}: WebGL context LOST`, 'err'));
         await gl.makeXRCompatible();
-        log('3Draft: makeXRCompatible ok');
-        const layer = new XRWebGLLayer(session, gl, { antialias: true, depth: true, stencil: false, alpha: false });
+        log(`${tag}: makeXRCompatible ok`);
+        const trace = traceGl(gl, tag);
+        const layer = new XRWebGLLayer(session, gl, layerInit);
+        log(`${tag}: layer options ${JSON.stringify(layerInit)} · framebuffer ${layer.framebuffer ? 'opaque' : 'null'} · status ${(() => { gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer); const st = gl.checkFramebufferStatus(gl.FRAMEBUFFER); gl.bindFramebuffer(gl.FRAMEBUFFER, null); return st === gl.FRAMEBUFFER_COMPLETE ? 'complete (outside a frame)' : `0x${st.toString(16)} (outside a frame)`; })()}`);
         session.updateRenderState({ baseLayer: layer, depthNear: 0.05, depthFar: 200 });
-        log(`3Draft: layer ${layer.framebufferWidth}×${layer.framebufferHeight}`);
+        log(`${tag}: layer ${layer.framebufferWidth}×${layer.framebufferHeight}`);
         let space;
         try {
           space = await session.requestReferenceSpace('local-floor');
         } catch {
           space = await session.requestReferenceSpace('local');
-          log('3Draft: local-floor refused, local used');
+          log(`${tag}: local-floor refused, local used`);
         }
         const onFrame = (t, frame) => {
           if (leftX(session)) return session.end();
@@ -261,8 +291,14 @@
           frames++;
           try {
             const pose = frame.getViewerPose(space);
-            if (!pose) return frames < 5 && log(`3Draft: frame ${frames}: no pose`);
+            if (!pose) return frames < 5 && log(`${tag}: frame ${frames}: no pose`);
             const L = session.renderState.baseLayer;
+            trace.on = frames <= 3;
+            if (frames <= 2) {
+              gl.bindFramebuffer(gl.FRAMEBUFFER, L.framebuffer);
+              const st = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+              log(`${tag}: frame ${frames}: framebuffer status ${st === gl.FRAMEBUFFER_COMPLETE ? 'complete' : `0x${st.toString(16)}`} · the same layer ${L === layer}`);
+            }
             const mesh = merge(still, cubeAt(t / 1000));
             for (const v of pose.views) {
               const vp = L.getViewport(v);
@@ -275,20 +311,22 @@
                 studio: true,
                 xr: { framebuffer: L.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: engineProjection(v.projectionMatrix), view: v.transform.inverse.matrix, eye: [p.x, p.y, p.z] },
               });
-              if (frames <= 2) log(`3Draft: frame ${frames}, ${v.eye} eye ${vp.x},${vp.y} ${vp.width}×${vp.height}`);
+              if (frames <= 2) log(`${tag}: frame ${frames}, ${v.eye} eye ${vp.x},${vp.y} ${vp.width}×${vp.height}`);
             }
-            for (let e = gl.getError(), n = 0; e !== gl.NO_ERROR && n < 4; e = gl.getError(), n++) if (errors++ < 10) log(`3Draft: GL error 0x${e.toString(16)} (frame ${frames})`, 'err');
-            if (frames === 120) log('3Draft: 120 frames drawn', 'ok');
+            for (let e = gl.getError(), n = 0; e !== gl.NO_ERROR && n < 4; e = gl.getError(), n++) if (errors++ < 10) log(`${tag}: GL error 0x${e.toString(16)} (frame ${frames})`, 'err');
+            if (frames === 120) log(`${tag}: 120 frames drawn`, 'ok');
           } catch (e) {
-            if (errors++ < 5) log(`3Draft: frame ${frames}: ${e.name}: ${e.message}`, 'err');
+            if (errors++ < 5) log(`${tag}: frame ${frames}: ${e.name}: ${e.message}`, 'err');
           }
         };
         session.requestAnimationFrame(onFrame);
       } catch (e) {
-        log(`3Draft: set-up failed: ${e.name}: ${e.message}`, 'err');
+        log(`${tag}: set-up failed: ${e.name}: ${e.message}`, 'err');
         session.end();
       }
     };
+    draftBtn.onclick = () => startDraft({ antialias: true, depth: true, stencil: false, alpha: false }, '3Draft');
+    draft2Btn.onclick = () => startDraft({ antialias: true, depth: true, stencil: false, alpha: true, framebufferScaleFactor: 1 }, '3Draft·three-layer');
   </script>
 </body>
 </html>
