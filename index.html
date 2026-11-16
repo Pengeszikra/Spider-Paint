@@ -937,7 +937,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e3f1cf24f50c018347968f7a65c50040f7b2b4c0/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@6544e3f77bb63bba9dc76366530931ff6bc4bd0a/dist/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
@@ -2199,7 +2199,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@e3f1cf24f50c018347968f7a65c50040f7b2b4c0/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@6544e3f77bb63bba9dc76366530931ff6bc4bd0a/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -9165,6 +9165,7 @@
         pickFault: () => (picker.worker?.postMessage({ type: 'pick', ver: picker.ver, cam: null, x: 0, y: 0, cull: true, key: 'fault' }), Boolean(picker.worker)), // (a test: a broken question)
         story: () => (story ? { title: story.doc.metadata.title, t: story.t, durationMs: story.doc.timeline.durationMs, index: story.index, total: story.doc.tracks.construction.steps.length, objects: story.count, playing: story.playing, cutaway: story.cutaway, focus: story.focus, animationChannels: story.doc.tracks.animation?.channels.length ?? 0, bones: storySkin ? Array.from(storySkin.bones) : null } : null),
         openStory: (data) => openStory(data),
+        xrFly: (pads, dt = 0.1, now = performance.now()) => (xrFly(pads, dt, now), { yaw, pitch: +pitch.toFixed(4), roll: +roll.toFixed(4), level: { ...level }, locked: lockedObject()?.name ?? null, frozen }), // (the Quest mapping, with made-up pads)
         xr: () => ({ on: Boolean(xrState.session), mono: Boolean(xrState.mono), pressed: xrState.pressed, note: xrNote?.textContent }),
         flight: () => ({ roll: +roll.toFixed(4), vehicle, car: car && { p: car.p, heading: car.heading, v: car.v, steer: car.steer, throttle: car.throttle }, orbit: orbit?.phase ?? null, gravity: gravity && { name: gravity.name }, cruise: { ...cruise }, space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
         aim: () => (aim ? { name: aim.obj.name, px: +aim.px.toFixed(1), depth: aim.depth } : null), under: () => hitObj()?.name ?? null, locked: () => lockedObject()?.name ?? null,
@@ -9691,8 +9692,73 @@
     };
     const xrPads = (session) =>
       [...session.inputSources].filter((src) => src.gamepad).map((src) => ({ hand: src.handedness, axes: [...src.gamepad.axes], buttons: src.gamepad.buttons.map((b) => b.pressed) }));
-    // the rig: scene point = rotY(-yaw) · headset point + origin
-    const xrRig = () => (drive() && car ? { origin: [car.p[0], car.p[1] + CAR_EYE, car.p[2]], yaw: car.heading } : { origin: eyeNow(), yaw });
+    // ---- Meta Quest 3 (Touch Plus, the xr-standard mapping: axes 2 / 3 the stick, buttons 0 trigger, 1 grip, 3 stick press,
+    // 4 A / X, 5 B / Y). Flying (not driving):
+    //   left stick  sideways: A / D (the side speed levels, a step per push, repeating while held); up / down: nod (pitch)
+    //   right stick up / down: W / S (the forward speed levels, the same); sideways: [ / ] (roll)
+    //   right trigger: T (target what is straight ahead: the ship's cross), right grip: 0 (orbit the target), A: Space (speed
+    //   zero), B: Tab (the next target), left trigger: R (up), left grip: F (down), left Y: freeze, left stick press: C (a game:
+    //   helm / walk), left X: leave VR
+    const XR_STEP_AT = 0.55; // a stick past this is a key press
+    const XR_REPEAT = 0.32; // s between repeated presses while held
+    const XR_PITCH_RATE = 0.9; // rad/s at full stick
+    const xrKey = (key, code = '') => {
+      // (the keys' own path, so whatever a key does there it does here)
+      document.dispatchEvent(new KeyboardEvent('keydown', { key, code, bubbles: true }));
+      document.dispatchEvent(new KeyboardEvent('keyup', { key, code, bubbles: true }));
+    };
+    const xrFly = (pads, dt, now) => {
+      if (drive()) return;
+      const L = pads.find((p) => p.hand === 'left'), R = pads.find((p) => p.hand === 'right');
+      const stick = (p) => (p ? (p.axes.length >= 4 ? [p.axes[2], p.axes[3]] : [p.axes[0] ?? 0, p.axes[1] ?? 0]) : [0, 0]);
+      const [lx, ly] = stick(L), [rx, ry] = stick(R);
+      const rep = (xrState.repeat ??= {});
+      // a stick direction as a key: a press when it goes past XR_STEP_AT, again every XR_REPEAT while it stays there
+      const stepKey = (id, v, plus, minus) => {
+        const dir = v > XR_STEP_AT ? 1 : v < -XR_STEP_AT ? -1 : 0;
+        const was = rep[id];
+        if (!dir) return void delete rep[id];
+        if (!was || was.dir !== dir || now - was.t > XR_REPEAT * 1000) {
+          rep[id] = { dir, t: now };
+          dir > 0 ? plus() : minus();
+        }
+      };
+      stepKey('lx', lx, () => speed('r', 1), () => speed('r', -1)); // D / A
+      stepKey('ry', ry, () => speed('f', -1), () => speed('f', 1)); // stick forward (y < 0): W
+      // nod and roll, smooth with the stick
+      const dz = (v) => (Math.abs(v) > XR_DEAD ? (v - Math.sign(v) * XR_DEAD) / (1 - XR_DEAD) : 0);
+      if (!frozen && dz(ly)) {
+        const p2 = pitch - dz(ly) * XR_PITCH_RATE * dt; // stick forward: nose down
+        pitch = space() ? wrapPitch(p2) : Math.max(-1.55, Math.min(1.55, p2)); // (in space it loops)
+      }
+      if (!frozen && space() && dz(rx)) roll = wrapPitch(roll + dz(rx) * ROLL_RATE * dt);
+      // the buttons, on their press
+      const prev = (xrState.prevButtons ??= {});
+      const press = (p, i) => {
+        if (!p) return false;
+        const k = `${p.hand}${i}`, on = Boolean(p.buttons[i]), was = prev[k];
+        prev[k] = on;
+        return on && !was;
+      };
+      if (press(R, 0)) xrKey('t', 'KeyT');
+      if (press(R, 1)) (toggleOrbit(), redraw());
+      if (press(R, 4)) (stop(), redraw());
+      if (press(R, 5)) xrKey('Tab', 'Tab');
+      if (press(L, 0)) speed('u', 1);
+      if (press(L, 1)) speed('u', -1);
+      if (press(L, 5)) toggleFreeze();
+      if (press(L, 3) && game) ACTIONS.helm.run();
+      if (press(L, 4)) return void xrState.session?.end(); // X: out of VR
+      press(R, 3);
+    };
+    // the rig: the headset's space hangs on the eye of the scene: scene point = origin + right·x + up·y − forward·z. In space it
+    // turns with the whole ship (heading, nod and roll: the cockpit turns, the stars stay); on the ground and in the car with the
+    // heading only (the horizon stays level)
+    const xrRig = () => {
+      const flat = (h) => ({ forward: [Math.sin(h), 0, -Math.cos(h)], right: [Math.cos(h), 0, Math.sin(h)], up: [0, 1, 0] });
+      if (drive() && car) return { origin: [car.p[0], car.p[1] + CAR_EYE, car.p[2]], ...flat(car.heading) };
+      return { origin: eyeNow(), ...(space() ? shipBasis() : flat(yaw)) };
+    };
     const xrFrame = (t, frame) => {
       const session = frame.session;
       if (session !== xrState.session) return; // (a frame still on its way after the end)
@@ -9703,6 +9769,8 @@
       // the controllers: the stick to the car, the buttons to the note and a flash
       const pads = xrPads(session);
       xrDrive(pads, dt, now);
+      xrFly(pads, dt, now);
+      if (session !== xrState.session) return; // (X left VR)
       const pressed = pads.map((p) => p.buttons.map((b, i) => (b ? `${p.hand[0] ?? '?'}${i}` : '')).filter(Boolean).join(' ')).filter(Boolean).join(' ');
       if (pressed) xrState.flashUntil = now + 150;
       if (pressed !== xrState.pressed) {
@@ -9718,12 +9786,12 @@
       const pose = frame.getViewerPose(xrState.space);
       const layer = session.renderState.baseLayer;
       if (!pose || !layer || !xrArgs || !gpu?.context) return;
-      const { origin: worldOrigin, yaw: ry } = xrRig();
+      const { origin: worldOrigin, forward: F, right: Rt, up: U } = xrRig();
       const origin = xrArgs.origin ? vsub(worldOrigin, xrArgs.origin) : worldOrigin; // (the floating origin)
-      const c = Math.cos(ry), sn = Math.sin(ry);
-      // scene -> headset: rotY(yaw) · (p - origin), column-major
-      const rx = c * origin[0] + sn * origin[2], rz = -sn * origin[0] + c * origin[2];
-      const toHead = [c, 0, -sn, 0, 0, 1, 0, 0, sn, 0, c, 0, -rx, -origin[1], -rz, 1];
+      const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+      // scene -> headset: rows right, up, −forward; column-major
+      const toHead = [Rt[0], U[0], -F[0], 0, Rt[1], U[1], -F[1], 0, Rt[2], U[2], -F[2], 0, -dot3(Rt, origin), -dot3(U, origin), dot3(F, origin), 1];
+      const toScene = (p) => [0, 1, 2].map((i) => origin[i] + Rt[i] * p.x + U[i] * p.y - F[i] * p.z);
       const sky = now < xrState.flashUntil ? [0.08, 0.35, 0.12] : (xrArgs.opts.background ?? [0.02, 0.02, 0.03]);
       if (xrState.mono) {
         const w = layer.framebufferWidth, h = layer.framebufferHeight;
@@ -9731,15 +9799,13 @@
         P[0] = P[5] / (w / h);
         P[8] = 0;
         P[9] = 0;
-        const p = pose.transform.position;
-        const eye = [c * p.x - sn * p.z + origin[0], p.y + origin[1], sn * p.x + c * p.z + origin[2]];
+        const eye = toScene(pose.transform.position);
         return void gpu.render(xrArgs.scene, xrArgs.view, { ...xrArgs.opts, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [0, 0, w, h], projection: P, view: mul4(pose.transform.inverse.matrix, toHead), eye } });
       }
       for (const v of pose.views) {
         const vp = layer.getViewport(v);
         if (!vp) continue;
-        const p = v.transform.position;
-        const eye = [c * p.x - sn * p.z + origin[0], p.y + origin[1], sn * p.x + c * p.z + origin[2]];
+        const eye = toScene(v.transform.position);
         gpu.render(xrArgs.scene, xrArgs.view, { ...xrArgs.opts, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: v.projectionMatrix, view: mul4(v.transform.inverse.matrix, toHead), eye } });
       }
     };
