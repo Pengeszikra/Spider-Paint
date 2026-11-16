@@ -937,7 +937,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/e9481ee0fd57/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/f476b81cd22b/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2200,7 +2200,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/e9481ee0fd57/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/f476b81cd22b/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -9940,8 +9940,9 @@
     //   left stick  sideways: A / D (the side speed levels, a step per push, repeating while held); up / down: nod (pitch)
     //   right stick up / down: W / S (the forward speed levels, the same); sideways: [ / ] (roll)
     //   right trigger: T (target what is straight ahead: the ship's cross), right grip: 0 (orbit the target), A: Space (speed
-    //   zero), B: Tab (the next target), left trigger: R (up), left grip: F (down), left Y: freeze, left stick press: C (a game:
-    //   helm / walk), left X: leave VR
+    //   zero), B: Tab (the next target), left trigger: R (up), left grip: F (down), left Y: Esc (let go of the target), right
+    //   stick press: freeze, left stick press: C (a game: helm / walk), left X: leave VR. The speed and the target are on a
+    //   panel below the view (xrHudDraw)
     const XR_STEP_AT = 0.55; // a stick past this is a key press
     const XR_REPEAT = 0.32; // s between repeated presses while held
     const XR_PITCH_RATE = 0.9; // rad/s at full stick
@@ -9989,10 +9990,10 @@
       if (press(R, 5)) xrKey('Tab', 'Tab');
       if (press(L, 0)) speed('u', 1);
       if (press(L, 1)) speed('u', -1);
-      if (press(L, 5)) toggleFreeze();
+      if (press(L, 5)) xrKey('Escape', 'Escape'); // Y: Esc (lets go of the target; the camera stays where it is)
       if (press(L, 3) && game) ACTIONS.helm.run();
       if (press(L, 4)) return void xrState.session?.end(); // X: out of VR
-      press(R, 3);
+      if (press(R, 3)) toggleFreeze(); // right stick press: freeze
     };
     // the same controls outside VR: the Gamepad API (the Quest's controllers when its browser hands them over, or any standard
     // gamepad: its sticks and buttons take the places of the Touch ones: LT / LB / L3 / X / Y on the left, RT / RB / R3 / A / B on
@@ -10045,6 +10046,101 @@
     // the rig: the headset's space hangs on the eye of the scene: scene point = origin + right·x + up·y − forward·z. In space it
     // turns with the whole ship (heading, nod and roll: the cockpit turns, the stars stay); on the ground and in the car with the
     // heading only (the horizon stays level)
+    // ---- The flight readout in the headset. The desktop's readout (top right) and target box are DOM, which a headset never
+    // shows, so here they are written on a small 2D canvas and drawn as a panel that hangs with the head, a little below the
+    // middle of the view (1.1 m ahead, 0.34 m down, tilted up to the eye): the speed (ly/s and the multiple of c), the speed
+    // levels, ORBIT / GRAVITY, the target with its distance, FROZEN. The texture is uploaded only when the text changes.
+    let xrHudGl = null;
+    const XR_HUD_W = 1024, XR_HUD_H = 288;
+    const xrHudText = () => {
+      const lines = Array.from(flightEl.children, (c) => c.textContent.trim()).filter(Boolean);
+      const t = lockedObject();
+      const lv = (n, k) => `${k} ${level[n] > 0 ? '+' : ''}${level[n]}`;
+      return {
+        speed: lines[0] ?? '',
+        rest: lines.slice(1).filter((x) => !/^v⃗/.test(x)),
+        levels: `${lv('f', 'W/S')}   ${lv('r', 'A/D')}   ${lv('u', 'R/F')}`,
+        target: t ? `◎ ${t.name ?? t.id}` : '',
+        frozen,
+      };
+    };
+    const xrHudDraw = (gl, P, eyeFromHead) => {
+      if (!xrHudGl) {
+        const sh = (type, src) => { const x = gl.createShader(type); gl.shaderSource(x, src); gl.compileShader(x); if (!gl.getShaderParameter(x, gl.COMPILE_STATUS)) xrLog(`hud shader: ${gl.getShaderInfoLog(x)}`, true); return x; };
+        const prog = gl.createProgram();
+        gl.attachShader(prog, sh(gl.VERTEX_SHADER, '#version 300 es\nin vec2 aXY; uniform mat4 uP, uM; out vec2 vUv; void main() { vUv = vec2(aXY.x * 0.5 + 0.5, 0.5 - aXY.y * 0.5); gl_Position = uP * uM * vec4(aXY.x * 0.36, aXY.y * 0.1013, 0.0, 1.0); }'));
+        gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, '#version 300 es\nprecision mediump float; in vec2 vUv; uniform sampler2D uT; out vec4 o; void main() { o = texture(uT, vUv); }'));
+        gl.linkProgram(prog);
+        if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) xrLog(`hud program: ${gl.getProgramInfoLog(prog)}`, true);
+        const vao = gl.createVertexArray();
+        gl.bindVertexArray(vao);
+        const buf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1]), gl.STATIC_DRAW);
+        const a = gl.getAttribLocation(prog, 'aXY');
+        gl.enableVertexAttribArray(a);
+        gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 8, 0);
+        gl.bindVertexArray(null);
+        const tex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        const canvas = document.createElement('canvas');
+        canvas.width = XR_HUD_W;
+        canvas.height = XR_HUD_H;
+        xrHudGl = { prog, vao, tex, canvas, key: '', U: { P: gl.getUniformLocation(prog, 'uP'), M: gl.getUniformLocation(prog, 'uM'), T: gl.getUniformLocation(prog, 'uT') } };
+        xrLog('flight readout in the headset: ready');
+      }
+      const H = xrHudGl;
+      const d = xrHudText();
+      const key = JSON.stringify(d);
+      if (key !== H.key) {
+        H.key = key;
+        const c = H.canvas.getContext('2d');
+        c.clearRect(0, 0, XR_HUD_W, XR_HUD_H);
+        c.fillStyle = 'rgba(6, 10, 22, 0.62)';
+        c.beginPath();
+        c.roundRect(4, 4, XR_HUD_W - 8, XR_HUD_H - 8, 28);
+        c.fill();
+        c.strokeStyle = d.frozen ? 'rgba(120, 220, 255, 0.9)' : 'rgba(255, 214, 140, 0.55)';
+        c.lineWidth = 4;
+        c.stroke();
+        c.textBaseline = 'alphabetic';
+        c.fillStyle = '#ffe2a8';
+        c.font = '700 84px system-ui, sans-serif';
+        c.fillText(d.speed || '0', 36, 104);
+        c.font = '500 46px system-ui, sans-serif';
+        c.fillStyle = '#cfd8ea';
+        c.fillText(d.levels, 36, 172);
+        c.fillStyle = '#9fe6d8';
+        const right = [d.frozen ? 'FROZEN' : '', ...d.rest].filter(Boolean).join(' · ');
+        c.fillText(`${d.target}${d.target && right ? '   ' : ''}${right}`.slice(0, 48), 36, 242);
+        gl.bindTexture(gl.TEXTURE_2D, H.tex);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, H.canvas);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+      }
+      // the panel in head space: 1.1 m ahead, 0.34 m down, tilted up by 17° so it faces the eye
+      const a = 0.3, ca = Math.cos(a), sa = Math.sin(a);
+      const inHead = [1, 0, 0, 0, 0, ca, sa, 0, 0, -sa, ca, 0, 0, -0.34, -1.1, 1];
+      gl.disable(gl.DEPTH_TEST);
+      gl.disable(gl.CULL_FACE);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      gl.useProgram(H.prog);
+      gl.uniformMatrix4fv(H.U.P, false, P);
+      gl.uniformMatrix4fv(H.U.M, false, mul4(eyeFromHead, inHead));
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, H.tex);
+      gl.uniform1i(H.U.T, 0);
+      gl.bindVertexArray(H.vao);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      gl.bindVertexArray(null);
+      gl.disable(gl.BLEND);
+      gl.enable(gl.DEPTH_TEST);
+    };
     const xrRig = () => {
       const flat = (h) => ({ forward: [Math.sin(h), 0, -Math.cos(h)], right: [Math.cos(h), 0, Math.sin(h)], up: [0, 1, 0] });
       // scale: scene units per metre of the headset's space (the head's moves and the eyes' distance are metres). A star map is
@@ -10200,7 +10296,9 @@
         const eye = toScene(pose.transform.position);
         const Vm = eyeView(pose.transform.inverse.matrix);
         gpu.render(xrArgs.scene, xrArgs.view, { ...xrArgs.opts, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [0, 0, w, h], projection: engineP, view: Vm, eye } });
-        return void xrSkyDraw(gl, P, Vm, h, xrArgs.origin);
+        xrSkyDraw(gl, P, Vm, h, xrArgs.origin);
+        if (!drive()) xrHudDraw(gl, pose.views[0].projectionMatrix, new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]));
+        return;
       }
       for (const [i, v] of pose.views.entries()) {
         const vp = viewports[i];
@@ -10211,6 +10309,7 @@
         xrState.phase = `render ${v.eye} eye`;
         gpu.render(xrArgs.scene, xrArgs.view, { ...xrArgs.opts, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: engineP, view: Ve, eye } });
         xrSkyDraw(gl, glP, Ve, vp.height, xrArgs.origin);
+        if (!drive()) xrHudDraw(gl, v.projectionMatrix, mul4(v.transform.inverse.matrix, pose.transform.matrix));
         if (XR_TEST === '2') xrTestDraw(gl, v, vp, t / 1000);
         if (n <= 3) xrGlErrors(gl, `the ${v.eye} eye, frame ${n}`);
       }
