@@ -960,7 +960,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/807da1e621d2/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/8a5558283d71/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2223,7 +2223,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/807da1e621d2/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/8a5558283d71/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -9208,7 +9208,7 @@
         pickFault: () => (picker.worker?.postMessage({ type: 'pick', ver: picker.ver, cam: null, x: 0, y: 0, cull: true, key: 'fault' }), Boolean(picker.worker)), // (a test: a broken question)
         story: () => (story ? { title: story.doc.metadata.title, t: story.t, durationMs: story.doc.timeline.durationMs, index: story.index, total: story.doc.tracks.construction.steps.length, objects: story.count, playing: story.playing, cutaway: story.cutaway, focus: story.focus, animationChannels: story.doc.tracks.animation?.channels.length ?? 0, bones: storySkin ? Array.from(storySkin.bones) : null } : null),
         openStory: (data) => openStory(data),
-        xrFly: (pads, dt = 0.1, now = performance.now()) => (xrFly(pads, dt, now), { yaw, pitch: +pitch.toFixed(4), roll: +roll.toFixed(4), level: { ...level }, locked: lockedObject()?.name ?? null, frozen }), // (the Quest mapping, with made-up pads)
+        xrFly: (pads, dt = 0.1, now = performance.now()) => (xrFly(pads, dt, now), { yaw, pitch: +pitch.toFixed(4), roll: +roll.toFixed(4), level: { ...level }, locked: lockedObject()?.name ?? null, frozen, pointed: xrState.hands?.pointed?.obj?.name ?? null, stick: xrState.hands?.stick ?? null, orbit: orbit?.phase ?? null }), // (the Quest mapping, with made-up pads)
         xr: () => ({ log: xrState.log, frames: xrState.frames, on: Boolean(xrState.session), mono: Boolean(xrState.mono), pressed: xrState.pressed, note: xrNote?.textContent }),
         flight: () => ({ roll: +roll.toFixed(4), vehicle, car: car && { p: car.p, heading: car.heading, v: car.v, steer: car.steer, throttle: car.throttle }, orbit: orbit?.phase ?? null, gravity: gravity && { name: gravity.name }, cruise: { ...cruise }, space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
         aim: () => (aim ? { name: aim.obj.name, px: +aim.px.toFixed(1), depth: aim.depth } : null), under: () => hitObj()?.name ?? null, locked: () => lockedObject()?.name ?? null,
@@ -9809,14 +9809,32 @@
         car.gasLatch = true;
       }
     };
-    const xrPads = (session) =>
-      [...session.inputSources].filter((src) => src.gamepad).map((src) => ({
-        hand: src.handedness,
-        // IWER/Quest may expose unassigned axes as null, undefined or NaN.
-        // Sanitize at the input boundary so neither control nor UI can crash XR.
-        axes: Array.from(src.gamepad.axes, (v) => Number.isFinite(v) ? v : 0),
-        buttons: Array.from(src.gamepad.buttons, (b) => Boolean(b?.pressed)),
-      }));
+    // (with a frame, each pad also carries its hand: grip, the fist, and ray, the pointing line; both column-major 4×4 matrices in
+    // the reference space, metres; and its haptic motor for a short buzz)
+    const xrPads = (session, frame = null) =>
+      [...session.inputSources].filter((src) => src.gamepad).map((src) => {
+        const at = (space) => {
+          try {
+            return (space && frame && xrState.space && frame.getPose(space, xrState.space)?.transform.matrix) || null;
+          } catch {
+            return null;
+          }
+        };
+        return {
+          hand: src.handedness,
+          // IWER/Quest may expose unassigned axes as null, undefined or NaN.
+          // Sanitize at the input boundary so neither control nor UI can crash XR.
+          axes: Array.from(src.gamepad.axes, (v) => Number.isFinite(v) ? v : 0),
+          buttons: Array.from(src.gamepad.buttons, (b) => Boolean(b?.pressed)),
+          grip: at(src.gripSpace),
+          ray: at(src.targetRaySpace),
+          buzz: (amount = 0.4, ms = 40) => {
+            try {
+              src.gamepad.hapticActuators?.[0]?.pulse?.(amount, ms);
+            } catch {}
+          },
+        };
+      });
     // ---- The sky in the headset. On the desktop the star glows (a 2D canvas) and the galaxies' point clouds (their own WebGL2
     // canvas) lie over the 3D picture; a headset has only the XR layer of the main WebGL2 context, so here both are drawn into it
     // as GL points, after the scene, per eye, with that eye's matrices: the clouds as on the desktop (a sharp point of 1.3–2.4 px
@@ -9965,26 +9983,102 @@
       gl.enable(gl.DEPTH_TEST);
     };
     // ---- Meta Quest 3 (Touch Plus, the xr-standard mapping: axes 2 / 3 the stick, buttons 0 trigger, 1 grip, 3 stick press,
-    // 4 A / X, 5 B / Y). Flying (not driving):
-    //   left stick  sideways: A / D (the side speed levels, a step per push, repeating while held); up / down: nothing
-    //   right stick up / down: W / S (the forward speed levels, the same); sideways: [ / ] (roll)
-    //   right trigger: T (target what is straight ahead: the ship's cross), right grip: 0 (orbit the target), A: Space (speed
-    //   zero), B: Tab (the next target), left trigger: R (up), left grip: F (down), left Y: Esc (let go of the target), right
-    //   stick press: freeze, left stick press: C (a game: helm / walk), left X: leave VR. The speed and the target are on a
-    //   panel below the view (xrHudDraw)
+    // 4 A / X, 5 B / Y). A virtual cockpit, flying (not driving):
+    //   LEFT HAND, the flight stick: hold the grip and the controller is the stick, its pose at the grip is the middle. Tilt it
+    //   forward: the ship nods forward (its nose goes down, so it flies on an arc curving forward and down); back: the same arc
+    //   upward. Tilt it left / right: the ship slides sideways; lift it / lower it: the ship slides up / down; twist it: the ship
+    //   rolls round its forward axis. Let go: everything back to the middle (the slides stop, the nod and roll stay where they
+    //   are). Without the grip, a circle drawn in the air with the left hand (one full round, a palm or a forearm wide) is 0: orbit
+    //   the target. X: leave VR, Y: Esc (let go of the target), stick press: C (a game: helm / walk).
+    //   RIGHT HAND, the throttle and the pointer: the stick forward / back is the speed. Near rest it is smooth (forward and back,
+    //   with a short stop at zero); past level 1 the usual exponential levels take over, one per push (repeating while held), and
+    //   coming back down they end in the smooth part again. The hand points: a line comes out of it, and what it points at (its
+    //   name, its kind, its distance) is written on a small panel on the hand; the trigger takes it as the target (T). A: Space
+    //   (speed zero), B: Tab (the next target), grip: 0 (orbit), stick press: freeze, stick sideways: roll ([ / ]).
+    // A gamepad (outside VR, no hands) keeps the stick mapping: left stick sideways A / D, left trigger R, left grip F.
     const XR_STEP_AT = 0.55; // a stick past this is a key press
     const XR_REPEAT = 0.32; // s between repeated presses while held
+    const XR_TILT = [0.06, 0.45]; // rad: the stick's dead zone and full tilt (3.5°, 26°)
+    const XR_TWIST = [0.1, 0.7]; // rad: the twist's dead zone and full twist
+    const XR_LIFT = [0.02, 0.15]; // m: the lift's dead zone and full lift
+    const XR_NOD_RATE = 0.7; // rad/s at full tilt
+    const XR_SMOOTH_RATE = 0.55; // levels per second in the smooth part of the throttle, at full stick
+    const XR_AIM = 0.045; // rad: how far off the pointing line an object may be and still be pointed at (2.5°)
     const xrKey = (key, code = '') => {
       // (the keys' own path, so whatever a key does there it does here)
       document.dispatchEvent(new KeyboardEvent('keydown', { key, code, bubbles: true }));
       document.dispatchEvent(new KeyboardEvent('keyup', { key, code, bubbles: true }));
     };
+    const band = (v, [dead, full]) => {
+      const a = Math.abs(v);
+      return a <= dead ? 0 : Math.sign(v) * Math.min(1, (a - dead) / (full - dead));
+    };
+    // the rotation that takes the matrix A's axes to B's, as a rotation vector (axis × angle, radians) in the reference space
+    const turnBetweenPoses = (A, B) => {
+      const r = (M, row, col) => M[col * 4 + row];
+      const D = (i, j) => r(B, i, 0) * r(A, j, 0) + r(B, i, 1) * r(A, j, 1) + r(B, i, 2) * r(A, j, 2); // B · Aᵀ
+      const v = [(D(2, 1) - D(1, 2)) / 2, (D(0, 2) - D(2, 0)) / 2, (D(1, 0) - D(0, 1)) / 2];
+      const sn = Math.hypot(...v), cs = (D(0, 0) + D(1, 1) + D(2, 2) - 1) / 2;
+      const ang = Math.atan2(sn, cs);
+      return sn > 1e-9 ? v.map((x) => (x / sn) * ang) : [0, 0, 0];
+    };
+    // what the right hand points at: the object whose ball is nearest the pointing line (by angle), within XR_AIM
+    const xrPointed = (ray) => {
+      if (!ray || !allObjects().length) return null;
+      const { origin, forward: F, right: Rt, up: U, scale: S } = xrRig();
+      const org = [0, 1, 2].map((i) => origin[i] + (Rt[i] * ray[12] + U[i] * ray[13] - F[i] * ray[14]) * S);
+      const dir = [0, 1, 2].map((i) => -(Rt[i] * ray[8] + U[i] * ray[9] - F[i] * ray[10])); // (the ray's −Z)
+      let best = null;
+      for (const o of allObjects()) {
+        if (!o.mesh.positions.length && !o.inst) continue;
+        const b = ballOf(o);
+        const v = vsub(b.center, org);
+        const d = Math.hypot(...v);
+        if (d <= b.radius || d === 0) continue;
+        const cs = (v[0] * dir[0] + v[1] * dir[1] + v[2] * dir[2]) / d;
+        if (cs <= 0) continue;
+        const score = Math.acos(Math.min(1, cs)) - Math.asin(Math.min(1, b.radius / d));
+        if (score < XR_AIM && (!best || score < best.score)) best = { obj: o, score, gap: d - b.radius };
+      }
+      return best;
+    };
+    // one full circle of the left hand: the last 1.6 s of its places, round their middle, on their own plane
+    const xrCircle = (pts) => {
+      if (pts.length < 12 || pts[pts.length - 1].t - pts[0].t < 400) return false;
+      const c = [0, 1, 2].map((k) => pts.reduce((a, q) => a + q.p[k], 0) / pts.length);
+      const rel = pts.map((q) => vsub(q.p, c));
+      const n = [0, 0, 0];
+      for (let i = 0; i < rel.length; i++) {
+        const a = rel[i], b = rel[(i + 1) % rel.length];
+        n[0] += a[1] * b[2] - a[2] * b[1];
+        n[1] += a[2] * b[0] - a[0] * b[2];
+        n[2] += a[0] * b[1] - a[1] * b[0];
+      }
+      const nl = Math.hypot(...n);
+      if (!nl) return false;
+      const N = n.map((x) => x / nl);
+      const flat = rel.map((v) => {
+        const k = v[0] * N[0] + v[1] * N[1] + v[2] * N[2];
+        return v.map((x, i) => x - N[i] * k);
+      });
+      const radii = flat.map((v) => Math.hypot(...v));
+      const mean = radii.reduce((a, x) => a + x, 0) / radii.length;
+      if (mean < 0.05 || mean > 0.35 || Math.min(...radii) < mean * 0.35) return false;
+      let swept = 0;
+      for (let i = 1; i < flat.length; i++) {
+        const a = flat[i - 1], b = flat[i];
+        const cr = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+        swept += Math.atan2(cr[0] * N[0] + cr[1] * N[1] + cr[2] * N[2], a[0] * b[0] + a[1] * b[1] + a[2] * b[2]);
+      }
+      return Math.abs(swept) > 1.85 * Math.PI;
+    };
     const xrFly = (pads, dt, now) => {
       if (drive()) return;
       const L = pads.find((p) => p.hand === 'left'), R = pads.find((p) => p.hand === 'right');
       const stick = (p) => (p ? (p.axes.length >= 4 ? [p.axes[2], p.axes[3]] : [p.axes[0] ?? 0, p.axes[1] ?? 0]) : [0, 0]);
-      const [lx, ly] = stick(L), [rx, ry] = stick(R);
+      const [lx] = stick(L), [rx, ry] = stick(R);
       const rep = (xrState.repeat ??= {});
+      const hands = (xrState.hands ??= { pts: [] });
       // a stick direction as a key: a press when it goes past XR_STEP_AT, again every XR_REPEAT while it stays there
       const stepKey = (id, v, plus, minus) => {
         const dir = v > XR_STEP_AT ? 1 : v < -XR_STEP_AT ? -1 : 0;
@@ -9995,13 +10089,7 @@
           dir > 0 ? plus() : minus();
         }
       };
-      stepKey('lx', lx, () => speed('r', 1), () => speed('r', -1)); // D / A
-      stepKey('ry', ry, () => speed('f', -1), () => speed('f', 1)); // stick forward (y < 0): W
-      // nod and roll, smooth with the stick
       const dz = (v) => (Math.abs(v) > XR_DEAD ? (v - Math.sign(v) * XR_DEAD) / (1 - XR_DEAD) : 0);
-      // (the left stick's up / down does nothing: the nod is not on a stick)
-      if (!frozen && space() && dz(rx)) roll = wrapPitch(roll + dz(rx) * ROLL_RATE * dt);
-      // the buttons, on their press
       const prev = (xrState.prevButtons ??= {});
       const press = (p, i) => {
         if (!p) return false;
@@ -10009,12 +10097,82 @@
         prev[k] = on;
         return on && !was;
       };
-      if (press(R, 0)) xrKey('t', 'KeyT');
-      if (press(R, 1)) (toggleOrbit(), redraw());
-      if (press(R, 4)) (stop(), redraw());
+      const cockpit = Boolean(L?.grip); // (real hands: the virtual cockpit; a gamepad: the sticks)
+
+      // the throttle (right stick up / down): smooth within level ±1, the exponential levels beyond
+      const ty = -dz(ry); // stick forward: positive
+      if (!ty) delete rep.ry, (hands.hold = 0);
+      else if (!frozen) {
+        const f = level.f;
+        const inSmooth = Math.abs(f) < 1 - 1e-9 || (f * ty < 0 && Math.abs(f) <= 1 + 1e-9);
+        if (inSmooth && now >= (hands.hold ?? 0)) {
+          speed('f', 0); // (what a speed key does first: into flight, the throttle back to 1)
+          let g = Math.max(-1, Math.min(1, f + ty * XR_SMOOTH_RATE * dt));
+          if (f !== 0 && Math.sign(g) !== Math.sign(f)) ((g = 0), (hands.hold = now + 450)); // a short stop at zero
+          if (Math.abs(g) >= 1 - 1e-9) ((g = Math.sign(g)), (hands.hold = now + 450), (rep.ry = { dir: Math.sign(ry), t: now + 450 - XR_REPEAT * 1000 }));
+          level.f = g;
+        } else if (!inSmooth) {
+          // (a step that lands on ±1 waits a moment before the smooth part takes over)
+          const step = (d) => (speed('f', d), Math.abs(level.f) === 1 && (hands.hold = now + 450));
+          stepKey('ry', ry, () => step(-1), () => step(1)); // stick forward (y < 0): W
+        }
+      }
+      if (!frozen && space() && dz(rx)) roll = wrapPitch(roll + dz(rx) * ROLL_RATE * dt); // (the right stick sideways: roll)
+
+      if (cockpit) {
+        // the flight stick (left grip held)
+        const gripOn = Boolean(L.buttons[1]);
+        if (gripOn && !hands.grab) ((hands.grab = { m: Float32Array.from(L.grip) }), L.buzz(0.3, 30), (hands.pts = []));
+        if (!gripOn && hands.grab) ((hands.grab = null), (hands.stick = null));
+        if (hands.grab && !frozen) {
+          const g = hands.grab.m, m = L.grip;
+          const rv = turnBetweenPoses(g, m); // the turn since the grip, in the reference space (x right, y up, −z ahead)
+          const nod = band(-rv[0], XR_TILT); // forward: the top goes ahead
+          const side = band(-rv[2], XR_TILT); // right: the top goes right
+          const twist = band(-rv[1], XR_TWIST); // right: clockwise seen from above
+          const lift = band(m[13] - g[13], XR_LIFT);
+          hands.stick = { nod, side, twist, lift };
+          if (nod) turn(0, nod * XR_NOD_RATE * dt); // (turn: the ship's nod in the banked picture; positive: the nose down)
+          if (twist && space()) roll = wrapPitch(roll + twist * ROLL_RATE * dt);
+          if (side || lift) {
+            if (!fly && !(locked && (!space() || orbitOn()))) enterFly();
+            const { right: Rt, up: Up } = shipBasis();
+            const v = unitNow() * Math.max(1, pace(Math.abs(level.f))); // (the slide keeps up with the speed)
+            fit.center = fit.center.map((c, i) => c + (Rt[i] * side + Up[i] * lift) * v * dt);
+          }
+        }
+        // the orbit circle (left hand, grip not held)
+        if (!hands.grab) {
+          hands.pts.push({ t: now, p: [L.grip[12], L.grip[13], L.grip[14]] });
+          while (hands.pts.length && now - hands.pts[0].t > 1600) hands.pts.shift();
+          if (now > (hands.circleAt ?? 0) && xrCircle(hands.pts)) {
+            hands.pts = [];
+            hands.circleAt = now + 1500;
+            toggleOrbit();
+            L.buzz(0.6, 90);
+            xrLog('left hand circle: orbit');
+          }
+        }
+      } else {
+        stepKey('lx', lx, () => speed('r', 1), () => speed('r', -1)); // D / A
+        if (press(L, 0)) speed('u', 1);
+        if (press(L, 1)) speed('u', -1);
+      }
+
+      // the right hand points
+      hands.ray = R?.ray ?? null;
+      hands.pointed = cockpit && hands.ray ? xrPointed(hands.ray) : null;
+      if (press(R, 0)) {
+        const o = hands.pointed?.obj;
+        if (o) {
+          locked = o.id;
+          lookAt(o);
+          R.buzz(0.5, 50);
+        } else xrKey('t', 'KeyT'); // (pointing at nothing: what is straight ahead, as T)
+      }
+      if (press(R, 1)) toggleOrbit();
+      if (press(R, 4)) stop();
       if (press(R, 5)) xrKey('Tab', 'Tab');
-      if (press(L, 0)) speed('u', 1);
-      if (press(L, 1)) speed('u', -1);
       if (press(L, 5)) xrKey('Escape', 'Escape'); // Y: Esc (lets go of the target; the camera stays where it is)
       if (press(L, 3) && game) ACTIONS.helm.run();
       if (press(L, 4)) return void xrState.session?.end(); // X: out of VR
@@ -10071,41 +10229,52 @@
     // the rig: the headset's space hangs on the eye of the scene: scene point = origin + right·x + up·y − forward·z. In space it
     // turns with the whole ship (heading, nod and roll: the cockpit turns, the stars stay); on the ground and in the car with the
     // heading only (the horizon stays level)
-    // ---- The flight readout in the headset. The desktop's readout (top right) and target box are DOM, which a headset never
-    // shows, so here they are written on a small 2D canvas and drawn as a panel that hangs with the head, a little below the
-    // middle of the view (1.1 m ahead, 0.34 m down, tilted up to the eye): the speed (ly/s and the multiple of c), the speed
-    // levels, ORBIT / GRAVITY, the target with its distance, FROZEN. The texture is uploaded only when the text changes.
-    let xrHudGl = null;
-    const XR_HUD_W = 1024, XR_HUD_H = 288;
-    const xrHudText = () => {
-      const lines = Array.from(flightEl.children, (c) => c.textContent.trim()).filter(Boolean);
-      const t = lockedObject();
-      const lv = (n, k) => `${k} ${level[n] > 0 ? '+' : ''}${level[n]}`;
-      return {
-        speed: lines[0] ?? '',
-        rest: lines.slice(1).filter((x) => !/^v⃗/.test(x)),
-        levels: `${lv('f', 'W/S')}   ${lv('r', 'A/D')}   ${lv('u', 'R/F')}`,
-        target: t ? `◎ ${t.name ?? t.id}` : '',
-        frozen,
+    // ---- Panels and lines in the headset (metres, the reference space). A panel is a 2D canvas drawn as a textured quad; its
+    // texture is uploaded only when its text changes. The flight readout hangs with the head, a little below the middle of the
+    // view (1.1 m ahead, 0.34 m down, tilted up to the eye): the speed (ly/s and the multiple of c), the speed levels, ORBIT /
+    // GRAVITY, the target, FROZEN, the stick. The hand panel sits on the right hand, over the pointing line: what the hand points
+    // at (or else the target), its kind and its distance. The pointing line itself and the stick are GL lines.
+    let xrUiGl = null;
+    const xrUi = (gl) => {
+      if (xrUiGl) return xrUiGl;
+      const sh = (type, src) => { const x = gl.createShader(type); gl.shaderSource(x, src); gl.compileShader(x); if (!gl.getShaderParameter(x, gl.COMPILE_STATUS)) xrLog(`ui shader: ${gl.getShaderInfoLog(x)}`, true); return x; };
+      const prog = (vs, fs) => {
+        const p = gl.createProgram();
+        gl.attachShader(p, sh(gl.VERTEX_SHADER, vs));
+        gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs));
+        gl.linkProgram(p);
+        if (!gl.getProgramParameter(p, gl.LINK_STATUS)) xrLog(`ui program: ${gl.getProgramInfoLog(p)}`, true);
+        return p;
       };
+      const quad = prog('#version 300 es\nin vec2 aXY; uniform mat4 uP, uM; uniform vec2 uHalf; out vec2 vUv; void main() { vUv = vec2(aXY.x * 0.5 + 0.5, 0.5 - aXY.y * 0.5); gl_Position = uP * uM * vec4(aXY * uHalf, 0.0, 1.0); }',
+        '#version 300 es\nprecision mediump float; in vec2 vUv; uniform sampler2D uT; out vec4 o; void main() { o = texture(uT, vUv); }');
+      const line = prog('#version 300 es\nin vec3 aPos; in vec4 aCol; uniform mat4 uP, uV; out vec4 vCol; void main() { vCol = aCol; gl_Position = uP * uV * vec4(aPos, 1.0); }',
+        '#version 300 es\nprecision mediump float; in vec4 vCol; out vec4 o; void main() { o = vec4(vCol.rgb * vCol.a, vCol.a); }');
+      const qVao = gl.createVertexArray();
+      gl.bindVertexArray(qVao);
+      gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1]), gl.STATIC_DRAW);
+      const a = gl.getAttribLocation(quad, 'aXY');
+      gl.enableVertexAttribArray(a);
+      gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 8, 0);
+      const lVao = gl.createVertexArray(), lBuf = gl.createBuffer();
+      gl.bindVertexArray(lVao);
+      gl.bindBuffer(gl.ARRAY_BUFFER, lBuf);
+      const ap = gl.getAttribLocation(line, 'aPos'), ac = gl.getAttribLocation(line, 'aCol');
+      gl.enableVertexAttribArray(ap);
+      gl.vertexAttribPointer(ap, 3, gl.FLOAT, false, 28, 0);
+      gl.enableVertexAttribArray(ac);
+      gl.vertexAttribPointer(ac, 4, gl.FLOAT, false, 28, 12);
+      gl.bindVertexArray(null);
+      const U = (p, names) => Object.fromEntries(names.map((n) => [n, gl.getUniformLocation(p, n)]));
+      xrLog('panels in the headset: ready');
+      return (xrUiGl = { quad, line, qVao, lVao, lBuf, Q: U(quad, ['uP', 'uM', 'uHalf', 'uT']), Ln: U(line, ['uP', 'uV']), panels: {} });
     };
-    const xrHudDraw = (gl, P, eyeFromHead) => {
-      if (!xrHudGl) {
-        const sh = (type, src) => { const x = gl.createShader(type); gl.shaderSource(x, src); gl.compileShader(x); if (!gl.getShaderParameter(x, gl.COMPILE_STATUS)) xrLog(`hud shader: ${gl.getShaderInfoLog(x)}`, true); return x; };
-        const prog = gl.createProgram();
-        gl.attachShader(prog, sh(gl.VERTEX_SHADER, '#version 300 es\nin vec2 aXY; uniform mat4 uP, uM; out vec2 vUv; void main() { vUv = vec2(aXY.x * 0.5 + 0.5, 0.5 - aXY.y * 0.5); gl_Position = uP * uM * vec4(aXY.x * 0.36, aXY.y * 0.1013, 0.0, 1.0); }'));
-        gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, '#version 300 es\nprecision mediump float; in vec2 vUv; uniform sampler2D uT; out vec4 o; void main() { o = texture(uT, vUv); }'));
-        gl.linkProgram(prog);
-        if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) xrLog(`hud program: ${gl.getProgramInfoLog(prog)}`, true);
-        const vao = gl.createVertexArray();
-        gl.bindVertexArray(vao);
-        const buf = gl.createBuffer();
-        gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1]), gl.STATIC_DRAW);
-        const a = gl.getAttribLocation(prog, 'aXY');
-        gl.enableVertexAttribArray(a);
-        gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 8, 0);
-        gl.bindVertexArray(null);
+    // a panel's texture: draw(ctx, w, h) paints it; `key` says when it has to be painted again
+    const xrPanelTex = (gl, id, w, h, key, draw) => {
+      const ui = xrUi(gl);
+      let p = ui.panels[id];
+      if (!p) {
         const tex = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, tex);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
@@ -10113,58 +10282,164 @@
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         const canvas = document.createElement('canvas');
-        canvas.width = XR_HUD_W;
-        canvas.height = XR_HUD_H;
-        xrHudGl = { prog, vao, tex, canvas, key: '', U: { P: gl.getUniformLocation(prog, 'uP'), M: gl.getUniformLocation(prog, 'uM'), T: gl.getUniformLocation(prog, 'uT') } };
-        xrLog('flight readout in the headset: ready');
+        canvas.width = w;
+        canvas.height = h;
+        p = ui.panels[id] = { tex, canvas, key: null };
       }
-      const H = xrHudGl;
+      if (p.key !== key) {
+        p.key = key;
+        const c = p.canvas.getContext('2d');
+        c.clearRect(0, 0, w, h);
+        draw(c, w, h);
+        gl.bindTexture(gl.TEXTURE_2D, p.tex);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, p.canvas);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+      }
+      return p.tex;
+    };
+    const xrOverlayState = (gl, on) => {
+      if (on) {
+        gl.disable(gl.DEPTH_TEST);
+        gl.disable(gl.CULL_FACE);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      } else {
+        gl.bindVertexArray(null);
+        gl.disable(gl.BLEND);
+        gl.enable(gl.DEPTH_TEST);
+      }
+    };
+    // a quad of half size [hw, hh] metres, placed by M (eye from the quad's own frame)
+    const xrQuad = (gl, P, M, tex, hw, hh) => {
+      const ui = xrUi(gl);
+      xrOverlayState(gl, true);
+      gl.useProgram(ui.quad);
+      gl.uniformMatrix4fv(ui.Q.uP, false, P);
+      gl.uniformMatrix4fv(ui.Q.uM, false, M);
+      gl.uniform2f(ui.Q.uHalf, hw, hh);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.uniform1i(ui.Q.uT, 0);
+      gl.bindVertexArray(ui.qVao);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      xrOverlayState(gl, false);
+    };
+    // lines: [x, y, z, r, g, b, a] per point, two points a line, in the reference space (V: the eye's view matrix)
+    const xrLines = (gl, P, V, pts) => {
+      if (!pts.length) return;
+      const ui = xrUi(gl);
+      xrOverlayState(gl, true);
+      gl.useProgram(ui.line);
+      gl.uniformMatrix4fv(ui.Ln.uP, false, P);
+      gl.uniformMatrix4fv(ui.Ln.uV, false, V);
+      gl.bindVertexArray(ui.lVao);
+      gl.bindBuffer(gl.ARRAY_BUFFER, ui.lBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(pts), gl.DYNAMIC_DRAW);
+      gl.drawArrays(gl.LINES, 0, pts.length / 7);
+      xrOverlayState(gl, false);
+    };
+    const xrLevel = (v) => (Number.isInteger(v) ? `${v > 0 ? '+' : ''}${v}` : `${v > 0 ? '+' : ''}${v.toFixed(2)}`);
+    const xrHudText = () => {
+      const lines = Array.from(flightEl.children, (c) => c.textContent.trim()).filter(Boolean);
+      const t = lockedObject();
+      const st = xrState.hands?.stick;
+      return {
+        speed: lines[0] ?? '',
+        rest: lines.slice(1).filter((x) => !/^v⃗/.test(x)),
+        levels: `speed ${xrLevel(level.f)}   side ${xrLevel(level.r)}   up ${xrLevel(level.u)}`,
+        target: t ? `◎ ${t.name ?? t.id}` : '',
+        stick: st ? `stick ${['nod', 'side', 'lift', 'twist'].map((k) => `${k[0]}${Math.round(st[k] * 9)}`).join(' ')}` : '',
+        frozen,
+      };
+    };
+    const xrHudDraw = (gl, P, eyeFromHead) => {
       const d = xrHudText();
-      const key = JSON.stringify(d);
-      if (key !== H.key) {
-        H.key = key;
-        const c = H.canvas.getContext('2d');
-        c.clearRect(0, 0, XR_HUD_W, XR_HUD_H);
+      const tex = xrPanelTex(gl, 'hud', 1024, 288, JSON.stringify(d), (c, W, H) => {
         c.fillStyle = 'rgba(6, 10, 22, 0.62)';
         c.beginPath();
-        c.roundRect(4, 4, XR_HUD_W - 8, XR_HUD_H - 8, 28);
+        c.roundRect(4, 4, W - 8, H - 8, 28);
         c.fill();
         c.strokeStyle = d.frozen ? 'rgba(120, 220, 255, 0.9)' : 'rgba(255, 214, 140, 0.55)';
         c.lineWidth = 4;
         c.stroke();
-        c.textBaseline = 'alphabetic';
         c.fillStyle = '#ffe2a8';
         c.font = '700 84px system-ui, sans-serif';
         c.fillText(d.speed || '0', 36, 104);
         c.font = '500 46px system-ui, sans-serif';
         c.fillStyle = '#cfd8ea';
         c.fillText(d.levels, 36, 172);
+        if (d.stick) {
+          c.textAlign = 'right';
+          c.fillStyle = '#ffb59a';
+          c.font = '500 38px system-ui, sans-serif';
+          c.fillText(d.stick, W - 36, 104);
+          c.textAlign = 'left';
+          c.font = '500 46px system-ui, sans-serif';
+        }
         c.fillStyle = '#9fe6d8';
         const right = [d.frozen ? 'FROZEN' : '', ...d.rest].filter(Boolean).join(' · ');
         c.fillText(`${d.target}${d.target && right ? '   ' : ''}${right}`.slice(0, 48), 36, 242);
-        gl.bindTexture(gl.TEXTURE_2D, H.tex);
-        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, H.canvas);
-        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-      }
-      // the panel in head space: 1.1 m ahead, 0.34 m down, tilted up by 17° so it faces the eye
+      });
+      // in head space: 1.1 m ahead, 0.34 m down, tilted up by 17° so it faces the eye
       const a = 0.3, ca = Math.cos(a), sa = Math.sin(a);
-      const inHead = [1, 0, 0, 0, 0, ca, sa, 0, 0, -sa, ca, 0, 0, -0.34, -1.1, 1];
-      gl.disable(gl.DEPTH_TEST);
-      gl.disable(gl.CULL_FACE);
-      gl.enable(gl.BLEND);
-      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-      gl.useProgram(H.prog);
-      gl.uniformMatrix4fv(H.U.P, false, P);
-      gl.uniformMatrix4fv(H.U.M, false, mul4(eyeFromHead, inHead));
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, H.tex);
-      gl.uniform1i(H.U.T, 0);
-      gl.bindVertexArray(H.vao);
-      gl.drawArrays(gl.TRIANGLES, 0, 6);
-      gl.bindVertexArray(null);
-      gl.disable(gl.BLEND);
-      gl.enable(gl.DEPTH_TEST);
+      xrQuad(gl, P, mul4(eyeFromHead, [1, 0, 0, 0, 0, ca, sa, 0, 0, -sa, ca, 0, 0, -0.34, -1.1, 1]), tex, 0.36, 0.1013);
+    };
+    // the right hand: the pointing line, the hand panel; the left: the stick while it is held
+    const xrHandsDraw = (gl, P, V, eyeFromRef) => {
+      const h = xrState.hands;
+      if (!h) return;
+      const lines = [];
+      const ray = h.ray;
+      if (ray) {
+        const o = [ray[12], ray[13], ray[14]], d = [-ray[8], -ray[9], -ray[10]];
+        const hit = Boolean(h.pointed);
+        const len = 6;
+        lines.push(...o, 0.35, 0.95, 0.85, hit ? 0.9 : 0.45, ...o.map((x, i) => x + d[i] * len), 0.35, 0.95, 0.85, 0);
+      }
+      const g = h.grab?.m;
+      if (g && h.stick) {
+        // the stick: from the fist at the grip (its middle) up 12 cm, dim; and the same from the fist now, bright
+        const base = [g[12], g[13] - 0.05, g[14]];
+        lines.push(...base, 1, 0.7, 0.45, 0.35, base[0], base[1] + 0.14, base[2], 1, 0.7, 0.45, 0.35);
+        const st = h.stick;
+        const tip = [base[0] + st.side * 0.07, base[1] + 0.14 + st.lift * 0.05, base[2] - st.nod * 0.07];
+        lines.push(...base, 1, 0.55, 0.3, 0.95, ...tip, 1, 0.55, 0.3, 0.95);
+      }
+      xrLines(gl, P, V, lines);
+      // the hand panel: what is pointed at, or the target
+      if (!ray) return;
+      const pick = h.pointed?.obj ?? lockedObject();
+      if (!pick) return;
+      const gap = h.pointed ? h.pointed.gap : (() => {
+        const b = ballOf(pick);
+        return Math.max(0, Math.hypot(...vsub(b.center, eyeNow())) - b.radius);
+      })();
+      const name = pick.name ?? pick.id, kind = categoryOf(pick) || (pick.figure ? 'figure' : 'object');
+      const dist = space() ? lyText(gap) : `${gap.toFixed(2)} m`;
+      const isTarget = pick.id === locked;
+      const tex = xrPanelTex(gl, 'hand', 640, 220, `${name}|${kind}|${dist}|${isTarget}|${Boolean(h.pointed)}`, (c, W, H) => {
+        c.fillStyle = 'rgba(4, 16, 18, 0.78)';
+        c.beginPath();
+        c.roundRect(3, 3, W - 6, H - 6, 22);
+        c.fill();
+        c.strokeStyle = isTarget ? 'rgba(57, 255, 20, 0.85)' : h.pointed ? 'rgba(90, 240, 220, 0.8)' : 'rgba(150, 160, 170, 0.6)';
+        c.lineWidth = 4;
+        c.stroke();
+        c.fillStyle = '#e8fffb';
+        c.font = '700 58px system-ui, sans-serif';
+        c.fillText(`${isTarget ? '◎ ' : ''}${name}`.slice(0, 20), 26, 72);
+        c.fillStyle = '#9fe6d8';
+        c.font = '500 38px system-ui, sans-serif';
+        c.fillText(kind.slice(0, 30), 26, 128);
+        c.fillStyle = '#ffe2a8';
+        c.font = '600 46px system-ui, sans-serif';
+        c.fillText(dist, 26, 190);
+      });
+      // over the hand: 6 cm up and 4 cm back from the pointing origin, tilted 40° up toward the eye
+      const a = -0.7, ca = Math.cos(a), sa = Math.sin(a);
+      const local = [1, 0, 0, 0, 0, ca, sa, 0, 0, -sa, ca, 0, 0, 0.07, 0.02, 1];
+      xrQuad(gl, P, mul4(eyeFromRef, mul4(ray, local)), tex, 0.09, 0.031);
     };
     const xrRig = () => {
       const flat = (h) => ({ forward: [Math.sin(h), 0, -Math.cos(h)], right: [Math.cos(h), 0, Math.sin(h)], up: [0, 1, 0] });
@@ -10238,7 +10513,7 @@
       const dt = xrState.last ? Math.min(0.1, (now - xrState.last) / 1000) : 0;
       xrState.last = now;
       // the controllers: the stick to the car, the buttons to the note and a flash
-      const pads = xrPads(session);
+      const pads = xrPads(session, frame);
       xrDrive(pads, dt, now);
       try {
         xrFly(pads, dt, now);
@@ -10333,7 +10608,10 @@
         xrState.phase = `render ${v.eye} eye`;
         gpu.render(xrArgs.scene, xrArgs.view, { ...xrArgs.opts, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: engineP, view: Ve, eye } });
         xrSkyDraw(gl, glP, Ve, vp.height, xrArgs.origin);
-        if (!drive()) xrHudDraw(gl, v.projectionMatrix, mul4(v.transform.inverse.matrix, pose.transform.matrix));
+        if (!drive()) {
+          xrHudDraw(gl, v.projectionMatrix, mul4(v.transform.inverse.matrix, pose.transform.matrix));
+          xrHandsDraw(gl, v.projectionMatrix, v.transform.inverse.matrix, v.transform.inverse.matrix);
+        }
         if (XR_TEST === '2') xrTestDraw(gl, v, vp, t / 1000);
         if (n <= 3) xrGlErrors(gl, `the ${v.eye} eye, frame ${n}`);
       }
