@@ -937,7 +937,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@f25403028b057ace34c3575621bf870550039594/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@ea5fa88f4d817610ce186756e388d92d60c406f5/dist/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2200,7 +2200,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@f25403028b057ace34c3575621bf870550039594/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@ea5fa88f4d817610ce186756e388d92d60c406f5/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -10025,8 +10025,11 @@
     // heading only (the horizon stays level)
     const xrRig = () => {
       const flat = (h) => ({ forward: [Math.sin(h), 0, -Math.cos(h)], right: [Math.cos(h), 0, Math.sin(h)], up: [0, 1, 0] });
-      if (drive() && car) return { origin: [car.p[0], car.p[1] + CAR_EYE, car.p[2]], ...flat(car.heading) };
-      return { origin: eyeNow(), ...(space() ? shipBasis() : flat(yaw)) };
+      // scale: scene units per metre of the headset's space (the head's moves and the eyes' distance are metres). A star map is
+      // in light years: true scale there (a step of the head or the 6 cm between the eyes are nothing against a light year), so
+      // the sky stays at infinity in both eyes; elsewhere the scene is in metres
+      if (drive() && car) return { origin: [car.p[0], car.p[1] + CAR_EYE, car.p[2]], ...flat(car.heading), scale: 1 };
+      return { origin: eyeNow(), ...(space() ? shipBasis() : flat(yaw)), scale: space() ? 1 / (LY_KM * 1000) : 1 };
     };
     const xrFrame = (t, frame) => {
       const session = frame.session;
@@ -10083,12 +10086,19 @@
         xrGlErrors(gl, `test frame ${n}`);
         return;
       }
-      const { origin: worldOrigin, forward: F, right: Rt, up: U } = xrRig();
+      const { origin: worldOrigin, forward: F, right: Rt, up: U, scale: S } = xrRig();
       const origin = xrArgs.origin ? vsub(worldOrigin, xrArgs.origin) : worldOrigin; // (the floating origin)
       const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
       // scene -> headset: rows right, up, −forward; column-major
       const toHead = [Rt[0], U[0], -F[0], 0, Rt[1], U[1], -F[1], 0, Rt[2], U[2], -F[2], 0, -dot3(Rt, origin), -dot3(U, origin), dot3(F, origin), 1];
-      const toScene = (p) => [0, 1, 2].map((i) => origin[i] + Rt[i] * p.x + U[i] * p.y - F[i] * p.z);
+      const toScene = (p) => [0, 1, 2].map((i) => origin[i] + (Rt[i] * p.x + U[i] * p.y - F[i] * p.z) * S);
+      // an eye's view matrix in scene units: the headset's (metres: its translation is the head's place and the eye's offset)
+      // with the translation scaled to the scene, after the rig (toHead, in scene units)
+      const eyeView = (inv) => {
+        const m = Float32Array.from(inv);
+        if (S !== 1) ((m[12] *= S), (m[13] *= S), (m[14] *= S));
+        return mul4(m, toHead);
+      };
       const sky = now < xrState.flashUntil ? [0.08, 0.35, 0.12] : (xrArgs.opts.background ?? [0.02, 0.02, 0.03]);
       if (xrState.mono) {
         const w = layer.framebufferWidth, h = layer.framebufferHeight;
@@ -10097,7 +10107,7 @@
         P[8] = 0;
         P[9] = 0;
         const eye = toScene(pose.transform.position);
-        const Vm = mul4(pose.transform.inverse.matrix, toHead);
+        const Vm = eyeView(pose.transform.inverse.matrix);
         gpu.render(xrArgs.scene, xrArgs.view, { ...xrArgs.opts, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [0, 0, w, h], projection: P, view: Vm, eye } });
         return void xrSkyDraw(gl, P, Vm, h, xrArgs.origin);
       }
@@ -10105,8 +10115,9 @@
         const vp = layer.getViewport(v);
         if (!vp) continue;
         const eye = toScene(v.transform.position);
-        gpu.render(xrArgs.scene, xrArgs.view, { ...xrArgs.opts, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: v.projectionMatrix, view: mul4(v.transform.inverse.matrix, toHead), eye } });
-        xrSkyDraw(gl, v.projectionMatrix, mul4(v.transform.inverse.matrix, toHead), vp.height, xrArgs.origin);
+        const Ve = eyeView(v.transform.inverse.matrix);
+        gpu.render(xrArgs.scene, xrArgs.view, { ...xrArgs.opts, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: v.projectionMatrix, view: Ve, eye } });
+        xrSkyDraw(gl, v.projectionMatrix, Ve, vp.height, xrArgs.origin);
         if (XR_TEST === '2') xrTestDraw(gl, v, vp, t / 1000);
         if (n <= 3) xrGlErrors(gl, `the ${v.eye} eye, frame ${n}`);
       }
@@ -10169,9 +10180,12 @@
       }
       if (gl.isContextLost()) xrLog('the WebGL context is lost after makeXRCompatible', true);
       try {
-        const baseLayer = new XRWebGLLayer(session, gl);
-        session.updateRenderState({ baseLayer, depthNear: 0.05, depthFar: 1e5 });
-        xrLog(`XRWebGLLayer: framebuffer ${baseLayer.framebufferWidth}×${baseLayer.framebufferHeight} · antialias ${baseLayer.antialias}`);
+        // (as three.js's WebXRManager: antialias and depth asked for, the layer bound once; the depth range of the eyes'
+        // projections: a star map draws with logarithmic depth, which replaces it, so only the scenes in metres need it)
+        const baseLayer = new XRWebGLLayer(session, gl, { antialias: true, depth: true, stencil: false, alpha: false });
+        if ('fixedFoveation' in baseLayer) baseLayer.fixedFoveation = 1; // (the Quest: less work at the edges of the lenses)
+        session.updateRenderState({ baseLayer, depthNear: 0.05, depthFar: space() ? 1e9 : 1e5 });
+        xrLog(`XRWebGLLayer: framebuffer ${baseLayer.framebufferWidth}×${baseLayer.framebufferHeight} · antialias ${baseLayer.antialias} · foveation ${baseLayer.fixedFoveation ?? '-'} · ${space() ? 'star map: true scale, the head and eyes in metres' : 'scene in metres'}`);
       } catch (err) {
         xrLog(`XRWebGLLayer failed: ${err?.message ?? err}`, true);
         return session.end();
