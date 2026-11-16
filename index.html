@@ -9648,6 +9648,21 @@
         }) };
     }
 
+    // Precompile the native WebGL2 renderer before entering immersive VR.
+    // The Three.js comparison works partly because its renderer is ready before setSession().
+    // Shader compilation and mesh upload must not stall the headset's first XR frame.
+    let xrWebGlWarmup = null;
+    const warmXrWebGl = () => {
+      if (!navigator.xr) return;
+      if (!xrWebGlWarmup) xrWebGlWarmup = ensure('webgl2');
+      return xrWebGlWarmup;
+    };
+    if (navigator.xr) {
+      window.addEventListener('load', () => setTimeout(() => {
+        if (!xrState.session) warmXrWebGl();
+      }, 700), { once: true });
+      document.getElementById('xrBtn')?.addEventListener('pointerenter', warmXrWebGl);
+    }
     // ---- WebXR (immersive-vr), the first, minimal step: the scene in a headset through the WebGL2 renderer, and the controllers.
     // Enter VR switches to the WebGL2 view if needed (a WebXR layer is made from a WebGL2 context), starts an immersive-vr session
     // with a 'local' reference space, and from then on the session's requestAnimationFrame runs everything: one frame of the
@@ -10036,6 +10051,28 @@
       const session = frame.session;
       if (session !== xrState.session) return; // (a frame still on its way after the end)
       session.requestAnimationFrame(xrFrame);
+      // A bare XR test must never depend on the heavyweight scene update.
+      // This isolates session/layer/framebuffer/eye rendering from Spider Paint entirely.
+      if (XR_TEST === '1') {
+        const pose = frame.getViewerPose(xrState.space);
+        const layer = session.renderState.baseLayer;
+        const gl = gpu?.context;
+        const n = ++xrState.frames;
+        if (n === 1) xrLog(`isolated frame: pose=${Boolean(pose)} layer=${Boolean(layer)} gl=${Boolean(gl)}`);
+        if (pose && layer && gl) {
+          gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
+          gl.disable(gl.SCISSOR_TEST);
+          gl.clearColor(0.05, 0.05, 0.08, 1);
+          gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+          for (const v of pose.views) {
+            const vp = layer.getViewport(v);
+            if (vp) xrTestDraw(gl, v, vp, t / 1000);
+          }
+          if (n <= 3) xrGlErrors(gl, `isolated frame ${n}`);
+        }
+        return;
+      }
+      if (xrState.frames === 0) xrLog('first native XR frame reached; updating scene');
       const now = performance.now();
       const dt = xrState.last ? Math.min(0.1, (now - xrState.last) / 1000) : 0;
       xrState.last = now;
@@ -10078,15 +10115,6 @@
         return;
       }
       if (n <= 3) xrLog(`frame ${n}: ${pose.views.length} views · framebuffer ${layer.framebufferWidth}×${layer.framebufferHeight} · ${pose.views.map((v) => { const vp = layer.getViewport(v); return `${v.eye} ${vp ? `${vp.x},${vp.y} ${vp.width}×${vp.height}` : 'no viewport'}`; }).join(' · ')}${XR_TEST ? ` · test ${XR_TEST}` : ''}`);
-      if (XR_TEST === '1') {
-        gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
-        gl.disable(gl.SCISSOR_TEST);
-        gl.clearColor(0.05, 0.05, 0.08, 1);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        for (const v of pose.views) { const vp = layer.getViewport(v); if (vp) xrTestDraw(gl, v, vp, t / 1000); }
-        xrGlErrors(gl, `test frame ${n}`);
-        return;
-      }
       const { origin: worldOrigin, forward: F, right: Rt, up: U, scale: S } = xrRig();
       const origin = xrArgs.origin ? vsub(worldOrigin, xrArgs.origin) : worldOrigin; // (the floating origin)
       const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -10148,6 +10176,15 @@
         xrFrameBody(t, frame);
       } catch (err) {
         if ((xrState.frameErrs = (xrState.frameErrs ?? 0) + 1) <= 5) xrLog(`frame ${xrState.frames}: ${err?.message ?? err} · ${String(err?.stack ?? '').split('\n')[1]?.trim() ?? ''}`, true);
+        // If the scene or renderer throws, paint magenta to distinguish a render
+        // exception from a session that never produced any XR frames.
+        const gl = gpu?.context, layer = xrState.session?.renderState.baseLayer;
+        if (gl && layer) {
+          gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
+          gl.disable(gl.SCISSOR_TEST);
+          gl.clearColor(0.6, 0.02, 0.22, 1);
+          gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        }
         // (the next frame is already asked for: it is the first thing a frame does)
       }
     };
@@ -10193,6 +10230,7 @@
       if (mode !== 'gpu' || activeKind !== 'webgl2') {
         xrState.prevMode = mode !== 'gpu' ? 'svg' : 'gpu';
         const t1 = performance.now();
+        if (xrWebGlWarmup) await xrWebGlWarmup;
         await setMode('gl');
         xrLog(`the view switched to WebGL2 in ${Math.round(performance.now() - t1)} ms`);
       }
@@ -10214,6 +10252,9 @@
         xrLog('makeXRCompatible: ok');
       } catch (err) {
         xrLog(`makeXRCompatible failed: ${err?.message ?? err}`, true);
+        await session.end();
+        showXrLog();
+        return;
       }
       if (gl.isContextLost()) xrLog('the WebGL context is lost after makeXRCompatible', true);
       try {
@@ -10292,8 +10333,17 @@
       scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 2, sizeAttenuation: false })));
       const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.05, 200);
       camera.position.set(0, 1.6, 0);
-      let frames = 0;
+      let frames = 0, session, wasXPressed = false;
       renderer.setAnimationLoop((t) => {
+        // Same exit control as native 3Draft VR: left Touch X (button 4).
+        const xPressed = [...(renderer.xr.getSession()?.inputSources ?? [])]
+          .some((source) => source.handedness === 'left' && Boolean(source.gamepad?.buttons?.[4]?.pressed));
+        if (xPressed && !wasXPressed) {
+          xrLog('three.js: left X pressed; ending immersive session');
+          renderer.xr.getSession()?.end();
+          return;
+        }
+        wasXPressed = xPressed;
         cube.rotation.set(t / 1300, t / 1000, 0);
         renderer.render(scene, camera);
         if (++frames === 1 || frames === 90) {
@@ -10301,7 +10351,6 @@
           xrLog(`three.js frame ${frames}: presenting ${renderer.xr.isPresenting}${l ? ` · framebuffer ${l.framebufferWidth}×${l.framebufferHeight}` : ''}`);
         }
       });
-      let session;
       try {
         session = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor'] });
       } catch (e) {
