@@ -189,6 +189,7 @@
     #charView { width: 100%; height: 340px; flex: none; border-radius: 10px; overflow: hidden; background: #1b1c17; cursor: grab; touch-action: none; }
     #charView svg { width: 100%; height: 100%; display: block; }
     #charView svg text { display: none; }
+    #charView canvas { display: block; margin: 0 auto; }
     #charPanel .crow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
     #charPanel .crow button { padding: 6px 10px; border-radius: 8px; }
     #charPanel #charPoseRow button.on { background: var(--teal); color: #04181a; }
@@ -926,7 +927,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@55882dd9e7e6018abe871c9d53d26d3e6aaed240/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@79fa88a0fb79a3636ebbc515d2aa68d17957aef1/dist/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
@@ -2186,7 +2187,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@55882dd9e7e6018abe871c9d53d26d3e6aaed240/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@79fa88a0fb79a3636ebbc515d2aa68d17957aef1/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -7063,8 +7064,17 @@
       if (el.dataset.key) charEdit(el.dataset.key, el.type === 'checkbox' ? el.checked : el.value);
       else if (el.dataset.mat) charEdit(el.dataset.mat, el.value);
     });
-    // the preview: the engine's SVG view of the figure, turned by a drag; the walk plays while it is chosen
+    // the preview: a WebGL2 view of the figure in studio light, no edges, turned by a drag (the SVG view, unstroked, until
+    // WebGL2 is up or where there is none); the walk plays while it is chosen
     let charAnim = 0;
+    const charGl = { canvas: document.createElement('canvas'), gl: null, tried: false };
+    const charGlReady = () => {
+      if (!charGl.tried) {
+        charGl.tried = true;
+        createGl(charGl.canvas).then((g) => ((charGl.gl = g), charShow())).catch(() => {});
+      }
+      return charGl.gl;
+    };
     const charShow = () => {
       if (charPanelEl.hidden) return;
       const c = charOf(charSpec);
@@ -7073,7 +7083,13 @@
       const H = c.height;
       const sit = charPose === 'sit';
       const size = Math.round(Math.max(200, Math.min(charViewEl.clientWidth || 380, charViewEl.clientHeight || 340)));
-      charViewEl.innerHTML = renderView(mesh, orbitView({ yaw: charView.yaw, pitch: charView.pitch }), { palette: paletteMap, points: false, occlude: true, stroke: '#00000030', background: '#1b1c17', size, fit: { center: [0, sit ? H * 0.36 : H * 0.5, sit ? H * 0.12 : 0], radius: H * 0.5 } });
+      const charFit = { center: [0, sit ? H * 0.36 : H * 0.5, sit ? H * 0.12 : 0], radius: H * 0.5 };
+      const g = charGlReady();
+      if (g) {
+        g.render(mesh, orbitView({ yaw: charView.yaw, pitch: charView.pitch }), { size, palette: paletteMap, smooth: 40, studio: true, background: [0.106, 0.11, 0.09], fit: charFit });
+        charGl.canvas.style.width = charGl.canvas.style.height = `${size}px`;
+        if (charGl.canvas.parentNode !== charViewEl) charViewEl.replaceChildren(charGl.canvas);
+      } else charViewEl.innerHTML = renderView(mesh, orbitView({ yaw: charView.yaw, pitch: charView.pitch }), { palette: paletteMap, points: false, occlude: true, stroke: 'none', background: '#1b1c17', size, fit: charFit });
       for (const b of document.querySelectorAll('#charPoseRow button')) b.classList.toggle('on', b.dataset.pose === charPose);
       const target = charTarget && allObjects().find((o) => o.id === charTarget && o.character);
       document.getElementById('charApply').disabled = !target;
@@ -7179,9 +7195,17 @@
       charShow();
       return made;
     };
+    // place: in an empty scene it stands at the origin; otherwise it floats in place mode (as G G), a click sticks it to a
+    // surface, Enter keeps it, Esc takes it away
     document.getElementById('charPlace').addEventListener('click', () => {
-      const o = placeCharacter();
-      charNote(`placed ${o.name}${charPose === 'walk' ? ' (walks to and fro; freeze stops it)' : ''} · U takes it back`);
+      const empty = !allObjects().some((x) => x.pickable !== false && !x.skyLine);
+      const o = placeCharacter(charSpec, charPose, empty ? [0, 0, 0] : null);
+      const walk = charPose === 'walk' ? ' (walks to and fro; freeze stops it)' : '';
+      if (empty || !gcam) return charNote(`placed ${o.name} at 0, 0, 0${walk} · U takes it back`);
+      const foot = baseCentre(o.mesh);
+      startPlace(live(o) ?? o, { foot, n: [0, 1, 0], dist: Math.max(0.05, Math.hypot(...vsub(foot, gcam.eye))), created: true });
+      document.activeElement?.blur?.(); // the keys (Enter, Esc, G R S) go to the view, not the place button
+      charNote(`${o.name} floats under the pointer: click a surface to stand it there, Enter keeps it, Esc takes it away${walk}`);
     });
     // edit a placed one: its spec into the builder; apply: only that object changes (one undo step)
     const charEditPlaced = (o = pointedObject()) => {
@@ -7295,7 +7319,8 @@
       return { foot, n };
     };
     const placeGrabbed = (o, point, normal) => {
-      const { foot, n } = footOf(o.mesh, point, normal);
+      // a character is always held by where it stands (the middle of its footprint, up is up), wherever it was grabbed
+      const { foot, n } = o.character ? { foot: baseCentre(o.mesh), n: [0, 1, 0] } : footOf(o.mesh, point, normal);
       startPlace(o, { foot, n, dist: Math.max(0.05, Math.hypot(...vsub(point, gcam.eye))) });
     };
     // the state the operation in progress leaves behind (where the foot went, which way is up now)
@@ -7874,7 +7899,7 @@
         return void letGo();
       }
       if (e.key === 'Escape' && !keyPanel.hidden) return void closeModals();
-      if (e.key === 'Escape' && !editing && !picking && !locked && sidePanels.some((el) => !el.hidden)) return void closeSide();
+      if (e.key === 'Escape' && !editing && !picking && !locked && !placing && sidePanels.some((el) => !el.hidden)) return void closeSide();
       if (e.key === 'Escape' && !editing && !picking && !locked) {
         // Esc closes what is open: the key explainer, then zen
         if (!keyPanel.hidden) return void toggleKeys(false);
