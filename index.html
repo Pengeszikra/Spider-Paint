@@ -9781,7 +9781,13 @@
       }
     };
     const xrPads = (session) =>
-      [...session.inputSources].filter((src) => src.gamepad).map((src) => ({ hand: src.handedness, axes: [...src.gamepad.axes], buttons: src.gamepad.buttons.map((b) => b.pressed) }));
+      [...session.inputSources].filter((src) => src.gamepad).map((src) => ({
+        hand: src.handedness,
+        // IWER/Quest may expose unassigned axes as null, undefined or NaN.
+        // Sanitize at the input boundary so neither control nor UI can crash XR.
+        axes: Array.from(src.gamepad.axes, (v) => Number.isFinite(v) ? v : 0),
+        buttons: Array.from(src.gamepad.buttons, (b) => Boolean(b?.pressed)),
+      }));
     // ---- The sky in the headset. On the desktop the star glows (a 2D canvas) and the galaxies' point clouds (their own WebGL2
     // canvas) lie over the 3D picture; a headset has only the XR layer of the main WebGL2 context, so here both are drawn into it
     // as GL points, after the scene, per eye, with that eye's matrices: the clouds as on the desktop (a sharp point of 1.3–2.4 px
@@ -10104,7 +10110,7 @@
         if (pressed) xrLog(`pressed ${pressed}`);
       }
       const r = pads.find((p) => p.hand === 'right');
-      xrSay(`${pressed ? `▣ ${pressed}` : xrState.mono ? 'in EM' : 'in VR'}${r ? ` · R ${r.axes.map((v) => v.toFixed(2)).join(' ')}` : ''}`);
+      xrSay(`${pressed ? `▣ ${pressed}` : xrState.mono ? 'in EM' : 'in VR'}${r ? ` · R ${r.axes.map((v) => Number.isFinite(v) ? v.toFixed(2) : '0.00').join(' ')}` : ''}`);
       xrNote?.classList.toggle('press', Boolean(pressed));
       // one frame of the program (it also renders the desktop picture and leaves xrArgs)
       queued = false;
