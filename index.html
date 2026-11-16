@@ -937,7 +937,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/ffb190d8ecc5/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/40eca618da53/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2200,7 +2200,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/ffb190d8ecc5/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/40eca618da53/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -10031,7 +10031,7 @@
       if (drive() && car) return { origin: [car.p[0], car.p[1] + CAR_EYE, car.p[2]], ...flat(car.heading), scale: 1 };
       return { origin: eyeNow(), ...(space() ? shipBasis() : flat(yaw)), scale: space() ? 1 / (LY_KM * 1000) : 1 };
     };
-    const xrFrame = (t, frame) => {
+    const xrFrameBody = (t, frame) => {
       const session = frame.session;
       if (session !== xrState.session) return; // (a frame still on its way after the end)
       session.requestAnimationFrame(xrFrame);
@@ -10123,6 +10123,14 @@
       }
       if (n > 3 && n % 120 === 0) xrGlErrors(gl, `frame ${n}`);
     };
+    const xrFrame = (t, frame) => {
+      try {
+        xrFrameBody(t, frame);
+      } catch (err) {
+        if ((xrState.frameErrs = (xrState.frameErrs ?? 0) + 1) <= 5) xrLog(`frame ${xrState.frames}: ${err?.message ?? err} · ${String(err?.stack ?? '').split('\n')[1]?.trim() ?? ''}`, true);
+        // (the next frame is already asked for: it is the first thing a frame does)
+      }
+    };
     const endedXr = async () => {
       xrLog(`session ended after ${xrState.frames} frames`);
       showXrLog();
@@ -10146,31 +10154,40 @@
       xrState.log = [];
       xrState.frames = 0;
       xrState.errs = 0;
+      xrState.frameErrs = 0;
       xrLog(`start ${mono ? 'EM' : 'VR'} · ${navigator.userAgent}${XR_TEST ? ` · xrtest ${XR_TEST}` : ''}`);
       if (!xr) return (xrLog('navigator.xr is missing', true), xrSay('no WebXR here (on a Mac: the Immersive Web Emulator)'));
-      if (!(await xr.isSessionSupported('immersive-vr').catch(() => false))) return xrSay('immersive-vr is not supported here');
-      if (mode !== 'gpu' || activeKind !== 'webgl2') {
-        xrState.prevMode = mode !== 'gpu' ? 'svg' : 'gpu';
-        await setMode('gl');
-      }
-      const gl = gpu?.context;
-      if (activeKind !== 'webgl2' || !gl) return (xrLog(`no WebGL2 context (view ${activeKind})`, true), xrSay('WebGL2 is not available'));
-      xrLog(`WebGL2: ${gl.getParameter(gl.VERSION)} · ${gl.getParameter(gl.RENDERER)}`);
-      if (!xrState.lostHook) {
-        xrState.lostHook = true;
-        gl.canvas.addEventListener('webglcontextlost', () => xrLog('WebGL context LOST', true));
-        gl.canvas.addEventListener('webglcontextrestored', () => xrLog('WebGL context restored', true));
-      }
+      // The session first, straight from the click (as three.js does): requestSession needs the user's gesture, and that only
+      // lasts a few seconds; switching the view to WebGL2 (a new renderer, its shaders, the whole scene uploaded) took longer
+      // than that on the Quest, so the session was refused and the headset never showed 3Draft. The view switches after.
+      const t0 = performance.now();
       let session;
       try {
         session = await xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor'] });
       } catch (err) {
         xrLog(`requestSession failed: ${err?.name}: ${err?.message ?? err}`, true);
         showXrLog();
-        if (xrState.prevMode) ((await setMode(xrState.prevMode === 'svg' ? 'svg' : 'gpu')), (xrState.prevMode = null));
         return xrSay(`could not start VR: ${err?.message ?? err}`);
       }
-      xrLog(`session created · blend ${session.environmentBlendMode} · visibility ${session.visibilityState}`);
+      xrLog(`session created (${Math.round(performance.now() - t0)} ms after the click) · blend ${session.environmentBlendMode} · visibility ${session.visibilityState}`);
+      if (mode !== 'gpu' || activeKind !== 'webgl2') {
+        xrState.prevMode = mode !== 'gpu' ? 'svg' : 'gpu';
+        const t1 = performance.now();
+        await setMode('gl');
+        xrLog(`the view switched to WebGL2 in ${Math.round(performance.now() - t1)} ms`);
+      }
+      const gl = gpu?.context;
+      if (activeKind !== 'webgl2' || !gl) {
+        xrLog(`no WebGL2 context (view ${activeKind})`, true);
+        session.end();
+        return xrSay('WebGL2 is not available');
+      }
+      xrLog(`WebGL2: ${gl.getParameter(gl.VERSION)} · ${gl.getParameter(gl.RENDERER)}`);
+      if (!xrState.lostHook) {
+        xrState.lostHook = true;
+        gl.canvas.addEventListener('webglcontextlost', () => xrLog('WebGL context LOST', true));
+        gl.canvas.addEventListener('webglcontextrestored', () => xrLog('WebGL context restored', true));
+      }
       session.addEventListener('visibilitychange', () => xrLog(`visibility: ${session.visibilityState}`));
       try {
         await gl.makeXRCompatible?.();
