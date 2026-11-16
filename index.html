@@ -10053,6 +10053,28 @@
       if (drive() && car) return { origin: [car.p[0], car.p[1] + CAR_EYE, car.p[2]], ...flat(car.heading), scale: 1 };
       return { origin: eyeNow(), ...(space() ? shipBasis() : flat(yaw)), scale: space() ? 1 / (LY_KM * 1000) : 1 };
     };
+    // Some IWER versions report a full-width left viewport and a zero-width
+    // right viewport. Validate the entire stereo pair; use the XR-provided
+    // rectangles unchanged on compliant runtimes (including a real Quest).
+    const xrEyeViewports = (layer, views) => {
+      const raw = views.map((v) => layer.getViewport(v));
+      const W = layer.framebufferWidth, H = layer.framebufferHeight;
+      const valid = (p) => p && [p.x, p.y, p.width, p.height].every(Number.isFinite)
+        && p.width > 0 && p.height > 0 && p.x >= 0 && p.y >= 0
+        && p.x + p.width <= W && p.y + p.height <= H;
+      const overlap = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width
+        && a.y < b.y + b.height && b.y < a.y + a.height;
+      if (raw.every(valid) && (raw.length !== 2 || !overlap(raw[0], raw[1]))) return raw;
+      if (views.length === 2 && W >= 2 && H >= 1) {
+        if (!xrState.viewportWarned) {
+          xrState.viewportWarned = true;
+          xrLog(`invalid XR stereo viewports (${raw.map((p, i) => `${views[i].eye}:${p ? [p.x, p.y, p.width, p.height].join(',') : 'null'}`).join(' / ')}) for ${W}×${H}; using equal-width fallback`, true);
+        }
+        const half = Math.floor(W / 2);
+        return [{ x: 0, y: 0, width: half, height: H }, { x: half, y: 0, width: W - half, height: H }];
+      }
+      return raw.map((p) => valid(p) ? p : null);
+    };
     const xrFrameBody = (t, frame) => {
       const session = frame.session;
       if (session !== xrState.session) return; // (a frame still on its way after the end)
@@ -10077,10 +10099,11 @@
           gl.disable(gl.SCISSOR_TEST);
           gl.clearColor(0.05, 0.05, 0.08, 1);
           gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-          for (const v of pose.views) {
-            const vp = layer.getViewport(v);
+          const viewports = xrEyeViewports(layer, pose.views);
+          pose.views.forEach((v, i) => {
+            const vp = viewports[i];
             if (vp) xrTestDraw(gl, v, vp, t / 1000);
-          }
+          });
           if (n <= 3) xrGlErrors(gl, `isolated frame ${n}`);
         }
         return;
@@ -10133,7 +10156,8 @@
         }
         return;
       }
-      if (n <= 3) xrLog(`frame ${n}: ${pose.views.length} views · framebuffer ${layer.framebufferWidth}×${layer.framebufferHeight} · ${pose.views.map((v) => { const vp = layer.getViewport(v); return `${v.eye} ${vp ? `${vp.x},${vp.y} ${vp.width}×${vp.height}` : 'no viewport'}`; }).join(' · ')}${XR_TEST ? ` · test ${XR_TEST}` : ''}`);
+      const viewports = xrEyeViewports(layer, pose.views);
+      if (n <= 3) xrLog(`frame ${n}: ${pose.views.length} views · framebuffer ${layer.framebufferWidth}×${layer.framebufferHeight} · ${pose.views.map((v, i) => { const vp = viewports[i]; return `${v.eye} ${vp ? `${vp.x},${vp.y} ${vp.width}×${vp.height}` : 'no viewport'}`; }).join(' · ')}${XR_TEST ? ` · test ${XR_TEST}` : ''}`);
       xrState.phase = 'xrRig and eye transforms';
       const { origin: worldOrigin, forward: F, right: Rt, up: U, scale: S } = xrRig();
       const origin = xrArgs.origin ? vsub(worldOrigin, xrArgs.origin) : worldOrigin; // (the floating origin)
@@ -10178,8 +10202,8 @@
         gpu.render(xrArgs.scene, xrArgs.view, { ...xrArgs.opts, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [0, 0, w, h], projection: engineP, view: Vm, eye } });
         return void xrSkyDraw(gl, P, Vm, h, xrArgs.origin);
       }
-      for (const v of pose.views) {
-        const vp = layer.getViewport(v);
+      for (const [i, v] of pose.views.entries()) {
+        const vp = viewports[i];
         if (!vp) continue;
         const eye = toScene(v.transform.position);
         const Ve = eyeView(v.transform.inverse.matrix);
