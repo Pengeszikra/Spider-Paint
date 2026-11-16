@@ -164,6 +164,10 @@
     #hud[hidden] { display: none; }
     #frame canvas { display: block; }
     #frame canvas[hidden] { display: none; }
+    /* a game's ship (the bridge): its own canvas over the universe, see-through where the ship is open */
+    #frame #bridge { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 2; }
+    #gameBtn { position: fixed; top: 108px; right: 16px; z-index: 8; padding: 6px 10px; border-radius: 8px; font: 600 11px/1 var(--font-mono); letter-spacing: 0.08em; }
+    #gameBtn[hidden] { display: none; }
     /* A cinematic story draws the native sky behind its opaque animated foreground. */
     #frame.story-sky > #gpu, #frame.story-sky > #gl { position: relative; z-index: 1; }
     #frame.story-sky > #hole, #frame.story-sky > #cloud, #frame.story-sky > #glow { z-index: 0; }
@@ -664,7 +668,7 @@
     <p class="build"><span id="fps" title="Frames drawn in the last second (– while nothing moves: a still picture is not redrawn)">–</span> <span id="build" title="Build, YY.MM.DD.NNN">–</span></p>
   </header>
 
-  <main id="stage" tabindex="0" role="img" aria-label="Empty space for prisms. 9 switches between the SVG and the WebGPU view, L turns the light, C switches the filmic look, N smooth shading, K the studio light. Drag, or use the arrow keys, to rotate the view. The cross follows the surface under the pointer. M puts a prism down there, or shoots one into empty space; Space stops the movement. B drags a box round objects to select them (B twice: a lasso), then G, R, S move, turn and size them together; the bool button asks for a boolean operation on two selected objects (union, A minus B, B minus A, intersect). V joins two surface points with a thin bar (P over empty space forgets a pending first point), X deletes the object under the cross, W A S D R F fly, / shows only the model under the cross (/ again: the whole scene), P shows the material palette (Ctrl+click (Cmd on a Mac) paints a face, Ctrl+double click the whole model), T flies the camera to the object under the cross, H puts the move gizmo (helper) on the object under the cross with the world axes, the next H switches to the object's own axes, the third takes it off; drag an arrow to move the object; E toggles edges and points, U or Backspace takes the last one back."><div id="frame"><canvas id="gpu" hidden></canvas><div id="layer"></div><div id="screens"></div><svg id="selArea" aria-hidden="true"></svg></div><div id="hud" aria-hidden="true"></div><div id="loader" hidden role="status"><div class="orb" aria-hidden="true"><i></i><b></b><b></b><b></b></div><span>loading…</span><em id="loaderStep"></em><s id="loaderBar"><u></u></s></div><div id="workNote" hidden aria-live="polite"></div></main>
+  <main id="stage" tabindex="0" role="img" aria-label="Empty space for prisms. 9 switches between the SVG and the WebGPU view, L turns the light, C switches the filmic look, N smooth shading, K the studio light. Drag, or use the arrow keys, to rotate the view. The cross follows the surface under the pointer. M puts a prism down there, or shoots one into empty space; Space stops the movement. B drags a box round objects to select them (B twice: a lasso), then G, R, S move, turn and size them together; the bool button asks for a boolean operation on two selected objects (union, A minus B, B minus A, intersect). V joins two surface points with a thin bar (P over empty space forgets a pending first point), X deletes the object under the cross, W A S D R F fly, / shows only the model under the cross (/ again: the whole scene), P shows the material palette (Ctrl+click (Cmd on a Mac) paints a face, Ctrl+double click the whole model), T flies the camera to the object under the cross, H puts the move gizmo (helper) on the object under the cross with the world axes, the next H switches to the object's own axes, the third takes it off; drag an arrow to move the object; E toggles edges and points, U or Backspace takes the last one back."><div id="frame"><canvas id="gpu" hidden></canvas><canvas id="bridge" hidden></canvas><div id="layer"></div><div id="screens"></div><svg id="selArea" aria-hidden="true"></svg></div><div id="hud" aria-hidden="true"></div><button id="gameBtn" type="button" class="teal" hidden title="Switch between flying the ship (at the helm) and walking on the bridge (C)">helm ⇄ walk · C</button><div id="loader" hidden role="status"><div class="orb" aria-hidden="true"><i></i><b></b><b></b><b></b></div><span>loading…</span><em id="loaderStep"></em><s id="loaderBar"><u></u></s></div><div id="workNote" hidden aria-live="polite"></div></main>
 
   <div id="findBox" hidden><input id="findInput" type="text" placeholder="find a target (↑↓ choose, Enter: target, Esc: close)" maxlength="60" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Find a target by name"><div id="findList"></div></div>
   <input id="textBox" type="text" placeholder="text (Enter: make it, Esc: cancel)" maxlength="80" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="The words to put on the face" hidden>
@@ -841,7 +845,8 @@
         <option value="ex27">EX-27 expedition module</option>
         <option value="human">Low poly human</option>
         <option value="betterman">Betterman (pose him: J)</option>
-        <option value="command-bridge">Command bridge (3 crew at the desk)</option>
+        <option value="command-bridge">Command bridge (2 crew at the desk)</option>
+        <optgroup label="games (format 3draft-game)"><option value="game:fifth-percent">Fifth Percent: the starship bridge in the Deep Sky</option></optgroup>
         <option value="tr74">TR-74 expedition module</option>
         <option value="station-screen">Station screen (a scene on a face)</option>
         <optgroup label="sky catalogues (format 3draft-sky: sky.md)"><option value="sky:trappist-1">TRAPPIST-1 (7 planets, 40 ly)</option></optgroup>
@@ -928,7 +933,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@a8b65c3f2cbcd679b4deb60e4b8e8a4f8f7b0e49/dist/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette } from 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@b7726ca29e4afad4bd3fe3162d4ba3065130864e/dist/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
@@ -1087,6 +1092,7 @@
     let scene = nothing; // what is on screen and what picking sees: all objects (or the isolated one)
     let owners = []; // [{ obj, start, end }]: which object owns which faces of `scene`
     let cam = null; // camera of the last drawn frame
+    let game = null; // a running game (3draft-game: a universe scene and a ship drawn over it), see loadGame
     let gcam = null; // the camera of every frame (cam only exists while the pointer is over the view)
     let drawing = { left: 0, top: 0 }; // where the square drawing starts, in client pixels
     let solo = null; // `/` isolates one object: its id, null shows everything
@@ -2188,7 +2194,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@a8b65c3f2cbcd679b4deb60e4b8e8a4f8f7b0e49/dist/index.js';
+    const ENGINE_URL = 'https://cdn.jsdelivr.net/gh/Pengeszikra/3Draft@b7726ca29e4afad4bd3fe3162d4ba3065130864e/dist/index.js';
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -2697,8 +2703,11 @@
       queued = false;
       charHooks.tick?.(performance.now()); // walking characters
       stepTravel(performance.now());
-      stepFly(performance.now());
-      measureMotion(performance.now(), eyeNow(), shipBasis().forward); // once a frame, after the moves
+      gameStep(performance.now()); // a game: the walk on the bridge
+      asShip(() => {
+        stepFly(performance.now());
+        measureMotion(performance.now(), eyeNow(), shipBasis().forward); // once a frame, after the moves
+      });
       showDrive();
       const r = stage.getBoundingClientRect();
       const touchy = matchMedia('(pointer: coarse), (max-width: 640px)').matches || document.body.classList.contains('pwa');
@@ -3039,9 +3048,11 @@
           });
           for (const n of eyeNotes) n.textContent = [...flightEl.children].map((c) => c.textContent).filter(Boolean).join('  ');
         } else renderGpu();
+        drawBridge(size, lens);
         layer.className = 'over';
         layer.innerHTML = ''; // the marks are drawn by the GPU itself
       } else {
+        drawBridge(0, 0); // (the SVG view: no bridge)
         layer.className = '';
         layer.innerHTML = renderView(shown, view, { size, fit: shown_fit, marks, occlude: true, palette: paletteMap });
       }
@@ -4386,6 +4397,7 @@
     };
     // Clear: every object goes; one U brings them all back.
     const clearScene = () => {
+      if (!gameLoading) endGame();
       setCloud(null);
       skyFigures = [];
       skyMine = [];
@@ -4576,7 +4588,9 @@
       return scene;
     };
     const addExample = async (name) =>
-      name.startsWith('story:')
+      name.startsWith('game:')
+        ? loadGame(name.slice(5))
+        : name.startsWith('story:')
         ? withLoader(name.slice(6), async () => {
             const url = new URL(`./models/${name.slice(6)}.build.json`, location.href).href; // (a story's audio is relative to it)
             return openStory(await readJson(await fetch(url)), url);
@@ -7868,6 +7882,184 @@
     };
     const KEYMAP = { '?': 'help', z: 'zen', '/': 'isolate', p: 'palette', 7: 'scene', 9: 'view', i: 'pick', c: 'filmic', n: 'smooth', k: 'studio', l: 'light', t: 'target', o: 'pickable', 0: 'orbit', 'ö': 'orbit', h: 'gizmo', e: 'clean', u: 'undo', Backspace: 'undo', j: 'pose', Enter: 'find' };
     const bindKey = (key, action) => (action ? (KEYMAP[key] = action) : delete KEYMAP[key]);
+
+    // ---- Games (format '3draft-game', examples/*.game.json): a universe scene loaded as usual (the starship flies through it)
+    // and a ship scene (the bridge) that is not added to the scene: it is drawn on its own canvas (#bridge) over the universe
+    // every frame, from the player's eye in the ship's own frame (metres), so the universe is always behind it and the open window
+    // shows it. Two modes, switched with C (the game's key map) or the button: 'ship' = the player at the helm, the usual
+    // starship flight (the bridge looks straight ahead), 'walk' = first person on the bridge (W A S D, Shift runs, a drag looks
+    // round); the ship keeps its heading and its motion (asShip) and the universe is seen through the player's eyes.
+    const bridgeCanvas = document.getElementById('bridge');
+    const gameBtn = document.getElementById('gameBtn');
+    let bridgeGl = null;
+    let gameLoading = false;
+    // the floor and the obstacles of the ship, from its faces, on a 10 cm grid: a face no higher than a step (above the floor)
+    // is floor; one that reaches between a step and head height blocks its cells
+    const shipGrid = (mesh, { step = 0.35, head = 1.8 } = {}) => {
+      const C = 0.1;
+      const P = mesh.positions;
+      let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+      for (const q of P) ((x0 = Math.min(x0, q[0])), (x1 = Math.max(x1, q[0])), (z0 = Math.min(z0, q[2])), (z1 = Math.max(z1, q[2])));
+      const W = Math.ceil((x1 - x0) / C) + 1, H = Math.ceil((z1 - z0) / C) + 1;
+      const floor = new Float32Array(W * H).fill(-Infinity), block = new Uint8Array(W * H);
+      for (const f of mesh.faces) {
+        let lo = Infinity, hi = -Infinity, a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+        for (const i of f.v) {
+          const q = P[i];
+          lo = Math.min(lo, q[1]); hi = Math.max(hi, q[1]);
+          a0 = Math.min(a0, q[0]); a1 = Math.max(a1, q[0]); b0 = Math.min(b0, q[2]); b1 = Math.max(b1, q[2]);
+        }
+        const flat = hi - lo < 0.05 && hi <= step;
+        if (!flat && !(hi > step && lo < head)) continue;
+        for (let i = Math.floor((a0 - x0) / C); i <= Math.floor((a1 - x0) / C); i++)
+          for (let j = Math.floor((b0 - z0) / C); j <= Math.floor((b1 - z0) / C); j++) {
+            const k = j * W + i;
+            if (flat) floor[k] = Math.max(floor[k], hi);
+            else block[k] = 1;
+          }
+      }
+      const cell = (x, z) => {
+        const i = Math.floor((x - x0) / C), j = Math.floor((z - z0) / C);
+        return i < 0 || j < 0 || i >= W || j >= H ? -1 : j * W + i;
+      };
+      return {
+        floorAt: (x, z) => { const k = cell(x, z); return k < 0 ? -Infinity : floor[k]; },
+        // free for a body of radius r standing at x, z
+        free: (x, z, r) => {
+          for (let dx = -r; dx <= r + 1e-9; dx += C) for (let dz = -r; dz <= r + 1e-9; dz += C) {
+            if (dx * dx + dz * dz > r * r + 1e-9) continue;
+            const k = cell(x + dx, z + dz);
+            if (k < 0 || block[k] || floor[k] === -Infinity) return false;
+          }
+          return true;
+        },
+      };
+    };
+    const gamePalette = (list) => Object.fromEntries([...characterPalette(), ...(list ?? [])].map(({ name, ...m }) => [name, m]));
+    const loadGame = (name) =>
+      withLoader(name, async () => {
+        const doc = await readJson(await fetch(`./models/${name}.game.json`));
+        if (doc?.format !== '3draft-game') throw new Error(`${name}: not a 3draft-game file`);
+        const shipData = await sceneOf(doc.ship.scene);
+        endGame();
+        gameLoading = true;
+        try {
+          startScene = null;
+          await loadScene(await sceneOf(doc.universe.scene), true);
+        } finally {
+          gameLoading = false;
+        }
+        const objs = (shipData.objects ?? []).filter((o) => o.mesh?.positions && !(doc.ship.hide ?? []).includes(o.name));
+        const mesh = merge(...objs.map((o) => o.mesh));
+        const helm = { eye: [0, 1.7, 0], yaw: 0, pitch: 0, ...doc.ship.helm };
+        const walk = { eyeHeight: 1.7, speed: 1.5, run: 3, radius: 0.25, step: 0.35, ...doc.ship.walk };
+        bridgeGl ??= await createGl(bridgeCanvas);
+        game = {
+          name, doc, mesh, palette: gamePalette(shipData.palette), grid: shipGrid(mesh, { step: walk.step }), helm, walk,
+          mode: 'ship', pos: [helm.eye[0], helm.eye[2]], eyeY: helm.eye[1], look: { yaw: 0, pitch: 0 }, ship: null, keys: new Set(), last: 0,
+          keymap: Object.entries(doc.keys ?? { c: 'helm' }).map(([k, a]) => [k, KEYMAP[k]]),
+        };
+        for (const [k, a] of Object.entries(doc.keys ?? { c: 'helm' })) bindKey(k, a);
+        gameBtn.hidden = false;
+        if (mode !== 'gpu') setMode('gpu');
+        setGameMode(doc.start?.mode === 'walk' ? 'walk' : 'ship');
+        sceneNote(`${doc.title ?? name}: C switches between the helm and walking on the bridge`);
+      });
+    // leave the game (another scene is opened): the keys it took go back, the bridge goes away
+    const endGame = () => {
+      if (!game) return;
+      if (game.mode === 'walk') setGameMode('ship');
+      for (const [k, old] of game.keymap) bindKey(k, old);
+      game = null;
+      gameBtn.hidden = true;
+      bridgeCanvas.hidden = true;
+      redraw();
+    };
+    const setGameMode = (m) => {
+      const g = game;
+      if (!g || m === g.mode && g.ship) return;
+      if (m === 'walk') {
+        if (locked) letGo(); // (the target's orbit would turn the view; the ship keeps its course)
+        g.ship = { yaw, pitch, roll };
+        g.look = { yaw: 0, pitch: 0 };
+        g.pos = [g.helm.eye[0], g.helm.eye[2]];
+        g.eyeY = g.helm.eye[1];
+      } else if (g.ship) {
+        // back at the helm: the view is the ship's heading again
+        ({ yaw, pitch, roll } = g.ship);
+      }
+      g.mode = m;
+      g.keys.clear();
+      if (m === 'ship') g.ship = null;
+      gameBtn.textContent = m === 'walk' ? 'walk → helm · C' : 'helm → walk · C';
+      gameBtn.classList.toggle('red', m === 'walk');
+      redraw();
+    };
+    ACTIONS.helm = { run: () => setGameMode(game?.mode === 'walk' ? 'ship' : 'walk'), once: true, plain: true };
+    gameBtn.addEventListener('click', () => ACTIONS.helm.run());
+    // while walking the view is the ship's heading turned by the player's look; the ship's own motion (stepFly) runs with its
+    // heading, and whatever it turns (a braking program) turns the ship, the look staying the same relative to it
+    const asShip = (fn) => {
+      const g = game;
+      if (!g || g.mode !== 'walk' || !g.ship) return fn();
+      g.look = { yaw: yaw - g.ship.yaw, pitch: Math.max(-1.3, Math.min(1.3, pitch - g.ship.pitch)) };
+      ({ yaw, pitch, roll } = g.ship);
+      try {
+        fn();
+      } finally {
+        g.ship = { yaw, pitch, roll };
+        yaw = g.ship.yaw + g.look.yaw;
+        pitch = g.ship.pitch + g.look.pitch;
+      }
+    };
+    const WALK_KEYS = { KeyW: 'f', ArrowUp: 'f', KeyS: 'b', ArrowDown: 'b', KeyA: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r', ShiftLeft: 'run', ShiftRight: 'run' };
+    const walkKey = (down) => (e) => {
+      if (game?.mode !== 'walk' || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+      const k = WALK_KEYS[e.code];
+      const ship = ['KeyR', 'KeyF', 'Space', 'KeyQ', 'KeyE'].includes(e.code); // (the ship's keys do nothing while walking)
+      if (!k && !ship) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (k) (down ? game.keys.add(k) : game.keys.delete(k), redraw());
+    };
+    window.addEventListener('keydown', walkKey(true), true);
+    window.addEventListener('keyup', walkKey(false), true);
+    window.addEventListener('blur', () => game?.keys.clear());
+    // one step of the walk: along the look's heading, sliding along what blocks it; the eye follows the floor (the dais)
+    const gameStep = (now) => {
+      const g = game;
+      if (!g) return;
+      const dt = Math.min(0.1, g.last ? (now - g.last) / 1000 : 0);
+      g.last = now;
+      if (g.mode !== 'walk' || !g.keys.size) return;
+      const f = (g.keys.has('f') ? 1 : 0) - (g.keys.has('b') ? 1 : 0), r = (g.keys.has('r') ? 1 : 0) - (g.keys.has('l') ? 1 : 0);
+      if (!f && !r) return;
+      const ly = yaw - g.ship.yaw;
+      const sp = (g.keys.has('run') ? g.walk.run : g.walk.speed) * dt / Math.hypot(f, r);
+      const dx = (Math.sin(ly) * f + Math.cos(ly) * r) * sp, dz = (-Math.cos(ly) * f + Math.sin(ly) * r) * sp;
+      const here = g.grid.floorAt(g.pos[0], g.pos[1]);
+      const ok = (x, z) => g.grid.free(x, z, g.walk.radius) && g.grid.floorAt(x, z) <= here + g.walk.step;
+      const [x, z] = g.pos;
+      if (ok(x + dx, z + dz)) g.pos = [x + dx, z + dz];
+      else if (ok(x + dx, z)) g.pos = [x + dx, z];
+      else if (ok(x, z + dz)) g.pos = [x, z + dz];
+      const fl = g.grid.floorAt(g.pos[0], g.pos[1]);
+      g.eyeY = (Number.isFinite(fl) ? fl : 0) + g.walk.eyeHeight;
+      redraw();
+    };
+    // the bridge over the universe: the same lens and size, the player's eye; transparent where nothing of the ship is
+    const drawBridge = (size, lens) => {
+      const g = game;
+      if (!g || !bridgeGl || !size) return void (bridgeCanvas.hidden = true);
+      const walk = g.mode === 'walk' && g.ship;
+      const v = orbitView({ yaw: g.helm.yaw + (walk ? yaw - g.ship.yaw : 0), pitch: g.helm.pitch + (walk ? pitch - g.ship.pitch : 0) });
+      const eye = walk ? [g.pos[0], g.eyeY, g.pos[1]] : g.helm.eye;
+      const d = 1e-3;
+      bridgeCanvas.hidden = false;
+      bridgeCanvas.style.width = bridgeCanvas.style.height = `${size}px`;
+      bridgeGl.render(g.mesh, v, { size, transparent: true, palette: g.palette, smooth: 40, studio: true, glow: false, fit: { center: eye.map((c, i) => c - v.dir[i] * d), radius: 1, dist: d, fov: lens } });
+    };
     const boundAction = (e) => {
       const a = ACTIONS[KEYMAP[e.key.length === 1 ? e.key.toLowerCase() : e.key]];
       if (!a || (a.plain && (e.ctrlKey || e.metaKey || e.altKey)) || (a.once && e.repeat)) return Boolean(a); // a held key does nothing, but is still handled
@@ -8794,6 +8986,7 @@
         },
         // put the eye at a point of the scene (fly view), looking along yaw / pitch (degrees)
         eye: (x, y, z, yawDeg, pitchDeg) => lookFrom([x, y, z], yawDeg, pitchDeg),
+        game: () => game && { name: game.name, mode: game.mode, pos: game.pos.map((v) => +v.toFixed(3)), eyeY: +game.eyeY.toFixed(3), ship: game.ship, yaw, pitch, bridge: !bridgeCanvas.hidden },
         state: () => ({ solo: solo ? 1 : 0, faces: scene.faces.length, objects: allObjects().length, db: Boolean(col), palette: !paletteEl.hidden, cursor: getComputedStyle(stage).cursor, center: fit.center, dist: fit.dist, radius: fit.radius, level: { ...level }, yaw, pitch, eye: eyeNow(), shown: gcam?.eye, fov: +(fovNow * 180 / Math.PI).toFixed(1), zoom: +zoomNow.toFixed(3), fly, placed: placed.length }),
         grab: async () => {
           const r = await renderGpu(true);
