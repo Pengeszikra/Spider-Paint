@@ -928,7 +928,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/654f5a9b0246/index.js';
+    import { createTsh, readHands, TSH_BONES, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/d0249233363b/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2191,7 +2191,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/654f5a9b0246/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/d0249233363b/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -9193,7 +9193,7 @@
         story: () => (story ? { title: story.doc.metadata.title, t: story.t, durationMs: story.doc.timeline.durationMs, index: story.index, total: story.doc.tracks.construction.steps.length, objects: story.count, playing: story.playing, cutaway: story.cutaway, focus: story.focus, animationChannels: story.doc.tracks.animation?.channels.length ?? 0, bones: storySkin ? Array.from(storySkin.bones) : null } : null),
         openStory: (data) => openStory(data),
         xrFly: (pads, dt = 0.1, now = performance.now()) => (xrFly(pads, dt, now), { yaw, pitch: +pitch.toFixed(4), roll: +roll.toFixed(4), level: { ...level }, locked: lockedObject()?.name ?? null, frozen, pointed: xrState.hands?.pointed?.obj?.name ?? null, stick: xrState.hands?.stick ?? null, orbit: orbit?.phase ?? null }), // (the Quest mapping, with made-up pads)
-        tsh: () => xrState.ws?.st && { left: xrState.ws.st.left.fn?.id ?? null, right: xrState.ws.st.right.fn?.id ?? null, icons: xrState.ws.st.left.icons.map((ic) => ({ id: ic.fn.id, at: ic.at, big: Boolean(ic.big) })), fist: xrState.ws.st.left.g?.fist ?? null, exitHold: xrState.ws.exitHold ?? 0, extra: xrState.ws.extra?.faces.length ?? 0 },
+        tsh: () => xrState.ws?.st && { left: xrState.ws.st.left.fn?.id ?? null, right: xrState.ws.st.right.fn?.id ?? null, icons: xrState.ws.st.left.icons.map((ic) => ({ id: ic.fn.id, at: ic.at, big: Boolean(ic.big) })), ricons: xrState.ws.st.right.icons.map((ic) => ({ id: ic.fn.id, at: ic.at, big: Boolean(ic.big) })), fist: xrState.ws.st.left.g?.fist ?? null, exitHold: xrState.ws.exitHold ?? 0, extra: xrState.ws.extra?.faces.length ?? 0 },
         ws: () => xrState.ws && { pieceAt: (() => { const o = allObjects().find((x) => x.id === xrState.ws.piece); if (!o) return null; const R = roomToScene(); return { room: R.back(bounds(o.mesh).center), faces: o.mesh.faces.length, verts: o.mesh.positions.length, objects: allObjects().length, vol: +meshVolume(o.mesh).toFixed(6) }; })(), menu: xrState.ws.menu && [...xrState.ws.menu], piece: xrState.ws.piece, grab: Boolean(xrState.ws.grabs?.left?.id || xrState.ws.grabs?.right?.id), making: Boolean(xrState.ws.make?.id), pal: Boolean(xrState.ws.pal), note: xrState.ws.note, on: xrState.ws.on },
         xr: () => ({ log: xrState.log, frames: xrState.frames, on: Boolean(xrState.session), mono: Boolean(xrState.mono), pressed: xrState.pressed, note: xrNote?.textContent }),
         flight: () => ({ roll: +roll.toFixed(4), vehicle, car: car && { p: car.p, heading: car.heading, v: car.v, steer: car.steer, throttle: car.throttle }, orbit: orbit?.phase ?? null, gravity: gravity && { name: gravity.name }, cruise: { ...cruise }, space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
@@ -10165,8 +10165,8 @@
     // the hand carries the icons of the functions it can take, and the other hand's index fingertip pokes one to choose it. The
     // chosen one stands bigger in front of the back of the hand, tilted to the eyes.
     //   LEFT: 8 materials (a little cube of each: poke a block with the left index to paint it), grab (a fist or a pinch on an
-    //   object takes it), cube (close the fist and open it: a 5 cm cube appears there), exit (hold a fist: out of VR).
-    //   RIGHT: grab.
+    //   object takes it), cube (close the fist and open it: a 5 cm cube appears there).
+    //   RIGHT: grab, and exit in the far corner (hold a fist: out of VR).
     // Everything is in the room's metres (the reference space) and goes into the scene through the rig (xrRig: on the ground the
     // room's floor is the scene's floor). Every step is undoable.
     const v3 = {
@@ -10240,9 +10240,9 @@
         ...materials.slice(0, 8).map((mt, i) => ({ id: `mat${i}`, label: mt.name, kind: 'material', data: i })),
         { id: 'grab', label: 'grab', kind: 'grab' },
         { id: 'cube', label: 'cube', kind: 'cube' },
-        { id: 'exit', label: 'exit VR', kind: 'exit' },
       ],
-      right: [{ id: 'grab', label: 'grab', kind: 'grab' }],
+      // (exit: on the right hand, in the far corner of its grid, away from the middle)
+      right: [{ id: 'grab', label: 'grab', kind: 'grab' }, { id: 'exit', label: 'exit VR', kind: 'exit', slot: -1 }],
     });
     let tsh = null;
     const xrWorkshop = (session, frame, head, now) => {
@@ -10256,7 +10256,7 @@
       tsh ??= createTsh(tshFunctions());
       // (the palette can change: the materials follow it)
       const want = tshFunctions().left.map((f) => `${f.id}:${f.label}`).join();
-      if (want !== ws.fnKey) ((ws.fnKey = want), tsh.setFunctions('left', tshFunctions().left));
+      if (want !== ws.fnKey) ((ws.fnKey = want), tsh.setFunctions('left', tshFunctions().left), tsh.setFunctions('right', tshFunctions().right));
       // (saved a moment after a change too, so a browser that drops the page does not lose it)
       if (ws.dirtyAt && now - ws.dirtyAt > 1500) ((ws.dirtyAt = 0), saveWorkshop());
       const R2S = roomToScene();
@@ -10325,8 +10325,9 @@
           wsNote(ws, `a cube (${mt.name})`);
         }
       }
-      // exit: a fist held for a moment leaves VR
-      ws.exitHold = L.fn?.kind === 'exit' && L.g?.fist ? Math.min(1, L.g.fistFor / TSH_EXIT_HOLD) : 0;
+      // exit (the right hand): a fist held for a moment leaves VR
+      const Rr = st.right;
+      ws.exitHold = Rr.fn?.kind === 'exit' && Rr.g?.fist ? Math.min(1, Rr.g.fistFor / TSH_EXIT_HOLD) : 0;
       if (ws.exitHold >= 1) return void xrState.session?.end();
 
       // the little material cubes of the icons: real meshes (they show what the material is like: its colour, its glass),
