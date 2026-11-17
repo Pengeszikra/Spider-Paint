@@ -928,7 +928,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/3e7b40e310c1/index.js';
+    import { createTsh, readHands, TSH_BONES, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/0f3f384f7cb7/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2191,7 +2191,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/3e7b40e310c1/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/0f3f384f7cb7/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -10271,6 +10271,7 @@
         { id: 'build', label: 'build walls', kind: 'build' },
         { id: 'erase', label: 'erase walls', kind: 'erase' },
         { id: 'move', label: 'move', kind: 'move' },
+        { id: 'fly', label: 'fly', kind: 'fly' },
         { id: 'exit', label: 'exit VR', kind: 'exit', slot: -1 },
       ],
     });
@@ -10421,7 +10422,7 @@
     const xrMove = (ws, st, hands, head, now, done) => {
       const R = st.right, g = R.g;
       ws.moving = null;
-      if (R.fn?.kind !== 'move' || !g || !head) {
+      if ((R.fn?.kind !== 'move' && R.fn?.kind !== 'fly') || !g || !head) {
         ws.circle = [];
         ws.walkV = 0;
         ws.upV = 0;
@@ -10466,7 +10467,7 @@
         const vel = v3.mul(v3.sub(g.palm, ws.lastFist), 1 / dt);
         ws.fistVel = ws.fistVel ? v3.add(ws.fistVel, v3.mul(v3.sub(vel, ws.fistVel), Math.min(1, dt * 10))) : vel;
         const fv = ws.fistVel, across = Math.hypot(fv[0], fv[2]);
-        if (!v && Math.abs(fv[1]) > 0.12 && across < 0.5 * Math.abs(fv[1])) up = -fv[1] * 1.5;
+        if (R.fn.kind === 'fly' && !v && Math.abs(fv[1]) > 0.12 && across < 0.5 * Math.abs(fv[1])) up = -fv[1] * 1.5;
       } else ws.fistVel = null;
       ws.lastFist = g.fist ? g.palm : null;
       ws.upV = (ws.upV ?? 0) + (up - (ws.upV ?? 0)) * Math.min(1, dt * 8);
@@ -10663,6 +10664,21 @@
           c.lineTo(20 * u, 80 * u);
           c.stroke();
         }
+      } else if (kind === 'fly') {
+        // a circle and arrows up and down
+        c.beginPath();
+        c.arc(36 * u, 50 * u, 18 * u, Math.PI * 0.25, Math.PI * 1.9);
+        c.stroke();
+        c.beginPath();
+        c.moveTo(74 * u, 22 * u);
+        c.lineTo(74 * u, 78 * u);
+        c.moveTo(64 * u, 32 * u);
+        c.lineTo(74 * u, 22 * u);
+        c.lineTo(84 * u, 32 * u);
+        c.moveTo(64 * u, 68 * u);
+        c.lineTo(74 * u, 78 * u);
+        c.lineTo(84 * u, 68 * u);
+        c.stroke();
       } else if (kind === 'move') {
         // a circle rolling forward, an arrow ahead
         c.beginPath();
@@ -10762,8 +10778,8 @@
           }
           if (ic.big) {
             // the chosen function's name under its big icon (and the last thing that happened)
-            const note = (ic.fn.kind === 'move' && ws.moving) || (ws.note && now - (ws.noteAt ?? 0) < 3000 ? ws.note : '');
-            const label = { exit: 'exit VR · hold a fist', cube: 'cube · open the fist', grab: 'grab · fist or pinch', build: 'walls · point, click', erase: 'erase · point, click', move: 'move · fist circles, flat hand turns' }[ic.fn.kind] ?? `${ic.fn.label} · poke a block`;
+            const note = ((ic.fn.kind === 'move' || ic.fn.kind === 'fly') && ws.moving) || (ws.note && now - (ws.noteAt ?? 0) < 3000 ? ws.note : '');
+            const label = { exit: 'exit VR · hold a fist', cube: 'cube · open the fist', grab: 'grab · fist or pinch', build: 'walls · aim, curl the fingers', erase: 'erase · aim, curl the fingers', move: 'move · fist circles, flat hand turns', fly: 'fly · circles, turns, fist up / down' }[ic.fn.kind] ?? `${ic.fn.label} · poke a block`;
             const tex = xrPanelTex(gl, `label-${side}`, 640, 96, `${label}|${note}`, (c, W, H) => {
               c.fillStyle = 'rgba(14, 15, 12, 0.78)';
               c.beginPath();
