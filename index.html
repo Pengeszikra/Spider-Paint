@@ -928,7 +928,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/55a163bfc485/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/65f432c2ce36/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2191,7 +2191,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/55a163bfc485/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/65f432c2ce36/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -10188,6 +10188,7 @@
           const m = pose.transform.matrix;
           j[name] = [m[12], m[13], m[14]];
           if (name === 'wrist') wristM = Float32Array.from(m);
+          if (name === 'middle-finger-metacarpal') j.palmM = Float32Array.from(m);
         }
         if (wristM && j['index-finger-tip'] && j['thumb-tip'] && j['middle-finger-phalanx-proximal']) out[src.handedness] = { j, wristM };
       }
@@ -10234,13 +10235,31 @@
         n++;
       }
       const curl = n ? tips / Math.max(1e-3, knuckles) : 9;
-      g.fist = g.fist ? curl < 1.35 : curl < 1.1;
+      const ratio = (f) => {
+        const t = h.j[`${f}-tip`], k = h.j[`${f}-phalanx-proximal`];
+        return t && k ? v3.len(v3.sub(t, w)) / Math.max(1e-3, v3.len(v3.sub(k, w))) : 9;
+      };
+      // pointing: the index straight, the other three curled (a fist with the index out)
+      const others = Math.max(ratio('middle-finger'), ratio('ring-finger'), ratio('pinky-finger'));
+      g.point = g.point ? ratio('index-finger') > 1.5 && others < 1.35 : ratio('index-finger') > 1.7 && others < 1.15;
+      g.fist = !g.point && (g.fist ? curl < 1.35 : curl < 1.1);
       const pinch = v3.len(v3.sub(h.j['thumb-tip'], h.j['index-finger-tip']));
-      g.pinch = !g.fist && (g.pinch ? pinch < 0.035 : pinch < 0.018);
-      g.palm = v3.mid(w, h.j['middle-finger-phalanx-proximal']);
+      g.pinch = !g.fist && !g.point && (g.pinch ? pinch < 0.035 : pinch < 0.018);
+      // the click while pointing: the thumb tucked against the middle finger
+      const mid = h.j['middle-finger-phalanx-intermediate'] ?? h.j['middle-finger-phalanx-proximal'];
+      const tuck = v3.len(v3.sub(h.j['thumb-tip'], mid));
+      g.click = g.point && (g.click ? tuck < 0.045 : tuck < 0.03);
+      // smoothed (the tracking trembles a few millimetres and degrees): the palm's middle, its normal, the pointing ray
+      const ease = (old, now, k) => (old ? old.map((c, i) => c + (now[i] - c) * k) : now);
+      g.palm = ease(g.palm, v3.mid(w, h.j['middle-finger-phalanx-proximal']), 0.5);
       const a = h.j['index-finger-metacarpal'] ?? h.j['index-finger-phalanx-proximal'], b = h.j['pinky-finger-metacarpal'] ?? h.j['pinky-finger-phalanx-proximal'];
-      g.normal = a && b ? v3.unit(v3.cross(v3.sub(a, w), v3.sub(b, w))) : [0, 0, 1];
+      let nrm = h.j.palmM ? [h.j.palmM[4], h.j.palmM[5], h.j.palmM[6]] : a && b ? v3.unit(v3.cross(v3.sub(a, w), v3.sub(b, w))) : [0, 0, 1];
+      if (g.normal && v3.dot(nrm, g.normal) < 0) nrm = v3.mul(nrm, -1);
+      g.normal = v3.unit(ease(g.normal, nrm, 0.35));
       g.forward = v3.unit(v3.sub(h.j['middle-finger-phalanx-proximal'], w));
+      const ip = h.j['index-finger-phalanx-proximal'], it = h.j['index-finger-tip'];
+      g.rayFrom = ip ? ease(g.rayFrom, ip, 0.5) : null;
+      g.rayDir = ip ? v3.unit(ease(g.rayDir, v3.unit(v3.sub(it, ip)), 0.4)) : null;
       return g;
     };
     // a convex object's faces as planes (outward), and whether a scene point is inside (within `margin`)
@@ -10276,6 +10295,42 @@
       for (const f of mesh.faces) for (let i = 1; i + 1 < f.v.length; i++) v += v3.dot(P[f.v[0]], v3.cross(P[f.v[i]], P[f.v[i + 1]]));
       return Math.abs(v) / 6;
     };
+    // a ray (scene) into a convex object: the nearest entry point and the face it enters by
+    const rayConvex = (mesh, o, d) => {
+      const planes = facePlanes(mesh);
+      let tIn = 0, tOut = Infinity, face = -1;
+      for (let i = 0; i < planes.length; i++) {
+        const { p, n } = planes[i];
+        const dn = v3.dot(d, n), dist = v3.dot(v3.sub(p, o), n);
+        if (Math.abs(dn) < 1e-12) {
+          if (dist < 0) return null;
+          continue;
+        }
+        const t = dist / dn;
+        if (dn < 0) t > tIn && ((tIn = t), (face = i));
+        else tOut = Math.min(tOut, t);
+      }
+      return face >= 0 && tIn <= tOut ? { t: tIn, point: v3.add(o, v3.mul(d, tIn)), normal: planes[face].n } : null;
+    };
+    // the V points of the workshop: 2 on one object = a cut square to the first point's face along their line, 3 = their plane
+    const wsVPlane = (pts) => {
+      if (pts.length < 2 || pts.some((q) => q.id !== pts[0].id)) return null;
+      try {
+        return pts.length === 3 ? planeThroughTriangle(pts[0].p, pts[1].p, pts[2].p) : planeThroughLine(pts[0].p, pts[1].p, pts[0].n);
+      } catch {
+        return null;
+      }
+    };
+    // a bar between two surface points (V on two objects), like the spider bar
+    const barMesh = (a, b, m) => {
+      const d = v3.sub(b, a), length = v3.len(d);
+      const ey = v3.mul(d, 1 / length);
+      const ez = v3.unit(v3.cross(ey, Math.abs(ey[1]) > 0.95 ? [1, 0, 0] : [0, 1, 0]));
+      const ex = v3.cross(ey, ez);
+      const base = LEG.base / 4;
+      const solid = box({ size: [base, length, base], at: v3.mid(a, b), axes: [ex, ey, ez], color: m.color });
+      return { ...solid, faces: solid.faces.map((f) => ({ ...f, mat: m.name })) };
+    };
     // what a hand may take or cut: the loose objects, up to 1.5 m across (not the floor or the bench)
     const workable = () => allObjects().filter((o) => o.mesh.faces.length && !o.inst && bounds(o.mesh).radius < 0.75 && !/^(floor|bench )/.test(o.name ?? ''));
     // the panel: sys keys and the palette, a 40 × 20 cm board in the room, its texture 1024 × 512
@@ -10300,6 +10355,8 @@
       ws.on = Boolean(on);
       ws.hands = hands;
       if (!on) return;
+      // (saved a moment after a change too, so a browser that drops the page does not lose it)
+      if (ws.dirtyAt && now - ws.dirtyAt > 1500) ((ws.dirtyAt = 0), saveWorkshop());
       const R2S = roomToScene();
       if (!ws.menu || (head && v3.len(v3.sub([head[12], head[13], head[14]], [ws.menu[12], ws.menu[13], ws.menu[14]])) > 1.6)) head && wsPlaceMenu(ws, head);
       const L = hands.left && xrGestures(hands.left, ws.g.left), R = hands.right && xrGestures(hands.right, ws.g.right);
@@ -10323,9 +10380,19 @@
             if (b.id === 'cube') {
               const hp = head ? [head[12], head[13], head[14]] : [0, 1.5, 0];
               const fw = head ? v3.unit([-head[8], 0, -head[10]]) : [0, 0, -1];
-              const at = R2S.p(v3.add(v3.add(hp, v3.mul(fw, 0.4)), [0, -0.25, 0]));
               const S = 0.15;
+              const bench = allObjects().find((o) => o.name === 'bench top');
+              let at = R2S.p(v3.add(v3.add(hp, v3.mul(fw, 0.4)), [0, -0.25, 0]));
+              if (bench) {
+                // on the bench, 15 cm in from its front edge, a little apart from the last block
+                const bb = bounds(bench.mesh);
+                let top = -Infinity, hiZ = -Infinity;
+                for (const q of bench.mesh.positions) ((top = Math.max(top, q[1])), (hiZ = Math.max(hiZ, q[2])));
+                const k = (ws.cubes = (ws.cubes ?? 0) + 1) - 1;
+                at = [bb.center[0] + [0, 0.2, -0.2, 0.4, -0.4][k % 5], top + S / 2, hiZ - 0.2];
+              }
               const right = v3.unit(R2S.d(v3.cross(fw, [0, 1, 0]))), up = v3.unit(R2S.d([0, 1, 0]));
+              ((ws.used = true), (ws.dirtyAt = performance.now()));
               const o = create(`block-${shortId()}`, paint(box({ size: [S, S, S], at, axes: [right, up, v3.cross(right, up)], color: m.color })));
               ws.piece = o.id;
               wsNote(ws, 'a new block');
@@ -10353,63 +10420,117 @@
       if (holding && !ws.grab) {
         const at = R2S.p(L.pinch ? v3.mid(hands.left.j['thumb-tip'], hands.left.j['index-finger-tip']) : L.palm);
         const o = workable().find((x) => insideConvex(x.mesh, at, 0.04));
-        ws.grab = o ? { id: o.id, inv0: rigidInv(hands.left.wristM), room0: o.mesh.positions.map(R2S.back), mesh0: o.mesh } : { none: true };
+        ws.grab = o ? { id: o.id, inv0: rigidInv(hands.left.wristM), room0: o.mesh.positions.map(R2S.back), mesh0: o.mesh, v0: (ws.vpts ?? []).filter((q) => q.id === o.id).map((q) => ({ q, r: R2S.back(q.p), rn: v3.sub(R2S.back(v3.add(q.p, q.n)), R2S.back(q.p)) })) } : { none: true };
         if (o) ((ws.piece = o.id), wsNote(ws, `holding ${o.name}`));
       } else if (holding && ws.grab?.id) {
         const o = allObjects().find((x) => x.id === ws.grab.id);
         if (o) {
           const D = mul4(hands.left.wristM, ws.grab.inv0);
           change(o, { ...o.mesh, positions: ws.grab.room0.map((r) => R2S.p(xform(D, r))) });
+          // (its V points go with it)
+          for (const { q, r, rn } of ws.grab.v0 ?? []) {
+            q.p = R2S.p(xform(D, r));
+            q.n = v3.unit(R2S.d(v3.sub(xform(D, v3.add(r, rn)), xform(D, r))));
+          }
         } else ws.grab = { none: true };
       } else if (!holding && ws.grab) {
         const g = ws.grab;
         ws.grab = null;
         const o = g.id && allObjects().find((x) => x.id === g.id);
-        if (o && o.mesh !== g.mesh0) history.push(() => has(o) && change(o, g.mesh0));
+        if (o && o.mesh !== g.mesh0) ((ws.used = true), (ws.dirtyAt = performance.now()), history.push(() => has(o) && change(o, g.mesh0)));
       }
 
-      // the right fist is the saw: through an object and out again, it cuts along the hand's plane that holds the way it went
+      // the right hand points (the index out, the others curled): a ray from the index finger; the thumb tucked to the middle
+      // finger is V. V on an object puts a saw point there (2 on one object: the cut along their line, square to the face; 3: their
+      // plane); V on two different objects joins the two points with a bar (as V on the desktop). A third point starts again.
+      ws.ray = null;
+      if (R?.point && R.rayFrom) {
+        const o = R2S.p(R.rayFrom), d = v3.unit(R2S.d(R.rayDir));
+        let best = null;
+        for (const x of workable()) {
+          const h = rayConvex(x.mesh, o, d);
+          if (h && (!best || h.t < best.t)) best = { ...h, id: x.id };
+        }
+        ws.ray = { from: R.rayFrom, to: best ? R2S.back(best.point) : v3.add(R.rayFrom, v3.mul(R.rayDir, 1.5)), hit: best };
+        if (R.click && !ws.clicked) {
+          ws.clicked = true;
+          if (best) {
+            const pts = (ws.vpts ??= []);
+            const q = { id: best.id, p: best.point, n: best.normal };
+            if (pts.length && pts[0].id !== best.id) {
+              // two objects: a bar between the points
+              const bar = create('bar', barMesh(pts[0].p, q.p, m));
+              ws.vpts = [];
+              ws.piece = bar.id;
+              wsNote(ws, 'a bar between the two points');
+            } else {
+              if (pts.length >= 3) pts.length = 0;
+              pts.push(q);
+              wsNote(ws, pts.length === 1 ? 'V: one point (V on this object: the cut; on another: a bar)' : `V: ${pts.length} points · pull the right fist through to cut`);
+            }
+          } else ((ws.vpts = []), wsNote(ws, 'V points forgotten'));
+        }
+      }
+      if (!R?.click) ws.clicked = false;
+      if (ws.vpts?.length && !allObjects().some((x) => x.id === ws.vpts[0].id)) ws.vpts = [];
+
+      // the right fist is the saw. Its plane is fixed before it goes in: the V points' plane when there is one, else the plane of
+      // the hand (smoothed) at the moment the fist enters the object. Shown on the object as the line it will cut (orange while
+      // aiming, red once it is fixed); pulled through and out again, the fist cuts there and the smaller piece is gone.
+      ws.preview = null;
+      const vPlane = wsVPlane(ws.vpts ?? []);
+      const vObj = vPlane && allObjects().find((x) => x.id === ws.vpts[0].id);
+      const handPlane = R && { point: R2S.p(R.palm), n: v3.unit(R2S.d(R.normal)) };
+      const section = (obj, plane, color) => {
+        try {
+          const seg = sectionSegments(obj.mesh, plane);
+          if (seg.length) ws.preview = { color, seg: seg.map(([a, b]) => [R2S.back(a), R2S.back(b)]) };
+        } catch {}
+      };
       if (R?.fist) {
         const at = R2S.p(R.palm);
         const inObj = workable().find((x) => insideConvex(x.mesh, at));
         const blade = ws.blade;
-        if (!blade && inObj) ws.blade = { id: inObj.id, from: R.palm, normals: [R.normal] };
-        else if (blade && inObj?.id === blade.id) blade.normals.push(R.normal);
+        if (!blade && inObj) ws.blade = { id: inObj.id, plane: vObj?.id === inObj.id ? vPlane : handPlane, fromV: vObj?.id === inObj.id };
         else if (blade && inObj?.id !== blade.id) {
-          ws.blade = inObj ? { id: inObj.id, from: R.palm, normals: [R.normal] } : null;
+          ws.blade = null;
           const o = allObjects().find((x) => x.id === blade.id);
-          const way = v3.sub(R.palm, blade.from);
-          if (o && v3.len(way) > 0.03) {
-            const d = v3.unit(way);
-            const avg = blade.normals.reduce((a, n) => v3.add(a, v3.dot(n, blade.normals[0]) < 0 ? v3.mul(n, -1) : n), [0, 0, 0]);
-            let n = v3.sub(avg, v3.mul(d, v3.dot(avg, d)));
-            if (v3.len(n) > 1e-3) {
-              n = v3.unit(n);
-              const plane = { point: R2S.p(blade.from), n: v3.unit(R2S.d(n)) };
-              let cut = null;
-              try {
-                cut = saw(o.mesh, plane, { color: m.color, mat: m.name });
-              } catch (err) {
-                wsNote(ws, `no cut: ${err.message}`);
-              }
-              const pieces = cut ? [...cut.front, ...cut.back] : [];
-              if (pieces.length >= 2) {
-                const keep = pieces.reduce((a, b) => (meshVolume(b) > meshVolume(a) ? b : a));
-                let made = null;
-                asOneStep(() => {
-                  erase(o);
-                  history.push(() => has(o) || restore(o));
-                  made = create(o.name, keep);
-                });
-                ws.piece = made?.id ?? null;
-                if (ws.grab?.id === o.id && made) ws.grab = { id: made.id, inv0: rigidInv(hands.left.wristM), room0: made.mesh.positions.map(R2S.back), mesh0: made.mesh };
-                ws.flashAt = now;
-                wsNote(ws, `cut: ${pieces.length - 1} piece${pieces.length > 2 ? 's' : ''} gone`);
-              }
+          if (o) {
+            let cut = null;
+            try {
+              cut = saw(o.mesh, blade.plane, { color: m.color, mat: m.name });
+            } catch (err) {
+              wsNote(ws, `no cut: ${err.message}`);
+            }
+            const pieces = cut ? [...cut.front, ...cut.back] : [];
+            if (pieces.length >= 2) {
+              const keep = pieces.reduce((a, b) => (meshVolume(b) > meshVolume(a) ? b : a));
+              let made = null;
+              asOneStep(() => {
+                erase(o);
+                history.push(() => has(o) || restore(o));
+                made = create(o.name, keep);
+              });
+              ws.piece = made?.id ?? null;
+              ((ws.used = true), (ws.dirtyAt = performance.now()));
+              if (blade.fromV) ws.vpts = [];
+              if (ws.grab?.id === o.id && made) ws.grab = { id: made.id, inv0: rigidInv(hands.left.wristM), room0: made.mesh.positions.map(R2S.back), mesh0: made.mesh };
+              ws.flashAt = now;
+              wsNote(ws, `cut: ${pieces.length - 1} piece${pieces.length > 2 ? 's' : ''} gone`);
             }
           }
         }
-      } else ws.blade = null;
+        const live = ws.blade && allObjects().find((x) => x.id === ws.blade.id);
+        if (live) section(live, ws.blade.plane, [1, 0.15, 0.1]);
+        else {
+          // aiming: the plane it would take, on the nearest object within 12 cm
+          const near = workable().find((x) => insideConvex(x.mesh, at, 0.12));
+          if (near) section(near, vObj?.id === near.id ? vPlane : handPlane, [1, 0.6, 0.2]);
+        }
+      } else {
+        ws.blade = null;
+        if (vObj) section(vObj, vPlane, [1, 0.85, 0.3]);
+      }
     };
     // the workshop in the headset: the hands (their bones), the saw's plane on the right fist, the panel
     const xrWorkshopDraw = (gl, P, V, eyeFromRef, now) => {
@@ -10435,6 +10556,24 @@
           for (let i = 0; i < 4; i++) lines.push(...ring[i], ...sc, 0.85, ...ring[(i + 1) % 4], ...sc, 0.85);
         }
       }
+      // the pointing ray (teal, brighter on an object, with a cross where it lands), the V points, the cut line
+      if (ws.ray) {
+        const hit = Boolean(ws.ray.hit);
+        lines.push(...ws.ray.from, 0.35, 0.95, 0.85, 0.9, ...ws.ray.to, 0.35, 0.95, 0.85, hit ? 0.9 : 0.1);
+        if (hit) {
+          const t = ws.ray.to;
+          for (const ax of [[0.012, 0, 0], [0, 0.012, 0], [0, 0, 0.012]]) lines.push(...v3.sub(t, ax), 0.6, 1, 0.9, 1, ...v3.add(t, ax), 0.6, 1, 0.9, 1);
+        }
+      }
+      if (ws.vpts?.length) {
+        const R2S = roomToScene();
+        for (const q of ws.vpts) {
+          const t = R2S.back(q.p);
+          for (const ax of [[0.01, 0.01, 0], [0.01, -0.01, 0], [0, 0.01, 0.01], [0, 0.01, -0.01]]) lines.push(...v3.sub(t, ax), 1, 0.9, 0.3, 1, ...v3.add(t, ax), 1, 0.9, 0.3, 1);
+        }
+        for (let i = 1; i < ws.vpts.length; i++) lines.push(...R2S.back(ws.vpts[i - 1].p), 1, 0.9, 0.3, 0.6, ...R2S.back(ws.vpts[i].p), 1, 0.9, 0.3, 0.6);
+      }
+      if (ws.preview) for (const [a, b] of ws.preview.seg) lines.push(...a, ...ws.preview.color, 1, ...b, ...ws.preview.color, 1);
       xrLines(gl, P, V, lines);
       if (!ws.menu) return;
       const btns = wsButtons();
@@ -10752,6 +10891,14 @@
       if (drive() && car) return { origin: [car.p[0], car.p[1] + CAR_EYE, car.p[2]], ...flat(car.heading), scale: 1 };
       // (on the ground the room's floor is the scene's floor, y = 0, under the eye: you stand in the scene at your own height)
       if (!space()) {
+        // a workbench (the VR workshop) puts you at it: its front edge 25 cm ahead of where you stand, facing it
+        const bench = allObjects().find((o) => o.name === 'bench top');
+        if (bench) {
+          const b = bounds(bench.mesh);
+          let hiZ = -Infinity;
+          for (const q of bench.mesh.positions) hiZ = Math.max(hiZ, q[2]);
+          return { origin: [b.center[0], 0, hiZ + 0.25], ...flat(0), scale: 1 };
+        }
         const e = eyeNow();
         return { origin: [e[0], 0, e[2]], ...flat(yaw), scale: 1 };
       }
@@ -10955,7 +11102,35 @@
         // (the next frame is already asked for: it is the first thing a frame does)
       }
     };
+    // the workshop's work is kept when VR ends: saved here as the scene "vr workshop" (+ scene list, saved), and the view turns to
+    // the workpiece
+    const saveWorkshop = () => {
+      try {
+        const all = readSaved();
+        all['vr workshop'] = sceneFile('vr workshop');
+        localStorage.setItem(SAVED_KEY, JSON.stringify(all));
+        showSaved();
+        xrLog('workshop: saved as "vr workshop"');
+      } catch (err) {
+        xrLog(`workshop: could not save (${err?.message ?? err})`, true);
+      }
+    };
+    const keepWorkshop = () => {
+      const ws = xrState.ws;
+      if (!ws?.used) return;
+      ws.used = false;
+      ws.dirtyAt = 0;
+      saveWorkshop();
+      const o = ws.piece && allObjects().find((x) => x.id === ws.piece);
+      if (o) {
+        locked = o.id;
+        lookAt(o);
+      }
+    };
     const endedXr = async () => {
+      try {
+        keepWorkshop();
+      } catch {}
       xrLog(`session ended after ${xrState.frames} frames`);
       xrState.session = null;
       xrState.last = 0;
