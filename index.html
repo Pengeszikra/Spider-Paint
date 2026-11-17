@@ -928,7 +928,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/04e58517cf89/index.js';
+    import { createTsh, readHands, TSH_BONES, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/654f5a9b0246/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2191,7 +2191,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/04e58517cf89/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/654f5a9b0246/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -9193,8 +9193,8 @@
         story: () => (story ? { title: story.doc.metadata.title, t: story.t, durationMs: story.doc.timeline.durationMs, index: story.index, total: story.doc.tracks.construction.steps.length, objects: story.count, playing: story.playing, cutaway: story.cutaway, focus: story.focus, animationChannels: story.doc.tracks.animation?.channels.length ?? 0, bones: storySkin ? Array.from(storySkin.bones) : null } : null),
         openStory: (data) => openStory(data),
         xrFly: (pads, dt = 0.1, now = performance.now()) => (xrFly(pads, dt, now), { yaw, pitch: +pitch.toFixed(4), roll: +roll.toFixed(4), level: { ...level }, locked: lockedObject()?.name ?? null, frozen, pointed: xrState.hands?.pointed?.obj?.name ?? null, stick: xrState.hands?.stick ?? null, orbit: orbit?.phase ?? null }), // (the Quest mapping, with made-up pads)
-        wsPal: () => xrState.ws?.pal && { M: [...xrState.ws.pal.M], current, rows: palRows() },
-        ws: () => xrState.ws && { pieceAt: (() => { const o = allObjects().find((x) => x.id === xrState.ws.piece); if (!o) return null; const R = roomToScene(); return { room: R.back(bounds(o.mesh).center), faces: o.mesh.faces.length, verts: o.mesh.positions.length, objects: allObjects().length, vol: +meshVolume(o.mesh).toFixed(6) }; })(), menu: xrState.ws.menu && [...xrState.ws.menu], piece: xrState.ws.piece, grab: Boolean(xrState.ws.grabs?.left?.id || xrState.ws.grabs?.right?.id), making: Boolean(xrState.ws.make?.id), pal: Boolean(xrState.ws.pal), note: xrState.ws.note, on: xrState.ws.on, fist: xrState.ws.g.right.fist, lfist: xrState.ws.g.left.fist, pinch: xrState.ws.g.left.pinch },
+        tsh: () => xrState.ws?.st && { left: xrState.ws.st.left.fn?.id ?? null, right: xrState.ws.st.right.fn?.id ?? null, icons: xrState.ws.st.left.icons.map((ic) => ({ id: ic.fn.id, at: ic.at, big: Boolean(ic.big) })), fist: xrState.ws.st.left.g?.fist ?? null, exitHold: xrState.ws.exitHold ?? 0, extra: xrState.ws.extra?.faces.length ?? 0 },
+        ws: () => xrState.ws && { pieceAt: (() => { const o = allObjects().find((x) => x.id === xrState.ws.piece); if (!o) return null; const R = roomToScene(); return { room: R.back(bounds(o.mesh).center), faces: o.mesh.faces.length, verts: o.mesh.positions.length, objects: allObjects().length, vol: +meshVolume(o.mesh).toFixed(6) }; })(), menu: xrState.ws.menu && [...xrState.ws.menu], piece: xrState.ws.piece, grab: Boolean(xrState.ws.grabs?.left?.id || xrState.ws.grabs?.right?.id), making: Boolean(xrState.ws.make?.id), pal: Boolean(xrState.ws.pal), note: xrState.ws.note, on: xrState.ws.on },
         xr: () => ({ log: xrState.log, frames: xrState.frames, on: Boolean(xrState.session), mono: Boolean(xrState.mono), pressed: xrState.pressed, note: xrNote?.textContent }),
         flight: () => ({ roll: +roll.toFixed(4), vehicle, car: car && { p: car.p, heading: car.heading, v: car.v, steer: car.steer, throttle: car.throttle }, orbit: orbit?.phase ?? null, gravity: gravity && { name: gravity.name }, cruise: { ...cruise }, space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
         aim: () => (aim ? { name: aim.obj.name, px: +aim.px.toFixed(1), depth: aim.depth } : null), under: () => hitObj()?.name ?? null, locked: () => lockedObject()?.name ?? null,
@@ -10160,41 +10160,15 @@
       if (press(L, 4)) return void xrState.session?.end(); // X: out of VR
       if (press(R, 3)) toggleFreeze(); // right stick press: freeze
     };
-    // ---- The VR workshop: modelling with bare hands (the Quest's hand tracking; VR-WORKSHOP.md). On the ground (not in a star map,
-    // not in the car), once the controllers are put down and the hands are seen:
-    //   a panel in the room (left, in front, below the eyes) with the sys keys (cube, undo, delete, leave VR) and the palette: press
-    //   one with a fingertip. CUBE puts a 15 cm block in front of you; a colour paints the workpiece (and the new cuts and cubes).
-    //   LEFT hand: a fist or a pinch on (or close to) an object takes it; it moves and turns with the hand until let go.
-    //   RIGHT hand: a fist is the saw. Pull the fist through an object: it is cut along the plane of your hand that holds the way
-    //   the fist went, and the smaller piece is gone. (Cutting a convex block by planes keeps it convex.)
+    // ---- The VR workshop on VRTSH, "The Solution is at Hand" (src/vrtsh.ts, VR-WORKSHOP.md). On the ground (not in a star map,
+    // not in the car), once the controllers are put down and the hands are seen. Each hand always has one function; the back of
+    // the hand carries the icons of the functions it can take, and the other hand's index fingertip pokes one to choose it. The
+    // chosen one stands bigger in front of the back of the hand, tilted to the eyes.
+    //   LEFT: 8 materials (a little cube of each: poke a block with the left index to paint it), grab (a fist or a pinch on an
+    //   object takes it), cube (close the fist and open it: a 5 cm cube appears there), exit (hold a fist: out of VR).
+    //   RIGHT: grab.
     // Everything is in the room's metres (the reference space) and goes into the scene through the rig (xrRig: on the ground the
-    // room's floor is the scene's floor). Every step is undoable (a cut, a move, a paint, a new cube).
-    const XR_FINGERS = ['index-finger', 'middle-finger', 'ring-finger', 'pinky-finger'];
-    const XR_JOINT_NAMES = ['wrist', 'thumb-metacarpal', 'thumb-phalanx-proximal', 'thumb-phalanx-distal', 'thumb-tip', ...XR_FINGERS.flatMap((f) => ['metacarpal', 'phalanx-proximal', 'phalanx-intermediate', 'phalanx-distal', 'tip'].map((k) => `${f}-${k}`))];
-    const xrHandsNow = (session, frame) => {
-      const out = {};
-      if (!frame?.getJointPose || !xrState.space) return out;
-      for (const src of session.inputSources) {
-        if (!src.hand || (src.handedness !== 'left' && src.handedness !== 'right')) continue;
-        const j = {};
-        let wristM = null;
-        for (const name of XR_JOINT_NAMES) {
-          const js = src.hand.get?.(name);
-          if (!js) continue;
-          let pose = null;
-          try {
-            pose = frame.getJointPose(js, xrState.space);
-          } catch {}
-          if (!pose) continue;
-          const m = pose.transform.matrix;
-          j[name] = [m[12], m[13], m[14]];
-          if (name === 'wrist') wristM = Float32Array.from(m);
-          if (name === 'middle-finger-metacarpal') j.palmM = Float32Array.from(m);
-        }
-        if (wristM && j['index-finger-tip'] && j['thumb-tip'] && j['middle-finger-phalanx-proximal']) out[src.handedness] = { j, wristM };
-      }
-      return out;
-    };
+    // room's floor is the scene's floor). Every step is undoable.
     const v3 = {
       add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]],
       sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]],
@@ -10222,47 +10196,6 @@
         d: dir,
         back: (q) => { const d = v3.sub(q, o); return [v3.dot(Rt, d) / S, v3.dot(U, d) / S, -v3.dot(F, d) / S]; },
       };
-    };
-    // a hand's gestures, with some slack so they do not flicker: a fist (the fingertips curled back to the wrist, against how far
-    // the knuckles are), a pinch (thumb and index tips together)
-    const xrGestures = (h, g) => {
-      const w = h.j.wrist;
-      let tips = 0, knuckles = 0, n = 0;
-      for (const f of XR_FINGERS) {
-        const t = h.j[`${f}-tip`], k = h.j[`${f}-phalanx-proximal`];
-        if (!t || !k) continue;
-        tips += v3.len(v3.sub(t, w));
-        knuckles += v3.len(v3.sub(k, w));
-        n++;
-      }
-      const curl = n ? tips / Math.max(1e-3, knuckles) : 9;
-      const ratio = (f) => {
-        const t = h.j[`${f}-tip`], k = h.j[`${f}-phalanx-proximal`];
-        return t && k ? v3.len(v3.sub(t, w)) / Math.max(1e-3, v3.len(v3.sub(k, w))) : 9;
-      };
-      // pointing: the index straight, the other three curled (a fist with the index out)
-      const others = Math.max(ratio('middle-finger'), ratio('ring-finger'), ratio('pinky-finger'));
-      g.point = g.point ? ratio('index-finger') > 1.5 && others < 1.35 : ratio('index-finger') > 1.7 && others < 1.15;
-      g.fist = !g.point && (g.fist ? curl < 1.35 : curl < 1.1);
-      const pinch = v3.len(v3.sub(h.j['thumb-tip'], h.j['index-finger-tip']));
-      g.pinch = !g.fist && !g.point && (g.pinch ? pinch < 0.035 : pinch < 0.018);
-      // the click while pointing: the thumb tucked against the middle finger
-      const mid = h.j['middle-finger-phalanx-intermediate'] ?? h.j['middle-finger-phalanx-proximal'];
-      const tuck = v3.len(v3.sub(h.j['thumb-tip'], mid));
-      g.click = g.point && (g.click ? tuck < 0.045 : tuck < 0.03);
-      // smoothed (the tracking trembles a few millimetres and degrees): the palm's middle, its normal, the pointing ray
-      // (a big jump is taken at once: the smoothing is for the tremble, not for real moves)
-      const ease = (old, now, k, jump = 0.03) => (old && Math.hypot(now[0] - old[0], now[1] - old[1], now[2] - old[2]) < jump ? old.map((c, i) => c + (now[i] - c) * k) : now);
-      g.palm = ease(g.palm, v3.mid(w, h.j['middle-finger-phalanx-proximal']), 0.5);
-      const a = h.j['index-finger-metacarpal'] ?? h.j['index-finger-phalanx-proximal'], b = h.j['pinky-finger-metacarpal'] ?? h.j['pinky-finger-phalanx-proximal'];
-      let nrm = h.j.palmM ? [h.j.palmM[4], h.j.palmM[5], h.j.palmM[6]] : a && b ? v3.unit(v3.cross(v3.sub(a, w), v3.sub(b, w))) : [0, 0, 1];
-      if (g.normal && v3.dot(nrm, g.normal) < 0) nrm = v3.mul(nrm, -1);
-      g.normal = v3.unit(ease(g.normal, nrm, 0.35, 0.5));
-      g.forward = v3.unit(v3.sub(h.j['middle-finger-phalanx-proximal'], w));
-      const ip = h.j['index-finger-phalanx-proximal'], it = h.j['index-finger-tip'];
-      g.rayFrom = ip ? ease(g.rayFrom, ip, 0.5) : null;
-      g.rayDir = ip ? v3.unit(ease(g.rayDir, v3.unit(v3.sub(it, ip)), 0.4, 0.5)) : null;
-      return g;
     };
     // a convex object's faces as planes (outward), and whether a scene point is inside (within `margin`)
     const facePlanes = (mesh) => {
@@ -10297,343 +10230,229 @@
       for (const f of mesh.faces) for (let i = 1; i + 1 < f.v.length; i++) v += v3.dot(P[f.v[0]], v3.cross(P[f.v[i]], P[f.v[i + 1]]));
       return Math.abs(v) / 6;
     };
-    // a ray (scene) into a convex object: the nearest entry point and the face it enters by
-    const rayConvex = (mesh, o, d) => {
-      const planes = facePlanes(mesh);
-      let tIn = 0, tOut = Infinity, face = -1;
-      for (let i = 0; i < planes.length; i++) {
-        const { p, n } = planes[i];
-        const dn = v3.dot(d, n), dist = v3.dot(v3.sub(p, o), n);
-        if (Math.abs(dn) < 1e-12) {
-          if (dist < 0) return null;
-          continue;
-        }
-        const t = dist / dn;
-        if (dn < 0) t > tIn && ((tIn = t), (face = i));
-        else tOut = Math.min(tOut, t);
-      }
-      return face >= 0 && tIn <= tOut ? { t: tIn, point: v3.add(o, v3.mul(d, tIn)), normal: planes[face].n, fi: planes[face].fi } : null;
-    };
     // what a hand may take or cut: the loose objects, up to 1.5 m across (not the floor or the bench)
     const workable = () => allObjects().filter((o) => o.mesh.faces.length && !o.inst && bounds(o.mesh).radius < 0.75 && !/^(floor|bench )/.test(o.name ?? ''));
-    // the panel: sys keys and the palette, a 40 × 20 cm board in the room, its texture 1024 × 512
-    const WS_W = 0.4, WS_H = (0.4 * 200) / 1024, WS_PX = [1024, 200];
-    const wsButtons = () => [['cube', 'CUBE'], ['undo', 'UNDO'], ['delete', 'DELETE'], ['exit', 'EXIT VR']].map(([id, label], i) => ({ id, label, x: 24 + i * 248, y: 22, w: 232, h: 120 }));
-    // the palette on the back of the left hand: 6 swatches a row, 2 cm each
-    const PAL_COLS = 6, PAL_CELL = 0.02;
-    const palRows = () => Math.min(4, Math.ceil(Math.min(materials.length, 24) / PAL_COLS));
-    const wsPlaceMenu = (ws, head) => {
-      const hp = [head[12], head[13], head[14]];
-      const fw = v3.unit([-head[8], 0, -head[10]]), left = v3.cross([0, 1, 0], fw);
-      const c = v3.add(v3.add(hp, v3.add(v3.mul(fw, 0.42), v3.mul(left, 0.3))), [0, -0.3, 0]);
-      const z = v3.unit(v3.sub(hp, c)), x = v3.unit(v3.cross([0, 1, 0], z)), y = v3.cross(z, x);
-      ws.menu = [...x, 0, ...y, 0, ...z, 0, ...c, 1];
-      ws.menuInv = rigidInv(ws.menu);
-    };
     const wsNote = (ws, text) => ((ws.note = text), (ws.noteAt = performance.now()), xrLog(`workshop: ${text}`));
-    const xrWorkshop = (hands, head, now) => {
-      const ws = (xrState.ws ??= { g: { left: {}, right: {} } });
-      const on = !space() && !drive() && (hands.left || hands.right);
-      ws.on = Boolean(on);
+    const TSH_CUBE = 0.05; // the little cube's edge (m)
+    const TSH_EXIT_HOLD = 0.7; // s of fist on exit
+    const tshFunctions = () => ({
+      left: [
+        ...materials.slice(0, 8).map((mt, i) => ({ id: `mat${i}`, label: mt.name, kind: 'material', data: i })),
+        { id: 'grab', label: 'grab', kind: 'grab' },
+        { id: 'cube', label: 'cube', kind: 'cube' },
+        { id: 'exit', label: 'exit VR', kind: 'exit' },
+      ],
+      right: [{ id: 'grab', label: 'grab', kind: 'grab' }],
+    });
+    let tsh = null;
+    const xrWorkshop = (session, frame, head, now) => {
+      const ws = (xrState.ws ??= {});
+      const hands = readHands(session, frame, xrState.space);
+      const on = !space() && !drive() && Boolean(hands.left || hands.right);
+      ws.on = on;
       ws.hands = hands;
+      ws.extra = null;
       if (!on) return;
+      tsh ??= createTsh(tshFunctions());
+      // (the palette can change: the materials follow it)
+      const want = tshFunctions().left.map((f) => `${f.id}:${f.label}`).join();
+      if (want !== ws.fnKey) ((ws.fnKey = want), tsh.setFunctions('left', tshFunctions().left));
       // (saved a moment after a change too, so a browser that drops the page does not lose it)
       if (ws.dirtyAt && now - ws.dirtyAt > 1500) ((ws.dirtyAt = 0), saveWorkshop());
       const R2S = roomToScene();
-      if (!ws.menu || (head && v3.len(v3.sub([head[12], head[13], head[14]], [ws.menu[12], ws.menu[13], ws.menu[14]])) > 1.6)) head && wsPlaceMenu(ws, head);
-      const L = hands.left && xrGestures(hands.left, ws.g.left), R = hands.right && xrGestures(hands.right, ws.g.right);
-      const m = materials[current];
-      const paint = (mesh) => ({ ...mesh, faces: mesh.faces.map((f) => ({ ...f, color: m.color, mat: m.name })) });
-      const piece = () => (ws.piece && allObjects().find((o) => o.id === ws.piece)) || null;
+      const st = tsh.update(hands, head, now);
+      ws.st = st;
+      const done = () => ((ws.used = true), (ws.dirtyAt = performance.now()));
+      for (const e of st.events) if (e.type === 'choose') wsNote(ws, `${e.side} hand: ${e.fn.label ?? e.fn.id}`);
+      const matOf = (fn) => materials[fn?.kind === 'material' ? fn.data : current] ?? materials[0];
 
-      // the panel: a fingertip on a key presses it (once, until the finger leaves)
-      ws.hover = null;
-      if (ws.menuInv) {
-        for (const [side, h] of [['left', hands.left], ['right', hands.right]]) {
-          const tip = h?.j['index-finger-tip'];
-          if (!tip) continue;
-          const q = xform(ws.menuInv, tip);
-          const px = (q[0] / WS_W + 0.5) * WS_PX[0], py = (0.5 - q[1] / WS_H) * WS_PX[1];
-          const b = Math.abs(q[2]) < 0.02 ? wsButtons().find((k) => px >= k.x && px <= k.x + k.w && py >= k.y && py <= k.y + k.h) : null;
-          if (b) ws.hover = b.id;
-          const key = `poke${side}`;
-          if (b && !ws[key]) {
-            ws[key] = b.id;
-            if (b.id === 'cube') {
-              const hp = head ? [head[12], head[13], head[14]] : [0, 1.5, 0];
-              const fw = head ? v3.unit([-head[8], 0, -head[10]]) : [0, 0, -1];
-              const S = 0.15;
-              const bench = allObjects().find((o) => o.name === 'bench top');
-              let at = R2S.p(v3.add(v3.add(hp, v3.mul(fw, 0.4)), [0, -0.25, 0]));
-              if (bench) {
-                // on the bench, 15 cm in from its front edge, a little apart from the last block
-                const bb = bounds(bench.mesh);
-                let top = -Infinity, hiZ = -Infinity;
-                for (const q of bench.mesh.positions) ((top = Math.max(top, q[1])), (hiZ = Math.max(hiZ, q[2])));
-                const k = (ws.cubes = (ws.cubes ?? 0) + 1) - 1;
-                at = [bb.center[0] + [0, 0.2, -0.2, 0.4, -0.4][k % 5], top + S / 2, hiZ - 0.2];
-              }
-              const right = v3.unit(R2S.d(v3.cross(fw, [0, 1, 0]))), up = v3.unit(R2S.d([0, 1, 0]));
-              ((ws.used = true), (ws.dirtyAt = performance.now()));
-              const o = create(`block-${shortId()}`, paint(box({ size: [S, S, S], at, axes: [right, up, v3.cross(right, up)], color: m.color })));
-              ws.piece = o.id;
-              wsNote(ws, 'a new block');
-            } else if (b.id === 'undo') (undo(), wsNote(ws, 'undo'));
-            else if (b.id === 'delete') {
-              const o = piece();
-              if (o) (erase(o), history.push(() => has(o) || restore(o)), (ws.piece = null), wsNote(ws, `${o.name} deleted`));
-            } else if (b.id === 'exit') return void xrState.session?.end();
-            else if (b.mat !== undefined) {
-              current = b.mat;
-              const o = piece();
-              if (o) {
-                const before = o.mesh;
-                history.push(() => has(o) && change(o, before));
-                change(o, paint(o.mesh));
-              }
-              wsNote(ws, `material ${materials[current].name}`);
-            }
-          } else if (!b && ws[key] && (Math.abs(q[2]) > 0.04 || !wsButtons().some((k) => px >= k.x - 20 && px <= k.x + k.w + 20 && py >= k.y - 20 && py <= k.y + k.h + 20))) ws[key] = null;
-        }
-      }
-
-      const dt = ws.lastNow ? Math.min(0.1, (now - ws.lastNow) / 1000) : 0;
-      ws.lastNow = now;
-      const sideOf = { left: L, right: R };
-
-      // the palette on the left hand: shown on the side of the hand turned to the eyes (its back, like a watch), a little above it
-      ws.pal = null;
-      if (L && head) {
-        const hp = [head[12], head[13], head[14]];
-        const toHead = v3.unit(v3.sub(hp, L.palm));
-        let n = L.normal;
-        if (v3.dot(n, toHead) < 0) n = v3.mul(n, -1);
-        if (v3.dot(n, toHead) > 0.35) {
-          const y = v3.unit(v3.sub(L.forward, v3.mul(n, v3.dot(L.forward, n))));
-          const x = v3.cross(y, n);
-          const c = v3.add(L.palm, v3.add(v3.mul(n, 0.03), v3.mul(y, 0.02)));
-          const M = [...x, 0, ...y, 0, ...n, 0, ...c, 1];
-          ws.pal = { M, inv: rigidInv(M) };
-        }
-      }
-      // the right index on a swatch picks it
-      ws.palHover = null;
-      if (ws.pal && hands.right) {
-        const q = xform(ws.pal.inv, hands.right.j['index-finger-tip']);
-        const rows = palRows(), w = PAL_COLS * PAL_CELL, h = rows * PAL_CELL;
-        const col = Math.floor((q[0] + w / 2) / PAL_CELL), row = Math.floor((h / 2 - q[1]) / PAL_CELL);
-        const idx = Math.abs(q[2]) < 0.015 && col >= 0 && col < PAL_COLS && row >= 0 && row < rows ? row * PAL_COLS + col : -1;
-        if (idx >= 0 && idx < materials.length) {
-          ws.palHover = idx;
-          if (ws.palPicked !== idx) ((ws.palPicked = idx), (current = idx), wsNote(ws, `picked ${materials[idx].name}: point and click to paint`));
-        } else if (Math.abs(q[2]) > 0.03) ws.palPicked = null;
-      }
-
-      // both hands hold: a fist or a pinch on an object (or within 4 cm of it) takes it; it moves and turns with that wrist
+      // grab (either hand with that function): a fist or a pinch on an object (or within 4 cm of it) takes it; it moves and
+      // turns with that wrist until let go
       const grabs = (ws.grabs ??= {});
       for (const side of ['left', 'right']) {
-        const h = hands[side], g = sideOf[side];
-        const holding = Boolean(h && g && (g.fist || g.pinch) && !ws.make?.id);
+        const h = hands[side], g = st[side].g, fn = st[side].fn;
+        const holding = Boolean(h && g && fn?.kind === 'grab' && (g.fist || g.pinch));
         const cur = grabs[side];
         if (holding && !cur) {
-          const at = R2S.p(g.pinch ? v3.mid(h.j['thumb-tip'], h.j['index-finger-tip']) : g.palm);
+          const at = R2S.p(g.pinch ? v3.mid(h.joints['thumb-tip'], h.joints['index-finger-tip']) : g.palm);
           const other = grabs[side === 'left' ? 'right' : 'left'];
           const o = workable().find((x) => x.id !== other?.id && insideConvex(x.mesh, at, 0.04));
-          grabs[side] = o ? { id: o.id, inv0: rigidInv(h.wristM), room0: o.mesh.positions.map(R2S.back), mesh0: o.mesh } : { none: true };
+          grabs[side] = o ? { id: o.id, inv0: rigidInv(h.wrist), room0: o.mesh.positions.map(R2S.back), mesh0: o.mesh } : { none: true };
           if (o) ((ws.piece = o.id), wsNote(ws, `holding ${o.name}`));
         } else if (holding && cur?.id) {
           const o = allObjects().find((x) => x.id === cur.id);
           if (o) {
-            const D = mul4(h.wristM, cur.inv0);
+            const D = mul4(h.wrist, cur.inv0);
             change(o, { ...o.mesh, positions: cur.room0.map((r) => R2S.p(xform(D, r))) });
           } else grabs[side] = { none: true };
         } else if (!holding && cur) {
           grabs[side] = null;
           const o = cur.id && allObjects().find((x) => x.id === cur.id);
-          if (o && o.mesh !== cur.mesh0) ((ws.used = true), (ws.dirtyAt = performance.now()), history.push(() => has(o) && change(o, cur.mesh0)));
+          if (o && o.mesh !== cur.mesh0) (done(), history.push(() => has(o) && change(o, cur.mesh0)));
         }
       }
 
-      // two hands put together and pulled apart: a block between them (the two palms are its opposite corners, in the frame you
-      // face), growing and shrinking with the hands; held still for a moment it stays. Back together: it is gone again.
-      const pl = L?.palm, pr = R?.palm;
-      const free = !grabs.left?.id && !grabs.right?.id;
-      const mk = ws.make;
-      const blockMesh = (frame) => {
-        const loc = [pl, pr].map((p) => [v3.dot(p, frame.x), v3.dot(p, frame.y), v3.dot(p, frame.z)]);
-        const lo = [0, 1, 2].map((k) => Math.min(loc[0][k], loc[1][k])), hi = [0, 1, 2].map((k) => Math.max(loc[0][k], loc[1][k]));
-        const size = [0, 1, 2].map((k) => Math.max(0.02, hi[k] - lo[k]));
-        const cl = [0, 1, 2].map((k) => (lo[k] + hi[k]) / 2);
-        const centre = v3.add(v3.add(v3.mul(frame.x, cl[0]), v3.mul(frame.y, cl[1])), v3.mul(frame.z, cl[2]));
-        const axes = [frame.x, frame.y, frame.z].map((a) => v3.unit(R2S.d(a)));
-        return { mesh: paint(box({ size, at: R2S.p(centre), axes, color: m.color })), size };
-      };
-      const cm = (size) => size.map((x) => Math.round(x * 100)).join(' × ') + ' cm';
-      if (pl && pr && free) {
-        const gap = v3.len(v3.sub(pl, pr));
-        const open = !L.fist && !R.fist && !L.pinch && !R.pinch;
-        if (!mk) {
-          if (gap < 0.07 && open) ws.make = { armed: true };
-        } else if (!mk.id) {
-          if (gap > 0.1) {
-            const fw = head ? v3.unit([-head[8], 0, -head[10]]) : [0, 0, -1];
-            const frame = { x: v3.cross(fw, [0, 1, 0]), y: [0, 1, 0], z: v3.mul(fw, -1) };
-            const b = blockMesh(frame);
-            const o = create(`block-${shortId()}`, b.mesh);
-            Object.assign(mk, { id: o.id, frame, last: [pl, pr], still: 0 });
+      const L = st.left, lh = hands.left;
+      // a material: the left index fingertip poked into a block paints all of it (once, until the finger comes out)
+      if (L.fn?.kind === 'material' && lh) {
+        current = L.fn.data;
+        const tip = R2S.p(lh.joints['index-finger-tip']);
+        const o = workable().find((x) => insideConvex(x.mesh, tip, 0.003));
+        if (o && ws.painted !== o.id) {
+          ws.painted = o.id;
+          const mt = matOf(L.fn), before = o.mesh;
+          if (o.mesh.faces.some((f) => f.mat !== mt.name || f.color !== mt.color)) {
+            history.push(() => has(o) && change(o, before));
+            change(o, { ...o.mesh, faces: o.mesh.faces.map((f) => ({ ...f, color: mt.color, mat: mt.name })) });
+            done();
             ws.piece = o.id;
-            wsNote(ws, `block ${cm(b.size)}`);
+            wsNote(ws, `${o.name} painted ${mt.name}`);
           }
-        } else {
-          const o = allObjects().find((x) => x.id === mk.id);
-          if (!o) ws.make = null;
-          else if (gap < 0.05) {
-            erase(o);
-            ws.make = { armed: true };
-            ws.piece = null;
-            wsNote(ws, 'block taken back');
-          } else {
-            const b = blockMesh(mk.frame);
-            change(o, b.mesh);
-            const moved = Math.max(v3.len(v3.sub(pl, mk.last[0])), v3.len(v3.sub(pr, mk.last[1])));
-            mk.last = [pl, pr];
-            mk.still = dt && moved / dt < 0.06 ? mk.still + dt : 0;
-            wsNote(ws, `block ${cm(b.size)}${mk.still > 0.15 ? ' · hold still…' : ''}`);
-            if (mk.still > 0.45) {
-              ws.make = null;
-              ws.used = true;
-              ws.dirtyAt = performance.now();
-              wsNote(ws, `block ${cm(b.size)} made`);
-            }
-          }
-        }
-      } else if (mk && !mk.id) ws.make = null;
-      else if (mk?.id) ((ws.make = null), (ws.used = true), (ws.dirtyAt = performance.now())); // (a hand lost: the block stays as it is)
-
-      // the right hand points (the index out, the others curled): a ray from the index finger; the thumb tucked to the middle
-      // finger is a click: it paints the face the ray lands on with the picked colour; a second click on the same object at once
-      // paints all of it
-      ws.ray = null;
-      if (R?.point && R.rayFrom) {
-        const o = R2S.p(R.rayFrom), d = v3.unit(R2S.d(R.rayDir));
-        let best = null;
-        for (const x of workable()) {
-          const h = rayConvex(x.mesh, o, d);
-          if (h && (!best || h.t < best.t)) best = { ...h, id: x.id };
-        }
-        ws.ray = { from: R.rayFrom, to: best ? R2S.back(best.point) : v3.add(R.rayFrom, v3.mul(R.rayDir, 1.5)), hit: best };
-        if (R.click && !ws.clicked) {
-          ws.clicked = true;
-          const obj = best && allObjects().find((x) => x.id === best.id);
-          if (obj) {
-            const before = obj.mesh;
-            const all = ws.lastPaint && ws.lastPaint.id === obj.id && now - ws.lastPaint.t < 450;
-            history.push(() => has(obj) && change(obj, before));
-            change(obj, { ...obj.mesh, faces: obj.mesh.faces.map((f, i) => (all || i === best.fi ? { ...f, color: m.color, mat: m.name } : f)) });
-            ws.lastPaint = { id: obj.id, t: now };
-            ws.piece = obj.id;
-            ws.used = true;
-            ws.dirtyAt = performance.now();
-            wsNote(ws, all ? `${obj.name} painted ${m.name}` : `a face painted ${m.name} (click again: all of it)`);
-          }
+        } else if (!o) ws.painted = null;
+      } else ws.painted = null;
+      // cube: a fist opened makes a little cube there, on the palm's side, square to the way you face
+      if (L.fn?.kind === 'cube') {
+        for (const e of st.events) {
+          if (e.type !== 'fistOpen' || e.side !== 'left' || e.heldFor < 0.12 || !L.g) continue;
+          const roomAt = v3.sub(L.g.palm, v3.mul(L.g.back, 0.045));
+          const fw = head ? v3.unit([-head[8], 0, -head[10]]) : [0, 0, -1];
+          const right = v3.unit(R2S.d(v3.cross(fw, [0, 1, 0]))), up = v3.unit(R2S.d([0, 1, 0]));
+          const mt = materials[current] ?? materials[0];
+          const solid = box({ size: [TSH_CUBE, TSH_CUBE, TSH_CUBE], at: R2S.p(roomAt), axes: [right, up, v3.cross(right, up)], color: mt.color });
+          const o = create(`cube-${shortId()}`, { ...solid, faces: solid.faces.map((f) => ({ ...f, mat: mt.name })) });
+          ws.piece = o.id;
+          done();
+          wsNote(ws, `a cube (${mt.name})`);
         }
       }
-      if (!R?.click) ws.clicked = false;
+      // exit: a fist held for a moment leaves VR
+      ws.exitHold = L.fn?.kind === 'exit' && L.g?.fist ? Math.min(1, L.g.fistFor / TSH_EXIT_HOLD) : 0;
+      if (ws.exitHold >= 1) return void xrState.session?.end();
+
+      // the little material cubes of the icons: real meshes (they show what the material is like: its colour, its glass),
+      // drawn with the scene this frame
+      const cubes = [];
+      for (const side of ['left', 'right'])
+        for (const ic of st[side].icons) {
+          if (ic.fn.kind !== 'material') continue;
+          const mt = materials[ic.fn.data];
+          if (!mt) continue;
+          const k = ic.big ? 0.6 : ic.hover ? 0.75 : 0.6;
+          const turn = ic.big ? now / 1600 : 0;
+          const ca = Math.cos(turn), sa = Math.sin(turn);
+          const ax = v3.add(v3.mul(ic.x, ca), v3.mul(ic.z, sa)), az = v3.sub(v3.mul(ic.z, ca), v3.mul(ic.x, sa));
+          const axes = [ax, ic.y, az].map((a) => v3.unit(R2S.d(a)));
+          const solid = box({ size: [ic.size * k, ic.size * k, ic.size * k], at: R2S.p(ic.at), axes, color: mt.color });
+          cubes.push({ ...solid, faces: solid.faces.map((f) => ({ ...f, mat: mt.name })) });
+        }
+      ws.extra = cubes.length ? merge(...cubes) : null;
     };
-    // the workshop in the headset: the hands (their bones), the saw's plane on the right fist, the panel
+    // the icons that are not materials, drawn on a canvas
+    const tshIconPaint = (kind, c, W, H) => {
+      c.lineCap = c.lineJoin = 'round';
+      c.strokeStyle = '#f2eee0';
+      c.fillStyle = '#f2eee0';
+      c.lineWidth = W * 0.06;
+      const u = W / 100;
+      if (kind === 'grab') {
+        // a fist: four knuckles over a palm, a thumb across
+        c.beginPath();
+        c.roundRect(22 * u, 40 * u, 56 * u, 38 * u, 10 * u);
+        c.stroke();
+        for (let i = 0; i < 4; i++) {
+          c.beginPath();
+          c.roundRect((24 + i * 13.5) * u, 24 * u, 12 * u, 22 * u, 6 * u);
+          c.stroke();
+        }
+        c.beginPath();
+        c.moveTo(24 * u, 62 * u);
+        c.lineTo(52 * u, 56 * u);
+        c.stroke();
+      } else if (kind === 'cube') {
+        // a cube seen from a corner
+        const P = (x, y) => [x * u, y * u];
+        const lines = [[P(50, 18), P(80, 33)], [P(80, 33), P(50, 48)], [P(50, 48), P(20, 33)], [P(20, 33), P(50, 18)], [P(20, 33), P(20, 67)], [P(80, 33), P(80, 67)], [P(50, 48), P(50, 82)], [P(20, 67), P(50, 82)], [P(50, 82), P(80, 67)]];
+        c.beginPath();
+        for (const [a, b] of lines) (c.moveTo(...a), c.lineTo(...b));
+        c.stroke();
+      } else if (kind === 'exit') {
+        // a door with an arrow out
+        c.strokeStyle = '#ff8a5c';
+        c.beginPath();
+        c.moveTo(56 * u, 20 * u);
+        c.lineTo(28 * u, 20 * u);
+        c.lineTo(28 * u, 80 * u);
+        c.lineTo(56 * u, 80 * u);
+        c.moveTo(44 * u, 50 * u);
+        c.lineTo(82 * u, 50 * u);
+        c.moveTo(70 * u, 38 * u);
+        c.lineTo(82 * u, 50 * u);
+        c.lineTo(70 * u, 62 * u);
+        c.stroke();
+      }
+    };
+    const icFrame = (ic) => [...ic.x, 0, ...ic.y, 0, ...ic.z, 0, ...ic.at, 1];
+    // the workshop in the headset: the hands (their bones), the icons on the backs of the hands, the chosen one's name
     const xrWorkshopDraw = (gl, P, V, eyeFromRef, now) => {
       const ws = xrState.ws;
-      if (!ws?.on) return;
+      if (!ws?.on || !ws.st) return;
       const lines = [];
-      const BONES = [['wrist', 'thumb-metacarpal', 'thumb-phalanx-proximal', 'thumb-phalanx-distal', 'thumb-tip'], ...XR_FINGERS.map((f) => ['wrist', `${f}-metacarpal`, `${f}-phalanx-proximal`, `${f}-phalanx-intermediate`, `${f}-phalanx-distal`, `${f}-tip`])];
       for (const side of ['left', 'right']) {
-        const h = ws.hands?.[side], g = ws.g[side];
-        if (!h) continue;
-        const col = ws.grabs?.[side]?.id ? [1, 0.6, 0.25] : g.fist || g.pinch ? [0.35, 0.95, 0.85] : ws.make ? [0.6, 1, 0.5] : [0.92, 0.88, 0.72];
-        for (const chain of BONES)
+        const h = ws.hands?.[side], g = ws.st[side].g;
+        if (!h || !g) continue;
+        const col = ws.grabs?.[side]?.id ? [1, 0.6, 0.25] : g.fist || g.pinch ? [0.35, 0.95, 0.85] : [0.92, 0.88, 0.72];
+        for (const chain of TSH_BONES)
           for (let i = 1; i < chain.length; i++) {
-            const a = h.j[chain[i - 1]], b = h.j[chain[i]];
+            const a = h.joints[chain[i - 1]], b = h.joints[chain[i]];
             if (a && b) lines.push(...a, ...col, 0.9, ...b, ...col, 0.9);
           }
-      }
-      // the pointing ray (teal, brighter on an object, with a cross where it lands), the V points, the cut line
-      if (ws.ray) {
-        const hit = Boolean(ws.ray.hit);
-        lines.push(...ws.ray.from, 0.35, 0.95, 0.85, 0.9, ...ws.ray.to, 0.35, 0.95, 0.85, hit ? 0.9 : 0.1);
-        if (hit) {
-          const t = ws.ray.to;
-          for (const ax of [[0.012, 0, 0], [0, 0.012, 0], [0, 0, 0.012]]) lines.push(...v3.sub(t, ax), 0.6, 1, 0.9, 1, ...v3.add(t, ax), 0.6, 1, 0.9, 1);
+        // a square round the chosen and the touched icon
+        for (const ic of ws.st[side].icons) {
+          if (ic.big || !(ic.chosen || ic.hover)) continue;
+          const r = ic.size * 0.55, c2 = ic.hover ? [0.2, 0.75, 0.8] : [0.95, 0.93, 0.85];
+          const q = [[-r, -r], [r, -r], [r, r], [-r, r]].map(([a, b]) => v3.add(ic.at, v3.add(v3.mul(ic.x, a), v3.mul(ic.y, b))));
+          for (let i = 0; i < 4; i++) lines.push(...q[i], ...c2, 1, ...q[(i + 1) % 4], ...c2, 1);
         }
       }
       xrLines(gl, P, V, lines);
-      if (!ws.menu) return;
-      const btns = wsButtons();
-      const flash = ws.flashAt && now - ws.flashAt < 300;
-      const note = ws.note && now - (ws.noteAt ?? 0) < 4000 ? ws.note : '';
-      const key = JSON.stringify([ws.hover, current, note, flash, btns.length, materials.map((x) => x.color).join()]);
-      const tex = xrPanelTex(gl, 'workshop', WS_PX[0], WS_PX[1], key, (c, W, H) => {
-        c.fillStyle = flash ? 'rgba(60, 22, 10, 0.88)' : 'rgba(14, 15, 12, 0.86)';
-        c.beginPath();
-        c.roundRect(3, 3, W - 6, H - 6, 26);
-        c.fill();
-        c.strokeStyle = 'rgba(217, 211, 167, 0.5)';
-        c.lineWidth = 4;
-        c.stroke();
-        for (const b of btns) {
-          const hot = ws.hover === b.id;
-          if (b.mat !== undefined) {
-            c.fillStyle = b.color;
-            c.beginPath();
-            c.roundRect(b.x, b.y, b.w, b.h, 12);
-            c.fill();
-            if (b.mat === current || hot) {
-              c.strokeStyle = hot ? '#2fb8c0' : '#f2eee0';
-              c.lineWidth = 7;
-              c.stroke();
-            }
-          } else {
-            c.fillStyle = hot ? '#2fb8c0' : b.id === 'exit' ? '#f1481c' : b.id === 'cube' ? '#d9d3a7' : '#4b483f';
-            c.beginPath();
-            c.roundRect(b.x, b.y, b.w, b.h, 16);
-            c.fill();
-            c.fillStyle = b.id === 'undo' || b.id === 'delete' ? (hot ? '#04181a' : '#e4dfbc') : '#17150f';
-            c.font = '700 44px system-ui, sans-serif';
-            c.textAlign = 'center';
-            c.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 15);
-            c.textAlign = 'left';
+      for (const side of ['left', 'right'])
+        for (const ic of ws.st[side].icons) {
+          if (ic.fn.kind !== 'material') {
+            const hold = ic.big && ic.fn.kind === 'exit' ? ws.exitHold : 0;
+            const tex = xrPanelTex(gl, `icon-${ic.fn.kind}-${hold ? Math.round(hold * 10) : 0}`, 128, 128, `${ic.fn.kind}|${Math.round(hold * 10)}`, (c, W, H) => {
+              c.fillStyle = 'rgba(20, 22, 18, 0.82)';
+              c.beginPath();
+              c.roundRect(4, 4, W - 8, H - 8, 22);
+              c.fill();
+              if (hold) {
+                c.fillStyle = 'rgba(241, 72, 28, 0.55)';
+                c.fillRect(4, H - 4 - (H - 8) * hold, W - 8, (H - 8) * hold);
+              }
+              tshIconPaint(ic.fn.kind, c, W, H);
+            });
+            xrQuad(gl, P, mul4(eyeFromRef, icFrame(ic)), tex, ic.size / 2, ic.size / 2);
+          }
+          if (ic.big) {
+            // the chosen function's name under its big icon (and the last thing that happened)
+            const note = ws.note && now - (ws.noteAt ?? 0) < 3000 ? ws.note : '';
+            const label = ic.fn.kind === 'exit' ? 'exit VR · hold a fist' : ic.fn.kind === 'cube' ? 'cube · open the fist' : ic.fn.kind === 'grab' ? 'grab · fist or pinch' : `${ic.fn.label} · poke a block`;
+            const tex = xrPanelTex(gl, `label-${side}`, 512, 96, `${label}|${note}`, (c, W, H) => {
+              c.fillStyle = 'rgba(14, 15, 12, 0.78)';
+              c.beginPath();
+              c.roundRect(2, 2, W - 4, H - 4, 18);
+              c.fill();
+              c.fillStyle = '#f2eee0';
+              c.font = '600 34px system-ui, sans-serif';
+              c.textAlign = 'center';
+              c.fillText(label, W / 2, 40);
+              c.fillStyle = '#9fe6d8';
+              c.font = '500 26px system-ui, sans-serif';
+              c.fillText(note.slice(0, 40), W / 2, 78);
+            });
+            const at = v3.add(ic.at, v3.mul(ic.y, ic.size * 0.8)); // (above it: below would hide the icons on the hand)
+            xrQuad(gl, P, mul4(eyeFromRef, icFrame({ ...ic, at })), tex, 0.05, 0.0094);
           }
         }
-        if (note) {
-          c.fillStyle = '#9fe6d8';
-          c.font = '500 30px system-ui, sans-serif';
-          c.fillText(note.slice(0, 60), 26, H - 16);
-        }
-      });
-      xrQuad(gl, P, mul4(eyeFromRef, ws.menu), tex, WS_W / 2, WS_H / 2);
-      // the palette on the left hand
-      if (ws.pal) {
-        const rows = palRows(), n = Math.min(materials.length, rows * PAL_COLS), cell = 96;
-        const key2 = JSON.stringify([current, ws.palHover, materials.slice(0, n).map((x) => x.color).join()]);
-        const ptex = xrPanelTex(gl, 'palette', PAL_COLS * cell, rows * cell, key2, (c, W, H) => {
-          c.fillStyle = 'rgba(14, 15, 12, 0.85)';
-          c.beginPath();
-          c.roundRect(0, 0, W, H, 14);
-          c.fill();
-          for (let i = 0; i < n; i++) {
-            const x = (i % PAL_COLS) * cell, y = Math.floor(i / PAL_COLS) * cell;
-            c.fillStyle = materials[i].color;
-            c.beginPath();
-            c.roundRect(x + 8, y + 8, cell - 16, cell - 16, 12);
-            c.fill();
-            if (i === current || i === ws.palHover) {
-              c.strokeStyle = i === ws.palHover ? '#2fb8c0' : '#f2eee0';
-              c.lineWidth = 8;
-              c.stroke();
-            }
-          }
-        });
-        xrQuad(gl, P, mul4(eyeFromRef, ws.pal.M), ptex, (PAL_COLS * PAL_CELL) / 2, (rows * PAL_CELL) / 2);
-      }
     };
     // the same controls outside VR: the Gamepad API (the Quest's controllers when its browser hands them over, or any standard
     // gamepad: its sticks and buttons take the places of the Touch ones: LT / LB / L3 / X / Y on the left, RT / RB / R3 / A / B on
@@ -10992,7 +10811,7 @@
       }
       if (session !== xrState.session) return; // (X left VR)
       try {
-        xrWorkshop(xrHandsNow(session, frame), frame.getViewerPose(xrState.space)?.transform.matrix ?? null, now);
+        xrWorkshop(session, frame, frame.getViewerPose(xrState.space)?.transform.matrix ?? null, now);
       } catch (err) {
         xrLog(`workshop: ${err?.message ?? err}`, true);
       }
@@ -11058,6 +10877,11 @@
         return { glP, engineP };
       };
       const sky = now < xrState.flashUntil ? [0.08, 0.35, 0.12] : (xrArgs.opts.background ?? [0.02, 0.02, 0.03]);
+      // (the workshop's icon cubes go in with the scene this frame)
+      const extraNow = xrState.ws?.on && xrState.ws.extra ? shiftMesh(xrState.ws.extra, xrArgs.origin) : null;
+      const sceneNow = extraNow ? merge(xrArgs.scene, extraNow) : xrArgs.scene;
+      // (the renderer builds from the parts when there are any: the icon cubes are one more part)
+      const partsNow = extraNow && xrArgs.opts.parts?.length ? [...xrArgs.opts.parts, extraNow] : xrArgs.opts.parts;
       if (xrState.mono) {
         const w = layer.framebufferWidth, h = layer.framebufferHeight;
         const { glP: P, engineP } = xrProjection(pose.views[0].projectionMatrix);
@@ -11082,7 +10906,7 @@
         const Ve = eyeView(v.transform.inverse.matrix);
         const { glP, engineP } = xrProjection(v.projectionMatrix);
         xrState.phase = `render ${v.eye} eye`;
-        gpu.render(xrArgs.scene, xrArgs.view, { ...xrArgs.opts, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: engineP, view: Ve, eye } });
+        gpu.render(sceneNow, xrArgs.view, { ...xrArgs.opts, parts: partsNow, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: engineP, view: Ve, eye } });
         xrSkyDraw(gl, glP, Ve, vp.height, xrArgs.origin);
         if (!drive() && !xrState.ws?.on) {
           xrHudDraw(gl, v.projectionMatrix, mul4(v.transform.inverse.matrix, pose.transform.matrix));
