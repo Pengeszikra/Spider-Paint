@@ -928,7 +928,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/3528b04cf70d/index.js';
+    import { createTsh, readHands, TSH_BONES, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/c60eecb70859/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2191,7 +2191,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/3528b04cf70d/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/c60eecb70859/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -4785,6 +4785,9 @@
       { name: 'steel', color: '#9aa7b4', metal: 1, rough: 0.3, alpha: 1, emit: 0 },
       { name: 'gold', color: '#d9b04a', metal: 1, rough: 0.25, alpha: 1, emit: 0 },
       { name: 'glass', color: '#a9d3e8', metal: 0.2, rough: 0.05, alpha: 0.3, emit: 0 },
+      { name: 'copper', color: '#c87533', metal: 1, rough: 0.3, alpha: 1, emit: 0 },
+      { name: 'ruby-glass', color: '#c0263a', metal: 0.2, rough: 0.05, alpha: 0.45, emit: 0 },
+      { name: 'lacquer-blue', color: '#2257b8', metal: 0.15, rough: 0.12, alpha: 1, emit: 0 },
       { name: 'lamp', color: '#ffd36b', metal: 0, rough: 0.5, alpha: 1, emit: 1 },
       { name: 'monitor', color: '#101418', metal: 0.1, rough: 0.3, alpha: 1, emit: 0.3, url: 'https://example.com' },
     ];
@@ -10252,7 +10255,7 @@
     const workable = () => allObjects().filter((o) => o.mesh.faces.length && !o.inst && bounds(o.mesh).radius < 0.75 && !/^(floor|bench )/.test(o.name ?? ''));
     const wsNote = (ws, text) => ((ws.note = text), (ws.noteAt = performance.now()), xrLog(`workshop: ${text}`));
     const TSH_CUBE = 0.05; // the little cube's edge (m)
-    const TSH_MATERIALS = ['plaster', 'wood', 'brick', 'grass', 'steel', 'gold', 'glass', 'slate'];
+    const TSH_MATERIALS = ['wood', 'brick', 'lacquer-blue', 'steel', 'copper', 'gold', 'glass', 'ruby-glass'];
     const TSH_EXIT_HOLD = 0.7; // s of fist on exit
     const tshFunctions = () => ({
       left: [
@@ -10328,10 +10331,12 @@
       return slotKey(toGrid(g, bounds(o.mesh).center), axis);
     };
     // the slot a pointing ray asks for: { centre (grid units), axis, ok, why }
+    // which slot: the side walls along the way you face first (a corridor's walls), then the floor, then the ceiling, then the
+    // wall across your way: the ray's part along each, weighted in that order, the biggest wins
+    const SLOT_WEIGHT = { side: 2, floor: 1.45, ceiling: 1.25, across: 1 };
     const buildSlot = (g, from, dir, headG, headFw) => {
       const r0 = toGrid(g, from);
       const d = [v3.dot(dir, g.X), v3.dot(dir, g.Y), v3.dot(dir, g.Z)];
-      const elev = Math.asin(Math.max(-1, Math.min(1, d[1])));
       // the level you are on (moving up and down changes it): its floor and its ceiling
       const lv = Math.floor((headG[1] - 0.2) / GRID) * GRID;
       const at = (h) => (Math.abs(d[1]) > 1e-3 ? (h - r0[1]) / d[1] : Infinity);
@@ -10339,22 +10344,27 @@
       const own = cellOf(headG);
       const R = 12;
       const towards = (t) => v3.add(r0, v3.mul(d, Math.min(t, R)));
-      if (elev < -0.6 || elev > 0.6) {
-        const h = elev < 0 ? lv : lv + GRID;
+      const fwG = [v3.dot(headFw, g.X), 0, v3.dot(headFw, g.Z)];
+      const H = Math.abs(fwG[0]) >= Math.abs(fwG[2]) ? 0 : 2, C = 2 - H;
+      const score = {
+        side: Math.abs(d[C]) * SLOT_WEIGHT.side,
+        floor: d[1] < 0 ? -d[1] * SLOT_WEIGHT.floor : 0,
+        ceiling: d[1] > 0 ? d[1] * SLOT_WEIGHT.ceiling : 0,
+        across: Math.abs(d[H]) * SLOT_WEIGHT.across,
+      };
+      const kind = Object.entries(score).reduce((a, b) => (b[1] > a[1] ? b : a))[0];
+      if (kind === 'floor' || kind === 'ceiling') {
+        const h = kind === 'floor' ? lv : lv + GRID;
         const t = at(h);
         if (!(t > 0 && t < R)) return null;
         const q = towards(t), [i, k] = cellOf(q);
         return { centre: [i * GRID, h, k * GRID], axis: 'v', hit: q, ok: true };
       }
+      // a wall: the cell is where the ray meets the floor or the ceiling (tip the finger to reach farther), else 8 m out
       const t = d[1] < -0.02 ? at(lv) : d[1] > 0.02 ? at(lv + GRID) : 8;
       const q = towards(t > 0 ? t : 8), [i, k] = cellOf(q);
       if (i === own[0] && k === own[1]) return { hit: q, ok: false, why: 'too close' };
-      // which side of that cell: the side walls along the way you face (a corridor's walls) come first; the wall across your
-      // way only when the ray points nearly straight along it (within 27°)
-      const fwG = [v3.dot(headFw, g.X), 0, v3.dot(headFw, g.Z)];
-      const H = Math.abs(fwG[0]) >= Math.abs(fwG[2]) ? 0 : 2, C = 2 - H;
-      const side = Math.abs(d[C]) * 2 >= Math.abs(d[H]);
-      const major = side ? C : H;
+      const major = kind === 'side' ? C : H;
       const centre = [i * GRID, lv + GRID / 2, k * GRID];
       centre[major] -= Math.sign(d[major] || 1) * (GRID / 2); // the near side of that cell
       const axis = major === 0 ? 'u' : 'w';
@@ -10376,10 +10386,10 @@
       const grid = xrGrid(ws, head, R2S);
       if (!grid) return;
       ws.build = { grid, kind, ray: null, slot: null, target: null };
-      // aim with the index straight (the other fingers as they like); lay the thumb on the index: lay it there (or erase it)
+      // aim with the index alone (the ring finger bent); straighten the ring finger beside it: lay it there (or erase it)
       if (!(g.aim || g.point) || g.fist || !g.rayFrom) return;
       const from = R2S.p(g.rayFrom), dir = v3.unit(R2S.d(g.rayDir));
-      const clicked = st.events.some((e) => e.type === 'thumbDown' && e.side === 'right');
+      const clicked = st.events.some((e) => e.type === 'pairStart' && e.side === 'right');
       if (kind === 'build') {
         const headG = head ? toGrid(grid, R2S.p([head[12], head[13], head[14]])) : toGrid(grid, from);
         const headFw = head ? v3.unit(R2S.d(v3.unit([-head[8], 0, -head[10]]))) : grid.Z.map((x) => -x);
@@ -10779,7 +10789,7 @@
           if (ic.big) {
             // the chosen function's name under its big icon (and the last thing that happened)
             const note = ((ic.fn.kind === 'move' || ic.fn.kind === 'fly') && ws.moving) || (ws.note && now - (ws.noteAt ?? 0) < 3000 ? ws.note : '');
-            const label = { exit: 'exit VR · hold a fist', cube: 'cube · open the fist', grab: 'grab · fist or pinch', build: 'walls · aim, thumb on the index', erase: 'erase · aim, thumb on the index', move: 'move · fist circles, flat hand turns', fly: 'fly · circles, turns, fist up / down' }[ic.fn.kind] ?? `${ic.fn.label} · poke a block`;
+            const label = { exit: 'exit VR · hold a fist', cube: 'cube · open the fist', grab: 'grab · fist or pinch', build: 'walls · aim, ring finger beside', erase: 'erase · aim, ring finger beside', move: 'move · fist circles, flat hand turns', fly: 'fly · circles, turns, fist up / down' }[ic.fn.kind] ?? `${ic.fn.label} · poke a block`;
             const tex = xrPanelTex(gl, `label-${side}`, 640, 96, `${label}|${note}`, (c, W, H) => {
               c.fillStyle = 'rgba(14, 15, 12, 0.78)';
               c.beginPath();

@@ -88,6 +88,19 @@ export const handGestures = (side, h, mem, now) => {
         }
         mem.thumbOn = mem.aim && (mem.thumbOn ? gap < 0.04 : gap < 0.025);
     }
+    // the index and the ring finger side by side: both straight, their directions within 20° (let go past 30°)
+    {
+        const dirOf = (f) => {
+            const k = j[`${f}-phalanx-proximal`], t = j[`${f}-tip`];
+            return k && t ? unit(sub(t, k)) : null;
+        };
+        const di = dirOf('index-finger'), dr = dirOf('ring-finger');
+        const cosA = di && dr ? dot(di, dr) : -1;
+        const ringStraight = mem.pair ? curls[2] > 1.45 : curls[2] > 1.6;
+        mem.pair = mem.aim && ringStraight && (mem.pair ? cosA > Math.cos((30 * Math.PI) / 180) : cosA > Math.cos((20 * Math.PI) / 180));
+        if (mem.aim && curls[2] < 1.3)
+            mem.aloneAt = now; // (the index alone: the ring finger bent)
+    }
     mem.fist = !mem.point && (mem.fist ? curl < 1.35 : curl < 1.1);
     const pinchGap = len(sub(j['thumb-tip'], j['index-finger-tip']));
     mem.pinch = !mem.fist && !mem.point && (mem.pinch ? pinchGap < 0.035 : pinchGap < 0.018);
@@ -111,7 +124,7 @@ export const handGestures = (side, h, mem, now) => {
     else
         mem.fistSince = undefined;
     return {
-        fist: mem.fist, pinch: mem.pinch, point: mem.point, click: mem.click, aim: mem.aim, thumbOn: mem.thumbOn,
+        fist: mem.fist, pinch: mem.pinch, point: mem.point, click: mem.click, aim: mem.aim, thumbOn: mem.thumbOn, pair: mem.pair,
         palm: mem.palm, back: mem.back, forward,
         rayFrom: mem.rayFrom ?? null, rayDir: mem.rayDir ?? null,
         fistFor: mem.fistSince !== undefined ? (now - mem.fistSince) / 1000 : 0,
@@ -130,6 +143,7 @@ export const createTsh = (opts = {}) => {
     const wasClick = { left: false, right: false };
     const wasPoint = { left: false, right: false };
     const wasThumb = { left: false, right: false };
+    const wasPair = { left: false, right: false };
     const columns = opts.columns ?? 4, cell = opts.cell ?? 0.024, lift = opts.lift ?? 0.018;
     const bigSize = opts.bigSize ?? 0.05, bigAhead = opts.bigAhead ?? 0.1, bigOut = opts.bigOut ?? 0.045, reach = opts.reach ?? 0.013;
     /** where the icons of a hand sit: a grid over the back of the hand, the chosen one big in front of it, tilted to the eyes */
@@ -231,6 +245,10 @@ export const createTsh = (opts = {}) => {
             if (g.thumbOn && !wasThumb[side])
                 events.push({ type: 'thumbDown', side });
             wasThumb[side] = g.thumbOn;
+            // (only after aiming with the index alone in the last 1.5 s: an open hand that just moves about does not count)
+            if (g.pair && !wasPair[side] && now - (mem[side].aloneAt ?? -1e9) < 1500)
+                events.push({ type: 'pairStart', side });
+            wasPair[side] = g.pair;
         }
         // choosing: the other hand's index fingertip on an icon (once, until it leaves)
         for (const side of ['left', 'right']) {
