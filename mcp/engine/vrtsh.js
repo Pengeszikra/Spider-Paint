@@ -1,8 +1,8 @@
 // VRTSH, "ViRTuSH": The Solution is at Hand. A hand-held UI for VR with bare hands (WebXR hand tracking).
 //
 // Each hand always has one function, whatever the wearer is doing or whoever they are playing. On the back of each hand sit
-// the icons of the functions it can take; the other hand's index fingertip pokes one to choose it. The chosen one stands a
-// little in front of the back of the hand, bigger, tilted toward the eyes. What a function does is up to the program: VRTSH
+// the icons of the functions it can take; the other hand's index fingertip pokes one to choose it. The chosen one stands in
+// front of the back of the hand, over the fingers, bigger, tilted toward the eyes; it is only a sign, it does not react. What a function does is up to the program: VRTSH
 // reads the hands, keeps the choice, tells the gestures (fist, pinch, pointing, click, a fist opened) and lays the icons out.
 // It knows nothing of a scene or a renderer: positions are in the room's reference space (metres, y up).
 export const TSH_JOINTS = [
@@ -117,7 +117,7 @@ export const createTsh = (opts = {}) => {
     const wasFist = { left: 0, right: 0 };
     const wasClick = { left: false, right: false };
     const columns = opts.columns ?? 4, cell = opts.cell ?? 0.024, lift = opts.lift ?? 0.018;
-    const bigSize = opts.bigSize ?? 0.05, bigOut = opts.bigOut ?? 0.07, reach = opts.reach ?? 0.013;
+    const bigSize = opts.bigSize ?? 0.05, bigAhead = opts.bigAhead ?? 0.1, bigOut = opts.bigOut ?? 0.045, reach = opts.reach ?? 0.013;
     /** where the icons of a hand sit: a grid over the back of the hand, the chosen one big in front of it, tilted to the eyes */
     const layout = (side, g, head) => {
         const list = fns[side];
@@ -155,8 +155,9 @@ export const createTsh = (opts = {}) => {
         });
         const fn = chosen[side];
         if (fn) {
-            // the big one: out from the back of the hand, halfway turned to the eyes
-            const at = add(g.palm, mul(z, bigOut));
+            // the big one: in front of the back of the hand, over the fingers, turned most of the way to the eyes (a sign only: the
+            // choosing below never looks at it)
+            const at = add(g.palm, add(mul(y, bigAhead), mul(z, bigOut)));
             const toEye = head ? unit(sub(head, at)) : z;
             const bz = unit(lerp(z, toEye, 0.6));
             const by = unit(sub(y, mul(bz, dot(y, bz))));
