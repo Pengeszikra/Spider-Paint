@@ -215,7 +215,7 @@
     .side .sidehead { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .side .sidehead b { font: 600 13px/1 var(--font-display); letter-spacing: 0.14em; color: var(--cream); text-transform: uppercase; }
     .side .sidehead button { padding: 6px 10px; border-radius: 8px; }
-    @media (pointer: fine) and (min-width: 641px) { .side { z-index: 6; } }
+    @media (min-width: 641px) { .side { z-index: 6; } }
     /* the help page: Markdown rendered into plain HTML */
     #helpDoc { color: #c9cdc2; line-height: 1.5; font-size: 12px; }
     #helpDoc h1 { margin: 0 0 6px; font: 600 18px/1.2 var(--font-display); color: var(--cream); }
@@ -251,7 +251,7 @@
     body.dropping, body.dropping #stage { cursor: copy; }
     body.embed { padding: 0; gap: 0; }
     body.embed #stage { position: fixed; inset: 0; border: 0; border-radius: 0; }
-    body.embed header.bar, body.embed footer, body.embed .fab, body.embed #pad, body.embed #exaBtn, body.embed #vrBtn, body.embed .side, body.embed #keypanel, body.embed #scrim, body.embed #zenOff { display: none !important; }
+    body.embed header.bar, body.embed footer, body.embed #pad, body.embed #exaBtn, body.embed #vrBtn, body.embed .side, body.embed #keypanel, body.embed #scrim, body.embed #zenOff { display: none !important; }
     body.embed::after { content: 'STORE'; position: fixed; right: 12px; top: 10px; z-index: 6; color: #2fb8c0; font: 600 10px var(--font-mono); letter-spacing: 0.2em; pointer-events: none; }
     #palette[hidden] { display: none; }
     #boolq { position: fixed; left: 50%; bottom: 72px; transform: translateX(-50%); z-index: 6; max-width: min(92vw, 520px); padding: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; display: grid; gap: 8px; font: 500 12px/1.3 var(--font-mono); color: var(--muted); }
@@ -308,41 +308,12 @@
     .actions button.on { border-color: var(--cursor); }
     button:focus, button:focus-visible { outline: none; }
 
-    /* Phones and tablets: the stage fills the screen, no text, four round translucent buttons. */
-    .fab { display: none; }
-    @media (pointer: coarse), (max-width: 640px) {
+    /* Phone-narrow windows: the stage fills the screen (the touch pad of the app takes the controls: #pad) */
+    @media (max-width: 640px) {
       body { padding: 0; gap: 0; overflow: hidden; }
       header.bar, footer.bar { display: none; }
       #stage { position: fixed; inset: 0; background: var(--panel); }
       #stage svg rect, #stage svg text { display: none; }
-      .fab {
-        position: fixed;
-        left: 0;
-        right: 0;
-        bottom: max(18px, env(safe-area-inset-bottom, 0px));
-        display: flex;
-        justify-content: center;
-        gap: 16px;
-        pointer-events: none;
-      }
-      .fab button {
-        pointer-events: auto;
-        width: 56px;
-        height: 56px;
-        padding: 0;
-        border: 1px solid color-mix(in srgb, var(--fg) 22%, transparent);
-        border-radius: 50%;
-        background: color-mix(in srgb, var(--panel) 55%, transparent);
-        -webkit-backdrop-filter: blur(6px);
-        backdrop-filter: blur(6px);
-        color: var(--fg);
-        display: grid;
-        place-items: center;
-        touch-action: manipulation;
-        -webkit-tap-highlight-color: transparent;
-      }
-      .fab button:active, .fab button.on { background: color-mix(in srgb, var(--accent) 35%, transparent); }
-      .fab svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     }
 
     /* ===== Control-panel look: black ground, cream keycaps, red and teal accents, thin rounded outlines ===== */
@@ -426,25 +397,18 @@
 
     /* Zen: only the stage, edge to edge */
     body.zen { padding: 0; gap: 0; }
-    body.zen header.bar, body.zen footer.bar, body.zen #hud, body.zen #editbar, body.zen .fab { display: none; }
+    body.zen header.bar, body.zen footer.bar, body.zen #hud, body.zen #editbar { display: none; }
     body.zen #stage { position: fixed; inset: 0; border: 0; border-radius: 0; z-index: 1; }
     body.zen #zenOff { display: block; }
     body.show #zenOff, body.show #flight, body.show #screens { display: none !important; }
 
     /* Phones, tablets and small windows: nothing leaves the screen */
-    @media (pointer: coarse), (max-width: 640px) {
+    @media (max-width: 640px) {
       #stage { border: 0; border-radius: 0; }
-      .fab { gap: 10px; flex-wrap: wrap; padding-inline: 10px; z-index: 4; }
-      .fab button { width: 48px; height: 48px; border-radius: 50%; border: 0; background: var(--cream); color: var(--ink); backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: 0 3px 0 #77735a, 0 6px 10px #0009; }
-      .fab button.red { background: var(--red); color: #1b0803; }
-      .fab button.teal, .fab button.on { background: var(--teal); color: #04181a; }
-      .fab button.slate { background: var(--slate); color: var(--cream); }
-      .fab button:active { background: var(--cream-2); transform: translateY(2px); }
       #hud { top: max(8px, env(safe-area-inset-top, 0px)); left: 8px; font-size: 11px; max-width: 58%; }
       .kb button small { display: none; }
       #keypanel { bottom: 6px; max-height: 92dvh; }
     }
-    @media (max-width: 420px) { .fab button { width: 42px; height: 42px; } .fab svg { width: 22px; height: 22px; } }
     @media (max-height: 520px) and (min-width: 641px) { footer.bar { max-height: 38dvh; } .actions button { padding: 8px 10px; } }
 
     /* fixed-width readouts and a fixed-height key description: nothing shifts while values or texts change */
@@ -486,7 +450,7 @@
 
     /* Installed app (PWA) or ?pwa: no keyboard, so the keys are buttons: W A S D, Space, Tab, Esc, Shift, M, V, X, P and the GPU/SVG switch */
     #pad { display: none; }
-    body.pwa header.bar, body.pwa footer.bar, body.pwa .fab, body.pwa #keypanel, body.pwa #zenOff { display: none; }
+    body.pwa header.bar, body.pwa footer.bar, body.pwa #keypanel, body.pwa #zenOff { display: none; }
     body.pwa { padding: 0; gap: 0; }
     body.pwa #stage { position: fixed; inset: 0; border-radius: 0; }
     body.pwa #stage svg rect, body.pwa #stage svg text { display: none; }
@@ -552,7 +516,7 @@
     @keyframes orbitBlink { 50% { opacity: 0.15; } }
     #flight div { min-height: 1.45em; }
     body.zen #flight { display: none; }
-    @media (pointer: coarse), (max-width: 640px) { #flight { top: 96px; } } /* a phone has two buttons up there; a desktop has only the build stamp */
+    @media (max-width: 640px) { #flight { top: 96px; } } /* a phone has two buttons up there; a desktop has only the build stamp */
     body.pwa #flight { top: calc(max(8px, env(safe-area-inset-top, 0px)) + clamp(34px, min(10.5vw, 9.5dvh), 48px) * 0.8 + 8px); right: max(10px, env(safe-area-inset-right, 0px)); font-size: 12px; }
     #vrBtn { display: none; }
     body.pwa #vrBtn { display: block; position: fixed; z-index: 6; top: max(8px, env(safe-area-inset-top, 0px)); right: calc(max(8px, env(safe-area-inset-right, 0px)) + clamp(34px, min(10.5vw, 9.5dvh), 48px) * 0.9 + 6px); width: calc(clamp(34px, min(10.5vw, 9.5dvh), 48px) * 0.9); height: calc(clamp(34px, min(10.5vw, 9.5dvh), 48px) * 0.8); padding: 0; border-radius: 12px; font-size: 12px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; opacity: 0.92; }
@@ -584,7 +548,7 @@
   
     /* ===== Desktop: the 3D view is the whole window, the console lies over its bottom edge, the readouts float on top.
        (The phone layout above is untouched: there the footer is hidden and the fab / pad rule.) ===== */
-    @media (pointer: fine) and (min-width: 641px) {
+    @media (min-width: 641px) {
       body:not(.pwa):not(.zen) { padding: 0; gap: 0; }
       body:not(.pwa) #stage { position: fixed; inset: 0; border: 0; border-radius: 0; z-index: 1; }
       body:not(.pwa) header.bar { position: fixed; top: 10px; left: 14px; right: 14px; z-index: 6; pointer-events: none; align-items: center; }
@@ -671,7 +635,7 @@
       #editbar { bottom: auto; top: 40px; }
     }
     /* the palette open: the view, the top line and the console get narrower by the width of the panel instead of lying behind it */
-    @media (pointer: fine) and (min-width: 641px) {
+    @media (min-width: 641px) {
       body.pal { --palR: min(88vw, 320px); }
       body.pal:not(.pwa) #stage { right: var(--palR); }
       body.pal:not(.pwa) header.bar { right: calc(var(--palR) + 14px); }
@@ -752,14 +716,6 @@
     <div class="row"><input type="text" id="custom" value="#c0392b" maxlength="7" spellcheck="false" autocapitalize="off" aria-label="Colour of the material (hex)" /><button id="addColor" type="button">+ new</button><button id="pickMat" type="button" title="Take the material of a surface (I: from under the cross; the button: then click a surface)">pick</button></div>
   </aside>
 
-  <div class="fab" aria-label="Controls">
-    <button id="fabTravel" type="button" class="teal" aria-label="Target the object under the cross (T)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
-    <button id="fabPlace" type="button" class="red" aria-label="Place or shoot a prism (M)"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12L4 7.5M12 12v9"/></svg></button>
-    <button id="fabDelete" type="button" class="slate" aria-label="Delete the prism under the cross (Shift+X)"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>
-    <button id="fabMode" type="button" aria-label="Switch SVG / WebGPU view (G)"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor" stroke="none"/></svg></button>
-    <button id="fabKeys" type="button" aria-label="Key explainer (?)"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/></svg></button>
-    <button id="fabZen" type="button" class="slate" aria-label="Zen: only the model (Z)"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
-  </div>
   <button id="zenOff" type="button" class="slate" aria-label="Leave zen mode (Z or Esc)" title="Leave zen (Z or Esc)">⤢ zen off</button>
 
   <svg id="vec" viewBox="-70 -70 140 140" aria-hidden="true">
@@ -971,7 +927,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/74fb006a7178/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/2f84fbb16bb5/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2234,7 +2190,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/74fb006a7178/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/2f84fbb16bb5/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -2370,7 +2326,6 @@
     if (typeof Worker !== 'undefined' && !new URLSearchParams(location.search).has('nopickworker')) startPicker();
 
     let shiftOn = false; // the Shift button of the touch pad (sticky)
-    const fabMode = document.getElementById('fabMode');
     // ---- Screens: a material with an `url` shows that page on every four-cornered face made of it. The page is an iframe in a DOM layer
     // over the picture, warped onto the face with a CSS matrix3d (a perspective map of the face's four corners). It is not part of the 3D
     // picture: no depth against other objects, no light, and not in a VR view. Faces seen from behind or behind the eye are hidden.
@@ -3099,7 +3054,6 @@
         layer.innerHTML = renderView(shown, view, { size, fit: shown_fit, marks, occlude: true, palette: paletteMap });
       }
       drawScreens(size);
-      fabMode.classList.toggle('on', mode === 'gpu' && Boolean(gpu));
       document.getElementById('editSw').classList.toggle('on', Boolean(editing));
       speedEl.textContent = `${level.f}·${level.r}·${level.u}`;
       // the 3D speed vector in the middle (the installed app): right, up and forward as a cabinet projection, stairs dashed
@@ -8677,10 +8631,6 @@
     const narrow = matchMedia('(max-width: 640px)');
     setApp(isApp || narrow.matches);
     narrow.addEventListener('change', () => setApp(isApp || narrow.matches));
-    document.getElementById('fabTravel').addEventListener('click', travelTo);
-    document.getElementById('fabPlace').addEventListener('click', place);
-    document.getElementById('fabDelete').addEventListener('click', remove);
-    document.getElementById('fabMode').addEventListener('click', toggleMode);
     const linesBtn = document.getElementById('lines');
     const syncLines = () => linesBtn.classList.toggle('on', !stage.classList.contains('clean'));
     linesBtn.addEventListener('click', () => (stage.classList.toggle('clean'), syncLines(), redraw()));
@@ -8810,7 +8760,6 @@
     const toggleKeys = (force) => {
       const open = force ?? keyPanel.hidden;
       keyPanel.hidden = !open;
-      document.getElementById('fabKeys').classList.toggle('on', open);
       if (open) {
         refreshKeyContext();
         showKey(keyShown ?? 't');
@@ -8831,7 +8780,6 @@
       setTimeout(refreshKeyContext, 30);
     }, true);
     document.getElementById('keys').addEventListener('click', () => toggleHelp());
-    document.getElementById('fabKeys').addEventListener('click', () => toggleKeys());
     document.getElementById('keyclose').addEventListener('click', () => toggleKeys(false));
     // Z: zen, only the model
     const toggleZen = (force) => {
@@ -8842,7 +8790,6 @@
       redraw();
     };
     document.getElementById('zen').addEventListener('click', () => toggleZen());
-    document.getElementById('fabZen').addEventListener('click', () => toggleZen());
     document.getElementById('zenOff').addEventListener('click', () => toggleZen(false));
     document.getElementById('gpuBtn').addEventListener('click', toggleMode);
     document.getElementById('light').addEventListener('click', turnLight);
