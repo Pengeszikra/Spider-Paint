@@ -928,7 +928,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/859a64924b6e/index.js';
+    import { createTsh, readHands, TSH_BONES, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/b0276e49ae87/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2191,7 +2191,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/859a64924b6e/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/b0276e49ae87/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -9193,6 +9193,7 @@
         story: () => (story ? { title: story.doc.metadata.title, t: story.t, durationMs: story.doc.timeline.durationMs, index: story.index, total: story.doc.tracks.construction.steps.length, objects: story.count, playing: story.playing, cutaway: story.cutaway, focus: story.focus, animationChannels: story.doc.tracks.animation?.channels.length ?? 0, bones: storySkin ? Array.from(storySkin.bones) : null } : null),
         openStory: (data) => openStory(data),
         xrFly: (pads, dt = 0.1, now = performance.now()) => (xrFly(pads, dt, now), { yaw, pitch: +pitch.toFixed(4), roll: +roll.toFixed(4), level: { ...level }, locked: lockedObject()?.name ?? null, frozen, pointed: xrState.hands?.pointed?.obj?.name ?? null, stick: xrState.hands?.stick ?? null, orbit: orbit?.phase ?? null }), // (the Quest mapping, with made-up pads)
+        build: () => ({ slot: xrState.ws?.build?.slot ?? null, panels: allObjects().filter((o) => /^panel-/.test(o.name ?? '')).map((o) => ({ name: o.name, c: bounds(o.mesh).center.map((x) => +x.toFixed(3)) })), walk: xrState.walk && { origin: xrState.walk.origin.map((x) => +x.toFixed(3)), forward: xrState.walk.forward.map((x) => +x.toFixed(3)) }, moving: xrState.ws?.moving ?? null, walkV: xrState.ws?.walkV ?? null, note: xrState.ws?.note }),
         tsh: () => xrState.ws?.st && { left: xrState.ws.st.left.fn?.id ?? null, right: xrState.ws.st.right.fn?.id ?? null, icons: xrState.ws.st.left.icons.map((ic) => ({ id: ic.fn.id, at: ic.at, big: Boolean(ic.big) })), ricons: xrState.ws.st.right.icons.map((ic) => ({ id: ic.fn.id, at: ic.at, big: Boolean(ic.big) })), fist: xrState.ws.st.left.g?.fist ?? null, exitHold: xrState.ws.exitHold ?? 0, extra: xrState.ws.extra?.faces.length ?? 0 },
         ws: () => xrState.ws && { pieceAt: (() => { const o = allObjects().find((x) => x.id === xrState.ws.piece); if (!o) return null; const R = roomToScene(); return { room: R.back(bounds(o.mesh).center), faces: o.mesh.faces.length, verts: o.mesh.positions.length, objects: allObjects().length, vol: +meshVolume(o.mesh).toFixed(6) }; })(), menu: xrState.ws.menu && [...xrState.ws.menu], piece: xrState.ws.piece, grab: Boolean(xrState.ws.grabs?.left?.id || xrState.ws.grabs?.right?.id), making: Boolean(xrState.ws.make?.id), pal: Boolean(xrState.ws.pal), note: xrState.ws.note, on: xrState.ws.on },
         xr: () => ({ log: xrState.log, frames: xrState.frames, on: Boolean(xrState.session), mono: Boolean(xrState.mono), pressed: xrState.pressed, note: xrNote?.textContent }),
@@ -10230,6 +10231,23 @@
       for (const f of mesh.faces) for (let i = 1; i + 1 < f.v.length; i++) v += v3.dot(P[f.v[0]], v3.cross(P[f.v[i]], P[f.v[i + 1]]));
       return Math.abs(v) / 6;
     };
+    // a ray (scene) into a convex object: the nearest entry point and the face it enters by
+    const rayConvex = (mesh, o, d) => {
+      const planes = facePlanes(mesh);
+      let tIn = 0, tOut = Infinity, face = -1;
+      for (let i = 0; i < planes.length; i++) {
+        const { p, n } = planes[i];
+        const dn = v3.dot(d, n), dist = v3.dot(v3.sub(p, o), n);
+        if (Math.abs(dn) < 1e-12) {
+          if (dist < 0) return null;
+          continue;
+        }
+        const t = dist / dn;
+        if (dn < 0) t > tIn && ((tIn = t), (face = i));
+        else tOut = Math.min(tOut, t);
+      }
+      return face >= 0 && tIn <= tOut ? { t: tIn, point: v3.add(o, v3.mul(d, tIn)), normal: planes[face].n, fi: planes[face].fi } : null;
+    };
     // what a hand may take or cut: the loose objects, up to 1.5 m across (not the floor or the bench)
     const workable = () => allObjects().filter((o) => o.mesh.faces.length && !o.inst && bounds(o.mesh).radius < 0.75 && !/^(floor|bench )/.test(o.name ?? ''));
     const wsNote = (ws, text) => ((ws.note = text), (ws.noteAt = performance.now()), xrLog(`workshop: ${text}`));
@@ -10248,8 +10266,214 @@
         { id: 'cube', label: 'cube', kind: 'cube' },
       ],
       // (exit: on the right hand, in the far corner of its grid, away from the middle)
-      right: [{ id: 'grab', label: 'grab', kind: 'grab' }, { id: 'exit', label: 'exit VR', kind: 'exit', slot: -1 }],
+      right: [
+        { id: 'grab', label: 'grab', kind: 'grab' },
+        { id: 'build', label: 'build walls', kind: 'build' },
+        { id: 'erase', label: 'erase walls', kind: 'erase' },
+        { id: 'move', label: 'move', kind: 'move' },
+        { id: 'exit', label: 'exit VR', kind: 'exit', slot: -1 },
+      ],
     });
+    // ---- The wall builder (right hand). The room is a grid of 2 × 2 × 2 m cells; you stand in the middle of one. Until the first
+    // panel is laid the grid goes with you; the first panel fixes it (and after that it is found again from the panels there are).
+    // Point (the index out of a fist): down = a floor panel where the ray meets the floor, up = a ceiling panel where it meets the
+    // ceiling, sideways = a wall on the near side of the cell it points into (tip the finger a little down or up to reach
+    // farther: where the ray meets the floor or the ceiling decides the cell; level: 8 m). Not on the sides of your own cell. A
+    // click (the thumb tucked to the middle finger) lays it, a finger thick (2 cm), in the material chosen last. Erasing: point
+    // at a panel and click.
+    const GRID = 2, PANEL_T = 0.02;
+    // the grid: an origin (a cell's middle on the floor) and its axes, in the scene
+    const gridFromPanel = (o) => {
+      const P = o.mesh.positions;
+      const c = bounds(o.mesh).center;
+      const edges = P.slice(1).map((q) => v3.sub(q, P[0])).filter((e) => v3.len(e) > 1e-6).sort((a, b) => v3.len(a) - v3.len(b));
+      const thin = v3.unit(edges[0]);
+      const longE = edges.find((e) => v3.len(e) > 1 && Math.abs(v3.dot(v3.unit(e), thin)) < 0.1 && Math.abs(v3.unit(e)[1]) < 0.5);
+      if (!longE) return null;
+      const Y = [0, 1, 0];
+      if (Math.abs(thin[1]) > 0.9) {
+        const X = v3.unit([longE[0], 0, longE[2]]), Z = v3.cross(X, Y);
+        return { O: [c[0], c[1] < 1 ? c[1] : c[1] - GRID, c[2]], X, Y, Z };
+      }
+      const A = v3.unit([thin[0], 0, thin[2]]), B = v3.cross(A, Y);
+      return { O: v3.sub(v3.add(c, v3.mul(A, GRID / 2)), [0, GRID / 2, 0]), X: A, Y, Z: B };
+    };
+    const panels = () => allObjects().filter((o) => /^panel-/.test(o.name ?? ''));
+    const xrGrid = (ws, head, R2S) => {
+      if (ws.grid && panels().length) return ws.grid;
+      const first = panels()[0];
+      if (first) return (ws.grid = gridFromPanel(first));
+      ws.grid = null;
+      if (!head) return null;
+      // (no panel yet: the grid goes with you, its cell's middle under your head, its axes the way you face)
+      const fw = v3.unit([-head[8], 0, -head[10]]);
+      return { O: R2S.p([head[12], 0, head[14]]), X: v3.unit(R2S.d(v3.cross(fw, [0, 1, 0]))), Y: [0, 1, 0], Z: v3.unit(R2S.d(v3.mul(fw, -1))) };
+    };
+    const toGrid = (g, q) => { const d = v3.sub(q, g.O); return [v3.dot(d, g.X), v3.dot(d, g.Y), v3.dot(d, g.Z)]; };
+    const fromGrid = (g, u) => v3.add(g.O, v3.add(v3.add(v3.mul(g.X, u[0]), v3.mul(g.Y, u[1])), v3.mul(g.Z, u[2])));
+    const slotKey = (u, axis) => `${axis}:${u.map((x) => Math.round(x * 2) / 2).join(':')}`;
+    const thinOf = (o) => {
+      const P = o.mesh.positions;
+      const e = P.slice(1).map((q) => v3.sub(q, P[0])).filter((d) => v3.len(d) > 1e-6).sort((a, b) => v3.len(a) - v3.len(b))[0];
+      return e ? v3.unit(e) : [0, 1, 0];
+    };
+    // a panel's slot: its middle in grid units, the grid axis it is thin along
+    const panelKey = (g, o) => {
+      const t = thinOf(o);
+      const k = [g.X, g.Y, g.Z].map((a) => Math.abs(v3.dot(a, t)));
+      const axis = ['u', 'v', 'w'][k.indexOf(Math.max(...k))];
+      return slotKey(toGrid(g, bounds(o.mesh).center), axis);
+    };
+    // the slot a pointing ray asks for: { centre (grid units), axis, ok, why }
+    const buildSlot = (g, from, dir, headG) => {
+      const r0 = toGrid(g, from);
+      const d = [v3.dot(dir, g.X), v3.dot(dir, g.Y), v3.dot(dir, g.Z)];
+      const elev = Math.asin(Math.max(-1, Math.min(1, d[1])));
+      const at = (h) => (Math.abs(d[1]) > 1e-3 ? (h - r0[1]) / d[1] : Infinity);
+      const cellOf = (q) => [Math.round(q[0] / GRID), Math.round(q[2] / GRID)];
+      const own = cellOf(headG);
+      const R = 12;
+      const towards = (t) => v3.add(r0, v3.mul(d, Math.min(t, R)));
+      if (elev < -0.6 || elev > 0.6) {
+        const h = elev < 0 ? 0 : GRID;
+        const t = at(h);
+        if (!(t > 0 && t < R)) return null;
+        const q = towards(t), [i, k] = cellOf(q);
+        return { centre: [i * GRID, h, k * GRID], axis: 'v', hit: q, ok: true };
+      }
+      const t = d[1] < -0.02 ? at(0) : d[1] > 0.02 ? at(GRID) : 8;
+      const q = towards(t > 0 ? t : 8), [i, k] = cellOf(q);
+      if (i === own[0] && k === own[1]) return { hit: q, ok: false, why: 'too close' };
+      const major = Math.abs(d[0]) >= Math.abs(d[2]) ? 0 : 2;
+      const centre = [i * GRID, GRID / 2, k * GRID];
+      centre[major] -= Math.sign(d[major]) * (GRID / 2); // the near side of that cell
+      const axis = major === 0 ? 'u' : 'w';
+      // (a side of your own cell: not there)
+      const ou = own[0] * GRID, ow = own[1] * GRID;
+      const onOwn = major === 0 ? Math.abs(Math.abs(centre[0] - ou) - GRID / 2) < 0.01 && Math.abs(centre[2] - ow) < 0.01 : Math.abs(Math.abs(centre[2] - ow) - GRID / 2) < 0.01 && Math.abs(centre[0] - ou) < 0.01;
+      return { centre, axis, hit: q, ok: !onOwn, why: onOwn ? 'too close' : '' };
+    };
+    const panelMesh = (g, slot, mt) => {
+      const size = slot.axis === 'v' ? [GRID, PANEL_T, GRID] : slot.axis === 'u' ? [PANEL_T, GRID, GRID] : [GRID, GRID, PANEL_T];
+      const solid = box({ size, at: fromGrid(g, slot.centre), axes: [g.X, g.Y, g.Z], color: mt.color });
+      return { ...solid, faces: solid.faces.map((f) => ({ ...f, mat: mt.name })) };
+    };
+    const xrBuild = (ws, st, hands, head, now, R2S, done) => {
+      const R = st.right, g = R.g;
+      ws.build = null;
+      const kind = R.fn?.kind;
+      if ((kind !== 'build' && kind !== 'erase') || !g) return;
+      const grid = xrGrid(ws, head, R2S);
+      if (!grid) return;
+      ws.build = { grid, kind, ray: null, slot: null, target: null };
+      if (!g.point || !g.rayFrom) return;
+      const from = R2S.p(g.rayFrom), dir = v3.unit(R2S.d(g.rayDir));
+      const clicked = st.events.some((e) => e.type === 'clickDown' && e.side === 'right');
+      if (kind === 'build') {
+        const headG = head ? toGrid(grid, R2S.p([head[12], head[13], head[14]])) : toGrid(grid, from);
+        const slot = buildSlot(grid, from, dir, headG);
+        if (!slot) return;
+        const taken = slot.centre && panels().some((o) => panelKey(grid, o) === slotKey(slot.centre, slot.axis));
+        if (taken) ((slot.ok = false), (slot.why = 'taken'));
+        ws.build.slot = slot;
+        ws.build.ray = [g.rayFrom, R2S.back(fromGrid(grid, slot.hit))];
+        if (clicked && slot.ok && slot.centre) {
+          const mt = materials[current] ?? materials[0];
+          const o = create(`panel-${slot.axis === 'v' ? (slot.centre[1] > 0 ? 'ceiling' : 'floor') : 'wall'}-${shortId()}`, panelMesh(grid, slot, mt));
+          if (!ws.grid) ws.grid = grid; // (the first panel fixes the grid)
+          ws.piece = o.id;
+          done();
+          wsNote(ws, `${o.name.split('-')[1]} laid`);
+        } else if (clicked && !slot.ok) wsNote(ws, slot.why === 'taken' ? 'there is one there already' : 'not on your own cell');
+      } else {
+        let best = null;
+        for (const o of panels()) {
+          const h = rayConvex(o.mesh, from, dir);
+          if (h && (!best || h.t < best.t)) best = { ...h, o };
+        }
+        ws.build.ray = [g.rayFrom, best ? R2S.back(best.point) : v3.add(g.rayFrom, v3.mul(g.rayDir, 6))];
+        ws.build.target = best?.o ?? null;
+        if (clicked && best) {
+          erase(best.o);
+          const o = best.o;
+          history.push(() => has(o) || restore(o));
+          done();
+          wsNote(ws, `${o.name.split('-')[1]} erased`);
+        }
+      }
+    };
+    // ---- Moving (right hand). A fist drawing circles that stand upright, in the plane of the way you face: rolling forward (the
+    // top of the circle going ahead) walks forward, backward walks back, as fast as the circles go (a round a second: 1.6 m/s).
+    // A flat hand, palm down, fingers straight: you turn toward where the middle finger points (the farther off, the faster;
+    // straight ahead: still). The rig keeps where it left you (xrState.walk).
+    const WALK_PER_RAD = 0.25; // m per radian of circling
+    const xrMove = (ws, st, hands, head, now, done) => {
+      const R = st.right, g = R.g;
+      ws.moving = null;
+      if (R.fn?.kind !== 'move' || !g || !head) {
+        ws.circle = [];
+        ws.walkV = 0;
+        return;
+      }
+      const dt = ws.moveAt ? Math.min(0.1, (now - ws.moveAt) / 1000) : 0;
+      ws.moveAt = now;
+      const fw = v3.unit([-head[8], 0, -head[10]]), rightR = v3.cross(fw, [0, 1, 0]);
+      const hp = [head[12], head[13], head[14]];
+      const base = () => (xrState.walk ??= (() => { const r = xrRig(); return { origin: [...r.origin], forward: [...r.forward], right: [...r.right] }; })());
+      // circles: the fist's last 0.8 s in the upright plane ahead (a: along the way you face, b: up)
+      let v = 0;
+      if (g.fist) {
+        const pts = (ws.circle ??= []);
+        pts.push({ t: now, a: v3.dot(g.palm, fw), b: g.palm[1] });
+        while (pts.length > 6 && now - pts[0].t > 800) pts.shift(); // (0.8 s, but never fewer than 6 places)
+        if (pts.length >= 5) {
+          const ca = pts.reduce((s, q) => s + q.a, 0) / pts.length, cb = pts.reduce((s, q) => s + q.b, 0) / pts.length;
+          const rad = pts.reduce((s, q) => s + Math.hypot(q.a - ca, q.b - cb), 0) / pts.length;
+          let swept = 0;
+          for (let i = 1; i < pts.length; i++) {
+            const a0 = Math.atan2(pts[i - 1].b - cb, pts[i - 1].a - ca), a1 = Math.atan2(pts[i].b - cb, pts[i].a - ca);
+            let da = a1 - a0;
+            if (da > Math.PI) da -= 2 * Math.PI;
+            if (da < -Math.PI) da += 2 * Math.PI;
+            swept += da;
+          }
+          const span = (pts[pts.length - 1].t - pts[0].t) / 1000;
+          // rolling forward: the top goes ahead, so the angle falls (a ahead, b up): forward = −swept
+          if (rad > 0.04 && rad < 0.4 && Math.abs(swept) > 0.8) v = (-swept / span) * WALK_PER_RAD;
+        }
+      } else ws.circle = [];
+      ws.walkV = (ws.walkV ?? 0) + (v - (ws.walkV ?? 0)) * Math.min(1, dt * 6);
+      if (Math.abs(ws.walkV) > 0.02) {
+        const w = base();
+        const step = ws.walkV * dt;
+        // (forward in the scene: the head's flat forward through the rig)
+        const f = v3.unit([0, 1, 2].map((i) => w.right[i] * fw[0] - w.forward[i] * fw[2]));
+        w.origin = v3.add(w.origin, v3.mul(f, step));
+        ws.moving = `walking ${ws.walkV > 0 ? 'forward' : 'back'} ${Math.abs(ws.walkV).toFixed(1)} m/s`;
+        ws.walked = true;
+      }
+      // turning: a flat open hand, palm down; toward the middle finger
+      const open = !g.fist && !g.point && !g.pinch;
+      if (open && Math.abs(g.back[1]) > 0.75) {
+        const ff = v3.unit([g.forward[0], 0, g.forward[2]]);
+        const off = Math.atan2(v3.dot(ff, rightR), v3.dot(ff, fw));
+        const dead = 0.2;
+        if (Math.abs(off) > dead) {
+          const phi = (off - Math.sign(off) * dead) * 1.6 * dt; // rad this frame; > 0: to the right
+          const w = base();
+          const headScene = (W) => v3.add(W.origin, [0, 1, 2].map((i) => W.right[i] * hp[0] + hp[1] * (i === 1 ? 1 : 0) - W.forward[i] * hp[2]));
+          const before = headScene(w);
+          const c = Math.cos(phi), sn = Math.sin(phi);
+          const F2 = v3.add(v3.mul(w.forward, c), v3.mul(w.right, sn)), R2 = v3.sub(v3.mul(w.right, c), v3.mul(w.forward, sn));
+          w.forward = F2;
+          w.right = R2;
+          const after = headScene(w);
+          w.origin = v3.add(w.origin, v3.sub(before, after));
+          ws.moving = `turning ${off > 0 ? 'right' : 'left'}`;
+          ws.walked = true;
+        }
+      }
+    };
     let tsh = null;
     const xrWorkshop = (session, frame, head, now) => {
       const ws = (xrState.ws ??= {});
@@ -10335,6 +10559,8 @@
       const Rr = st.right;
       ws.exitHold = Rr.fn?.kind === 'exit' && Rr.g?.fist ? Math.min(1, Rr.g.fistFor / TSH_EXIT_HOLD) : 0;
       if (ws.exitHold >= 1) return void xrState.session?.end();
+      xrBuild(ws, st, hands, head, now, R2S, done);
+      xrMove(ws, st, hands, head, now, done);
 
       // the little material cubes of the icons: real meshes (they show what the material is like: its colour, its glass),
       // drawn with the scene this frame
@@ -10382,6 +10608,40 @@
         c.beginPath();
         for (const [a, b] of lines) (c.moveTo(...a), c.lineTo(...b));
         c.stroke();
+      } else if (kind === 'build' || kind === 'erase') {
+        // a panel standing on a floor panel (erase: crossed out)
+        c.beginPath();
+        c.moveTo(18 * u, 72 * u);
+        c.lineTo(50 * u, 86 * u);
+        c.lineTo(82 * u, 72 * u);
+        c.lineTo(50 * u, 58 * u);
+        c.closePath();
+        c.moveTo(50 * u, 58 * u);
+        c.lineTo(50 * u, 18 * u);
+        c.lineTo(82 * u, 32 * u);
+        c.lineTo(82 * u, 72 * u);
+        c.stroke();
+        if (kind === 'erase') {
+          c.strokeStyle = '#ff8a5c';
+          c.beginPath();
+          c.moveTo(20 * u, 20 * u);
+          c.lineTo(80 * u, 80 * u);
+          c.moveTo(80 * u, 20 * u);
+          c.lineTo(20 * u, 80 * u);
+          c.stroke();
+        }
+      } else if (kind === 'move') {
+        // a circle rolling forward, an arrow ahead
+        c.beginPath();
+        c.arc(40 * u, 50 * u, 22 * u, Math.PI * 0.25, Math.PI * 1.9);
+        c.stroke();
+        c.beginPath();
+        c.moveTo(66 * u, 50 * u);
+        c.lineTo(88 * u, 50 * u);
+        c.moveTo(78 * u, 40 * u);
+        c.lineTo(88 * u, 50 * u);
+        c.lineTo(78 * u, 60 * u);
+        c.stroke();
       } else if (kind === 'exit') {
         // a door with an arrow out
         c.strokeStyle = '#ff8a5c';
@@ -10421,6 +10681,34 @@
           for (let i = 0; i < 4; i++) lines.push(...q[i], ...c2, 1, ...q[(i + 1) % 4], ...c2, 1);
         }
       }
+      // the builder: the floor grid round you, the ray, the slot it asks for (green: free, red: not there), the panel to erase
+      const B = ws.build;
+      if (B) {
+        const R2S = roomToScene();
+        const gp = (u) => R2S.back(fromGrid(B.grid, u));
+        const gc = [0.55, 0.6, 0.5];
+        for (let k = -3; k <= 3; k++) {
+          const e = k * GRID + GRID / 2;
+          lines.push(...gp([e, 0.005, -3 * GRID - 1]), ...gc, 0.35, ...gp([e, 0.005, 3 * GRID + 1]), ...gc, 0.35);
+          lines.push(...gp([-3 * GRID - 1, 0.005, e]), ...gc, 0.35, ...gp([3 * GRID + 1, 0.005, e]), ...gc, 0.35);
+        }
+        if (B.ray) lines.push(...B.ray[0], 0.35, 0.95, 0.85, 0.9, ...B.ray[1], 0.35, 0.95, 0.85, 0.3);
+        const sl = B.slot;
+        if (sl?.centre) {
+          const h = GRID / 2, c3 = sl.ok ? [0.4, 1, 0.45] : [1, 0.3, 0.2];
+          const corners = sl.axis === 'v' ? [[-h, 0, -h], [h, 0, -h], [h, 0, h], [-h, 0, h]] : sl.axis === 'u' ? [[0, -h, -h], [0, h, -h], [0, h, h], [0, -h, h]] : [[-h, -h, 0], [h, -h, 0], [h, h, 0], [-h, h, 0]];
+          const q = corners.map((o) => gp(v3.add(sl.centre, o)));
+          for (let i = 0; i < 4; i++) lines.push(...q[i], ...c3, 1, ...q[(i + 1) % 4], ...c3, 1);
+          lines.push(...q[0], ...c3, 0.6, ...q[2], ...c3, 0.6, ...q[1], ...c3, 0.6, ...q[3], ...c3, 0.6);
+        }
+        if (B.target) {
+          // the panel's long edges, red
+          const P2 = B.target.mesh.positions.map((p) => R2S.back(p));
+          for (let i = 0; i < P2.length; i++)
+            for (let j = i + 1; j < P2.length; j++)
+              if (Math.abs(v3.len(v3.sub(P2[i], P2[j])) - GRID) < 0.05) lines.push(...P2[i], 1, 0.3, 0.2, 1, ...P2[j], 1, 0.3, 0.2, 1);
+        }
+      }
       xrLines(gl, P, V, lines);
       for (const side of ['left', 'right'])
         for (const ic of ws.st[side].icons) {
@@ -10441,9 +10729,9 @@
           }
           if (ic.big) {
             // the chosen function's name under its big icon (and the last thing that happened)
-            const note = ws.note && now - (ws.noteAt ?? 0) < 3000 ? ws.note : '';
-            const label = ic.fn.kind === 'exit' ? 'exit VR · hold a fist' : ic.fn.kind === 'cube' ? 'cube · open the fist' : ic.fn.kind === 'grab' ? 'grab · fist or pinch' : `${ic.fn.label} · poke a block`;
-            const tex = xrPanelTex(gl, `label-${side}`, 512, 96, `${label}|${note}`, (c, W, H) => {
+            const note = (ic.fn.kind === 'move' && ws.moving) || (ws.note && now - (ws.noteAt ?? 0) < 3000 ? ws.note : '');
+            const label = { exit: 'exit VR · hold a fist', cube: 'cube · open the fist', grab: 'grab · fist or pinch', build: 'walls · point, click', erase: 'erase · point, click', move: 'move · fist circles, flat hand turns' }[ic.fn.kind] ?? `${ic.fn.label} · poke a block`;
+            const tex = xrPanelTex(gl, `label-${side}`, 640, 96, `${label}|${note}`, (c, W, H) => {
               c.fillStyle = 'rgba(14, 15, 12, 0.78)';
               c.beginPath();
               c.roundRect(2, 2, W - 4, H - 4, 18);
@@ -10457,7 +10745,7 @@
               c.fillText(note.slice(0, 40), W / 2, 78);
             });
             const at = v3.add(ic.at, v3.mul(ic.y, ic.size * 0.8)); // (above it: below would hide the icons on the hand)
-            xrQuad(gl, P, mul4(eyeFromRef, icFrame({ ...ic, at })), tex, 0.05, 0.0094);
+            xrQuad(gl, P, mul4(eyeFromRef, icFrame({ ...ic, at })), tex, 0.0625, 0.0094);
           }
         }
     };
@@ -10732,6 +11020,8 @@
       if (drive() && car) return { origin: [car.p[0], car.p[1] + CAR_EYE, car.p[2]], ...flat(car.heading), scale: 1 };
       // (on the ground the room's floor is the scene's floor, y = 0, under the eye: you stand in the scene at your own height)
       if (!space()) {
+        // walked or turned with the hands (the workshop's move function): where that left you
+        if (xrState.walk) return { origin: [...xrState.walk.origin], forward: [...xrState.walk.forward], right: [...xrState.walk.right], up: [0, 1, 0], scale: 1 };
         // a workbench (the VR workshop) puts you at it: its front edge 25 cm ahead of where you stand, facing it
         const bench = allObjects().find((o) => o.name === 'bench top');
         if (bench) {
@@ -10977,6 +11267,7 @@
       try {
         keepWorkshop();
       } catch {}
+      xrState.walk = null;
       xrLog(`session ended after ${xrState.frames} frames`);
       xrState.session = null;
       xrState.last = 0;
