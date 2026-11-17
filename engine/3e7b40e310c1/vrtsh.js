@@ -76,6 +76,7 @@ export const handGestures = (side, h, mem, now) => {
     const others = Math.max(curls[1], curls[2], curls[3]);
     // pointing: the index straight, the other three curled
     mem.point = mem.point ? curls[0] > 1.5 && others < 1.35 : curls[0] > 1.7 && others < 1.15;
+    mem.aim = mem.aim ? curls[0] > 1.5 : curls[0] > 1.7;
     mem.fist = !mem.point && (mem.fist ? curl < 1.35 : curl < 1.1);
     const pinchGap = len(sub(j['thumb-tip'], j['index-finger-tip']));
     mem.pinch = !mem.fist && !mem.point && (mem.pinch ? pinchGap < 0.035 : pinchGap < 0.018);
@@ -99,7 +100,7 @@ export const handGestures = (side, h, mem, now) => {
     else
         mem.fistSince = undefined;
     return {
-        fist: mem.fist, pinch: mem.pinch, point: mem.point, click: mem.click,
+        fist: mem.fist, pinch: mem.pinch, point: mem.point, click: mem.click, aim: mem.aim,
         palm: mem.palm, back: mem.back, forward,
         rayFrom: mem.rayFrom ?? null, rayDir: mem.rayDir ?? null,
         fistFor: mem.fistSince !== undefined ? (now - mem.fistSince) / 1000 : 0,
@@ -116,6 +117,7 @@ export const createTsh = (opts = {}) => {
     const poking = { left: null, right: null };
     const wasFist = { left: 0, right: 0 };
     const wasClick = { left: false, right: false };
+    const wasPoint = { left: false, right: false };
     const columns = opts.columns ?? 4, cell = opts.cell ?? 0.024, lift = opts.lift ?? 0.018;
     const bigSize = opts.bigSize ?? 0.05, bigAhead = opts.bigAhead ?? 0.1, bigOut = opts.bigOut ?? 0.045, reach = opts.reach ?? 0.013;
     /** where the icons of a hand sit: a grid over the back of the hand, the chosen one big in front of it, tilted to the eyes */
@@ -183,6 +185,9 @@ export const createTsh = (opts = {}) => {
             if (g.click && !wasClick[side])
                 events.push({ type: 'clickDown', side });
             wasClick[side] = g.click;
+            if (g.point && !wasPoint[side])
+                events.push({ type: 'pointStart', side });
+            wasPoint[side] = g.point;
         }
         // choosing: the other hand's index fingertip on an icon (once, until it leaves)
         for (const side of ['left', 'right']) {

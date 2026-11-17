@@ -928,7 +928,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/b0276e49ae87/index.js';
+    import { createTsh, readHands, TSH_BONES, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/3e7b40e310c1/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2191,7 +2191,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/b0276e49ae87/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/3e7b40e310c1/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -10282,6 +10282,7 @@
     // click (the thumb tucked to the middle finger) lays it, a finger thick (2 cm), in the material chosen last. Erasing: point
     // at a panel and click.
     const GRID = 2, PANEL_T = 0.02;
+    const EYE_HEIGHT = 1.68; // m: the eyes of a 180 cm person, standing
     // the grid: an origin (a cell's middle on the floor) and its axes, in the scene
     const gridFromPanel = (o) => {
       const P = o.mesh.positions;
@@ -10305,9 +10306,10 @@
       if (first) return (ws.grid = gridFromPanel(first));
       ws.grid = null;
       if (!head) return null;
-      // (no panel yet: the grid goes with you, its cell's middle under your head, its axes the way you face)
+      // (no panel yet: the grid goes with you, its cell's middle under your head, its axes the way you face; its floor where
+      // your feet are: the eyes' height less EYE_HEIGHT, as the room's own floor may be guessed wrong)
       const fw = v3.unit([-head[8], 0, -head[10]]);
-      return { O: R2S.p([head[12], 0, head[14]]), X: v3.unit(R2S.d(v3.cross(fw, [0, 1, 0]))), Y: [0, 1, 0], Z: v3.unit(R2S.d(v3.mul(fw, -1))) };
+      return { O: R2S.p([head[12], head[13] - EYE_HEIGHT, head[14]]), X: v3.unit(R2S.d(v3.cross(fw, [0, 1, 0]))), Y: [0, 1, 0], Z: v3.unit(R2S.d(v3.mul(fw, -1))) };
     };
     const toGrid = (g, q) => { const d = v3.sub(q, g.O); return [v3.dot(d, g.X), v3.dot(d, g.Y), v3.dot(d, g.Z)]; };
     const fromGrid = (g, u) => v3.add(g.O, v3.add(v3.add(v3.mul(g.X, u[0]), v3.mul(g.Y, u[1])), v3.mul(g.Z, u[2])));
@@ -10325,28 +10327,35 @@
       return slotKey(toGrid(g, bounds(o.mesh).center), axis);
     };
     // the slot a pointing ray asks for: { centre (grid units), axis, ok, why }
-    const buildSlot = (g, from, dir, headG) => {
+    const buildSlot = (g, from, dir, headG, headFw) => {
       const r0 = toGrid(g, from);
       const d = [v3.dot(dir, g.X), v3.dot(dir, g.Y), v3.dot(dir, g.Z)];
       const elev = Math.asin(Math.max(-1, Math.min(1, d[1])));
+      // the level you are on (moving up and down changes it): its floor and its ceiling
+      const lv = Math.floor((headG[1] - 0.2) / GRID) * GRID;
       const at = (h) => (Math.abs(d[1]) > 1e-3 ? (h - r0[1]) / d[1] : Infinity);
       const cellOf = (q) => [Math.round(q[0] / GRID), Math.round(q[2] / GRID)];
       const own = cellOf(headG);
       const R = 12;
       const towards = (t) => v3.add(r0, v3.mul(d, Math.min(t, R)));
       if (elev < -0.6 || elev > 0.6) {
-        const h = elev < 0 ? 0 : GRID;
+        const h = elev < 0 ? lv : lv + GRID;
         const t = at(h);
         if (!(t > 0 && t < R)) return null;
         const q = towards(t), [i, k] = cellOf(q);
         return { centre: [i * GRID, h, k * GRID], axis: 'v', hit: q, ok: true };
       }
-      const t = d[1] < -0.02 ? at(0) : d[1] > 0.02 ? at(GRID) : 8;
+      const t = d[1] < -0.02 ? at(lv) : d[1] > 0.02 ? at(lv + GRID) : 8;
       const q = towards(t > 0 ? t : 8), [i, k] = cellOf(q);
       if (i === own[0] && k === own[1]) return { hit: q, ok: false, why: 'too close' };
-      const major = Math.abs(d[0]) >= Math.abs(d[2]) ? 0 : 2;
-      const centre = [i * GRID, GRID / 2, k * GRID];
-      centre[major] -= Math.sign(d[major]) * (GRID / 2); // the near side of that cell
+      // which side of that cell: the side walls along the way you face (a corridor's walls) come first; the wall across your
+      // way only when the ray points nearly straight along it (within 27°)
+      const fwG = [v3.dot(headFw, g.X), 0, v3.dot(headFw, g.Z)];
+      const H = Math.abs(fwG[0]) >= Math.abs(fwG[2]) ? 0 : 2, C = 2 - H;
+      const side = Math.abs(d[C]) * 2 >= Math.abs(d[H]);
+      const major = side ? C : H;
+      const centre = [i * GRID, lv + GRID / 2, k * GRID];
+      centre[major] -= Math.sign(d[major] || 1) * (GRID / 2); // the near side of that cell
       const axis = major === 0 ? 'u' : 'w';
       // (a side of your own cell: not there)
       const ou = own[0] * GRID, ow = own[1] * GRID;
@@ -10366,12 +10375,14 @@
       const grid = xrGrid(ws, head, R2S);
       if (!grid) return;
       ws.build = { grid, kind, ray: null, slot: null, target: null };
-      if (!g.point || !g.rayFrom) return;
+      // aim with the index straight (the other fingers as they like); curl the other three: lay it there (or erase it)
+      if (!(g.aim || g.point) || g.fist || !g.rayFrom) return;
       const from = R2S.p(g.rayFrom), dir = v3.unit(R2S.d(g.rayDir));
-      const clicked = st.events.some((e) => e.type === 'clickDown' && e.side === 'right');
+      const clicked = st.events.some((e) => e.type === 'pointStart' && e.side === 'right');
       if (kind === 'build') {
         const headG = head ? toGrid(grid, R2S.p([head[12], head[13], head[14]])) : toGrid(grid, from);
-        const slot = buildSlot(grid, from, dir, headG);
+        const headFw = head ? v3.unit(R2S.d(v3.unit([-head[8], 0, -head[10]]))) : grid.Z.map((x) => -x);
+        const slot = buildSlot(grid, from, dir, headG, headFw);
         if (!slot) return;
         const taken = slot.centre && panels().some((o) => panelKey(grid, o) === slotKey(slot.centre, slot.axis));
         if (taken) ((slot.ok = false), (slot.why = 'taken'));
@@ -10413,6 +10424,8 @@
       if (R.fn?.kind !== 'move' || !g || !head) {
         ws.circle = [];
         ws.walkV = 0;
+        ws.upV = 0;
+        ws.lastFist = null;
         return;
       }
       const dt = ws.moveAt ? Math.min(0.1, (now - ws.moveAt) / 1000) : 0;
@@ -10439,10 +10452,30 @@
           }
           const span = (pts[pts.length - 1].t - pts[0].t) / 1000;
           // rolling forward: the top goes ahead, so the angle falls (a ahead, b up): forward = −swept
-          if (rad > 0.04 && rad < 0.4 && Math.abs(swept) > 0.8) v = (-swept / span) * WALK_PER_RAD;
+          // (round, not a line: an upright stroke is the up / down move, not a circle)
+          const sa = Math.max(...pts.map((q) => q.a)) - Math.min(...pts.map((q) => q.a)), sb = Math.max(...pts.map((q) => q.b)) - Math.min(...pts.map((q) => q.b));
+          const round = Math.min(sa, sb) > 0.35 * Math.max(sa, sb);
+          if (round && rad > 0.04 && rad < 0.4 && Math.abs(swept) > 0.8) v = (-swept / span) * WALK_PER_RAD;
         }
       } else ws.circle = [];
       ws.walkV = (ws.walkV ?? 0) + (v - (ws.walkV ?? 0)) * Math.min(1, dt * 6);
+      // up and down: the fist moved nearly upright (not circling): pulled down lifts you, pushed up lowers you, as fast as the
+      // hand goes (× 1.5)
+      let up = 0;
+      if (g.fist && dt > 0 && ws.lastFist) {
+        const vel = v3.mul(v3.sub(g.palm, ws.lastFist), 1 / dt);
+        ws.fistVel = ws.fistVel ? v3.add(ws.fistVel, v3.mul(v3.sub(vel, ws.fistVel), Math.min(1, dt * 10))) : vel;
+        const fv = ws.fistVel, across = Math.hypot(fv[0], fv[2]);
+        if (!v && Math.abs(fv[1]) > 0.12 && across < 0.5 * Math.abs(fv[1])) up = -fv[1] * 1.5;
+      } else ws.fistVel = null;
+      ws.lastFist = g.fist ? g.palm : null;
+      ws.upV = (ws.upV ?? 0) + (up - (ws.upV ?? 0)) * Math.min(1, dt * 8);
+      if (Math.abs(ws.upV) > 0.02) {
+        const w = base();
+        w.origin = v3.add(w.origin, [0, ws.upV * dt, 0]);
+        ws.moving = `${ws.upV > 0 ? 'up' : 'down'} ${Math.abs(ws.upV).toFixed(1)} m/s`;
+        ws.walked = true;
+      }
       if (Math.abs(ws.walkV) > 0.02) {
         const w = base();
         const step = ws.walkV * dt;
