@@ -928,7 +928,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/c60eecb70859/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/4a48cc1e1bec/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2191,7 +2191,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/c60eecb70859/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/4a48cc1e1bec/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -9599,6 +9599,7 @@
       };
       const play = async (data, { ask = true, speed = 1, cap = 3000 } = {}) => {
         if (typeof data === 'string') data = JSON.parse(data);
+        if (data?.format === '3draft-vr-recording' && Array.isArray(data.frames)) return void window.vrrec.play(data);
         if (data?.format !== '3draft-recording' || !Array.isArray(data.events)) throw new Error('not a 3Draft recording');
         if (rec || player) return false;
         if (ask && sceneHasObjects() && !confirm('Play starts from an empty scene: the current scene is removed (it cannot be undone). Continue?')) return false;
@@ -10252,7 +10253,7 @@
       return face >= 0 && tIn <= tOut ? { t: tIn, point: v3.add(o, v3.mul(d, tIn)), normal: planes[face].n, fi: planes[face].fi } : null;
     };
     // what a hand may take or cut: the loose objects, up to 1.5 m across (not the floor or the bench)
-    const workable = () => allObjects().filter((o) => o.mesh.faces.length && !o.inst && bounds(o.mesh).radius < 0.75 && !/^(floor|bench )/.test(o.name ?? ''));
+    const workable = () => allObjects().filter((o) => o.mesh.faces.length && !o.inst && bounds(o.mesh).radius < 0.75 && !/^(floor|bench |vr-ghost)/.test(o.name ?? ''));
     const wsNote = (ws, text) => ((ws.note = text), (ws.noteAt = performance.now()), xrLog(`workshop: ${text}`));
     const TSH_CUBE = 0.05; // the little cube's edge (m)
     const TSH_MATERIALS = ['wood', 'brick', 'lacquer-blue', 'steel', 'copper', 'gold', 'glass', 'ruby-glass'];
@@ -10275,6 +10276,7 @@
         { id: 'erase', label: 'erase walls', kind: 'erase' },
         { id: 'move', label: 'move', kind: 'move' },
         { id: 'fly', label: 'fly', kind: 'fly' },
+        { id: 'rec', label: 'record', kind: 'rec' },
         { id: 'exit', label: 'exit VR', kind: 'exit', slot: -1 },
       ],
     });
@@ -10518,10 +10520,234 @@
         }
       }
     };
+    // ---- VR tape: recording the workshop, the live link, playing back (VR-WORKSHOP.md). What is kept is exactly what the workshop
+    // gets each frame: the head's pose and the joints of both hands (in the room, 0.1 mm), with the start: the scene, the rig (where
+    // the room lies in the scene), each hand's function, the material. Playing feeds the same frames to the same workshop code, so
+    // it builds the scene again as the hands did; the camera follows the recorded head and a ghost shows the hands.
+    //   Recording: the right hand's record function (hold a fist: start; again: stop); it is downloaded as a .vr.json file.
+    //   The live link: ?vrlink=ws://localhost:8787 (remembered here; ?vrlink= alone forgets it) sends every frame to a WebSocket
+    //   while in the workshop (tools/vr-link.mjs saves them to files and passes them on). A page opened with
+    //   ?vrwatch=ws://localhost:8787 plays them live: what the headset does, on the desktop. play (sys) opens a .vr.json too.
+    const VR_FORMAT = '3draft-vr-recording';
+    const r4 = (x) => Math.round(x * 1e4) / 1e4;
+    const packHand = (h) => (h ? { j: TSH_JOINTS.flatMap((n) => (h.joints[n] ? h.joints[n].map(r4) : [null, null, null])), w: Array.from(h.wrist, r4), ...(h.palm ? { p: Array.from(h.palm, r4) } : {}) } : null);
+    const unpackHand = (o) => {
+      if (!o) return undefined;
+      const joints = {};
+      TSH_JOINTS.forEach((n, i) => o.j[i * 3] !== null && o.j[i * 3] !== undefined && (joints[n] = [o.j[i * 3], o.j[i * 3 + 1], o.j[i * 3 + 2]]));
+      return { joints, wrist: o.w, ...(o.p ? { palm: o.p } : {}) };
+    };
+    const downloadText = (name, text) => {
+      const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+      const a = Object.assign(document.createElement('a'), { href: url, download: name });
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    };
+    const vrTape = (() => {
+      let rec = null; // { head: the start, frames, t0 }
+      let t0 = 0; // the link's frame clock
+      let link = null, linkUrl = null, started = false, retry = 0;
+      const snapshot = () => {
+        const r = xrRig();
+        return {
+          format: VR_FORMAT,
+          version: 1,
+          at: new Date().toISOString(),
+          scene: sceneFile(nameEl.value || 'vr'),
+          rig: { origin: [...r.origin], forward: [...r.forward], right: [...r.right] },
+          tsh: tsh ? { left: tsh.fn('left')?.id ?? null, right: tsh.fn('right')?.id ?? null } : null,
+          current,
+        };
+      };
+      const send = (o) => {
+        if (link?.readyState !== 1) return;
+        if (link.bufferedAmount > 4e6) return; // (a slow link: frames are dropped rather than piled up)
+        link.send(JSON.stringify(o));
+      };
+      const connect = (url) => {
+        linkUrl = url;
+        try {
+          link = new WebSocket(url);
+        } catch (err) {
+          xrLog(`vr link: ${err.message}`, true);
+          return;
+        }
+        link.onopen = () => ((retry = 0), (started = false), send({ type: 'hello', role: 'headset', ua: navigator.userAgent }), xrLog(`vr link: open ${url}`));
+        link.onclose = () => {
+          link = null;
+          if (linkUrl) setTimeout(() => connect(linkUrl), Math.min(10000, 1000 * 2 ** retry++));
+        };
+        link.onerror = () => {};
+      };
+      return {
+        connect,
+        get linked() {
+          return link?.readyState === 1;
+        },
+        get recording() {
+          return Boolean(rec);
+        },
+        clock: () => {
+          const s2 = rec ? Math.floor((performance.now() - rec.t0) / 1000) : 0;
+          return `${Math.floor(s2 / 60)}:${String(s2 % 60).padStart(2, '0')}`;
+        },
+        // every XR frame, before the workshop sees it
+        frame: (hands, head, now) => {
+          if (vrPlayer.on || space() || drive()) return;
+          if (!(hands.left || hands.right)) return;
+          if (!started && link?.readyState === 1) ((started = true), (t0 = now), send({ type: 'start', ...snapshot() }));
+          const f = { t: Math.round(now - (rec ? rec.t0 : t0)), h: head ? Array.from(head, r4) : null, l: packHand(hands.left), r: packHand(hands.right) };
+          if (rec) rec.frames.push(f);
+          if (started) send({ type: 'f', ...f, t: Math.round(now - t0) });
+        },
+        start: () => {
+          rec = { head: snapshot(), frames: [], t0: performance.now() };
+          send({ type: 'rec', on: true });
+        },
+        stop: () => {
+          if (!rec) return null;
+          const out = { ...rec.head, duration: Math.round(performance.now() - rec.t0), frames: rec.frames };
+          rec = null;
+          send({ type: 'rec', on: false });
+          window.vrrec.last = out;
+          downloadText(`vr-${out.at.replace(/[:.]/g, '-')}.vr.json`, JSON.stringify(out));
+          return out;
+        },
+        end: () => {
+          if (rec) vrTape.stop();
+          if (started) send({ type: 'end' });
+          started = false;
+        },
+      };
+    })();
+    // the player: a recording (all its frames, in their time) or the live link (each frame as it comes)
+    const vrPlayer = (() => {
+      const P = { on: false, queue: [], raf: 0, base: 0, clock: 0, file: null, ghost: null };
+      const ghostMesh = (hands, head, R2S) => {
+        const parts = [];
+        const bone = (a, b, w, color = '#e8dfc4') => {
+          const A = R2S.p(a), B = R2S.p(b), d = v3.sub(B, A), L = v3.len(d);
+          if (L < 1e-4) return;
+          const ey = v3.mul(d, 1 / L), ez = v3.unit(v3.cross(ey, Math.abs(ey[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0])), ex = v3.cross(ey, ez);
+          parts.push(box({ size: [w, L, w], at: v3.mid(A, B), axes: [ex, ey, ez], color }));
+        };
+        for (const side of ['left', 'right']) {
+          const h = hands[side];
+          if (!h) continue;
+          for (const chain of TSH_BONES) for (let i = 1; i < chain.length; i++) if (h.joints[chain[i - 1]] && h.joints[chain[i]]) bone(h.joints[chain[i - 1]], h.joints[chain[i]], 0.012);
+        }
+        if (head) {
+          // the head: a little box where the eyes were, its nose along the look
+          const at = [head[12], head[13], head[14]], fw = [-head[8], -head[9], -head[10]];
+          bone(at, v3.add(at, v3.mul(fw, 0.12)), 0.08, '#2fb8c0');
+        }
+        if (xrState.ws?.extra) parts.push(xrState.ws.extra);
+        return parts.length ? merge(...parts) : { positions: [], faces: [] };
+      };
+      const step = (f) => {
+        const hands = {};
+        const l = unpackHand(f.l), r = unpackHand(f.r);
+        if (l) hands.left = l;
+        if (r) hands.right = r;
+        const head = f.h;
+        xrWorkshop(hands, head, P.base + f.t);
+        const R2S = roomToScene();
+        // the camera: a little behind and above where the head was, looking where it looked (so the hands are in sight)
+        if (head) {
+          const fw = v3.unit(R2S.d([-head[8], -head[9], -head[10]]));
+          const eye = v3.add(R2S.p([head[12], head[13], head[14]]), v3.add(v3.mul(fw, -0.45), [0, 0.25, 0]));
+          lookFrom(eye, (Math.atan2(fw[0], -fw[2]) * 180) / Math.PI, (-Math.asin(Math.max(-1, Math.min(1, fw[1]))) * 180) / Math.PI + 12);
+        }
+        const g = P.ghost && allObjects().find((o) => o.id === P.ghost.id);
+        if (g) change(g, ghostMesh(hands, head, R2S));
+      };
+      const loop = () => {
+        P.raf = 0;
+        if (!P.on) return;
+        let n = 0;
+        if (P.file) {
+          // the recording's frames that are due by now
+          const t = performance.now() - P.clock;
+          while (P.queue.length && P.queue[0].t <= t) (step(P.queue.shift()), n++);
+          if (!P.queue.length) return void P.stop();
+        } else while (P.queue.length) (step(P.queue.shift()), n++);
+        if (n) redraw();
+        P.raf = requestAnimationFrame(loop);
+      };
+      P.begin = async (head, file = null) => {
+        if (P.on) P.stop(false);
+        await loadScene(head.scene, true);
+        xrState.walk = { origin: [...head.rig.origin], forward: [...head.rig.forward], right: [...head.rig.right] };
+        xrState.ws = {};
+        tsh = createTsh(tshFunctions());
+        if (head.tsh?.left) tsh.choose('left', head.tsh.left);
+        if (head.tsh?.right) tsh.choose('right', head.tsh.right);
+        if (Number.isInteger(head.current)) current = head.current;
+        const ghost = create('vr-ghost', { positions: [], faces: [] });
+        history.pop(); // (the ghost is no step to undo)
+        Object.assign(P, { on: true, queue: file ? [...file] : [], file, base: 0, clock: performance.now(), ghost });
+        sceneNote(file ? 'playing a VR recording' : 'watching the VR link live');
+        P.raf ||= requestAnimationFrame(loop);
+      };
+      P.push = (f) => {
+        if (!P.on) return;
+        P.queue.push(f);
+        P.raf ||= requestAnimationFrame(loop);
+      };
+      P.stop = (note = true) => {
+        if (P.raf) cancelAnimationFrame(P.raf);
+        P.raf = 0;
+        if (!P.on) return;
+        P.on = false;
+        const g = P.ghost && allObjects().find((o) => o.id === P.ghost.id);
+        if (g) erase(g);
+        P.ghost = null;
+        xrState.walk = null;
+        if (xrState.ws) xrState.ws.on = false;
+        if (note) sceneNote('VR playback ended');
+        redraw();
+      };
+      return P;
+    })();
+    // the desktop side: ?vrwatch=<ws url> plays the live link; ?vrlink=<ws url> (in the headset) sends to it
+    {
+      const q = new URLSearchParams(location.search);
+      let url = q.get('vrlink');
+      try {
+        if (url) localStorage.setItem('3draft.vrlink', url);
+        else if (q.has('vrlink')) localStorage.removeItem('3draft.vrlink');
+        else url = localStorage.getItem('3draft.vrlink');
+      } catch {}
+      if (url && !q.has('vrwatch')) vrTape.connect(url);
+      const watch = q.get('vrwatch');
+      if (watch) {
+        const open = () => {
+          const w = new WebSocket(watch);
+          w.onopen = () => (w.send(JSON.stringify({ type: 'hello', role: 'watcher' })), sceneNote(`VR link: watching ${watch}`));
+          w.onmessage = async (e) => {
+            let m;
+            try {
+              m = JSON.parse(e.data);
+            } catch {
+              return;
+            }
+            if (m.type === 'start') await vrPlayer.begin(m);
+            else if (m.type === 'f') vrPlayer.push(m);
+            else if (m.type === 'end') vrPlayer.stop();
+          };
+          w.onclose = () => setTimeout(open, 2000);
+        };
+        open();
+      }
+      // for code and for Claude: vrrec.play(recording or its JSON text), vrrec.stop(), vrrec.last (the last recording made here)
+      const asRec = (d) => (typeof d === 'string' ? JSON.parse(d) : d);
+      window.vrrec = { play: (d) => ((d = asRec(d)), vrPlayer.begin(d, d.frames)), stop: () => vrPlayer.stop(), last: null, tape: vrTape };
+    }
     let tsh = null;
-    const xrWorkshop = (session, frame, head, now) => {
+    const xrWorkshop = (hands, head, now) => {
       const ws = (xrState.ws ??= {});
-      const hands = readHands(session, frame, xrState.space);
       const on = !space() && !drive() && Boolean(hands.left || hands.right);
       ws.on = on;
       ws.hands = hands;
@@ -10532,7 +10758,7 @@
       const want = tshFunctions().left.map((f) => `${f.id}:${f.label}`).join();
       if (want !== ws.fnKey) ((ws.fnKey = want), tsh.setFunctions('left', tshFunctions().left), tsh.setFunctions('right', tshFunctions().right));
       // (saved a moment after a change too, so a browser that drops the page does not lose it)
-      if (ws.dirtyAt && now - ws.dirtyAt > 1500) ((ws.dirtyAt = 0), saveWorkshop());
+      if (ws.dirtyAt && now - ws.dirtyAt > 1500 && !vrPlayer.on) ((ws.dirtyAt = 0), saveWorkshop());
       const R2S = roomToScene();
       const st = tsh.update(hands, head, now);
       ws.st = st;
@@ -10602,7 +10828,11 @@
       // exit (the right hand): a fist held for a moment leaves VR
       const Rr = st.right;
       ws.exitHold = Rr.fn?.kind === 'exit' && Rr.g?.fist ? Math.min(1, Rr.g.fistFor / TSH_EXIT_HOLD) : 0;
-      if (ws.exitHold >= 1) return void xrState.session?.end();
+      if (ws.exitHold >= 1 && !vrPlayer.on) return void xrState.session?.end();
+      // record (the right hand): a fist held for a moment starts the recording, again: stops and saves it
+      ws.recHold = Rr.fn?.kind === 'rec' && Rr.g?.fist && !ws.recLatch ? Math.min(1, Rr.g.fistFor / TSH_EXIT_HOLD) : 0;
+      if (!Rr.g?.fist) ws.recLatch = false;
+      if (ws.recHold >= 1 && !vrPlayer.on) ((ws.recLatch = true), vrTape.recording ? vrTape.stop() : vrTape.start(), wsNote(ws, vrTape.recording ? 'recording' : 'recording saved'));
       xrBuild(ws, st, hands, head, now, R2S, done);
       xrMove(ws, st, hands, head, now, done);
 
@@ -10701,6 +10931,16 @@
         c.lineTo(88 * u, 50 * u);
         c.lineTo(78 * u, 60 * u);
         c.stroke();
+      } else if (kind === 'rec') {
+        // a red dot in a ring (recording: the ring red too)
+        c.fillStyle = '#f1481c';
+        c.beginPath();
+        c.arc(50 * u, 50 * u, 18 * u, 0, Math.PI * 2);
+        c.fill();
+        c.strokeStyle = vrTape.recording ? '#f1481c' : '#f2eee0';
+        c.beginPath();
+        c.arc(50 * u, 50 * u, 32 * u, 0, Math.PI * 2);
+        c.stroke();
       } else if (kind === 'exit') {
         // a door with an arrow out
         c.strokeStyle = '#ff8a5c';
@@ -10772,8 +11012,8 @@
       for (const side of ['left', 'right'])
         for (const ic of ws.st[side].icons) {
           if (ic.fn.kind !== 'material') {
-            const hold = ic.big && ic.fn.kind === 'exit' ? ws.exitHold : 0;
-            const tex = xrPanelTex(gl, `icon-${ic.fn.kind}-${hold ? Math.round(hold * 10) : 0}`, 128, 128, `${ic.fn.kind}|${Math.round(hold * 10)}`, (c, W, H) => {
+            const hold = ic.big && ic.fn.kind === 'exit' ? ws.exitHold : ic.big && ic.fn.kind === 'rec' ? ws.recHold : 0;
+            const tex = xrPanelTex(gl, `icon-${ic.fn.kind}-${hold ? Math.round(hold * 10) : 0}-${ic.fn.kind === 'rec' && vrTape.recording ? 1 : 0}`, 128, 128, `${ic.fn.kind}|${Math.round(hold * 10)}|${ic.fn.kind === 'rec' && vrTape.recording}`, (c, W, H) => {
               c.fillStyle = 'rgba(20, 22, 18, 0.82)';
               c.beginPath();
               c.roundRect(4, 4, W - 8, H - 8, 22);
@@ -10789,7 +11029,7 @@
           if (ic.big) {
             // the chosen function's name under its big icon (and the last thing that happened)
             const note = ((ic.fn.kind === 'move' || ic.fn.kind === 'fly') && ws.moving) || (ws.note && now - (ws.noteAt ?? 0) < 3000 ? ws.note : '');
-            const label = { exit: 'exit VR · hold a fist', cube: 'cube · open the fist', grab: 'grab · fist or pinch', build: 'walls · aim, ring finger beside', erase: 'erase · aim, ring finger beside', move: 'move · fist circles, flat hand turns', fly: 'fly · circles, turns, fist up / down' }[ic.fn.kind] ?? `${ic.fn.label} · poke a block`;
+            const label = { exit: 'exit VR · hold a fist', cube: 'cube · open the fist', grab: 'grab · fist or pinch', build: 'walls · aim, ring finger beside', erase: 'erase · aim, ring finger beside', move: 'move · fist circles, flat hand turns', fly: 'fly · circles, turns, fist up / down', rec: vrTape.recording ? `● rec ${vrTape.clock()} · hold a fist: stop` : 'record · hold a fist' }[ic.fn.kind] ?? `${ic.fn.label} · poke a block`;
             const tex = xrPanelTex(gl, `label-${side}`, 640, 96, `${label}|${note}`, (c, W, H) => {
               c.fillStyle = 'rgba(14, 15, 12, 0.78)';
               c.beginPath();
@@ -11167,7 +11407,9 @@
       }
       if (session !== xrState.session) return; // (X left VR)
       try {
-        xrWorkshop(session, frame, frame.getViewerPose(xrState.space)?.transform.matrix ?? null, now);
+        const hands = readHands(session, frame, xrState.space), head = frame.getViewerPose(xrState.space)?.transform.matrix ?? null;
+        vrTape.frame(hands, head, now); // (recorded / sent to the live link: exactly what the workshop gets)
+        xrWorkshop(hands, head, now);
       } catch (err) {
         xrLog(`workshop: ${err?.message ?? err}`, true);
       }
@@ -11327,6 +11569,9 @@
         keepWorkshop();
       } catch {}
       xrState.walk = null;
+      try {
+        vrTape.end();
+      } catch {}
       xrLog(`session ended after ${xrState.frames} frames`);
       xrState.session = null;
       xrState.last = 0;
