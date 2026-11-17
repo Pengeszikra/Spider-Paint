@@ -928,7 +928,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/a13175f70b1a/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/5aa3117402d0/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2191,7 +2191,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/a13175f70b1a/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/5aa3117402d0/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -10269,6 +10269,7 @@
           .map((i) => ({ id: `mat${i}`, label: materials[i].name, kind: 'material', data: i })),
         { id: 'grab', label: 'grab', kind: 'grab' },
         { id: 'cube', label: 'cube', kind: 'cube' },
+        { id: 'block', label: 'block between the hands', kind: 'block', both: true },
       ],
       // (exit: on the right hand, in the far corner of its grid, away from the middle)
       right: [
@@ -10276,6 +10277,7 @@
         { id: 'build', label: 'build walls', kind: 'build', both: true },
         { id: 'erase', label: 'erase walls', kind: 'erase', both: true },
         { id: 'type', label: 'type', kind: 'type', both: true },
+        { id: 'saw', label: 'saw', kind: 'saw' },
         { id: 'move', label: 'move', kind: 'move' },
         { id: 'fly', label: 'fly', kind: 'fly' },
         { id: 'rec', label: 'record', kind: 'rec' },
@@ -10536,9 +10538,141 @@
       done();
       wsNote(ws, `“${T.text.replace(/\n/g, ' ⏎ ').slice(-28)}”`);
     };
+    // ---- The block between the hands (a two-handed skill): put the two hands together (open), pull them apart: a block grows
+    // between them, the palms its opposite corners (in the frame you face). It follows the hands while they move; as soon as they
+    // nearly stop (both slower than 12 cm/s for a quarter second) it stays. Hands back together before that: it is gone.
+    const BLOCK_STILL = 0.12, BLOCK_HOLD = 0.25;
+    const xrBlock = (ws, st, head, now, R2S, done) => {
+      if (st.left.fn?.kind !== 'block') return void (ws.make = null);
+      const L = st.left.g, R = st.right.g;
+      const dt = ws.blockAt ? Math.min(0.1, (now - ws.blockAt) / 1000) : 0;
+      ws.blockAt = now;
+      const pl = L?.palm, pr = R?.palm;
+      const mt = materials[current] ?? materials[0];
+      const mk = ws.make;
+      const blockMesh = (frame) => {
+        const loc = [pl, pr].map((p) => [v3.dot(p, frame.x), v3.dot(p, frame.y), v3.dot(p, frame.z)]);
+        const lo = [0, 1, 2].map((k) => Math.min(loc[0][k], loc[1][k])), hi = [0, 1, 2].map((k) => Math.max(loc[0][k], loc[1][k]));
+        const size = [0, 1, 2].map((k) => Math.max(0.02, hi[k] - lo[k]));
+        const cl = [0, 1, 2].map((k) => (lo[k] + hi[k]) / 2);
+        const centre = v3.add(v3.add(v3.mul(frame.x, cl[0]), v3.mul(frame.y, cl[1])), v3.mul(frame.z, cl[2]));
+        const axes = [frame.x, frame.y, frame.z].map((a) => v3.unit(R2S.d(a)));
+        const solid = box({ size, at: R2S.p(centre), axes, color: mt.color });
+        return { mesh: { ...solid, faces: solid.faces.map((f) => ({ ...f, mat: mt.name })) }, size };
+      };
+      const cm = (size) => size.map((x) => Math.round(x * 100)).join(' × ') + ' cm';
+      if (!pl || !pr) {
+        if (mk?.id) done(); // (a hand lost: the block stays as it is)
+        ws.make = null;
+        return;
+      }
+      const gap = v3.len(v3.sub(pl, pr));
+      const open = !L.fist && !R.fist && !L.pinch && !R.pinch;
+      if (!mk) {
+        if (gap < 0.07 && open) ws.make = { armed: true };
+      } else if (!mk.id) {
+        if (gap > 0.1) {
+          const fw = head ? v3.unit([-head[8], 0, -head[10]]) : [0, 0, -1];
+          const frame = { x: v3.cross(fw, [0, 1, 0]), y: [0, 1, 0], z: v3.mul(fw, -1) };
+          const b = blockMesh(frame);
+          const o = create(`block-${shortId()}`, b.mesh);
+          Object.assign(mk, { id: o.id, frame, last: [pl, pr], still: 0 });
+          ws.piece = o.id;
+          wsNote(ws, `block ${cm(b.size)}`);
+        }
+      } else {
+        const o = allObjects().find((x) => x.id === mk.id);
+        if (!o) ws.make = null;
+        else if (gap < 0.05) {
+          erase(o);
+          ws.make = { armed: true };
+          ws.piece = null;
+          wsNote(ws, 'block taken back');
+        } else {
+          const moved = Math.max(v3.len(v3.sub(pl, mk.last[0])), v3.len(v3.sub(pr, mk.last[1])));
+          mk.last = [pl, pr];
+          mk.still = dt && moved / dt < BLOCK_STILL ? mk.still + dt : 0;
+          if (mk.still > BLOCK_HOLD) {
+            ws.make = null;
+            done();
+            wsNote(ws, `block made · hands together for the next`);
+          } else {
+            const b = blockMesh(mk.frame);
+            change(o, b.mesh);
+            wsNote(ws, `block ${cm(b.size)}`);
+          }
+        }
+      }
+    };
+    // ---- The saw (right hand): a fist. Its blade is the plane of the hand through the middle of the fist; where it meets an object
+    // (the fist within 12 cm of it) the cut line shows on it, and it cuts there at once (the bigger piece stays); moving on, it keeps
+    // cutting and takes away what the hand has come through (held still it waits, turning back out does not cut). One fist = one
+    // undo step. A cut that would leave a broken solid, or a piece bigger than the object, is not made.
+    const xrSaw = (ws, st, now, R2S, done) => {
+      const R = st.right, g = R.g;
+      ws.sawLine = null;
+      const endCarve = () => {
+        const c = ws.carve;
+        ws.carve = null;
+        const o = c && allObjects().find((x) => x.id === c.id);
+        if (o && o.mesh !== c.mesh0) (history.push(() => has(o) && change(o, c.mesh0)), done());
+      };
+      if (R.fn?.kind !== 'saw' || !g?.fist) return void endCarve();
+      const mt = materials[current] ?? materials[0];
+      const at = R2S.p(g.palm);
+      const plane = { point: at, n: v3.unit(R2S.d(g.back)) };
+      const segs = (o, pl) => {
+        try {
+          return sectionSegments(o.mesh, pl);
+        } catch {
+          return [];
+        }
+      };
+      const cutOnce = (o, pl, front) => {
+        let cut = null;
+        try {
+          cut = saw(o.mesh, pl, { color: mt.color, mat: mt.name });
+        } catch {
+          return false;
+        }
+        const r0 = bounds(o.mesh).radius;
+        const pieces = (cut ? [...cut.front, ...cut.back] : []).filter((pc) => {
+          try {
+            return pc.faces.length >= 4 && bounds(pc).radius <= r0 * 1.02 && health(pc).allSolid;
+          } catch {
+            return false;
+          }
+        });
+        if (pieces.length < 2) return false;
+        const keep = pieces.reduce((a, b) => (meshVolume(b) > meshVolume(a) ? b : a));
+        if (front && v3.dot(v3.sub(bounds(keep).center, pl.point), pl.n) <= 0) return false;
+        change(o, keep);
+        return true;
+      };
+      const obj = workable().find((x) => insideConvex(x.mesh, at, 0.12) && segs(x, plane).length);
+      if (ws.carve && obj?.id !== ws.carve.id) endCarve();
+      if (obj && !ws.carve) {
+        ws.carve = { id: obj.id, mesh0: obj.mesh, last: g.palm, t: now };
+        if (cutOnce(obj, plane, false)) ws.piece = obj.id;
+      } else if (obj && ws.carve) {
+        const c = ws.carve;
+        const move = v3.sub(g.palm, c.last);
+        if (v3.len(move) > 0.002 && now - c.t > 30) {
+          const d = v3.unit(move);
+          let n = g.back;
+          if (v3.dot(n, d) < 0) n = v3.mul(n, -1);
+          const across = v3.dot(n, d) > 0.3;
+          if (cutOnce(obj, { point: at, n: v3.unit(R2S.d(n)) }, across)) ws.piece = obj.id;
+          c.last = g.palm;
+          c.t = now;
+        }
+      }
+      const live = obj && allObjects().find((x) => x.id === obj.id);
+      if (live) ws.sawLine = segs(live, plane).map(([a, b]) => [R2S.back(a), R2S.back(b)]);
+    };
     // ---- Moving (right hand). A fist drawing circles that stand upright, in the plane of the way you face: rolling forward (the
     // top of the circle going ahead) walks forward, backward walks back, as fast as the circles go (a round a second: 1.6 m/s).
-    // A flat hand, palm down, fingers straight: you turn toward where the middle finger points (the farther off, the faster;
+    // An upright hand (in a wall's plane, fingers straight and together): you turn toward where it points (the farther off, the faster;
     // straight ahead: still). The rig keeps where it left you (xrState.walk).
     const WALK_PER_RAD = 0.25; // m per radian of circling
     const xrMove = (ws, st, hands, head, now, done) => {
@@ -10608,9 +10742,9 @@
         ws.moving = `walking ${ws.walkV > 0 ? 'forward' : 'back'} ${Math.abs(ws.walkV).toFixed(1)} m/s`;
         ws.walked = true;
       }
-      // turning: a flat open hand, palm down; toward the middle finger
+      // turning: an upright open hand (a blade); toward where its fingers point
       const open = !g.fist && !g.point && !g.pinch;
-      if (open && Math.abs(g.back[1]) > 0.75) {
+      if (open && Math.abs(g.back[1]) < 0.35) { // (the hand upright, in a wall's plane, fingers straight: a blade)
         const ff = v3.unit([g.forward[0], 0, g.forward[2]]);
         const off = Math.atan2(v3.dot(ff, rightR), v3.dot(ff, fw));
         const dead = 0.2;
@@ -10945,6 +11079,8 @@
       if (ws.recHold >= 1 && !vrPlayer.on) ((ws.recLatch = true), vrTape.recording ? vrTape.stop() : vrTape.start(), wsNote(ws, vrTape.recording ? 'recording' : 'recording saved'));
       xrBuild(ws, st, hands, head, now, R2S, done);
       xrType(ws, st, hands, head, now, R2S, done);
+      xrBlock(ws, st, head, now, R2S, done);
+      xrSaw(ws, st, now, R2S, done);
       xrMove(ws, st, hands, head, now, done);
 
       // the little material cubes of the icons: real meshes (they show what the material is like: its colour, its glass),
@@ -11042,6 +11178,31 @@
         c.lineTo(88 * u, 50 * u);
         c.lineTo(78 * u, 60 * u);
         c.stroke();
+      } else if (kind === 'block') {
+        // two hands' corners and the block between
+        c.beginPath();
+        c.rect(30 * u, 34 * u, 40 * u, 32 * u);
+        c.stroke();
+        c.beginPath();
+        c.moveTo(14 * u, 34 * u);
+        c.lineTo(14 * u, 18 * u);
+        c.lineTo(30 * u, 18 * u);
+        c.moveTo(86 * u, 66 * u);
+        c.lineTo(86 * u, 82 * u);
+        c.lineTo(70 * u, 82 * u);
+        c.stroke();
+      } else if (kind === 'saw') {
+        // a saw blade with teeth
+        c.beginPath();
+        c.moveTo(16 * u, 40 * u);
+        c.lineTo(84 * u, 40 * u);
+        for (let i = 0; i < 7; i++) (c.lineTo((84 - i * 10) * u, 60 * u), c.lineTo((79 - i * 10) * u, 48 * u));
+        c.lineTo(16 * u, 48 * u);
+        c.closePath();
+        c.stroke();
+        c.beginPath();
+        c.roundRect(4 * u, 34 * u, 14 * u, 20 * u, 4 * u);
+        c.stroke();
       } else if (kind === 'type') {
         // a key cap with a letter on it, two keys beside it
         c.beginPath();
@@ -11131,6 +11292,8 @@
               if (Math.abs(v3.len(v3.sub(P2[i], P2[j])) - GRID) < 0.05) lines.push(...P2[i], 1, 0.3, 0.2, 1, ...P2[j], 1, 0.3, 0.2, 1);
         }
       }
+      // the saw's cut line on the object
+      if (ws.sawLine) for (const [a, b] of ws.sawLine) lines.push(...a, 1, 0.25, 0.12, 1, ...b, 1, 0.25, 0.12, 1);
       // the typewriter: the aim (phase one), the keys round you (phase two)
       const T = ws.type;
       if (T?.ray) {
@@ -11189,7 +11352,7 @@
           if (ic.big) {
             // the chosen function's name under its big icon (and the last thing that happened)
             const note = ((ic.fn.kind === 'move' || ic.fn.kind === 'fly') && ws.moving) || (ws.note && now - (ws.noteAt ?? 0) < 3000 ? ws.note : '');
-            const label = { exit: 'exit VR · hold a fist', cube: 'cube · open the fist', grab: 'grab · fist or pinch', build: 'walls · right aims, left pinches', erase: 'erase · right aims, left pinches', type: ws.type?.phase === 'keys' ? 'type · touch the keys, left pinch turns' : 'type · right aims, left pinches', move: 'move · fist circles, flat hand turns', fly: 'fly · circles, turns, fist up / down', rec: vrTape.recording ? `● rec ${vrTape.clock()} · hold a fist: stop` : 'record · hold a fist' }[ic.fn.kind] ?? `${ic.fn.label} · poke a block`;
+            const label = { exit: 'exit VR · hold a fist', cube: 'cube · open the fist', grab: 'grab · fist or pinch', build: 'walls · right aims, left pinches', erase: 'erase · right aims, left pinches', type: ws.type?.phase === 'keys' ? 'type · touch the keys, left pinch turns' : 'type · right aims, left pinches', move: 'move · fist circles, upright hand turns', fly: 'fly · circles, turns, fist up / down', block: 'block · hands together, pull apart', saw: 'saw · a fist through it', rec: vrTape.recording ? `● rec ${vrTape.clock()} · hold a fist: stop` : 'record · hold a fist' }[ic.fn.kind] ?? `${ic.fn.label} · poke a block`;
             const tex = xrPanelTex(gl, `label-${side}`, 640, 96, `${label}|${note}`, (c, W, H) => {
               c.fillStyle = 'rgba(14, 15, 12, 0.78)';
               c.beginPath();
