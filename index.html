@@ -534,7 +534,7 @@
     #storyPanel summary { cursor: pointer; color: #9a9d90; }
     #xrNote { 500 9px/1.2 var(--font-mono, ui-monospace, monospace); color: #9a9d90; max-width: 230px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     #xrNote.press { color: #39ff14; }
-    body.car footer.console .grp[data-label="sys"] .row > :not(#xrBtn, #emBtn) { display: none; } /* driving: only VR and EM stay of sys */
+    body.car footer.console .grp[data-label="sys"] { display: none; } /* driving: only VR (outside the groups) stays */
     #driveGrp.in #wheelGauge { color: #39ff14; }
     #gasGauge { position: relative; width: 10px; height: 38px; border-radius: 3px; background: #22251f; overflow: hidden; }
     #gasGauge::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: #5b5f55; }
@@ -621,6 +621,18 @@
       footer.console button.teal { background: var(--teal); color: #04181a; }
       footer.console button.slate { background: #3a382f; color: var(--cream); }
       footer.console button b { display: block; margin-bottom: 2px; font-size: 12px; }
+      /* VR: red, before the groups, its own size */
+      footer.console #xrBtn { align-self: stretch; min-width: 54px; padding: 0 14px; font: 700 15px/1 var(--font-mono); letter-spacing: 0.08em; border-radius: 9px; }
+      footer.console #xrBtn.on { box-shadow: 0 0 0 3px #ffd2c2, 0 0 18px 4px #ff7b54cc; animation: blink 1.6s steps(2) infinite; }
+      /* the foldable groups (view, fly, scene, sys): the label is a button; folded, the group is only that label, standing on its
+         side, a comfortable strip to click */
+      footer.console .grp > .fold { position: absolute; top: -3px; left: -4px; padding: 3px 6px; background: none; box-shadow: none; border-radius: 4px; font: 500 7px/1 var(--font-mono); letter-spacing: 0.24em; text-transform: uppercase; color: #6c7062; cursor: pointer; }
+      footer.console .grp > .fold:hover { color: var(--cream); background: #ffffff10; }
+      footer.console .grp:has(> .fold)::before { content: none; }
+      footer.console .grp.folded { padding-top: 0; align-self: stretch; flex-direction: row; align-items: stretch; }
+      footer.console .grp.folded > :not(.fold) { display: none !important; }
+      footer.console .grp.folded > .fold { position: static; writing-mode: vertical-rl; transform: rotate(180deg); min-width: 34px; min-height: 64px; padding: 8px 9px; display: flex; align-items: center; justify-content: center; font-size: 10px; letter-spacing: 0.3em; color: var(--muted); background: #1c1e19; border: 1px solid #2c2f27; }
+      footer.console .grp.folded > .fold:hover { color: var(--cream); background: #262922; }
       footer.console button[data-fly] { min-width: 38px; padding: 4px 6px; font-size: 8px; letter-spacing: 0.12em; text-transform: uppercase; }
       footer.console button[data-fly].wide { min-width: 82px; }
       footer.console button[data-fly].held { filter: brightness(1.35); }
@@ -782,6 +794,7 @@
     </p>
     <textarea id="gpuerr" readonly hidden rows="4" aria-label="WebGPU error text (select and copy)" style="width:100%;box-sizing:border-box;font:12px/1.4 var(--font-mono);background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:6px"></textarea>
     <span class="actions">
+      <button id="xrBtn" type="button" class="red" title="VR: show the scene in a headset, one picture per eye (immersive-vr; on a Mac: the Meta Immersive Web Emulator). While on it glows; press again to leave (or X on the left controller)">VR</button>
       <span class="grp rows" data-label="view">
         <span class="row">
           <button id="freeze" type="button" class="sw red" title="Freeze: everything that moves stands still (; — é on a Hungarian keyboard)"><i></i>freeze</button>
@@ -798,7 +811,7 @@
           <button id="editSw" type="button" class="sw red" title="Edit mode on the object under the cross or the target (Q); red while editing"><i></i>edit</button>
         </span>
       </span>
-      <span class="grp rows" data-label="fly" id="flyGrp" title="The flying keys as buttons. While editing, W A S D R F fly here too (as Shift+key does)">
+      <span class="grp rows folded" data-label="fly" id="flyGrp" title="The flying keys as buttons. While editing, W A S D R F fly here too (as Shift+key does)">
         <span class="row">
           <button type="button" class="slate" data-fly="Escape" title="Esc: lets go of the target (while editing: cancels, then leaves edit mode)"><b>Esc</b>free</button>
           <button type="button" class="cream" data-fly="w" title="W: forward, one speed step (with a target: closer)"><b>W</b>fwd</button>
@@ -908,8 +921,6 @@
         <span class="row">
           <button id="rec" type="button" class="red" title="Record: starts from an empty scene and writes every move and key into a JSON file when you press it again">rec</button>
           <button id="play" type="button" class="slate" title="Play: pick a recording (JSON) and watch it build the scene again from an empty one; press again to stop">play</button>
-          <button id="xrBtn" type="button" class="slate" title="VR (on: red): show the scene in a headset, one picture per eye (immersive-vr; on a Mac: the Meta Immersive Web Emulator). The right stick drives the car: sideways the wheel, up / down the gas">VR</button>
-          <button id="emBtn" type="button" class="slate" title="EM, emulator mode (on: red): the same WebXR session (head pose, controllers), but one plain picture over the whole view instead of the two eyes">EM</button>
           <input id="playFile" type="file" accept=".json,application/json" hidden>
         </span>
       </span>
@@ -960,7 +971,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/8a5558283d71/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/74fb006a7178/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2223,7 +2234,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/8a5558283d71/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/74fb006a7178/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -8471,6 +8482,31 @@
         turn(...moves[e.key]);
       }
     });
+    // the console's groups view, fly, scene and sys fold: their label is a button; folded, only the label shows, on its side. Fly
+    // starts folded. Whether each is folded is remembered in this browser (a convenience: without storage they start as above).
+    for (const g of document.querySelectorAll('footer.console .grp[data-label]')) {
+      const name = g.dataset.label;
+      if (!['view', 'fly', 'scene', 'sys'].includes(name)) continue;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'fold';
+      b.textContent = name;
+      try {
+        const kept = localStorage.getItem(`3draft.fold.${name}`);
+        if (kept !== null) g.classList.toggle('folded', kept === '1');
+      } catch {}
+      const sync = () => (b.title = g.classList.contains('folded') ? `Open the ${name} panel` : `Fold the ${name} panel`);
+      sync();
+      b.addEventListener('click', () => {
+        g.classList.toggle('folded');
+        sync();
+        try {
+          localStorage.setItem(`3draft.fold.${name}`, g.classList.contains('folded') ? '1' : '0');
+        } catch {}
+        b.blur();
+      });
+      g.prepend(b);
+    }
     // the fly panel of the console: each button presses its key. While editing, W A S D R F are edit keys, so there they go with
     // Shift (Shift+key flies in edit mode); [ and ] are held while the button is held (the roll runs while the key is down)
     for (const b of document.querySelectorAll('#flyGrp [data-fly]')) {
@@ -9718,13 +9754,9 @@
     // made symmetric and stretched to the framebuffer's aspect: no stereo. VR and EM switch into each other while a session runs;
     // pressing the one that is on ends it.
     const xrBtn = document.getElementById('xrBtn');
-    const emBtn = document.getElementById('emBtn');
     const xrButtons = () => {
       const on = Boolean(xrState.session);
-      xrBtn?.classList.toggle('red', on && !xrState.mono);
-      xrBtn?.classList.toggle('slate', !(on && !xrState.mono));
-      emBtn?.classList.toggle('red', on && xrState.mono);
-      emBtn?.classList.toggle('slate', !(on && xrState.mono));
+      xrBtn?.classList.toggle('on', on);
     };
     const xrNote = document.getElementById('xrNote');
     const XR_STEER_RATE = 1.5; // full lock per second at full stick
@@ -10731,7 +10763,6 @@
       session.requestAnimationFrame(xrFrame);
     };
     xrBtn?.addEventListener('click', () => (toggleXr(false), xrBtn.blur()));
-    emBtn?.addEventListener('click', () => (toggleXr(true), emBtn.blur()));
     if (!navigator.xr) xrSay('no WebXR in this browser');
 
     if (EMBED) seedStore();
