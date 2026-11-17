@@ -928,7 +928,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/d548d28663a3/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/fc5b8ec3f25e/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2191,7 +2191,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/d548d28663a3/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/fc5b8ec3f25e/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -11038,7 +11038,7 @@
           const l = Math.hypot(...o.at);
           if (!l) continue;
           const [r, g, b] = o.color ? hex(o.color) : [1, 1, 1];
-          out.push(o.at[0] / l, o.at[1] / l, o.at[2] / l, r, g, b, o.proto === 'ghost' ? 0.7 : 1, o.proto === 'ghost' ? 9 : 5);
+          out.push(o.at[0] / l, o.at[1] / l, o.at[2] / l, r, g, b, o.proto === 'ghost' ? 0.55 : 1, o.proto === 'ghost' ? 4.5 : 2.6);
         }
         const c = d.cloud;
         if (c?.p) {
@@ -11046,7 +11046,7 @@
             const x = c.p[i * 3], y = c.p[i * 3 + 1], z = c.p[i * 3 + 2], l = Math.hypot(x, y, z);
             if (!l) continue;
             const col = c.c?.[i] ?? 0xffffff;
-            out.push(x / l, y / l, z / l, ((col >> 16) & 255) / 255, ((col >> 8) & 255) / 255, (col & 255) / 255, ((c.l?.[i] ?? 128) / 255) * 0.6, 3);
+            out.push(x / l, y / l, z / l, ((col >> 16) & 255) / 255, ((col >> 8) & 255) / 255, (col & 255) / 255, ((c.l?.[i] ?? 128) / 255) * 0.5, 1.6);
           }
         }
         backdropData.pts = new Float32Array(out);
