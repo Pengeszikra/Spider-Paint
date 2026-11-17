@@ -928,7 +928,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/4a48cc1e1bec/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/7195ca098a08/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2191,7 +2191,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/4a48cc1e1bec/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/7195ca098a08/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -9196,6 +9196,7 @@
         story: () => (story ? { title: story.doc.metadata.title, t: story.t, durationMs: story.doc.timeline.durationMs, index: story.index, total: story.doc.tracks.construction.steps.length, objects: story.count, playing: story.playing, cutaway: story.cutaway, focus: story.focus, animationChannels: story.doc.tracks.animation?.channels.length ?? 0, bones: storySkin ? Array.from(storySkin.bones) : null } : null),
         openStory: (data) => openStory(data),
         xrFly: (pads, dt = 0.1, now = performance.now()) => (xrFly(pads, dt, now), { yaw, pitch: +pitch.toFixed(4), roll: +roll.toFixed(4), level: { ...level }, locked: lockedObject()?.name ?? null, frozen, pointed: xrState.hands?.pointed?.obj?.name ?? null, stick: xrState.hands?.stick ?? null, orbit: orbit?.phase ?? null }), // (the Quest mapping, with made-up pads)
+        type: () => xrState.ws?.type && { phase: xrState.ws.type.phase, text: xrState.ws.type.text, keys: xrState.ws.type.phase === 'keys' ? typeKeysAt(xrState.ws.type).map((k) => ({ key: k.key, at: k.at })) : null, obj: xrState.ws.type.obj?.name ?? null },
         build: () => ({ slot: xrState.ws?.build?.slot ?? null, panels: allObjects().filter((o) => /^panel-/.test(o.name ?? '')).map((o) => ({ name: o.name, c: bounds(o.mesh).center.map((x) => +x.toFixed(3)) })), walk: xrState.walk && { origin: xrState.walk.origin.map((x) => +x.toFixed(3)), forward: xrState.walk.forward.map((x) => +x.toFixed(3)) }, moving: xrState.ws?.moving ?? null, walkV: xrState.ws?.walkV ?? null, note: xrState.ws?.note }),
         tsh: () => xrState.ws?.st && { left: xrState.ws.st.left.fn?.id ?? null, right: xrState.ws.st.right.fn?.id ?? null, icons: xrState.ws.st.left.icons.map((ic) => ({ id: ic.fn.id, at: ic.at, big: Boolean(ic.big) })), ricons: xrState.ws.st.right.icons.map((ic) => ({ id: ic.fn.id, at: ic.at, big: Boolean(ic.big) })), fist: xrState.ws.st.left.g?.fist ?? null, exitHold: xrState.ws.exitHold ?? 0, extra: xrState.ws.extra?.faces.length ?? 0 },
         ws: () => xrState.ws && { pieceAt: (() => { const o = allObjects().find((x) => x.id === xrState.ws.piece); if (!o) return null; const R = roomToScene(); return { room: R.back(bounds(o.mesh).center), faces: o.mesh.faces.length, verts: o.mesh.positions.length, objects: allObjects().length, vol: +meshVolume(o.mesh).toFixed(6) }; })(), menu: xrState.ws.menu && [...xrState.ws.menu], piece: xrState.ws.piece, grab: Boolean(xrState.ws.grabs?.left?.id || xrState.ws.grabs?.right?.id), making: Boolean(xrState.ws.make?.id), pal: Boolean(xrState.ws.pal), note: xrState.ws.note, on: xrState.ws.on },
@@ -10272,8 +10273,9 @@
       // (exit: on the right hand, in the far corner of its grid, away from the middle)
       right: [
         { id: 'grab', label: 'grab', kind: 'grab' },
-        { id: 'build', label: 'build walls', kind: 'build' },
-        { id: 'erase', label: 'erase walls', kind: 'erase' },
+        { id: 'build', label: 'build walls', kind: 'build', both: true },
+        { id: 'erase', label: 'erase walls', kind: 'erase', both: true },
+        { id: 'type', label: 'type', kind: 'type', both: true },
         { id: 'move', label: 'move', kind: 'move' },
         { id: 'fly', label: 'fly', kind: 'fly' },
         { id: 'rec', label: 'record', kind: 'rec' },
@@ -10388,10 +10390,10 @@
       const grid = xrGrid(ws, head, R2S);
       if (!grid) return;
       ws.build = { grid, kind, ray: null, slot: null, target: null };
-      // aim with the index alone (the ring finger bent); straighten the ring finger beside it: lay it there (or erase it)
+      // (a two-handed skill) the right hand aims with the index straight; a left pinch lays it there (or erases it)
       if (!(g.aim || g.point) || g.fist || !g.rayFrom) return;
       const from = R2S.p(g.rayFrom), dir = v3.unit(R2S.d(g.rayDir));
-      const clicked = st.events.some((e) => e.type === 'pairStart' && e.side === 'right');
+      const clicked = st.events.some((e) => e.type === 'pinchStart' && e.side === 'left'); // (the left hand lays it)
       if (kind === 'build') {
         const headG = head ? toGrid(grid, R2S.p([head[12], head[13], head[14]])) : toGrid(grid, from);
         const headFw = head ? v3.unit(R2S.d(v3.unit([-head[8], 0, -head[10]]))) : grid.Z.map((x) => -x);
@@ -10425,6 +10427,114 @@
           wsNote(ws, `${o.name.split('-')[1]} erased`);
         }
       }
+    };
+    // ---- The typewriter (a two-handed skill). First a point on a surface: the right hand aims at it (index out), a left pinch
+    // takes it. Then a ring of keys stands round you at hand height, the most used ones in front and the rarer ones farther round
+    // (alternately right and left), esc and exit at the back. A fingertip on a key types it; a left pinch moved sideways turns the
+    // ring. The words stand out of the surface at the point, 8 cm high. enter: a new line, del: the last letter, esc: the words
+    // go and a new point can be taken, exit: the words stay and both hands get back what they had.
+    const TYPE_H = 0.08, TYPE_R = 0.45;
+    const TYPE_KEYS = ['space', 'E', 'A', 'T', 'L', 'del', 'S', 'N', 'K', 'enter', 'R', 'I', 'Z', 'O', 'M', 'G', 'Y', 'D', 'B', 'V', 'H', 'J', 'U', 'F', 'P', 'C', 'W', 'X', 'Q', '.', ',', '?', '!', '-', ':', "'", '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '+', '/', '_', 'esc', 'exit'];
+    const TYPE_WORD = { space: 'space', del: 'del', enter: 'enter', esc: 'esc', exit: 'exit' };
+    // a key's angle from the front: 0, +1, −1, +2, −2 … steps (right, left), so the list's order runs outward from the front
+    const typeSlot = (k) => ((k % 2 ? 1 : -1) * Math.ceil(k / 2) * 2 * Math.PI) / TYPE_KEYS.length;
+    const typeKeysAt = (T) =>
+      TYPE_KEYS.map((key, k) => {
+        const a = T.a0 + typeSlot(k) + T.rot;
+        const at = [T.c[0] + Math.sin(a) * TYPE_R, T.c[1], T.c[2] - Math.cos(a) * TYPE_R];
+        const z = v3.unit([T.c[0] - at[0], 0, T.c[2] - at[2]]), y = [0, 1, 0];
+        return { key, at, x: v3.cross(y, z), y, z };
+      });
+    const typeFrame = (T, R2S, head) => {
+      const n = T.n;
+      let up = v3.sub([0, 1, 0], v3.mul(n, n[1]));
+      if (v3.len(up) < 0.3) {
+        // a floor or a ceiling: the letters' up is away from where you stand
+        const d = head ? v3.sub(T.p, R2S.p([head[12], head[13], head[14]])) : [0, 0, -1];
+        up = v3.sub(d, v3.mul(n, v3.dot(d, n)));
+      }
+      up = v3.unit(up);
+      return { origin: v3.add(T.p, v3.mul(n, 0.002)), right: v3.cross(up, n), up, normal: n, height: TYPE_H };
+    };
+    const typeMesh = (T, frame, mt) => {
+      const parts = T.text.split('\n').map((line, i) => (line.trim() ? textMesh(line, { ...frame, origin: v3.sub(frame.origin, v3.mul(frame.up, i * TYPE_H * 1.6)) }, { mat: mt.name, color: mt.color }) : null)).filter(Boolean);
+      return parts.length ? merge(...parts) : { positions: [], faces: [] };
+    };
+    const xrType = (ws, st, hands, head, now, R2S, done) => {
+      const R = st.right, Lh = st.left;
+      if (R.fn?.kind !== 'type') return void (ws.type = null);
+      const T = (ws.type ??= { phase: 'point', text: '', obj: null, rot: 0 });
+      const pinched = st.events.some((e) => e.type === 'pinchStart' && e.side === 'left');
+      if (T.phase === 'point') {
+        T.ray = null;
+        const g = R.g;
+        if (!g || !(g.aim || g.point) || g.fist || !g.rayFrom) return;
+        const from = R2S.p(g.rayFrom), dir = v3.unit(R2S.d(g.rayDir));
+        let best = null;
+        for (const o of allObjects()) {
+          if (!o.mesh.faces.length || o.inst || /^vr-ghost/.test(o.name ?? '')) continue;
+          const h = rayConvex(o.mesh, from, dir);
+          if (h && (!best || h.t < best.t)) best = h;
+        }
+        T.ray = [g.rayFrom, best ? R2S.back(best.point) : v3.add(g.rayFrom, v3.mul(g.rayDir, 4)), Boolean(best)];
+        if (pinched && best && head) {
+          const fw = v3.unit([-head[8], 0, -head[10]]);
+          Object.assign(T, { phase: 'keys', p: best.point, n: best.normal, text: '', obj: null, rot: 0, c: [head[12], head[13] - 0.5, head[14]], a0: Math.atan2(fw[0], -fw[2]), latch: {} });
+          wsNote(ws, 'type: the keys are round you');
+        }
+        return;
+      }
+      // the keys: a fingertip types; a left pinch moved sideways turns the ring
+      const keys = typeKeysAt(T);
+      T.hover = null;
+      const pressed = [];
+      for (const side of ['left', 'right']) {
+        const tip = hands[side]?.joints['index-finger-tip'];
+        if (!tip) continue;
+        let near = null, bd = Infinity;
+        for (const k of keys) {
+          const d = v3.len(v3.sub(tip, k.at));
+          if (d < bd) ((bd = d), (near = k));
+        }
+        if (near && bd < 0.025) {
+          T.hover = near.key;
+          if (T.latch[side] !== near.key) ((T.latch[side] = near.key), pressed.push(near.key));
+        } else if (bd > 0.04) T.latch[side] = null;
+      }
+      const lp = Lh.g?.pinch && hands.left ? v3.mid(hands.left.joints['thumb-tip'], hands.left.joints['index-finger-tip']) : null;
+      const azimuth = (q) => Math.atan2(q[0] - T.c[0], -(q[2] - T.c[2]));
+      if (lp && !T.turn) T.turn = { a: azimuth(lp), rot: T.rot };
+      else if (lp && T.turn) {
+        let da = azimuth(lp) - T.turn.a;
+        if (da > Math.PI) da -= 2 * Math.PI;
+        if (da < -Math.PI) da += 2 * Math.PI;
+        T.rot = T.turn.rot + da;
+      } else T.turn = null;
+      if (!pressed.length) return;
+      const mt = materials[current] ?? materials[0];
+      for (const key of pressed) {
+        if (key === 'exit') {
+          T.obj = null;
+          ws.type = null;
+          tsh.release();
+          wsNote(ws, 'typing done');
+          return;
+        }
+        if (key === 'esc') {
+          const o = T.obj && allObjects().find((x) => x.id === T.obj.id);
+          if (o) erase(o);
+          Object.assign(T, { phase: 'point', text: '', obj: null });
+          wsNote(ws, 'the words are gone: take a new point');
+          return;
+        }
+        T.text = key === 'space' ? `${T.text} ` : key === 'enter' ? `${T.text}\n` : key === 'del' ? T.text.slice(0, -1) : T.text + key;
+      }
+      const mesh = typeMesh(T, typeFrame(T, R2S, head), mt);
+      const o = T.obj && allObjects().find((x) => x.id === T.obj.id);
+      if (o) change(o, mesh);
+      else if (mesh.faces.length) T.obj = create(`text-${shortId()}`, mesh);
+      done();
+      wsNote(ws, `“${T.text.replace(/\n/g, ' ⏎ ').slice(-28)}”`);
     };
     // ---- Moving (right hand). A fist drawing circles that stand upright, in the plane of the way you face: rolling forward (the
     // top of the circle going ahead) walks forward, backward walks back, as fast as the circles go (a round a second: 1.6 m/s).
@@ -10834,6 +10944,7 @@
       if (!Rr.g?.fist) ws.recLatch = false;
       if (ws.recHold >= 1 && !vrPlayer.on) ((ws.recLatch = true), vrTape.recording ? vrTape.stop() : vrTape.start(), wsNote(ws, vrTape.recording ? 'recording' : 'recording saved'));
       xrBuild(ws, st, hands, head, now, R2S, done);
+      xrType(ws, st, hands, head, now, R2S, done);
       xrMove(ws, st, hands, head, now, done);
 
       // the little material cubes of the icons: real meshes (they show what the material is like: its colour, its glass),
@@ -11008,7 +11119,44 @@
               if (Math.abs(v3.len(v3.sub(P2[i], P2[j])) - GRID) < 0.05) lines.push(...P2[i], 1, 0.3, 0.2, 1, ...P2[j], 1, 0.3, 0.2, 1);
         }
       }
+      // the typewriter: the aim (phase one), the keys round you (phase two)
+      const T = ws.type;
+      if (T?.ray) {
+        lines.push(...T.ray[0], 0.35, 0.95, 0.85, 0.9, ...T.ray[1], 0.35, 0.95, 0.85, 0.3);
+        if (T.ray[2]) for (const ax of [[0.015, 0, 0], [0, 0.015, 0], [0, 0, 0.015]]) lines.push(...v3.sub(T.ray[1], ax), 1, 0.9, 0.3, 1, ...v3.add(T.ray[1], ax), 1, 0.9, 0.3, 1);
+      }
       xrLines(gl, P, V, lines);
+      if (T?.phase === 'keys') {
+        for (const k of typeKeysAt(T)) {
+          const word = TYPE_WORD[k.key];
+          const hot = T.hover === k.key;
+          const tex = xrPanelTex(gl, `key-${k.key}-${hot ? 1 : 0}`, 96, 96, `${k.key}|${hot}`, (c, W, H) => {
+            c.fillStyle = hot ? 'rgba(47, 184, 192, 0.95)' : k.key === 'esc' || k.key === 'exit' ? 'rgba(120, 30, 12, 0.9)' : word ? 'rgba(70, 66, 52, 0.92)' : 'rgba(22, 24, 20, 0.88)';
+            c.beginPath();
+            c.roundRect(4, 4, W - 8, H - 8, 16);
+            c.fill();
+            c.fillStyle = hot ? '#04181a' : '#f2eee0';
+            c.font = word ? '700 26px system-ui, sans-serif' : '700 56px system-ui, sans-serif';
+            c.textAlign = 'center';
+            c.fillText(word ?? k.key, W / 2, word ? 58 : 68);
+          });
+          xrQuad(gl, P, mul4(eyeFromRef, [...k.x, 0, ...k.y, 0, ...k.z, 0, ...k.at, 1]), tex, word ? 0.022 : 0.017, word ? 0.022 : 0.017);
+        }
+        // the words so far, over the front of the ring
+        const f0 = typeKeysAt({ ...T, rot: 0 })[0];
+        const at = v3.add(f0.at, [0, 0.09, 0]);
+        const tex = xrPanelTex(gl, 'typed', 768, 96, T.text, (c, W, H) => {
+          c.fillStyle = 'rgba(14, 15, 12, 0.85)';
+          c.beginPath();
+          c.roundRect(2, 2, W - 4, H - 4, 18);
+          c.fill();
+          c.fillStyle = '#ffe2a8';
+          c.font = '600 44px ui-monospace, monospace';
+          c.textAlign = 'center';
+          c.fillText(`${T.text.replace(/\n/g, ' ⏎ ').slice(-26)}▌`, W / 2, 62);
+        });
+        xrQuad(gl, P, mul4(eyeFromRef, [...f0.x, 0, ...f0.y, 0, ...f0.z, 0, ...at, 1]), tex, 0.16, 0.02);
+      }
       for (const side of ['left', 'right'])
         for (const ic of ws.st[side].icons) {
           if (ic.fn.kind !== 'material') {
@@ -11029,7 +11177,7 @@
           if (ic.big) {
             // the chosen function's name under its big icon (and the last thing that happened)
             const note = ((ic.fn.kind === 'move' || ic.fn.kind === 'fly') && ws.moving) || (ws.note && now - (ws.noteAt ?? 0) < 3000 ? ws.note : '');
-            const label = { exit: 'exit VR · hold a fist', cube: 'cube · open the fist', grab: 'grab · fist or pinch', build: 'walls · aim, ring finger beside', erase: 'erase · aim, ring finger beside', move: 'move · fist circles, flat hand turns', fly: 'fly · circles, turns, fist up / down', rec: vrTape.recording ? `● rec ${vrTape.clock()} · hold a fist: stop` : 'record · hold a fist' }[ic.fn.kind] ?? `${ic.fn.label} · poke a block`;
+            const label = { exit: 'exit VR · hold a fist', cube: 'cube · open the fist', grab: 'grab · fist or pinch', build: 'walls · right aims, left pinches', erase: 'erase · right aims, left pinches', type: ws.type?.phase === 'keys' ? 'type · touch the keys, left pinch turns' : 'type · right aims, left pinches', move: 'move · fist circles, flat hand turns', fly: 'fly · circles, turns, fist up / down', rec: vrTape.recording ? `● rec ${vrTape.clock()} · hold a fist: stop` : 'record · hold a fist' }[ic.fn.kind] ?? `${ic.fn.label} · poke a block`;
             const tex = xrPanelTex(gl, `label-${side}`, 640, 96, `${label}|${note}`, (c, W, H) => {
               c.fillStyle = 'rgba(14, 15, 12, 0.78)';
               c.beginPath();

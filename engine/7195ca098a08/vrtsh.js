@@ -139,6 +139,26 @@ export const createTsh = (opts = {}) => {
     const chosen = { left: fns.left[0] ?? null, right: fns.right[0] ?? null };
     const mem = { left: {}, right: {} };
     const poking = { left: null, right: null };
+    // a two-handed skill borrows the other hand: what that hand had before, to give it back
+    const lent = { left: null, right: null };
+    const other = (side) => (side === 'left' ? 'right' : 'left');
+    const take = (side, fn) => {
+        const o = other(side);
+        const was = chosen[side];
+        chosen[side] = fn;
+        if (fn.both) {
+            if (was && !was.both)
+                lent[side] = was;
+            if (!chosen[o]?.both)
+                lent[o] = chosen[o];
+            chosen[o] = fn;
+        }
+        else if (was?.both && chosen[o] === was) {
+            chosen[o] = lent[o] ?? fns[o][0] ?? null;
+            lent[o] = lent[side] = null;
+        }
+    };
+    const wasPinch = { left: false, right: false };
     const wasFist = { left: 0, right: 0 };
     const wasClick = { left: false, right: false };
     const wasPoint = { left: false, right: false };
@@ -249,6 +269,9 @@ export const createTsh = (opts = {}) => {
             if (g.pair && !wasPair[side] && now - (mem[side].aloneAt ?? -1e9) < 1500)
                 events.push({ type: 'pairStart', side });
             wasPair[side] = g.pair;
+            if (g.pinch && !wasPinch[side])
+                events.push({ type: 'pinchStart', side });
+            wasPinch[side] = g.pinch;
         }
         // choosing: the other hand's index fingertip on an icon (once, until it leaves)
         for (const side of ['left', 'right']) {
@@ -269,9 +292,11 @@ export const createTsh = (opts = {}) => {
                 if (poking[side] !== near.fn.id) {
                     poking[side] = near.fn.id;
                     if (chosen[side] !== near.fn) {
-                        chosen[side] = near.fn;
+                        take(side, near.fn);
                         events.push({ type: 'choose', side, fn: near.fn });
-                        state[side] = { ...state[side], fn: near.fn, icons: layout(side, state[side].g, hands[side]) };
+                        for (const sd of ['left', 'right'])
+                            if (state[sd].g && hands[sd])
+                                state[sd] = { ...state[sd], fn: chosen[sd], icons: layout(sd, state[sd].g, hands[sd]) };
                     }
                 }
                 for (const ic of state[side].icons)
@@ -288,15 +313,24 @@ export const createTsh = (opts = {}) => {
         fn: (side) => chosen[side],
         /** give a hand a function by id (or the first of its list) */
         choose: (side, id) => {
-            const fn = fns[side].find((f) => f.id === id);
+            const fn = fns[side].find((f) => f.id === id) ?? fns[other(side)].find((f) => f.id === id && f.both);
             if (fn)
-                chosen[side] = fn;
+                take(side, fn);
             return fn ?? null;
+        },
+        /** end a two-handed skill: both hands get back what they had before it */
+        release: () => {
+            for (const side of ['left', 'right']) {
+                if (!chosen[side]?.both)
+                    continue;
+                chosen[side] = lent[side] ?? fns[side].find((f) => !f.both) ?? null;
+                lent[side] = null;
+            }
         },
         /** change a hand's list (the choice stays if it is still there) */
         setFunctions: (side, list) => {
             fns[side] = list;
-            if (!list.includes(chosen[side]))
+            if (!list.includes(chosen[side]) && !chosen[side]?.both)
                 chosen[side] = list.find((f) => f.id === chosen[side]?.id) ?? list[0] ?? null;
         },
         functions: (side) => fns[side],
