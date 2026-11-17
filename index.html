@@ -848,7 +848,8 @@
         <option value="station-screen">Station screen (a scene on a face)</option>
         <optgroup label="sky catalogues (format 3draft-sky: sky.md)"><option value="sky:trappist-1">TRAPPIST-1 (7 planets, 40 ly)</option></optgroup>
         <optgroup label="stories"><option value="story:lark-4c-accident">Story: LARK–4C / LAST LIGHT</option><option value="story:lark-4">Story: LARK–4C lander build (746 steps)</option><option value="story:spider-build-example">Story: independent tracks (3 steps)</option></optgroup>
-        <optgroup id="savedGroup" label="saved here" hidden></optgroup></select>
+        <optgroup id="savedGroup" label="saved here" hidden></optgroup>
+        <optgroup id="cloudGroup" label="online (the store: from anywhere)" hidden></optgroup></select>
           <button id="mergeSw" type="button" class="sw on" title="Loading a scene (the list, f↑): on adds it to what is there, off clears the scene first and loads it alone"><i></i>merge</button>
           <select id="vehicle" aria-label="Vehicle: how the camera moves" title="Vehicle: how the camera moves in this scene. starship: T / Tab only turn the ship, it keeps its speed, brakes to the target's surface, 0 orbit / gravity. car: drives on the ground (two fingers: sideways the wheel, up / down the throttle). A scene file may set it (vehicle)">
           <option value="">– vehicle</option>
@@ -860,6 +861,7 @@
         <span class="row">
           <input id="sceneName" type="text" placeholder="name" maxlength="40" spellcheck="false" autocapitalize="off" aria-label="Name of the scene to save" title="The name a scene is saved under here (empty: a dated name)">
           <button id="sceneSave" type="button" class="cream" title="Save the scene on this computer (this browser) under that name; it then shows in the list">save</button>
+          <button id="sceneCloud" type="button" class="teal" hidden title="Save the scene online, in the store, under that name: then every device opens it from the list (online). The first time it asks for the store's key. Shift+click: take that name out of the store">☁</button>
           <button id="sceneDown" type="button" class="cream" title="Download the scene as a .json file">f↓</button>
           <button id="sceneOpen" type="button" class="cream" title="Add a scene from a .json file">f↑</button>
           <button id="sceneForget" type="button" class="slate" title="Forget the saved scene with the name in the box">✕</button>
@@ -928,7 +930,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/fc5b8ec3f25e/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/4e11896b115b/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2191,7 +2193,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/fc5b8ec3f25e/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/4e11896b115b/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -4434,6 +4436,7 @@
         if (!data) throw new Error('no such saved scene');
         return data;
       }
+      if (name.startsWith('cloud:')) return storeLoad(name.slice(6)); // (the online store)
       if (name.startsWith('sky:')) return fromSky(await readJson(await fetch(`./models/${name.slice(4)}.sky.json`))); // a sky catalogue (sky.md)
       return globalThis.__EXAMPLES?.[name] ?? readJson(await fetch(`./models/${name}.scene.json`));
     };
@@ -8841,11 +8844,98 @@
       liveEl.textContent = text;
     };
     const nameOrDate = () => nameEl.value.trim() || `scene-${new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-')}`;
+    // ---- The store: scenes and models kept online, so every device (the headset, a desktop, a phone) opens them, not only what is
+    // in the repository. On Spider Paint it is /api/store (a Vercel Blob store behind a function; ?store=<url> points elsewhere).
+    // Anyone may read it; saving and taking out need the store's key (asked once, kept in this browser). The list shows it as
+    // "online"; ☁ saves the scene there; the VR workshop's own save goes there too when the key is known.
+    const STORE = (() => {
+      const q = new URLSearchParams(location.search).get('store');
+      if (q) return q;
+      return /vercel\.app$/.test(location.hostname) ? '/api/store' : null;
+    })();
+    const storeKey = () => {
+      try {
+        return localStorage.getItem('3draft.storeKey') || '';
+      } catch {
+        return '';
+      }
+    };
+    const askStoreKey = () => {
+      const k = prompt('The store\'s key (SPIDER_KEY in the Vercel project): it is kept in this browser');
+      if (k) {
+        try {
+          localStorage.setItem('3draft.storeKey', k.trim());
+        } catch {}
+      }
+      return k?.trim() ?? '';
+    };
+    const storeList = async () => {
+      if (!STORE) return [];
+      const r = await fetch(STORE, { cache: 'no-store' });
+      if (!r.ok) throw new Error(`the store: HTTP ${r.status}`);
+      return (await r.json()).items ?? [];
+    };
+    const storeLoad = async (name) => {
+      const r = await fetch(`${STORE}?name=${encodeURIComponent(name)}`, { cache: 'no-store' });
+      if (!r.ok) throw new Error(`the store: ${name}: HTTP ${r.status}`);
+      return readJson(r);
+    };
+    // save (or with data null: take out); ask for the key when it is missing or wrong, unless `quiet`
+    const storeWrite = async (name, data, quiet = false) => {
+      if (!STORE) throw new Error('no store here');
+      for (let tries = 0; tries < 2; tries++) {
+        let key = storeKey();
+        if (!key && !quiet) key = askStoreKey();
+        if (!key) throw new Error('the store needs its key');
+        const r = await fetch(`${STORE}?name=${encodeURIComponent(name)}`, {
+          method: data ? 'PUT' : 'DELETE',
+          headers: { 'content-type': 'application/json', 'x-spider-key': key },
+          body: data ? JSON.stringify(data) : undefined,
+        });
+        if (r.status === 401 && !quiet) {
+          try {
+            localStorage.removeItem('3draft.storeKey');
+          } catch {}
+          continue;
+        }
+        if (!r.ok) throw new Error(`the store: HTTP ${r.status} ${(await r.text()).slice(0, 120)}`);
+        return r.json();
+      }
+      throw new Error('the store refused the key');
+    };
+    const showCloud = async () => {
+      const group = document.getElementById('cloudGroup');
+      try {
+        const items = await storeList();
+        group.hidden = !items.length;
+        group.replaceChildren(...items.map((it) => Object.assign(document.createElement('option'), { value: `cloud:${it.name}`, textContent: it.name })));
+        document.getElementById('sceneCloud').hidden = false;
+      } catch (err) {
+        group.hidden = true;
+        xrLog?.(`store: ${err.message}`);
+      }
+    };
+    if (STORE) showCloud();
+    document.getElementById('sceneCloud').addEventListener('click', async (e) => {
+      const name = nameOrDate();
+      try {
+        if (e.shiftKey) {
+          await storeWrite(name, null);
+          sceneNote(`"${name}" taken out of the store`);
+        } else {
+          await storeWrite(name, sceneFile(name));
+          sceneNote(`"${name}" saved online: every device opens it from the list (online)`);
+        }
+        showCloud();
+      } catch (err) {
+        sceneNote(err.message);
+      }
+    });
     exampleEl.addEventListener('change', async () => {
       const name = exampleEl.value;
       exampleEl.value = '';
       exampleEl.blur(); // so the shortcuts (U, ...) work right away
-      if (name.startsWith('saved:')) nameEl.value = name.slice(6);
+      if (name.startsWith('saved:') || name.startsWith('cloud:')) nameEl.value = name.slice(6);
       if (name) await addExample(name).catch((e) => sceneNote(`scene: ${e.message}`));
     });
     document.getElementById('sceneSave').addEventListener('click', () => {
@@ -11981,6 +12071,7 @@
         localStorage.setItem(SAVED_KEY, JSON.stringify(all));
         showSaved();
         xrLog('workshop: saved as "vr workshop"');
+        if (STORE && storeKey()) storeWrite('vr workshop', all['vr workshop'], true).then(() => (xrLog('workshop: saved online'), showCloud())).catch((err) => xrLog(`workshop: online: ${err.message}`, true));
       } catch (err) {
         xrLog(`workshop: could not save (${err?.message ?? err})`, true);
       }

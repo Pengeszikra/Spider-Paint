@@ -1,0 +1,8 @@
+{
+  "name": "spider-paint",
+  "private": true,
+  "description": "Spider Paint: a static site with two Vercel functions (api/mcp.mjs, api/store.mjs)",
+  "dependencies": {
+    "@vercel/blob": "^1.1.0"
+  }
+}
