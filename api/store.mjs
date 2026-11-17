@@ -9,6 +9,8 @@
 import { put, list, del } from '@vercel/blob';
 
 const PREFIX = 'store/';
+// the store's token: BLOB_READ_WRITE_TOKEN, or <PREFIX>_READ_WRITE_TOKEN when the store was connected with a custom prefix
+const TOKEN = () => process.env.BLOB_READ_WRITE_TOKEN || Object.entries(process.env).find(([k, v]) => /_READ_WRITE_TOKEN$/.test(k) && /^vercel_blob_rw_/.test(v ?? ''))?.[1] || '';
 const clean = (name) => String(name ?? '').trim().replace(/[^\p{L}\p{N} _.-]/gu, '').slice(0, 60);
 const pathOf = (name) => `${PREFIX}${encodeURIComponent(name)}.json`;
 const nameOf = (pathname) => decodeURIComponent(pathname.slice(PREFIX.length).replace(/\.json$/, ''));
@@ -38,7 +40,7 @@ const findBlob = async (name) => {
   const want = pathOf(name);
   let cursor;
   do {
-    const page = await list({ prefix: PREFIX, cursor });
+    const page = await list({ prefix: PREFIX, cursor, token: TOKEN() });
     const hit = page.blobs.find((b) => b.pathname === want);
     if (hit) return hit;
     cursor = page.hasMore ? page.cursor : undefined;
@@ -49,14 +51,14 @@ const findBlob = async (name) => {
 export default async function handler(req, res) {
   try {
     if (req.method === 'OPTIONS') return send(res, 204, '');
-    if (!process.env.BLOB_READ_WRITE_TOKEN) return send(res, 503, { error: 'no Blob store is connected to this project yet (Vercel: Storage → Blob)' });
+    if (!TOKEN()) return send(res, 503, { error: 'no Blob store token in this deployment yet: connect the Blob store to the project (Production too) and redeploy', seen: Object.keys(process.env).filter((k) => /BLOB|READ_WRITE|SPIDER/.test(k)) });
     const url = new URL(req.url, 'http://x');
     const name = clean(url.searchParams.get('name'));
     if (req.method === 'GET' && !name) {
       const items = [];
       let cursor;
       do {
-        const page = await list({ prefix: PREFIX, cursor });
+        const page = await list({ prefix: PREFIX, cursor, token: TOKEN() });
         for (const b of page.blobs) items.push({ name: nameOf(b.pathname), size: b.size, at: b.uploadedAt });
         cursor = page.hasMore ? page.cursor : undefined;
       } while (cursor);
@@ -76,12 +78,12 @@ export default async function handler(req, res) {
       const body = await readBody(req);
       const data = JSON.parse(body);
       if (!Array.isArray(data?.objects)) return send(res, 400, { error: 'not a scene (no objects)' });
-      const b = await put(pathOf(name), body, { access: 'public', contentType: 'application/json', addRandomSuffix: false, allowOverwrite: true });
+      const b = await put(pathOf(name), body, { access: 'public', contentType: 'application/json', addRandomSuffix: false, allowOverwrite: true, token: TOKEN() });
       return send(res, 200, { ok: true, name, size: body.length, url: b.url });
     }
     if (req.method === 'DELETE') {
       const blob = await findBlob(name);
-      if (blob) await del(blob.url);
+      if (blob) await del(blob.url, { token: TOKEN() });
       return send(res, 200, { ok: true, name, gone: Boolean(blob) });
     }
     return send(res, 405, { error: 'GET, PUT or DELETE' });
