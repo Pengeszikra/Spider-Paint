@@ -928,7 +928,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/689d02ea3e93/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/757ec851bcc2/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2191,7 +2191,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/689d02ea3e93/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/757ec851bcc2/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -10250,16 +10250,17 @@
       const tuck = v3.len(v3.sub(h.j['thumb-tip'], mid));
       g.click = g.point && (g.click ? tuck < 0.045 : tuck < 0.03);
       // smoothed (the tracking trembles a few millimetres and degrees): the palm's middle, its normal, the pointing ray
-      const ease = (old, now, k) => (old ? old.map((c, i) => c + (now[i] - c) * k) : now);
+      // (a big jump is taken at once: the smoothing is for the tremble, not for real moves)
+      const ease = (old, now, k, jump = 0.03) => (old && Math.hypot(now[0] - old[0], now[1] - old[1], now[2] - old[2]) < jump ? old.map((c, i) => c + (now[i] - c) * k) : now);
       g.palm = ease(g.palm, v3.mid(w, h.j['middle-finger-phalanx-proximal']), 0.5);
       const a = h.j['index-finger-metacarpal'] ?? h.j['index-finger-phalanx-proximal'], b = h.j['pinky-finger-metacarpal'] ?? h.j['pinky-finger-phalanx-proximal'];
       let nrm = h.j.palmM ? [h.j.palmM[4], h.j.palmM[5], h.j.palmM[6]] : a && b ? v3.unit(v3.cross(v3.sub(a, w), v3.sub(b, w))) : [0, 0, 1];
       if (g.normal && v3.dot(nrm, g.normal) < 0) nrm = v3.mul(nrm, -1);
-      g.normal = v3.unit(ease(g.normal, nrm, 0.35));
+      g.normal = v3.unit(ease(g.normal, nrm, 0.35, 0.5));
       g.forward = v3.unit(v3.sub(h.j['middle-finger-phalanx-proximal'], w));
       const ip = h.j['index-finger-phalanx-proximal'], it = h.j['index-finger-tip'];
       g.rayFrom = ip ? ease(g.rayFrom, ip, 0.5) : null;
-      g.rayDir = ip ? v3.unit(ease(g.rayDir, v3.unit(v3.sub(it, ip)), 0.4)) : null;
+      g.rayDir = ip ? v3.unit(ease(g.rayDir, v3.unit(v3.sub(it, ip)), 0.4, 0.5)) : null;
       return g;
     };
     // a convex object's faces as planes (outward), and whether a scene point is inside (within `margin`)
@@ -10542,12 +10543,23 @@
       // object the first touch cuts their plane at once. The plane is shown on the object (orange near it, red inside).
       if (R?.fist) {
         const at = R2S.p(R.palm);
-        const inObj = workable().find((x) => insideConvex(x.mesh, at, 0.004));
+        // the object it carves: the one the hand's plane goes through (its cut line is drawn) with the fist within 12 cm of it
+        const crosses = (x) => {
+          try {
+            return sectionSegments(x.mesh, handPlane).length > 0;
+          } catch {
+            return false;
+          }
+        };
+        const inObj = workable().find((x) => insideConvex(x.mesh, at, 0.12) && (vObj?.id === x.id || crosses(x)));
         if (ws.carve && inObj?.id !== ws.carve.id) endCarve();
         if (inObj && !ws.carve) {
           ws.carve = { id: inObj.id, mesh0: inObj.mesh, last: R.palm, t: now };
-          if (vObj?.id === inObj.id) {
-            if (cutOnce(inObj, vPlane, false)) ((ws.vpts = []), (ws.flashAt = now), wsNote(ws, 'cut along the V points'));
+          // the first touch cuts at once: the V points' plane, or the hand's (the bigger piece stays)
+          if (cutOnce(inObj, vObj?.id === inObj.id ? vPlane : handPlane, false)) {
+            if (vObj?.id === inObj.id) ((ws.vpts = []), wsNote(ws, 'cut along the V points'));
+            ws.flashAt = now;
+            ws.piece = inObj.id;
           }
         } else if (inObj && ws.carve) {
           const c = ws.carve;
@@ -10556,7 +10568,7 @@
             const d = v3.unit(move);
             let n = R.normal;
             if (v3.dot(n, d) < 0) n = v3.mul(n, -1);
-            const along = v3.dot(n, d) > 0.3; // (a slicing stroke, along the hand's plane: the bigger piece stays)
+            const along = v3.dot(n, d) > 0.3; // (moving across the plane: only when the bigger piece lies ahead; slicing along it: the bigger stays)
             if (cutOnce(inObj, { point: at, n: v3.unit(R2S.d(n)) }, along)) ((ws.flashAt = now), (ws.piece = inObj.id));
             c.last = R.palm;
             c.t = now;
@@ -10564,11 +10576,6 @@
         }
         const live = ws.carve && allObjects().find((x) => x.id === ws.carve.id);
         if (live) section(live, handPlane, [1, 0.15, 0.1]);
-        else {
-          // aiming: the plane it would take, on the nearest object within 12 cm
-          const near = workable().find((x) => insideConvex(x.mesh, at, 0.12));
-          if (near) section(near, vObj?.id === near.id ? vPlane : handPlane, [1, 0.6, 0.2]);
-        }
       } else {
         if (ws.carve) endCarve();
         if (vObj) section(vObj, vPlane, [1, 0.85, 0.3]);
