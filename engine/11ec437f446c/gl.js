@@ -611,7 +611,7 @@ export const createGl = async (canvas, { onError } = {}) => {
         gl.enable(gl.DEPTH_TEST);
         gl.depthFunc(gl.LESS);
         gl.disable(gl.CULL_FACE);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.clear(xr?.overlay ? gl.DEPTH_BUFFER_BIT : gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         if (vertexCount) {
             gl.useProgram(meshProg);
             setU(meshU);

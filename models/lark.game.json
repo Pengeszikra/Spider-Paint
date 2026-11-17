@@ -1,0 +1,14 @@
+{
+  "format": "3draft-game",
+  "version": 1,
+  "title": "Lark in the Deep Sky",
+  "about": "The LARK-4 lander as the starship, in a copy of the Deep Sky universe (deepsky-lark). In VR you sit in the left pilot seat: the left hand's ship function flies it with both hands, the floating dashboard has Space, Esc, Tab, 0, [ and ].",
+  "universe": { "scene": "deepsky-lark" },
+  "ship": {
+    "scene": "lark-4",
+    "helm": { "eye": [0.92, 2.8, 1.0], "yaw": 3.141592653589793, "pitch": 0.1 },
+    "walk": { "eyeHeight": 1.7, "speed": 1.5, "run": 3, "radius": 0.25, "step": 0.35 }
+  },
+  "start": { "mode": "ship" },
+  "keys": { "c": "helm" }
+}
