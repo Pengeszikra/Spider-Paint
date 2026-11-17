@@ -928,7 +928,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/86d095462733/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/d548d28663a3/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2191,7 +2191,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/86d095462733/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/d548d28663a3/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -8821,6 +8821,7 @@
         format: '3draft-scene',
         version: 1,
         name,
+        ...(sceneBackdrop ? { backdrop: sceneBackdrop } : {}),
         palette: materials.filter((m) => used.has(m.name)).map((m) => ({ ...m })),
         view: viewOf(),
         ...(vehicle ? { vehicle } : {}),
@@ -9200,6 +9201,7 @@
         xrFly: (pads, dt = 0.1, now = performance.now()) => (xrFly(pads, dt, now), { yaw, pitch: +pitch.toFixed(4), roll: +roll.toFixed(4), level: { ...level }, locked: lockedObject()?.name ?? null, frozen, pointed: xrState.hands?.pointed?.obj?.name ?? null, stick: xrState.hands?.stick ?? null, orbit: orbit?.phase ?? null }), // (the Quest mapping, with made-up pads)
         type: () => xrState.ws?.type && { phase: xrState.ws.type.phase, text: xrState.ws.type.text, keys: xrState.ws.type.phase === 'keys' ? typeKeysAt(xrState.ws.type).map((k) => ({ key: k.key, at: k.at })) : null, obj: xrState.ws.type.obj?.name ?? null },
         build: () => ({ slot: xrState.ws?.build?.slot ?? null, panels: allObjects().filter((o) => /^panel-/.test(o.name ?? '')).map((o) => ({ name: o.name, c: bounds(o.mesh).center.map((x) => +x.toFixed(3)) })), walk: xrState.walk && { origin: xrState.walk.origin.map((x) => +x.toFixed(3)), forward: xrState.walk.forward.map((x) => +x.toFixed(3)) }, moving: xrState.ws?.moving ?? null, walkV: xrState.ws?.walkV ?? null, note: xrState.ws?.note }),
+        backdrop: (name) => (name !== undefined && (sceneBackdrop = name), { name: sceneBackdrop, points: backdropData.pts ? backdropData.pts.length / 8 : 0 }),
         tsh: () => xrState.ws?.st && { left: xrState.ws.st.left.fn?.id ?? null, right: xrState.ws.st.right.fn?.id ?? null, icons: xrState.ws.st.left.icons.map((ic) => ({ id: ic.fn.id, at: ic.at, big: Boolean(ic.big) })), ricons: xrState.ws.st.right.icons.map((ic) => ({ id: ic.fn.id, at: ic.at, big: Boolean(ic.big) })), fist: xrState.ws.st.left.g?.fist ?? null, exitHold: xrState.ws.exitHold ?? 0, extra: xrState.ws.extra?.faces.length ?? 0 },
         ws: () => xrState.ws && { pieceAt: (() => { const o = allObjects().find((x) => x.id === xrState.ws.piece); if (!o) return null; const R = roomToScene(); return { room: R.back(bounds(o.mesh).center), faces: o.mesh.faces.length, verts: o.mesh.positions.length, objects: allObjects().length, vol: +meshVolume(o.mesh).toFixed(6) }; })(), menu: xrState.ws.menu && [...xrState.ws.menu], piece: xrState.ws.piece, grab: Boolean(xrState.ws.grabs?.left?.id || xrState.ws.grabs?.right?.id), making: Boolean(xrState.ws.make?.id), pal: Boolean(xrState.ws.pal), note: xrState.ws.note, on: xrState.ws.on },
         xr: () => ({ log: xrState.log, frames: xrState.frames, on: Boolean(xrState.session), mono: Boolean(xrState.mono), pressed: xrState.pressed, note: xrNote?.textContent }),
@@ -11036,7 +11038,7 @@
           const l = Math.hypot(...o.at);
           if (!l) continue;
           const [r, g, b] = o.color ? hex(o.color) : [1, 1, 1];
-          out.push(o.at[0] / l, o.at[1] / l, o.at[2] / l, r, g, b, o.proto === 'ghost' ? 0.55 : 1, o.proto === 'ghost' ? 4.5 : 2.6);
+          out.push(o.at[0] / l, o.at[1] / l, o.at[2] / l, r, g, b, o.proto === 'ghost' ? 0.7 : 1, o.proto === 'ghost' ? 9 : 5);
         }
         const c = d.cloud;
         if (c?.p) {
@@ -11044,7 +11046,7 @@
             const x = c.p[i * 3], y = c.p[i * 3 + 1], z = c.p[i * 3 + 2], l = Math.hypot(x, y, z);
             if (!l) continue;
             const col = c.c?.[i] ?? 0xffffff;
-            out.push(x / l, y / l, z / l, ((col >> 16) & 255) / 255, ((col >> 8) & 255) / 255, (col & 255) / 255, ((c.l?.[i] ?? 128) / 255) * 0.5, 1.6);
+            out.push(x / l, y / l, z / l, ((col >> 16) & 255) / 255, ((col >> 8) & 255) / 255, (col & 255) / 255, ((c.l?.[i] ?? 128) / 255) * 0.6, 3);
           }
         }
         backdropData.pts = new Float32Array(out);
