@@ -842,6 +842,7 @@
         <option value="betterman">Betterman (pose him: J)</option>
         <option value="command-bridge">Command bridge (2 crew at the desk)</option>
         <option value="mechanics">Mechanics (hinge, rail, pivot, spring, group)</option>
+        <option value="workshop">VR workshop (carve with bare hands)</option>
         <optgroup label="games (format 3draft-game)"><option value="game:fifth-percent">Fifth Percent: the starship bridge in the Deep Sky</option></optgroup>
         <option value="tr74">TR-74 expedition module</option>
         <option value="station-screen">Station screen (a scene on a face)</option>
@@ -927,7 +928,7 @@
   </footer>
 
   <script type="module">
-    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/2f84fbb16bb5/index.js';
+    import { boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/55a163bfc485/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2190,7 +2191,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/2f84fbb16bb5/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/55a163bfc485/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -9192,6 +9193,7 @@
         story: () => (story ? { title: story.doc.metadata.title, t: story.t, durationMs: story.doc.timeline.durationMs, index: story.index, total: story.doc.tracks.construction.steps.length, objects: story.count, playing: story.playing, cutaway: story.cutaway, focus: story.focus, animationChannels: story.doc.tracks.animation?.channels.length ?? 0, bones: storySkin ? Array.from(storySkin.bones) : null } : null),
         openStory: (data) => openStory(data),
         xrFly: (pads, dt = 0.1, now = performance.now()) => (xrFly(pads, dt, now), { yaw, pitch: +pitch.toFixed(4), roll: +roll.toFixed(4), level: { ...level }, locked: lockedObject()?.name ?? null, frozen, pointed: xrState.hands?.pointed?.obj?.name ?? null, stick: xrState.hands?.stick ?? null, orbit: orbit?.phase ?? null }), // (the Quest mapping, with made-up pads)
+        ws: () => xrState.ws && { pieceAt: (() => { const o = allObjects().find((x) => x.id === xrState.ws.piece); if (!o) return null; const R = roomToScene(); return { room: R.back(bounds(o.mesh).center), faces: o.mesh.faces.length, verts: o.mesh.positions.length, objects: allObjects().length, vol: +meshVolume(o.mesh).toFixed(6) }; })(), menu: xrState.ws.menu && [...xrState.ws.menu], piece: xrState.ws.piece, grab: Boolean(xrState.ws.grab?.id), blade: Boolean(xrState.ws.blade), note: xrState.ws.note, on: xrState.ws.on, fist: xrState.ws.g.right.fist, lfist: xrState.ws.g.left.fist, pinch: xrState.ws.g.left.pinch },
         xr: () => ({ log: xrState.log, frames: xrState.frames, on: Boolean(xrState.session), mono: Boolean(xrState.mono), pressed: xrState.pressed, note: xrNote?.textContent }),
         flight: () => ({ roll: +roll.toFixed(4), vehicle, car: car && { p: car.p, heading: car.heading, v: car.v, steer: car.steer, throttle: car.throttle }, orbit: orbit?.phase ?? null, gravity: gravity && { name: gravity.name }, cruise: { ...cruise }, space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
         aim: () => (aim ? { name: aim.obj.name, px: +aim.px.toFixed(1), depth: aim.depth } : null), under: () => hitObj()?.name ?? null, locked: () => lockedObject()?.name ?? null,
@@ -9791,7 +9793,7 @@
     // (with a frame, each pad also carries its hand: grip, the fist, and ray, the pointing line; both column-major 4×4 matrices in
     // the reference space, metres; and its haptic motor for a short buzz)
     const xrPads = (session, frame = null) =>
-      [...session.inputSources].filter((src) => src.gamepad).map((src) => {
+      [...session.inputSources].filter((src) => src.gamepad && !src.hand).map((src) => {
         const at = (space) => {
           try {
             return (space && frame && xrState.space && frame.getPose(space, xrState.space)?.transform.matrix) || null;
@@ -10157,6 +10159,328 @@
       if (press(L, 4)) return void xrState.session?.end(); // X: out of VR
       if (press(R, 3)) toggleFreeze(); // right stick press: freeze
     };
+    // ---- The VR workshop: modelling with bare hands (the Quest's hand tracking; VR-WORKSHOP.md). On the ground (not in a star map,
+    // not in the car), once the controllers are put down and the hands are seen:
+    //   a panel in the room (left, in front, below the eyes) with the sys keys (cube, undo, delete, leave VR) and the palette: press
+    //   one with a fingertip. CUBE puts a 15 cm block in front of you; a colour paints the workpiece (and the new cuts and cubes).
+    //   LEFT hand: a fist or a pinch on (or close to) an object takes it; it moves and turns with the hand until let go.
+    //   RIGHT hand: a fist is the saw. Pull the fist through an object: it is cut along the plane of your hand that holds the way
+    //   the fist went, and the smaller piece is gone. (Cutting a convex block by planes keeps it convex.)
+    // Everything is in the room's metres (the reference space) and goes into the scene through the rig (xrRig: on the ground the
+    // room's floor is the scene's floor). Every step is undoable (a cut, a move, a paint, a new cube).
+    const XR_FINGERS = ['index-finger', 'middle-finger', 'ring-finger', 'pinky-finger'];
+    const XR_JOINT_NAMES = ['wrist', 'thumb-metacarpal', 'thumb-phalanx-proximal', 'thumb-phalanx-distal', 'thumb-tip', ...XR_FINGERS.flatMap((f) => ['metacarpal', 'phalanx-proximal', 'phalanx-intermediate', 'phalanx-distal', 'tip'].map((k) => `${f}-${k}`))];
+    const xrHandsNow = (session, frame) => {
+      const out = {};
+      if (!frame?.getJointPose || !xrState.space) return out;
+      for (const src of session.inputSources) {
+        if (!src.hand || (src.handedness !== 'left' && src.handedness !== 'right')) continue;
+        const j = {};
+        let wristM = null;
+        for (const name of XR_JOINT_NAMES) {
+          const js = src.hand.get?.(name);
+          if (!js) continue;
+          let pose = null;
+          try {
+            pose = frame.getJointPose(js, xrState.space);
+          } catch {}
+          if (!pose) continue;
+          const m = pose.transform.matrix;
+          j[name] = [m[12], m[13], m[14]];
+          if (name === 'wrist') wristM = Float32Array.from(m);
+        }
+        if (wristM && j['index-finger-tip'] && j['thumb-tip'] && j['middle-finger-phalanx-proximal']) out[src.handedness] = { j, wristM };
+      }
+      return out;
+    };
+    const v3 = {
+      add: (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]],
+      sub: (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]],
+      mul: (a, k) => [a[0] * k, a[1] * k, a[2] * k],
+      dot: (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2],
+      cross: (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]],
+      len: (a) => Math.hypot(a[0], a[1], a[2]),
+      unit: (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; },
+      mid: (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2],
+    };
+    const rigidInv = (m) => {
+      const r = [m[0], m[4], m[8], 0, m[1], m[5], m[9], 0, m[2], m[6], m[10], 0, 0, 0, 0, 1];
+      r[12] = -(r[0] * m[12] + r[4] * m[13] + r[8] * m[14]);
+      r[13] = -(r[1] * m[12] + r[5] * m[13] + r[9] * m[14]);
+      r[14] = -(r[2] * m[12] + r[6] * m[13] + r[10] * m[14]);
+      return r;
+    };
+    const xform = (m, p) => [m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12], m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13], m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14]];
+    // room (reference space, metres) <-> scene, through the rig
+    const roomToScene = () => {
+      const { origin: o, forward: F, right: Rt, up: U, scale: S } = xrRig();
+      const dir = (d) => [0, 1, 2].map((i) => (Rt[i] * d[0] + U[i] * d[1] - F[i] * d[2]) * S);
+      return {
+        p: (r) => v3.add(o, dir(r)),
+        d: dir,
+        back: (q) => { const d = v3.sub(q, o); return [v3.dot(Rt, d) / S, v3.dot(U, d) / S, -v3.dot(F, d) / S]; },
+      };
+    };
+    // a hand's gestures, with some slack so they do not flicker: a fist (the fingertips curled back to the wrist, against how far
+    // the knuckles are), a pinch (thumb and index tips together)
+    const xrGestures = (h, g) => {
+      const w = h.j.wrist;
+      let tips = 0, knuckles = 0, n = 0;
+      for (const f of XR_FINGERS) {
+        const t = h.j[`${f}-tip`], k = h.j[`${f}-phalanx-proximal`];
+        if (!t || !k) continue;
+        tips += v3.len(v3.sub(t, w));
+        knuckles += v3.len(v3.sub(k, w));
+        n++;
+      }
+      const curl = n ? tips / Math.max(1e-3, knuckles) : 9;
+      g.fist = g.fist ? curl < 1.35 : curl < 1.1;
+      const pinch = v3.len(v3.sub(h.j['thumb-tip'], h.j['index-finger-tip']));
+      g.pinch = !g.fist && (g.pinch ? pinch < 0.035 : pinch < 0.018);
+      g.palm = v3.mid(w, h.j['middle-finger-phalanx-proximal']);
+      const a = h.j['index-finger-metacarpal'] ?? h.j['index-finger-phalanx-proximal'], b = h.j['pinky-finger-metacarpal'] ?? h.j['pinky-finger-phalanx-proximal'];
+      g.normal = a && b ? v3.unit(v3.cross(v3.sub(a, w), v3.sub(b, w))) : [0, 0, 1];
+      g.forward = v3.unit(v3.sub(h.j['middle-finger-phalanx-proximal'], w));
+      return g;
+    };
+    // a convex object's faces as planes (outward), and whether a scene point is inside (within `margin`)
+    const facePlanes = (mesh) => {
+      const P = mesh.positions;
+      const c = P.reduce((a, q) => v3.add(a, q), [0, 0, 0]).map((x) => x / Math.max(1, P.length));
+      const out = [];
+      for (const f of mesh.faces) {
+        if (f.v.length < 3) continue;
+        const n = [0, 0, 0];
+        let fc = [0, 0, 0];
+        for (let i = 0; i < f.v.length; i++) {
+          const a = P[f.v[i]], b = P[f.v[(i + 1) % f.v.length]];
+          n[0] += (a[1] - b[1]) * (a[2] + b[2]);
+          n[1] += (a[2] - b[2]) * (a[0] + b[0]);
+          n[2] += (a[0] - b[0]) * (a[1] + b[1]);
+          fc = v3.add(fc, a);
+        }
+        fc = v3.mul(fc, 1 / f.v.length);
+        let u = v3.unit(n);
+        if (v3.dot(u, v3.sub(fc, c)) < 0) u = v3.mul(u, -1);
+        out.push({ p: fc, n: u });
+      }
+      return out;
+    };
+    const insideConvex = (mesh, q, margin = 0) => {
+      const planes = facePlanes(mesh);
+      return planes.length > 3 && planes.every((pl) => v3.dot(v3.sub(q, pl.p), pl.n) <= margin);
+    };
+    const meshVolume = (mesh) => {
+      const P = mesh.positions;
+      let v = 0;
+      for (const f of mesh.faces) for (let i = 1; i + 1 < f.v.length; i++) v += v3.dot(P[f.v[0]], v3.cross(P[f.v[i]], P[f.v[i + 1]]));
+      return Math.abs(v) / 6;
+    };
+    // what a hand may take or cut: the loose objects, up to 1.5 m across (not the floor or the bench)
+    const workable = () => allObjects().filter((o) => o.mesh.faces.length && !o.inst && bounds(o.mesh).radius < 0.75 && !/^(floor|bench )/.test(o.name ?? ''));
+    // the panel: sys keys and the palette, a 40 × 20 cm board in the room, its texture 1024 × 512
+    const WS_W = 0.4, WS_H = 0.2, WS_PX = [1024, 512];
+    const wsButtons = () => {
+      const keys = [['cube', 'CUBE'], ['undo', 'UNDO'], ['delete', 'DELETE'], ['exit', 'EXIT VR']].map(([id, label], i) => ({ id, label, x: 24 + i * 248, y: 22, w: 232, h: 120 }));
+      const sw = materials.slice(0, 36).map((m, i) => ({ id: `mat${i}`, mat: i, color: m.color, x: 24 + (i % 12) * 82, y: 170 + Math.floor(i / 12) * 104, w: 74, h: 92 }));
+      return [...keys, ...sw];
+    };
+    const wsPlaceMenu = (ws, head) => {
+      const hp = [head[12], head[13], head[14]];
+      const fw = v3.unit([-head[8], 0, -head[10]]), left = v3.cross([0, 1, 0], fw);
+      const c = v3.add(v3.add(hp, v3.add(v3.mul(fw, 0.42), v3.mul(left, 0.3))), [0, -0.3, 0]);
+      const z = v3.unit(v3.sub(hp, c)), x = v3.unit(v3.cross([0, 1, 0], z)), y = v3.cross(z, x);
+      ws.menu = [...x, 0, ...y, 0, ...z, 0, ...c, 1];
+      ws.menuInv = rigidInv(ws.menu);
+    };
+    const wsNote = (ws, text) => ((ws.note = text), (ws.noteAt = performance.now()), xrLog(`workshop: ${text}`));
+    const xrWorkshop = (hands, head, now) => {
+      const ws = (xrState.ws ??= { g: { left: {}, right: {} } });
+      const on = !space() && !drive() && (hands.left || hands.right);
+      ws.on = Boolean(on);
+      ws.hands = hands;
+      if (!on) return;
+      const R2S = roomToScene();
+      if (!ws.menu || (head && v3.len(v3.sub([head[12], head[13], head[14]], [ws.menu[12], ws.menu[13], ws.menu[14]])) > 1.6)) head && wsPlaceMenu(ws, head);
+      const L = hands.left && xrGestures(hands.left, ws.g.left), R = hands.right && xrGestures(hands.right, ws.g.right);
+      const m = materials[current];
+      const paint = (mesh) => ({ ...mesh, faces: mesh.faces.map((f) => ({ ...f, color: m.color, mat: m.name })) });
+      const piece = () => (ws.piece && allObjects().find((o) => o.id === ws.piece)) || null;
+
+      // the panel: a fingertip on a key presses it (once, until the finger leaves)
+      ws.hover = null;
+      if (ws.menuInv) {
+        for (const [side, h] of [['left', hands.left], ['right', hands.right]]) {
+          const tip = h?.j['index-finger-tip'];
+          if (!tip) continue;
+          const q = xform(ws.menuInv, tip);
+          const px = (q[0] / WS_W + 0.5) * WS_PX[0], py = (0.5 - q[1] / WS_H) * WS_PX[1];
+          const b = Math.abs(q[2]) < 0.02 ? wsButtons().find((k) => px >= k.x && px <= k.x + k.w && py >= k.y && py <= k.y + k.h) : null;
+          if (b) ws.hover = b.id;
+          const key = `poke${side}`;
+          if (b && !ws[key]) {
+            ws[key] = b.id;
+            if (b.id === 'cube') {
+              const hp = head ? [head[12], head[13], head[14]] : [0, 1.5, 0];
+              const fw = head ? v3.unit([-head[8], 0, -head[10]]) : [0, 0, -1];
+              const at = R2S.p(v3.add(v3.add(hp, v3.mul(fw, 0.4)), [0, -0.25, 0]));
+              const S = 0.15;
+              const right = v3.unit(R2S.d(v3.cross(fw, [0, 1, 0]))), up = v3.unit(R2S.d([0, 1, 0]));
+              const o = create(`block-${shortId()}`, paint(box({ size: [S, S, S], at, axes: [right, up, v3.cross(right, up)], color: m.color })));
+              ws.piece = o.id;
+              wsNote(ws, 'a new block');
+            } else if (b.id === 'undo') (undo(), wsNote(ws, 'undo'));
+            else if (b.id === 'delete') {
+              const o = piece();
+              if (o) (erase(o), history.push(() => has(o) || restore(o)), (ws.piece = null), wsNote(ws, `${o.name} deleted`));
+            } else if (b.id === 'exit') return void xrState.session?.end();
+            else if (b.mat !== undefined) {
+              current = b.mat;
+              const o = piece();
+              if (o) {
+                const before = o.mesh;
+                history.push(() => has(o) && change(o, before));
+                change(o, paint(o.mesh));
+              }
+              wsNote(ws, `material ${materials[current].name}`);
+            }
+          } else if (!b && ws[key] && (Math.abs(q[2]) > 0.04 || !wsButtons().some((k) => px >= k.x - 20 && px <= k.x + k.w + 20 && py >= k.y - 20 && py <= k.y + k.h + 20))) ws[key] = null;
+        }
+      }
+
+      // the left hand takes an object: a fist or a pinch on it (or within 4 cm); it follows the wrist until let go
+      const holding = L && (L.fist || L.pinch);
+      if (holding && !ws.grab) {
+        const at = R2S.p(L.pinch ? v3.mid(hands.left.j['thumb-tip'], hands.left.j['index-finger-tip']) : L.palm);
+        const o = workable().find((x) => insideConvex(x.mesh, at, 0.04));
+        ws.grab = o ? { id: o.id, inv0: rigidInv(hands.left.wristM), room0: o.mesh.positions.map(R2S.back), mesh0: o.mesh } : { none: true };
+        if (o) ((ws.piece = o.id), wsNote(ws, `holding ${o.name}`));
+      } else if (holding && ws.grab?.id) {
+        const o = allObjects().find((x) => x.id === ws.grab.id);
+        if (o) {
+          const D = mul4(hands.left.wristM, ws.grab.inv0);
+          change(o, { ...o.mesh, positions: ws.grab.room0.map((r) => R2S.p(xform(D, r))) });
+        } else ws.grab = { none: true };
+      } else if (!holding && ws.grab) {
+        const g = ws.grab;
+        ws.grab = null;
+        const o = g.id && allObjects().find((x) => x.id === g.id);
+        if (o && o.mesh !== g.mesh0) history.push(() => has(o) && change(o, g.mesh0));
+      }
+
+      // the right fist is the saw: through an object and out again, it cuts along the hand's plane that holds the way it went
+      if (R?.fist) {
+        const at = R2S.p(R.palm);
+        const inObj = workable().find((x) => insideConvex(x.mesh, at));
+        const blade = ws.blade;
+        if (!blade && inObj) ws.blade = { id: inObj.id, from: R.palm, normals: [R.normal] };
+        else if (blade && inObj?.id === blade.id) blade.normals.push(R.normal);
+        else if (blade && inObj?.id !== blade.id) {
+          ws.blade = inObj ? { id: inObj.id, from: R.palm, normals: [R.normal] } : null;
+          const o = allObjects().find((x) => x.id === blade.id);
+          const way = v3.sub(R.palm, blade.from);
+          if (o && v3.len(way) > 0.03) {
+            const d = v3.unit(way);
+            const avg = blade.normals.reduce((a, n) => v3.add(a, v3.dot(n, blade.normals[0]) < 0 ? v3.mul(n, -1) : n), [0, 0, 0]);
+            let n = v3.sub(avg, v3.mul(d, v3.dot(avg, d)));
+            if (v3.len(n) > 1e-3) {
+              n = v3.unit(n);
+              const plane = { point: R2S.p(blade.from), n: v3.unit(R2S.d(n)) };
+              let cut = null;
+              try {
+                cut = saw(o.mesh, plane, { color: m.color, mat: m.name });
+              } catch (err) {
+                wsNote(ws, `no cut: ${err.message}`);
+              }
+              const pieces = cut ? [...cut.front, ...cut.back] : [];
+              if (pieces.length >= 2) {
+                const keep = pieces.reduce((a, b) => (meshVolume(b) > meshVolume(a) ? b : a));
+                let made = null;
+                asOneStep(() => {
+                  erase(o);
+                  history.push(() => has(o) || restore(o));
+                  made = create(o.name, keep);
+                });
+                ws.piece = made?.id ?? null;
+                if (ws.grab?.id === o.id && made) ws.grab = { id: made.id, inv0: rigidInv(hands.left.wristM), room0: made.mesh.positions.map(R2S.back), mesh0: made.mesh };
+                ws.flashAt = now;
+                wsNote(ws, `cut: ${pieces.length - 1} piece${pieces.length > 2 ? 's' : ''} gone`);
+              }
+            }
+          }
+        }
+      } else ws.blade = null;
+    };
+    // the workshop in the headset: the hands (their bones), the saw's plane on the right fist, the panel
+    const xrWorkshopDraw = (gl, P, V, eyeFromRef, now) => {
+      const ws = xrState.ws;
+      if (!ws?.on) return;
+      const lines = [];
+      const BONES = [['wrist', 'thumb-metacarpal', 'thumb-phalanx-proximal', 'thumb-phalanx-distal', 'thumb-tip'], ...XR_FINGERS.map((f) => ['wrist', `${f}-metacarpal`, `${f}-phalanx-proximal`, `${f}-phalanx-intermediate`, `${f}-phalanx-distal`, `${f}-tip`])];
+      for (const side of ['left', 'right']) {
+        const h = ws.hands?.[side], g = ws.g[side];
+        if (!h) continue;
+        const col = g.fist ? (side === 'right' ? (ws.blade ? [1, 0.25, 0.15] : [1, 0.6, 0.25]) : [0.35, 0.95, 0.85]) : g.pinch ? [0.35, 0.95, 0.85] : [0.92, 0.88, 0.72];
+        for (const chain of BONES)
+          for (let i = 1; i < chain.length; i++) {
+            const a = h.j[chain[i - 1]], b = h.j[chain[i]];
+            if (a && b) lines.push(...a, ...col, 0.9, ...b, ...col, 0.9);
+          }
+        if (side === 'right' && g.fist) {
+          // the saw: a 24 × 14 cm frame in the hand's plane
+          const u = g.forward, w = v3.unit(v3.cross(g.normal, u)), c = g.palm;
+          const corner = (a, b) => v3.add(c, v3.add(v3.mul(u, a * 0.12), v3.mul(w, b * 0.07)));
+          const sc = ws.blade ? [1, 0.2, 0.1] : [1, 0.6, 0.25];
+          const ring = [corner(-1, -1), corner(1, -1), corner(1, 1), corner(-1, 1)];
+          for (let i = 0; i < 4; i++) lines.push(...ring[i], ...sc, 0.85, ...ring[(i + 1) % 4], ...sc, 0.85);
+        }
+      }
+      xrLines(gl, P, V, lines);
+      if (!ws.menu) return;
+      const btns = wsButtons();
+      const flash = ws.flashAt && now - ws.flashAt < 300;
+      const note = ws.note && now - (ws.noteAt ?? 0) < 4000 ? ws.note : '';
+      const key = JSON.stringify([ws.hover, current, note, flash, btns.length, materials.map((x) => x.color).join()]);
+      const tex = xrPanelTex(gl, 'workshop', WS_PX[0], WS_PX[1], key, (c, W, H) => {
+        c.fillStyle = flash ? 'rgba(60, 22, 10, 0.88)' : 'rgba(14, 15, 12, 0.86)';
+        c.beginPath();
+        c.roundRect(3, 3, W - 6, H - 6, 26);
+        c.fill();
+        c.strokeStyle = 'rgba(217, 211, 167, 0.5)';
+        c.lineWidth = 4;
+        c.stroke();
+        for (const b of btns) {
+          const hot = ws.hover === b.id;
+          if (b.mat !== undefined) {
+            c.fillStyle = b.color;
+            c.beginPath();
+            c.roundRect(b.x, b.y, b.w, b.h, 12);
+            c.fill();
+            if (b.mat === current || hot) {
+              c.strokeStyle = hot ? '#2fb8c0' : '#f2eee0';
+              c.lineWidth = 7;
+              c.stroke();
+            }
+          } else {
+            c.fillStyle = hot ? '#2fb8c0' : b.id === 'exit' ? '#f1481c' : b.id === 'cube' ? '#d9d3a7' : '#4b483f';
+            c.beginPath();
+            c.roundRect(b.x, b.y, b.w, b.h, 16);
+            c.fill();
+            c.fillStyle = b.id === 'undo' || b.id === 'delete' ? (hot ? '#04181a' : '#e4dfbc') : '#17150f';
+            c.font = '700 44px system-ui, sans-serif';
+            c.textAlign = 'center';
+            c.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 15);
+            c.textAlign = 'left';
+          }
+        }
+        if (note) {
+          c.fillStyle = '#9fe6d8';
+          c.font = '500 34px system-ui, sans-serif';
+          c.fillText(note.slice(0, 52), 26, H - 22);
+        }
+      });
+      xrQuad(gl, P, mul4(eyeFromRef, ws.menu), tex, WS_W / 2, WS_H / 2);
+    };
     // the same controls outside VR: the Gamepad API (the Quest's controllers when its browser hands them over, or any standard
     // gamepad: its sticks and buttons take the places of the Touch ones: LT / LB / L3 / X / Y on the left, RT / RB / R3 / A / B on
     // the right). X does nothing here (there is no VR to leave). Polled every frame while a pad is connected.
@@ -10426,7 +10750,12 @@
       // in light years: true scale there (a step of the head or the 6 cm between the eyes are nothing against a light year), so
       // the sky stays at infinity in both eyes; elsewhere the scene is in metres
       if (drive() && car) return { origin: [car.p[0], car.p[1] + CAR_EYE, car.p[2]], ...flat(car.heading), scale: 1 };
-      return { origin: eyeNow(), ...(space() ? shipBasis() : flat(yaw)), scale: space() ? 1 / (LY_KM * 1000) : 1 };
+      // (on the ground the room's floor is the scene's floor, y = 0, under the eye: you stand in the scene at your own height)
+      if (!space()) {
+        const e = eyeNow();
+        return { origin: [e[0], 0, e[2]], ...flat(yaw), scale: 1 };
+      }
+      return { origin: eyeNow(), ...shipBasis(), scale: 1 / (LY_KM * 1000) };
     };
     // Some IWER versions report a full-width left viewport and a zero-width
     // right viewport. Validate the entire stereo pair; use the XR-provided
@@ -10500,6 +10829,12 @@
         xrLog(`controllers: ${err?.message ?? err}`, true);
       }
       if (session !== xrState.session) return; // (X left VR)
+      try {
+        xrWorkshop(xrHandsNow(session, frame), frame.getViewerPose(xrState.space)?.transform.matrix ?? null, now);
+      } catch (err) {
+        xrLog(`workshop: ${err?.message ?? err}`, true);
+      }
+      if (session !== xrState.session) return; // (EXIT VR on the workshop panel)
       // (only the real buttons 0..5: the Quest's thumb rest, button 6, reads 'pressed' all the time a thumb lies on it; the old
       // green sky flash on a press is gone: with the thumb rest it turned the whole sky green)
       const pressed = pads.map((p) => p.buttons.slice(0, 6).map((b, i) => (b ? `${p.hand[0] ?? '?'}${i}` : '')).filter(Boolean).join(' ')).filter(Boolean).join(' ');
@@ -10587,10 +10922,11 @@
         xrState.phase = `render ${v.eye} eye`;
         gpu.render(xrArgs.scene, xrArgs.view, { ...xrArgs.opts, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: engineP, view: Ve, eye } });
         xrSkyDraw(gl, glP, Ve, vp.height, xrArgs.origin);
-        if (!drive()) {
+        if (!drive() && !xrState.ws?.on) {
           xrHudDraw(gl, v.projectionMatrix, mul4(v.transform.inverse.matrix, pose.transform.matrix));
           xrHandsDraw(gl, v.projectionMatrix, v.transform.inverse.matrix, v.transform.inverse.matrix);
         }
+        xrWorkshopDraw(gl, v.projectionMatrix, v.transform.inverse.matrix, v.transform.inverse.matrix, now);
         if (XR_TEST === '2') xrTestDraw(gl, v, vp, t / 1000);
         if (n <= 3) xrGlErrors(gl, `the ${v.eye} eye, frame ${n}`);
       }
@@ -10653,7 +10989,7 @@
       const t0 = performance.now();
       let session;
       try {
-        session = await xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor'] });
+        session = await xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor', 'hand-tracking'] });
       } catch (err) {
         xrLog(`requestSession failed: ${err?.name}: ${err?.message ?? err}`, true);
         return xrSay(`could not start VR: ${err?.message ?? err}`);
