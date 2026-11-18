@@ -946,7 +946,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/647d8743e5de/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/d0cffaf400eb/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2209,7 +2209,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/647d8743e5de/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/d0cffaf400eb/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -10835,7 +10835,7 @@
         { id: 'saw', label: 'saw', kind: 'saw' },
         { id: 'move', label: 'move', kind: 'move' },
         { id: 'fly', label: 'fly', kind: 'fly' },
-        { id: 'rec', label: 'record', kind: 'rec' },
+        { id: 'debug', label: 'debug report', kind: 'debug' },
         { id: 'exit', label: 'exit VR', kind: 'exit', slot: -1 },
       ],
     });
@@ -11746,6 +11746,10 @@
       ws.recHold = Rr.fn?.kind === 'rec' && Rr.g?.fist && !ws.recLatch ? Math.min(1, Rr.g.fistFor / TSH_EXIT_HOLD) : 0;
       if (!Rr.g?.fist) ws.recLatch = false;
       if (ws.recHold >= 1 && !vrPlayer.on) ((ws.recLatch = true), vrTape.recording ? vrTape.stop() : vrTape.start(), wsNote(ws, vrTape.recording ? 'recording' : 'recording saved'));
+      // debug (the right hand): a fist held for a moment sends a debug report (what the headset sees and the state) to the store
+      ws.recHold = ws.recHold || (Rr.fn?.kind === 'debug' && Rr.g?.fist && !ws.dbgLatch ? Math.min(1, Rr.g.fistFor / TSH_EXIT_HOLD) : 0);
+      if (!Rr.g?.fist) ws.dbgLatch = false;
+      if (Rr.fn?.kind === 'debug' && ws.recHold >= 1 && !ws.dbgLatch) ((ws.dbgLatch = true), (xrState.debugShot = { hands, head, st: { left: st.left.fn?.id, right: st.right.fn?.id, lg: st.left.g, rg: st.right.g } }), wsNote(ws, 'debug: capturing…'));
       if (space()) xrShipHands(ws, st, hands, head, now);
       else ((ws.shipOn = false), (ws.dash = null));
       xrBuild(ws, st, hands, head, now, R2S, done);
@@ -11910,6 +11914,18 @@
         c.strokeStyle = vrTape.recording ? '#f1481c' : '#f2eee0';
         c.beginPath();
         c.arc(50 * u, 50 * u, 32 * u, 0, Math.PI * 2);
+        c.stroke();
+      } else if (kind === 'debug') {
+        // a bug: a round body, six legs, two feelers
+        c.beginPath();
+        c.ellipse(50 * u, 56 * u, 16 * u, 22 * u, 0, 0, Math.PI * 2);
+        c.stroke();
+        c.beginPath();
+        for (const y of [44, 56, 68]) (c.moveTo(34 * u, y * u), c.lineTo(20 * u, (y - 6) * u), c.moveTo(66 * u, y * u), c.lineTo(80 * u, (y - 6) * u));
+        c.moveTo(44 * u, 35 * u);
+        c.lineTo(36 * u, 20 * u);
+        c.moveTo(56 * u, 35 * u);
+        c.lineTo(64 * u, 20 * u);
         c.stroke();
       } else if (kind === 'exit') {
         // a door with an arrow out
@@ -12115,7 +12131,7 @@
       for (const side of ['left', 'right'])
         for (const ic of ws.st[side].icons) {
           if (ic.fn.kind !== 'material') {
-            const hold = ic.big && ic.fn.kind === 'exit' ? ws.exitHold : ic.big && ic.fn.kind === 'rec' ? ws.recHold : 0;
+            const hold = ic.big && ic.fn.kind === 'exit' ? ws.exitHold : ic.big && (ic.fn.kind === 'rec' || ic.fn.kind === 'debug') ? ws.recHold : 0;
             const tex = xrPanelTex(gl, `icon-${ic.fn.kind}-${hold ? Math.round(hold * 10) : 0}-${ic.fn.kind === 'rec' && vrTape.recording ? 1 : 0}`, 128, 128, `${ic.fn.kind}|${Math.round(hold * 10)}|${ic.fn.kind === 'rec' && vrTape.recording}`, (c, W, H) => {
               c.fillStyle = 'rgba(20, 22, 18, 0.82)';
               c.beginPath();
@@ -12132,7 +12148,7 @@
           if (ic.big) {
             // the chosen function's name under its big icon (and the last thing that happened)
             const note = ((ic.fn.kind === 'move' || ic.fn.kind === 'fly') && ws.moving) || (ws.note && now - (ws.noteAt ?? 0) < 3000 ? ws.note : '') || (ic.fn.kind === 'ship' && ws.shipNote) || '';
-            const label = { exit: 'exit VR · hold a fist', cube: 'cube · open the fist', grab: 'grab · fist or pinch', build: 'walls · right aims, left pinches', erase: 'erase · right aims, left pinches', type: ws.type?.phase === 'keys' ? 'type · touch the keys' : 'type · right aims, left pinches', move: 'move · fist circles, upright hand turns', fly: 'fly · circles, turns, fist up / down', block: 'block · hands together, pull apart', saw: 'saw · a fist through it', ship: 'ship · L fist steers, R fist thrust', rec: vrTape.recording ? `● rec ${vrTape.clock()} · hold a fist: stop` : 'record · hold a fist' }[ic.fn.kind] ?? `${ic.fn.label} · poke a block`;
+            const label = { exit: 'exit VR · hold a fist', cube: 'cube · open the fist', grab: 'grab · fist or pinch', build: 'walls · right aims, left pinches', erase: 'erase · right aims, left pinches', type: ws.type?.phase === 'keys' ? 'type · touch the keys' : 'type · right aims, left pinches', move: 'move · fist circles, upright hand turns', fly: 'fly · circles, turns, fist up / down', block: 'block · hands together, pull apart', saw: 'saw · a fist through it', debug: 'debug · hold a fist: report', ship: 'ship · L fist steers, R fist thrust', rec: vrTape.recording ? `● rec ${vrTape.clock()} · hold a fist: stop` : 'record · hold a fist' }[ic.fn.kind] ?? `${ic.fn.label} · poke a block`;
             const tex = xrPanelTex(gl, `label-${side}`, 640, 96, `${label}|${note}`, (c, W, H) => {
               c.fillStyle = 'rgba(14, 15, 12, 0.78)';
               c.beginPath();
@@ -12630,8 +12646,93 @@
         xrWorkshopDraw(gl, v.projectionMatrix, v.transform.inverse.matrix, v.transform.inverse.matrix, now);
         if (XR_TEST === '2') xrTestDraw(gl, v, vp, t / 1000);
         if (n <= 3) xrGlErrors(gl, `the ${v.eye} eye, frame ${n}`);
+        if (i === 0 && xrState.debugShot) {
+          const shot = xrState.debugShot;
+          xrState.debugShot = null;
+          let png = null;
+          try {
+            png = xrReadEye(gl, layer, vp);
+          } catch (err) {
+            xrLog(`debug: no picture (${err?.message ?? err})`, true);
+          }
+          xrDebugSend({ ...shot, png, eye, view: v, glP, pose, sceneNow, partsNow, shipNow });
+        }
       }
       if (n > 3 && n % 120 === 0) xrGlErrors(gl, `frame ${n}`);
+    };
+    // ---- The debug report (the right hand's debug function): what the left eye sees (a quarter-size picture of the XR framebuffer, read
+    // right after it is drawn) and the state round it, sent to the store as debug/<time>.json (no key needed for a debug report;
+    // read back with /api/store?debug=list and ?debug=<name>)
+    const xrReadEye = (gl, layer, vp) => {
+      const W = vp.width, H = vp.height, px = new Uint8Array(W * H * 4);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
+      gl.readPixels(vp.x, vp.y, W, H, gl.RGBA, gl.UNSIGNED_BYTE, px);
+      const k = 4, w = Math.floor(W / k), h = Math.floor(H / k);
+      const cv = Object.assign(document.createElement('canvas'), { width: w, height: h });
+      const c = cv.getContext('2d'), img = c.createImageData(w, h);
+      for (let y = 0; y < h; y++)
+        for (let x = 0; x < w; x++) {
+          const a = ((H - 1 - y * k) * W + x * k) * 4, b = (y * w + x) * 4; // (WebGL rows go up)
+          img.data[b] = px[a];
+          img.data[b + 1] = px[a + 1];
+          img.data[b + 2] = px[a + 2];
+          img.data[b + 3] = 255;
+        }
+      c.putImageData(img, 0, 0);
+      return cv.toDataURL('image/png');
+    };
+    const xrDebugSend = async (d) => {
+      const r4 = (v) => (Array.isArray(v) || ArrayBuffer.isView(v) ? Array.from(v, (x) => Math.round(x * 1e5) / 1e5) : v);
+      const boxOfMesh = (m) => {
+        const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+        for (const q of m?.positions ?? []) for (let k = 0; k < 3; k++) ((lo[k] = Math.min(lo[k], q[k])), (hi[k] = Math.max(hi[k], q[k])));
+        return { lo: r4(lo), hi: r4(hi) };
+      };
+      const inBox = (b, q, m = 0) => [0, 1, 2].every((k) => q[k] >= b.lo[k] - m && q[k] <= b.hi[k] + m);
+      let report;
+      try {
+        const rig = xrRig();
+        const eye = [...d.eye];
+        // the objects round the eye: the ones whose box holds it, and the biggest ones
+        const objs = allObjects().map((o) => ({ o, b: boxOfMesh(o.mesh) }));
+        const holding = objs.filter(({ b }) => inBox(b, eye, 1e-9)).slice(0, 40).map(({ o, b }) => ({ name: o.name, faces: o.mesh.faces.length, ...b, mats: [...new Set(o.mesh.faces.slice(0, 50).map((f) => f.mat ?? f.color))].slice(0, 6) }));
+        const size = ({ b }) => Math.hypot(b.hi[0] - b.lo[0], b.hi[1] - b.lo[1], b.hi[2] - b.lo[2]);
+        const biggest = objs.filter((x) => Number.isFinite(size(x))).sort((a, b) => size(b) - size(a)).slice(0, 12).map(({ o, b }) => ({ name: o.name, faces: o.mesh.faces.length, ...b }));
+        const ship = xrShip.mesh ? { faces: xrShip.mesh.faces.length, ...boxOfMesh(xrShip.mesh), gpu: Boolean(xrShip.gpu) } : { gpu: Boolean(xrShip.gpu), mesh: null };
+        const headAt = d.head ? [d.head[12], d.head[13], d.head[14]] : null;
+        report = {
+          format: '3draft-debug', version: 1, at: new Date().toISOString(), engine: displayVersion(version), ua: navigator.userAgent,
+          scene: nameEl.value || null, objects: allObjects().length, space: space(), drive: drive(), vehicle,
+          flight: { yaw: r4(yaw), pitch: r4(pitch), roll: r4(roll), level: { ...level }, locked, orbit: Boolean(orbit), frozen, skyZoom: skyZoom() },
+          game: game ? { title: game.doc.title, mode: game.mode, helm: game.helm, ship: game.doc.ship?.scene, meshFaces: game.mesh?.faces.length } : null,
+          rig: { origin: r4(rig.origin), forward: r4(rig.forward), right: r4(rig.right), up: r4(rig.up), scale: rig.scale },
+          pilot: xrState.pilot, walk: xrState.walk, head: d.head ? r4(d.head) : null, headInShip: headAt && xrShip.mesh ? inBox(boxOfMesh(xrShip.mesh), headAt) : null,
+          eyeScene: r4(eye), eyeView: r4(d.view?.transform?.inverse?.matrix), projection: r4(d.view?.projectionMatrix), glP: r4(d.glP),
+          render: { sceneFaces: d.sceneNow?.faces?.length ?? null, parts: d.partsNow?.length ?? null, opts: Object.keys(xrArgs?.opts ?? {}), sceneBox: d.sceneNow ? boxOfMesh(d.sceneNow) : null },
+          ship, holding, biggest,
+          hands: { left: Boolean(d.hands?.left), right: Boolean(d.hands?.right), fn: { left: d.st?.left, right: d.st?.right }, gestures: { left: d.st?.lg && { fist: d.st.lg.fist, pinch: d.st.lg.pinch, aim: d.st.lg.aim }, right: d.st?.rg && { fist: d.st.rg.fist, pinch: d.st.rg.pinch, aim: d.st.rg.aim } } },
+          ws: xrState.ws ? { on: xrState.ws.on, shipOn: xrState.ws.shipOn, note: xrState.ws.note, dash: xrState.ws.dashPose ?? null } : null,
+          frames: xrState.frames, frameErrs: xrState.frameErrs ?? 0, glErrs: xrState.errs ?? 0,
+          lastError: (() => { try { return localStorage.getItem('3draft-xr-error'); } catch { return null; } })(),
+          log: xrState.log.slice(-80),
+          picture: d.png,
+        };
+      } catch (err) {
+        report = { format: '3draft-debug', version: 1, at: new Date().toISOString(), failed: String(err?.stack ?? err), log: xrState.log.slice(-80), picture: d.png };
+      }
+      const name = `debug-${report.at.replace(/[:.]/g, '-')}`;
+      try {
+        const r = await fetch(`${STORE || '/api/store'}?name=${encodeURIComponent(name)}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(report) });
+        if (!r.ok) throw new Error(`HTTP ${r.status} ${(await r.text()).slice(0, 100)}`);
+        xrLog(`debug: sent ${name}`);
+        if (xrState.ws) wsNote(xrState.ws, `debug sent: ${name.slice(6, 25)}`);
+      } catch (err) {
+        xrLog(`debug: not sent (${err.message})`, true);
+        if (xrState.ws) wsNote(xrState.ws, `debug not sent: ${err.message.slice(0, 40)}`);
+        try {
+          localStorage.setItem('3draft-xr-debug', JSON.stringify({ ...report, picture: null }));
+        } catch {}
+      }
     };
     const xrFrame = (t, frame) => {
       try {
