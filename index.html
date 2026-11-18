@@ -946,7 +946,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/d0cffaf400eb/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/67de475b11f9/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2209,7 +2209,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/d0cffaf400eb/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/67de475b11f9/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -9483,6 +9483,7 @@
         ws: () => xrState.ws && { pieceAt: (() => { const o = allObjects().find((x) => x.id === xrState.ws.piece); if (!o) return null; const R = roomToScene(); return { room: R.back(bounds(o.mesh).center), faces: o.mesh.faces.length, verts: o.mesh.positions.length, objects: allObjects().length, vol: +meshVolume(o.mesh).toFixed(6) }; })(), menu: xrState.ws.menu && [...xrState.ws.menu], piece: xrState.ws.piece, grab: Boolean(xrState.ws.grabs?.left?.id || xrState.ws.grabs?.right?.id), making: Boolean(xrState.ws.make?.id), pal: Boolean(xrState.ws.pal), note: xrState.ws.note, on: xrState.ws.on },
         xr: () => ({ log: xrState.log, frames: xrState.frames, on: Boolean(xrState.session), mono: Boolean(xrState.mono), pressed: xrState.pressed, note: xrNote?.textContent }),
         tshChoose: (side, id) => tsh?.choose(side, id),
+        skyZoom: (z) => (z === undefined ? skyZoom() : (xrState.skyZoom = z)),
         ship: () => ({ zoom: skyZoom(), dashC: xrState.ws?.dashPose?.c ?? null, held: Boolean(xrState.ws?.dash?.held), marks: xrTargetLines([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1.6, 0, 1]).length / 14, back: xrState.ws?.st?.right.g?.back ?? null, rfist: xrState.ws?.st?.right.g?.fist ?? null, pilot: xrState.pilot, on: Boolean(xrState.ws?.shipOn), note: xrState.ws?.shipNote ?? null, dash: xrState.ws?.dash?.keys.map((k) => ({ key: k.key, at: k.at, z: xrState.ws.dash.P.z, down: k.down })) ?? null, ray: Boolean(xrState.ws?.shipRay), hit: xrState.ws?.shipRay?.hit?.obj?.name ?? null, mesh: xrShip.mesh?.faces.length ?? 0, gpu: Boolean(xrShip.gpu) }),
         flight: () => ({ roll: +roll.toFixed(4), vehicle, car: car && { p: car.p, heading: car.heading, v: car.v, steer: car.steer, throttle: car.throttle }, orbit: orbit?.phase ?? null, gravity: gravity && { name: gravity.name }, cruise: { ...cruise }, space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
         aim: () => (aim ? { name: aim.obj.name, px: +aim.px.toFixed(1), depth: aim.depth } : null), under: () => hitObj()?.name ?? null, locked: () => lockedObject()?.name ?? null,
@@ -10782,6 +10783,8 @@
     const xrShipMesh = (gl) => {
       const g = game, pilot = xrState.pilot;
       if (!g || !space() || g.mode !== 'ship' || !pilot) return null;
+      window.__dbgShip ??= new URLSearchParams(location.search).get('dbgship');
+      if (window.__dbgShip === 'none') return null; // (local debugging)
       if (!xrShip.gpu) {
         if (!xrShip.pending) ((xrShip.pending = true), createGl(gl.canvas).then((x) => ((xrShip.gpu = x), xrLog('ship: renderer ready'))).catch((err) => xrLog(`ship: ${err?.message ?? err}`, true)));
         return null;
@@ -10794,6 +10797,7 @@
           return [pilot[0] + d[0] * rS[0] + d[2] * rS[2], pilot[1] + d[1], pilot[2] - (d[0] * fS[0] + d[2] * fS[2])];
         };
         xrShip.mesh = { ...g.mesh, positions: g.mesh.positions.map(toRoom) };
+        if (window.__dbgShip === 'noglass') xrShip.mesh = { ...xrShip.mesh, faces: xrShip.mesh.faces.filter((f) => !((g.palette[f.mat]?.alpha ?? 1) < 1)) };
         xrShip.of = g.mesh;
         xrShip.at = pilot;
         xrLog(`ship: ${g.doc.ship.scene} round the pilot (${g.mesh.faces.length} faces)`);
@@ -10821,20 +10825,25 @@
           .slice(0, 8)
           .map((i) => ({ id: `mat${i}`, label: materials[i].name, kind: 'material', data: i })),
         { id: 'grab', label: 'grab', kind: 'grab' },
-        { id: 'cube', label: 'cube', kind: 'cube' },
-        { id: 'block', label: 'block between the hands', kind: 'block', both: true },
+        // (the tools that make things in metres are left out in a star map: there the scene's unit is the light year, so a 5 cm cube
+        // would be a cube 5 cm × 9.5e15 big round the head: see the debug report of 18 Nov)
+        ...(space() ? [] : [{ id: 'cube', label: 'cube', kind: 'cube' }, { id: 'block', label: 'block between the hands', kind: 'block', both: true }]),
         // (in space: the starship)
         ...(space() ? [{ id: 'ship', label: 'starship', kind: 'ship', both: true }] : []),
       ],
       // (exit: on the right hand, in the far corner of its grid, away from the middle)
       right: [
         { id: 'grab', label: 'grab', kind: 'grab' },
-        { id: 'build', label: 'build walls', kind: 'build', both: true },
-        { id: 'erase', label: 'erase walls', kind: 'erase', both: true },
-        { id: 'type', label: 'type', kind: 'type', both: true },
-        { id: 'saw', label: 'saw', kind: 'saw' },
-        { id: 'move', label: 'move', kind: 'move' },
-        { id: 'fly', label: 'fly', kind: 'fly' },
+        ...(space()
+          ? []
+          : [
+              { id: 'build', label: 'build walls', kind: 'build', both: true },
+              { id: 'erase', label: 'erase walls', kind: 'erase', both: true },
+              { id: 'type', label: 'type', kind: 'type', both: true },
+              { id: 'saw', label: 'saw', kind: 'saw' },
+              { id: 'move', label: 'move', kind: 'move' },
+              { id: 'fly', label: 'fly', kind: 'fly' },
+            ]),
         { id: 'debug', label: 'debug report', kind: 'debug' },
         { id: 'exit', label: 'exit VR', kind: 'exit', slot: -1 },
       ],
@@ -11668,7 +11677,7 @@
       if (ws.inSpace && !space() && tsh.fn('left')?.kind === 'ship') tsh.release();
       ws.inSpace = space();
       // (the palette can change: the materials follow it)
-      const want = tshFunctions().left.map((f) => `${f.id}:${f.label}`).join();
+      const want = `${tshFunctions().left.map((f) => `${f.id}:${f.label}`).join()}|${tshFunctions().right.map((f) => f.id).join()}`;
       if (want !== ws.fnKey) ((ws.fnKey = want), tsh.setFunctions('left', tshFunctions().left), tsh.setFunctions('right', tshFunctions().right));
       // (saved a moment after a change too, so a browser that drops the page does not lose it)
       if (ws.dirtyAt && now - ws.dirtyAt > 1500 && !vrPlayer.on) ((ws.dirtyAt = 0), saveWorkshop());
@@ -11762,7 +11771,7 @@
       // drawn with the scene this frame
       const cubes = [];
       for (const side of ['left', 'right'])
-        for (const ic of st[side].icons) {
+        for (const ic of space() ? [] : st[side].icons) {
           if (ic.fn.kind !== 'material') continue;
           const mt = materials[ic.fn.data];
           if (!mt) continue;
@@ -12130,7 +12139,22 @@
       }
       for (const side of ['left', 'right'])
         for (const ic of ws.st[side].icons) {
-          if (ic.fn.kind !== 'material') {
+          if (ic.fn.kind === 'material' && space()) {
+            // (in a star map the material cubes cannot be real meshes: a flat swatch of the colour instead, glass see-through)
+            const mt = materials[ic.fn.data];
+            const tex = mt && xrPanelTex(gl, `swatch-${mt.name}-${mt.color}`, 64, 64, `${mt.color}|${mt.alpha}`, (c, W, H) => {
+              c.globalAlpha = Math.max(0.35, mt.alpha ?? 1);
+              c.fillStyle = mt.color;
+              c.beginPath();
+              c.roundRect(6, 6, W - 12, H - 12, 10);
+              c.fill();
+              c.globalAlpha = 1;
+              c.strokeStyle = mt.metal ? '#fff6d8' : 'rgba(242, 238, 224, 0.6)';
+              c.lineWidth = 3;
+              c.stroke();
+            });
+            if (tex) xrQuad(gl, P, mul4(eyeFromRef, icFrame(ic)), tex, (ic.size * (ic.big ? 0.6 : 0.45)), (ic.size * (ic.big ? 0.6 : 0.45)));
+          } else if (ic.fn.kind !== 'material') {
             const hold = ic.big && ic.fn.kind === 'exit' ? ws.exitHold : ic.big && (ic.fn.kind === 'rec' || ic.fn.kind === 'debug') ? ws.recHold : 0;
             const tex = xrPanelTex(gl, `icon-${ic.fn.kind}-${hold ? Math.round(hold * 10) : 0}-${ic.fn.kind === 'rec' && vrTape.recording ? 1 : 0}`, 128, 128, `${ic.fn.kind}|${Math.round(hold * 10)}|${ic.fn.kind === 'rec' && vrTape.recording}`, (c, W, H) => {
               c.fillStyle = 'rgba(20, 22, 18, 0.82)';
@@ -12636,8 +12660,9 @@
         const Ve = eyeView(v.transform.inverse.matrix);
         const { glP, engineP } = xrProjection(v.projectionMatrix);
         xrState.phase = `render ${v.eye} eye`;
-        gpu.render(sceneNow, xrArgs.view, { ...xrArgs.opts, parts: partsNow, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: engineP, view: Ve, eye } });
-        xrSkyDraw(gl, glP, Ve, vp.height, xrArgs.origin);
+        const dq = XR_DBGQ; // (debugging the headset's picture: ?dbgmain=0 dbgsky=0 dbginst=0 dbgparts=0 dbgplanets=0)
+        gpu.render(dq.get('dbgparts') === '0' ? { positions: [], faces: [] } : sceneNow, xrArgs.view, { ...xrArgs.opts, ...(dq.get('dbgplanets') === '0' ? { planets: undefined } : {}), ...(dq.get('dbginst') === '0' ? { instances: undefined } : {}), ...(dq.get('dbgmain') === '0' ? { planets: undefined, instances: undefined, screens: undefined } : {}), parts: dq.get('dbgparts') === '0' || dq.get('dbgmain') === '0' ? undefined : partsNow, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: engineP, view: Ve, eye } });
+        if (dq.get('dbgsky') !== '0') xrSkyDraw(gl, glP, Ve, vp.height, xrArgs.origin);
         xrBackdrop(gl, v.projectionMatrix, v.transform.inverse.matrix, [v.transform.position.x, v.transform.position.y, v.transform.position.z]);
         if (targetNow.length) xrLines(gl, glP, v.transform.inverse.matrix, targetNow); // (with the sky's zoom: it is on the sky)
         if (shipNow) xrShipDraw(gl, layer, v, vp, shipNow);
@@ -12663,6 +12688,7 @@
     // ---- The debug report (the right hand's debug function): what the left eye sees (a quarter-size picture of the XR framebuffer, read
     // right after it is drawn) and the state round it, sent to the store as debug/<time>.json (no key needed for a debug report;
     // read back with /api/store?debug=list and ?debug=<name>)
+    const XR_DBGQ = new URLSearchParams(location.search);
     const xrReadEye = (gl, layer, vp) => {
       const W = vp.width, H = vp.height, px = new Uint8Array(W * H * 4);
       gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
@@ -12698,6 +12724,8 @@
         const holding = objs.filter(({ b }) => inBox(b, eye, 1e-9)).slice(0, 40).map(({ o, b }) => ({ name: o.name, faces: o.mesh.faces.length, ...b, mats: [...new Set(o.mesh.faces.slice(0, 50).map((f) => f.mat ?? f.color))].slice(0, 6) }));
         const size = ({ b }) => Math.hypot(b.hi[0] - b.lo[0], b.hi[1] - b.lo[1], b.hi[2] - b.lo[2]);
         const biggest = objs.filter((x) => Number.isFinite(size(x))).sort((a, b) => size(b) - size(a)).slice(0, 12).map(({ o, b }) => ({ name: o.name, faces: o.mesh.faces.length, ...b }));
+        // the same with the parts the renderer got (they are relative to the floating origin, like the eye here)
+        const partsHolding = (d.partsNow ?? []).map((m, k) => ({ k, b: boxOfMesh(m), m })).filter(({ b }) => inBox(b, eye, 1e-12)).slice(0, 20).map(({ k, b, m }) => ({ part: k, name: allObjects()[k]?.name ?? null, faces: m.faces.length, ...b, mats: [...new Set(m.faces.slice(0, 50).map((f) => f.mat ?? f.color))].slice(0, 6) }));
         const ship = xrShip.mesh ? { faces: xrShip.mesh.faces.length, ...boxOfMesh(xrShip.mesh), gpu: Boolean(xrShip.gpu) } : { gpu: Boolean(xrShip.gpu), mesh: null };
         const headAt = d.head ? [d.head[12], d.head[13], d.head[14]] : null;
         report = {
@@ -12708,8 +12736,8 @@
           rig: { origin: r4(rig.origin), forward: r4(rig.forward), right: r4(rig.right), up: r4(rig.up), scale: rig.scale },
           pilot: xrState.pilot, walk: xrState.walk, head: d.head ? r4(d.head) : null, headInShip: headAt && xrShip.mesh ? inBox(boxOfMesh(xrShip.mesh), headAt) : null,
           eyeScene: r4(eye), eyeView: r4(d.view?.transform?.inverse?.matrix), projection: r4(d.view?.projectionMatrix), glP: r4(d.glP),
-          render: { sceneFaces: d.sceneNow?.faces?.length ?? null, parts: d.partsNow?.length ?? null, opts: Object.keys(xrArgs?.opts ?? {}), sceneBox: d.sceneNow ? boxOfMesh(d.sceneNow) : null },
-          ship, holding, biggest,
+          render: { background: xrArgs?.opts?.background ?? null, transparent: xrArgs?.opts?.transparent ?? null, panel: getComputedStyle(document.documentElement).getPropertyValue('--panel').trim(), sceneFaces: d.sceneNow?.faces?.length ?? null, parts: d.partsNow?.length ?? null, opts: Object.keys(xrArgs?.opts ?? {}), sceneBox: d.sceneNow ? boxOfMesh(d.sceneNow) : null },
+          ship, holding, partsHolding, origin: xrArgs?.origin ?? null, biggest,
           hands: { left: Boolean(d.hands?.left), right: Boolean(d.hands?.right), fn: { left: d.st?.left, right: d.st?.right }, gestures: { left: d.st?.lg && { fist: d.st.lg.fist, pinch: d.st.lg.pinch, aim: d.st.lg.aim }, right: d.st?.rg && { fist: d.st.rg.fist, pinch: d.st.rg.pinch, aim: d.st.rg.aim } } },
           ws: xrState.ws ? { on: xrState.ws.on, shipOn: xrState.ws.shipOn, note: xrState.ws.note, dash: xrState.ws.dashPose ?? null } : null,
           frames: xrState.frames, frameErrs: xrState.frameErrs ?? 0, glErrs: xrState.errs ?? 0,
@@ -12730,7 +12758,7 @@
         xrLog(`debug: not sent (${err.message})`, true);
         if (xrState.ws) wsNote(xrState.ws, `debug not sent: ${err.message.slice(0, 40)}`);
         try {
-          localStorage.setItem('3draft-xr-debug', JSON.stringify({ ...report, picture: null }));
+          localStorage.setItem('3draft-xr-debug', JSON.stringify({ ...report, picture: location.hostname === 'localhost' ? report.picture : null }));
         } catch {}
       }
     };
