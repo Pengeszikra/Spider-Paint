@@ -946,7 +946,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/f59c07405f92/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/75ef12fcfa87/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2209,7 +2209,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/f59c07405f92/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/75ef12fcfa87/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -3110,7 +3110,7 @@
           });
           for (const n of eyeNotes) n.textContent = [...flightEl.children].map((c) => c.textContent).filter(Boolean).join('  ');
         } else if (!xrState.session) renderGpu(); // headset renders the two eyes; do not draw the desktop canvas first
-        drawBridge(size, lens);
+        if (!xrState.session) drawBridge(size, lens); // (in VR the ship is drawn round you: xrShipDraw)
         layer.className = 'over';
         layer.innerHTML = ''; // the marks are drawn by the GPU itself
       } else {
@@ -3620,6 +3620,7 @@
     const drawCloud = (size) => {
       if (gcam && !gcam.ortho && !bench) liveGalaxies(size);
       else if (liveSky.n) liveSky = { key: '', n: 0, data: null, set: new Set() };
+      if (xrState.session) return void (cloudCanvas.hidden = true); // (in VR the headset draws the clouds itself: xrSkyDraw)
       const g = (cloud || liveSky.n) && gcam && !gcam.ortho && !bench ? cloudInit() : null;
       cloudCanvas.hidden = !g || g.failed;
       if (cloudCanvas.hidden) return;
@@ -3813,6 +3814,7 @@
       return [Math.sin(ta) * Math.sin(tb), Math.cos(ta), Math.sin(ta) * Math.cos(tb)];
     };
     const drawHoles = (size) => {
+      if (xrState.session) return void (holeCanvas.hidden = true); // (the desktop's ray tracer: not in the headset)
       const holes = gcam && !gcam.ortho && !bench ? allObjects().filter((o) => isHole(o.inst)) : [];
       const g = holes.length ? holeInit() : null;
       holeCanvas.hidden = !g || g.failed;
@@ -3918,9 +3920,15 @@
     // (a moved origin means one new upload of the scene; in the Solar System the Sun's origin, 0, is fine for every planet).
     let renderOrigin = null;
     let shiftCache = { mesh: null, o: null, out: null };
+    let pickOriginAt = 0;
     const pickOrigin = () => {
       if (storySkin) return (renderOrigin = null); // animation channels already use the story's local metre frame
       if (!space() || drive()) return (renderOrigin = null);
+      if (xrState.session) {
+        const now = performance.now();
+        if (now - pickOriginAt < 250) return renderOrigin;
+        pickOriginAt = now;
+      }
       const e = eyeNow();
       let best = null, bd = Infinity;
       for (const o of allObjects()) {
@@ -3955,10 +3963,12 @@
     };
     // the shader planets (the engine's planet.ts): every instance with a `planet` recipe, at its place (moved with the floating
     // origin), its core size, lit from the scene's origin (the Sun of a star map); its plain sphere stays under it
+    let planetObjs = { scene: null, list: [] };
     const scenePlanets = (o) => {
       const out = [];
       const t = performance.now() / 1000;
-      for (const ob of allObjects()) {
+      if (planetObjs.scene !== scene) planetObjs = { scene, list: allObjects().filter((ob) => ob.inst?.planet) };
+      for (const ob of planetObjs.list) {
         const i = ob.inst;
         if (!i?.planet) continue;
         const L = i.planet.light ?? [0, 0, 0]; // (its own star: an exoplanet; else the scene's origin, the Sun)
@@ -3975,7 +3985,14 @@
       return out;
     };
     // in the Solar System the light comes from the Sun (the origin): its direction as seen at the object nearest to the eye
+    let sunDirCache = { t: 0, v: null };
     const sunDirection = () => {
+      const now = performance.now();
+      if (now - sunDirCache.t < 500) return sunDirCache.v; // (it changes slowly: a loop over every object twice a second is enough)
+      sunDirCache = { t: now, v: sunDirectionNow() };
+      return sunDirCache.v;
+    };
+    const sunDirectionNow = () => {
       const e = eyeNow();
       if (Math.hypot(...e) > 0.01) return null; // (outside ~630 AU: the usual light)
       let best = null, bd = Infinity;
@@ -4013,6 +4030,7 @@
     };
     const GLOW_RANGE = 7000; // light years: the glow of stars farther than this is not drawn
     const drawGlow = (size) => {
+      if (xrState.session) return void (glowCanvas.hidden = true); // (in VR the glows are drawn into the headset: xrSkyDraw)
       const stars = allObjects().filter((o) => o.inst?.glow);
       glowCanvas.hidden = !stars.length || !gcam || gcam.ortho || Boolean(bench);
       if (glowCanvas.hidden) return;
@@ -9487,7 +9505,7 @@
         tshChoose: (side, id) => tsh?.choose(side, id),
         skyZoom: (z) => (z === undefined ? skyZoom() : (xrState.skyZoom = z)),
         debugShot: () => (xrState.debugShot = { hands: xrState.ws?.hands ?? {}, head: null, st: {} }),
-        ship: () => ({ zoom: skyZoom(), dashC: xrState.ws?.dashPose?.c ?? null, held: Boolean(xrState.ws?.dash?.held), marks: xrTargetLines([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1.6, 0, 1]).length / 14, back: xrState.ws?.st?.right.g?.back ?? null, rfist: xrState.ws?.st?.right.g?.fist ?? null, pilot: xrState.pilot, on: Boolean(xrState.ws?.shipOn), note: xrState.ws?.shipNote ?? null, dash: xrState.ws?.dash?.keys.map((k) => ({ key: k.key, at: k.at, z: xrState.ws.dash.P.z, down: k.down })) ?? null, ray: Boolean(xrState.ws?.shipRay), hit: xrState.ws?.shipRay?.hit?.obj?.name ?? null, mesh: xrShip.mesh?.faces.length ?? 0, gpu: Boolean(xrShip.gpu) }),
+        ship: () => ({ P: xrState.ws?.dash?.P ?? null, kbOn: Boolean(xrState.ws?.kbOn), kb: xrState.ws?.kb?.keys.map((k) => ({ key: k.key, lx: k.lx, ly: k.ly })) ?? null, search: xrState.ws?.searchText ?? null, hint: xrState.ws?.searchHint ?? null, zoom: skyZoom(), dashC: xrState.ws?.dashPose?.c ?? null, held: Boolean(xrState.ws?.dash?.held), marks: xrTargetLines([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1.6, 0, 1]).length / 14, back: xrState.ws?.st?.right.g?.back ?? null, rfist: xrState.ws?.st?.right.g?.fist ?? null, pilot: xrState.pilot, on: Boolean(xrState.ws?.shipOn), note: xrState.ws?.shipNote ?? null, dash: xrState.ws?.dash?.keys.map((k) => ({ key: k.key, at: k.at, z: xrState.ws.dash.P.z, down: k.down })) ?? null, ray: Boolean(xrState.ws?.shipRay), hit: xrState.ws?.shipRay?.hit?.obj?.name ?? null, mesh: xrShip.mesh?.faces.length ?? 0, gpu: Boolean(xrShip.gpu) }),
         flight: () => ({ roll: +roll.toFixed(4), vehicle, car: car && { p: car.p, heading: car.heading, v: car.v, steer: car.steer, throttle: car.throttle }, orbit: orbit?.phase ?? null, gravity: gravity && { name: gravity.name }, cruise: { ...cruise }, space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
         aim: () => (aim ? { name: aim.obj.name, px: +aim.px.toFixed(1), depth: aim.depth } : null), under: () => hitObj()?.name ?? null, locked: () => lockedObject()?.name ?? null,
         picker: () => ({ ready: picker.ready, failed: picker.failed, busy: Boolean(picker.busy), ver: picker.ver, picks: picker.picks, ms: +picker.ms.toFixed(2), sceneMs: +picker.sceneMs.toFixed(1), restarts: picker.restarts, errors: [...picker.errors] }),
@@ -10141,15 +10159,17 @@
     };
     // the glowing stars and galaxies, as cloud-like records: position, glow radius, colour, kind (0 a star, 1 a galaxy with a cloud)
     const xrGlowData = () => {
+      // (kept while the scene is the same merged scene: no filtering of thousands of objects twice a frame)
+      if (xrGlowCache.scene === scene && xrGlowCache.liveN === liveSky.set.size && xrGlowCache.data) return xrGlowCache;
       const stars = allObjects().filter((o) => o.inst?.glow && !isHole(o.inst));
       const key = `${stars.length}:${stars[0]?.id ?? ''}:${stars[stars.length - 1]?.id ?? ''}:${liveSky.set.size}`;
-      if (xrGlowCache.key === key) return xrGlowCache;
+      if (xrGlowCache.key === key) return Object.assign(xrGlowCache, { scene, liveN: liveSky.set.size });
       const data = new Float32Array(stars.length * XR_GLOW_FLOATS);
       stars.forEach((o, n) => {
         const i = o.inst, c = hexRgb(i.glowColor ?? i.color), k = n * XR_GLOW_FLOATS;
         data.set([i.at[0], i.at[1], i.at[2], i.glow, c[0], c[1], c[2], i.far && (i.cloud || liveSky.set.has(i)) ? i.scale || 1 : 0], k);
       });
-      return (xrGlowCache = { key, data, n: stars.length });
+      return (xrGlowCache = { key, data, n: stars.length, scene, liveN: liveSky.set.size });
     };
     const xrSkyInit = (gl) => {
       const sh = (type, src) => { const x = gl.createShader(type); gl.shaderSource(x, src); gl.compileShader(x); if (!gl.getShaderParameter(x, gl.COMPILE_STATUS)) xrLog(`sky shader: ${gl.getShaderInfoLog(x)}`, true); return x; };
@@ -10677,6 +10697,7 @@
       { key: '0', code: 'Digit0', label: '0', sub: 'orbit' },
       { key: '[', code: 'BracketLeft', label: '[', sub: 'roll', hold: true },
       { key: ']', code: 'BracketRight', label: ']', sub: 'roll', hold: true },
+      { key: 'search', code: 'search', label: '⌕', sub: 'find', local: true }, // (opens the dashboard's own keyboard: the find box)
     ];
     const DASH_PITCH = 0.078, DASH_KEY = 0.068; // m: from one key to the next, a key's size
     const DASH_W = DASH_KEYS.length * DASH_PITCH + 0.03, DASH_H = 0.17, DASH_T = 0.035; // the body: across, up the face, thick
@@ -10697,7 +10718,24 @@
     const dashLocal = (P, q) => { const d = v3.sub(q, P.c); return [v3.dot(d, P.x), v3.dot(d, P.y), v3.dot(d, P.z)]; };
     const dashAt = (P, lx, ly, lz = 0) => v3.add(P.c, v3.add(v3.mul(P.x, lx), v3.add(v3.mul(P.y, ly), v3.mul(P.z, lz))));
     const dashKeysOf = (P) => DASH_KEYS.map((k, i) => ({ ...k, lx: (i - (DASH_KEYS.length - 1) / 2) * DASH_PITCH, at: dashAt(P, (i - (DASH_KEYS.length - 1) / 2) * DASH_PITCH, DASH_KEYS_Y, 0.004) }));
-    const skyZoom = () => xrState.skyZoom ?? 1;
+    const skyZoom = () => 1; // (the sky FOV slider is gone: at ×1 it is right; the zoom code stays for later)
+    // the find keyboard's keys in the dashboard's frame (local x, y), above its face
+    const DASH_KB_PITCH = 0.034;
+    const dashKbKeys = () => {
+      const out = [];
+      const rows = TYPE_ROWS.length;
+      TYPE_ROWS.forEach((row, r) => {
+        const widths = row.map((k) => TYPE_WIDE[k] ?? 1);
+        const total = widths.reduce((a, b) => a + b, 0);
+        let x = -total / 2;
+        row.forEach((key, i) => {
+          const w = widths[i];
+          out.push({ key, w, lx: (x + w / 2) * DASH_KB_PITCH, ly: DASH_H / 2 + 0.03 + (rows - 1 - r + 0.5) * DASH_KB_PITCH });
+          x += w;
+        });
+      });
+      return out;
+    };
     const zoomFov = (z) => Math.round((2 * Math.atan(Math.tan(((XR_HEADSET_FOV / 2) * Math.PI) / 180) / z) * 180) / Math.PI);
     // a hand on the body: a pinch (between thumb and index) or a fist (the palm) inside it, or within 2 cm
     const onDash = (P, q) => {
@@ -10740,21 +10778,55 @@
         const was = down.has(k.key);
         if (inside && !was) {
           down.add(k.key);
-          if (k.hold) document.dispatchEvent(new KeyboardEvent('keydown', { key: k.key, code: k.code, bubbles: true }));
+          if (k.local) ((ws.kbOn = !ws.kbOn), ws.kbOn && (ws.searchText ??= ''));
+          else if (k.hold) document.dispatchEvent(new KeyboardEvent('keydown', { key: k.key, code: k.code, bubbles: true }));
           else xrKey(k.key, k.code);
-          wsNote(ws, `${k.label}: ${k.sub}`);
+          wsNote(ws, k.local ? (ws.kbOn ? 'find: type a name, enter' : 'find closed') : `${k.label}: ${k.sub}`);
         } else if (!near && was) {
           down.delete(k.key);
           if (k.hold) document.dispatchEvent(new KeyboardEvent('keyup', { key: k.key, code: k.code, bubbles: true }));
         }
       }
-      ws.sliding = false;
-      for (const [a, b, c] of tips) {
-        if (Math.abs(b - DASH_SLIDER_Y) < 0.025 && Math.abs(a) < DASH_SLIDER_W / 2 + 0.015 && c < 0.014 && c > -0.04) {
-          const t = Math.max(0, Math.min(1, a / DASH_SLIDER_W + 0.5));
-          xrState.skyZoom = Math.exp(t * Math.log(XR_ZOOM_MAX));
-          ws.sliding = true;
+      // the find keyboard (⌕): QWERTZ in the dashboard's plane, above it; a fingertip types, enter finds and targets (the desktop's
+      // Enter search: case and accents do not matter, kinds too), esc / exit closes it
+      ws.kb = null;
+      if (ws.kbOn) {
+        const kdown = (ws.kbDown ??= new Set());
+        const keys = dashKbKeys();
+        for (const k of keys) {
+          let inside = false, near = false;
+          for (const [a, b, c] of tips) {
+            const dx = Math.abs(a - k.lx), dy = Math.abs(b - k.ly);
+            if (dx < (k.w * DASH_KB_PITCH) / 2 - 0.002 && dy < DASH_KB_PITCH / 2 - 0.002 && c < 0.014 && c > -0.04) inside = true;
+            if (dx < (k.w * DASH_KB_PITCH) / 2 + 0.006 && dy < DASH_KB_PITCH / 2 + 0.006 && c < 0.028 && c > -0.06) near = true;
+          }
+          const id = `${k.key}@${k.lx.toFixed(3)}`;
+          if (inside && !kdown.has(id)) {
+            kdown.add(id);
+            const t0 = ws.searchText ?? '';
+            if (k.key === 'enter') {
+              const name = t0.trim();
+              if (name) {
+                targetByName(name);
+                const lo = lockedObject();
+                wsNote(ws, lo ? `target: ${lo.name ?? lo.id}` : `no "${name}"`);
+                if (lo) ws.kbOn = false;
+              }
+            } else if (k.key === 'esc' || k.key === 'exit') ws.kbOn = false;
+            else if (k.key === 'del') ws.searchText = t0.slice(0, -1);
+            else if (k.key === 'space') ws.searchText = `${t0} `.slice(0, 40);
+            else ws.searchText = `${t0}${k.key.toLowerCase()}`.slice(0, 40);
+            // (what it would find: the first match, shown on the line)
+            try {
+              findInput.value = ws.searchText ?? '';
+              findShow();
+              ws.searchHint = ws.searchText ? (found[0]?.o?.name ?? '— nothing') : '';
+            } catch {
+              ws.searchHint = '';
+            }
+          } else if (!near && kdown.has(id)) kdown.delete(id);
         }
+        ws.kb = { keys: keys.map((k) => ({ ...k, down: kdown.has(`${k.key}@${k.lx.toFixed(3)}`) })) };
       }
       ws.dash = { P: P2, keys: dashKeysOf(P2).map((k) => ({ ...k, down: down.has(k.key) })), held: busy('left') || busy('right'), busy };
     };
@@ -10887,7 +10959,7 @@
       const P = Float32Array.from(glP);
       for (const i of [2, 6, 10, 14]) P[i] = (glP[i] + glP[i + 1]) * 0.5;
       const p = v.transform.position;
-      xrShip.gpu.render(mesh, orbitView({ yaw: 0, pitch: 0 }), { palette: game.palette, parts: xrShip.parts, smooth: 40, studio: true, glow: false, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: P, view: v.transform.inverse.matrix, eye: [p.x, p.y, p.z], overlay: true } });
+      xrShip.gpu.render(mesh, orbitView({ yaw: 0, pitch: 0 }), { fit: { center: [0, 0, 0], radius: 1 }, palette: game.palette, parts: xrShip.parts, smooth: 40, studio: true, glow: false, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: P, view: v.transform.inverse.matrix, eye: [p.x, p.y, p.z], overlay: true } });
     };
     // in space (a starship) the hands fly the ship: the left hand's ship function (two-handed), exit on the right
     const tshFunctions = () => ({
@@ -12183,31 +12255,49 @@
             });
             xrQuad(gl, P, mul4(eyeFromRef, [...Pd.x, 0, ...Pd.y, 0, ...Pd.z, 0, ...onFace(k.lx, DASH_KEYS_Y, k.down ? 0.001 : 0.006), 1]), tex, DASH_KEY / 2 - 0.002, DASH_KEY / 2 - 0.002);
           }
-          // the slider: the sky's field of view (its zoom), the knob where it is
-          const z = skyZoom(), t = Math.log(z) / Math.log(XR_ZOOM_MAX);
-          const label = `sky FOV ${zoomFov(z)}°  ×${z.toFixed(z < 2 ? 2 : 1)}`;
-          const tex = xrPanelTex(gl, 'holo-slider', 768, 96, `${label}|${ws.sliding}|${hold}`, (c, W, H) => {
+          // the find line (where the slider was): what is typed, and what it would find
+          const kbText = ws.searchText ?? '';
+          const label = ws.kbOn ? `⌕ ${kbText}▌` : '⌕ find: touch ⌕';
+          const hint = ws.kbOn ? ws.searchHint ?? '' : '';
+          const tex = xrPanelTex(gl, 'holo-find', 768, 96, `${label}|${hint}|${hold}`, (c, W, H) => {
             c.clearRect(0, 0, W, H);
             c.shadowColor = `rgba(${tint}, 1)`;
             c.shadowBlur = 8;
-            c.fillStyle = ws.sliding ? '#eaffff' : `rgba(${tint}, 1)`;
-            c.font = '600 30px system-ui, sans-serif';
-            c.fillText(label, 24, 40);
-            c.fillStyle = `rgba(${tint}, 0.8)`;
-            c.fillRect(24, 64, W - 48, 4);
-            for (let i = 0; i <= 8; i++) c.fillRect(24 + ((W - 48) * i) / 8, 58, 2, 16); // ticks
+            c.fillStyle = ws.kbOn ? '#eaffff' : `rgba(${tint}, 0.8)`;
+            c.font = '600 32px system-ui, sans-serif';
+            c.fillText(label.slice(0, 34), 24, 42);
+            c.fillStyle = `rgba(${tint}, 0.85)`;
+            c.font = '500 24px system-ui, sans-serif';
+            c.fillText(hint.slice(0, 48), 24, 80);
+            c.strokeStyle = `rgba(${tint}, 0.6)`;
+            c.lineWidth = 2;
+            c.strokeRect(4, 4, W - 8, H - 8);
           });
-          xrQuad(gl, P, mul4(eyeFromRef, [...Pd.x, 0, ...Pd.y, 0, ...Pd.z, 0, ...onFace(0, DASH_SLIDER_Y), 1]), tex, DASH_SLIDER_W / 2 + 0.012, 0.018);
-          const knob = xrPanelTex(gl, `holo-knob-${hold ? 1 : 0}`, 64, 64, `knob|${hold}`, (c, W, H) => {
-            c.clearRect(0, 0, W, H);
-            c.shadowColor = `rgba(${tint}, 1)`;
-            c.shadowBlur = 12;
-            c.fillStyle = '#eaffff';
-            c.beginPath();
-            c.arc(W / 2, H / 2, W / 2 - 14, 0, Math.PI * 2);
-            c.fill();
-          });
-          xrQuad(gl, P, mul4(eyeFromRef, [...Pd.x, 0, ...Pd.y, 0, ...Pd.z, 0, ...onFace((t - 0.5) * DASH_SLIDER_W, DASH_SLIDER_Y - 0.007, 0.006), 1]), knob, 0.011, 0.011);
+          xrQuad(gl, P, mul4(eyeFromRef, [...Pd.x, 0, ...Pd.y, 0, ...Pd.z, 0, ...onFace(0, DASH_SLIDER_Y), 1]), tex, DASH_SLIDER_W / 2 + 0.012, 0.024);
+          // the keyboard (⌕): its keys as light, in the dashboard's plane above it
+          if (ws.kb) {
+            for (const k of ws.kb.keys) {
+              const word = k.key.length > 1;
+              const tk = xrPanelTex(gl, `holo-kb-${k.key}-${k.down ? 1 : 0}-${hold ? 1 : 0}`, word ? 128 : 64, 64, `${k.key}|${k.down}|${hold}`, (c, W, H) => {
+                c.clearRect(0, 0, W, H);
+                const col = k.key === 'enter' ? '140, 255, 170' : k.key === 'esc' || k.key === 'exit' ? '255, 120, 90' : tint;
+                c.fillStyle = `rgba(${col}, ${k.down ? 0.6 : 0.12})`;
+                c.beginPath();
+                c.roundRect(3, 3, W - 6, H - 6, 10);
+                c.fill();
+                c.shadowColor = `rgba(${col}, 1)`;
+                c.shadowBlur = 6;
+                c.strokeStyle = `rgba(${col}, 0.95)`;
+                c.lineWidth = 3;
+                c.stroke();
+                c.fillStyle = k.down ? '#eaffff' : `rgba(${col}, 1)`;
+                c.textAlign = 'center';
+                c.font = word ? '600 26px system-ui, sans-serif' : '700 36px system-ui, sans-serif';
+                c.fillText(k.key, W / 2, word ? 41 : 45);
+              });
+              xrQuad(gl, P, mul4(eyeFromRef, [...Pd.x, 0, ...Pd.y, 0, ...Pd.z, 0, ...onFace(k.lx, k.ly, k.down ? 0.001 : 0.004), 1]), tk, (k.w * DASH_KB_PITCH) / 2 - 0.002, DASH_KB_PITCH / 2 - 0.002);
+            }
+          }
         }
       }
       if (T?.phase === 'keys') {
@@ -12649,6 +12739,7 @@
       // Count the frame before scene work: a failure in drawFrame must not
       // produce an endless "first native XR frame" spam that evicts the error.
       const frameNo = ++xrState.frames;
+      const T0 = performance.now(), mark = {};
       xrState.phase = 'controllers';
       if (frameNo === 1) xrLog('first native XR frame reached; updating scene');
       const now = performance.now();
@@ -12669,7 +12760,9 @@
         if (!space() || frameNo === 1) (xrState.pilot && xrDashRelease(xrState.ws), (xrState.pilot = null), (xrState.cabin = null));
         if (space() && !xrState.pilot && head) xrState.pilot = [head[12], head[13], head[14]];
         vrTape.frame(hands, head, now); // (recorded / sent to the live link: exactly what the workshop gets)
+        mark.pre = performance.now();
         xrWorkshop(hands, head, now);
+        mark.workshop = performance.now();
       } catch (err) {
         xrLog(`workshop: ${err?.message ?? err}`, true);
       }
@@ -12686,7 +12779,9 @@
       // one frame of the program (it also renders the desktop picture and leaves xrArgs)
       queued = false;
       xrState.phase = 'drawFrame';
+      const D0 = performance.now();
       drawFrame();
+      mark.drawFrame = performance.now() - D0;
       xrState.phase = 'viewerPose';
       const pose = frame.getViewerPose(xrState.space);
       const layer = session.renderState.baseLayer;
@@ -12767,22 +12862,34 @@
       } catch (err) {
         xrLog(`ship: ${err?.message ?? err}`, true);
       }
+      const E0 = performance.now();
+      let tMain = 0, tSky = 0, tShip = 0, tUi = 0, tq = 0;
+      const lap = () => {
+        const n2 = performance.now(), d = n2 - tq;
+        tq = n2;
+        return d;
+      };
       for (const [i, v] of pose.views.entries()) {
         const vp = viewports[i];
         if (!vp) continue;
+        tq = performance.now();
         const eye = toScene(v.transform.position);
         const Ve = eyeView(v.transform.inverse.matrix);
         const { glP, engineP } = xrProjection(v.projectionMatrix);
         xrState.phase = `render ${v.eye} eye`;
         const dq = XR_DBGQ; // (debugging the headset's picture: ?dbgmain=0 dbgsky=0 dbginst=0 dbgparts=0 dbgplanets=0)
         gpu.render(dq.get('dbgparts') === '0' ? { positions: [], faces: [] } : sceneNow, xrArgs.view, { ...xrArgs.opts, ...(dq.get('dbgplanets') === '0' ? { planets: undefined } : {}), ...(dq.get('dbginst') === '0' ? { instances: undefined } : {}), ...(dq.get('dbgmain') === '0' ? { planets: undefined, instances: undefined, screens: undefined } : {}), parts: dq.get('dbgparts') === '0' || dq.get('dbgmain') === '0' ? undefined : partsNow, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: engineP, view: Ve, eye } });
+        tMain += lap();
         if (dq.get('dbgsky') !== '0') xrSkyDraw(gl, glP, Ve, vp.height, xrArgs.origin);
         xrBackdrop(gl, v.projectionMatrix, v.transform.inverse.matrix, [v.transform.position.x, v.transform.position.y, v.transform.position.z]);
         if (targetNow.length) xrLines(gl, glP, v.transform.inverse.matrix, targetNow); // (with the sky's zoom: it is on the sky)
+        tSky += lap();
         if (shipNow) xrShipDraw(gl, layer, v, vp, shipNow);
+        tShip += lap();
         if (!drive() && (!xrState.ws?.on || space())) xrHudDraw(gl, v.projectionMatrix, mul4(v.transform.inverse.matrix, pose.transform.matrix));
         if (!drive() && !xrState.ws?.on) xrHandsDraw(gl, v.projectionMatrix, v.transform.inverse.matrix, v.transform.inverse.matrix);
         xrWorkshopDraw(gl, v.projectionMatrix, v.transform.inverse.matrix, v.transform.inverse.matrix, now);
+        tUi += lap();
         if (XR_TEST === '2') xrTestDraw(gl, v, vp, t / 1000);
         if (n <= 3) xrGlErrors(gl, `the ${v.eye} eye, frame ${n}`);
         if (i === 0 && xrState.debugShot) {
@@ -12798,6 +12905,15 @@
         }
       }
       if (n > 3 && n % 120 === 0) xrGlErrors(gl, `frame ${n}`);
+      // where the frame's time went (ms, JavaScript on the main thread; the GPU's own time shows as the gap to the frame interval)
+      {
+        const T1 = performance.now();
+        const sample = { frame: T1 - T0, input: (mark.pre ?? T0) - T0, workshop: (mark.workshop ?? mark.pre ?? T0) - (mark.pre ?? T0), drawFrame: mark.drawFrame ?? 0, eyes: T1 - E0, main: tMain, sky: tSky, ship: tShip, ui: tUi, interval: xrState.lastT ? t - xrState.lastT : 0 };
+        xrState.lastT = t;
+        const P = (xrState.perf ??= {});
+        for (const [k, v] of Object.entries(sample)) P[k] = P[k] === undefined ? v : P[k] + (v - P[k]) * 0.05;
+        if (n % 600 === 0) xrLog(`perf (ms, averages): ${Object.entries(P).map(([k, v]) => `${k} ${v.toFixed(1)}`).join(' · ')}`);
+      }
     };
     // ---- The debug report (the right hand's debug function): what the left eye sees (a quarter-size picture of the XR framebuffer, read
     // right after it is drawn) and the state round it, sent to the store as debug/<time>.json (no key needed for a debug report;
@@ -12855,6 +12971,7 @@
           hands: { left: Boolean(d.hands?.left), right: Boolean(d.hands?.right), fn: { left: d.st?.left, right: d.st?.right }, gestures: { left: d.st?.lg && { fist: d.st.lg.fist, pinch: d.st.lg.pinch, aim: d.st.lg.aim }, right: d.st?.rg && { fist: d.st.rg.fist, pinch: d.st.rg.pinch, aim: d.st.rg.aim } } },
           ws: xrState.ws ? { on: xrState.ws.on, shipOn: xrState.ws.shipOn, note: xrState.ws.note, dash: xrState.ws.dashPose ?? null } : null,
           frames: xrState.frames, frameErrs: xrState.frameErrs ?? 0, glErrs: xrState.errs ?? 0,
+          perf: xrState.perf ? Object.fromEntries(Object.entries(xrState.perf).map(([k, v]) => [k, +v.toFixed(2)])) : null,
           lastError: (() => { try { return localStorage.getItem('3draft-xr-error'); } catch { return null; } })(),
           log: xrState.log.slice(-80),
           picture: d.png,
@@ -13029,7 +13146,9 @@
       try {
         // (as three.js's WebXRManager: antialias and depth asked for, the layer bound once; the depth range of the eyes'
         // projections: a star map draws with logarithmic depth, which replaces it, so only the scenes in metres need it)
-        const baseLayer = new XRWebGLLayer(session, gl, { antialias: true, depth: true, stencil: false, alpha: true });  // alpha:false gives FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT (0x8cd7) on the Quest 3 (Oculus Browser 156)
+        // (?xrscale=0.8: a smaller framebuffer, less for the GPU to fill; 1 = the headset's own size)
+        const xrScale = Math.max(0.4, Math.min(1.5, Number(new URLSearchParams(location.search).get('xrscale')) || 1));
+        const baseLayer = new XRWebGLLayer(session, gl, { antialias: true, depth: true, stencil: false, alpha: true, framebufferScaleFactor: xrScale });  // alpha:false gives FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT (0x8cd7) on the Quest 3 (Oculus Browser 156)
         if ('fixedFoveation' in baseLayer) baseLayer.fixedFoveation = 1; // (the Quest: less work at the edges of the lenses)
         session.updateRenderState({ baseLayer, depthNear: 0.05, depthFar: space() ? 1e9 : 1e5 });
         xrLog(`XRWebGLLayer: framebuffer ${baseLayer.framebufferWidth}×${baseLayer.framebufferHeight} · antialias ${baseLayer.antialias} · foveation ${baseLayer.fixedFoveation ?? '-'} · ${space() ? 'star map: true scale, the head and eyes in metres' : 'scene in metres'}`);
