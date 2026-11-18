@@ -708,7 +708,7 @@
     <label>rough <input type="range" id="p-rough" min="0" max="1" step="0.05" /><span id="v-rough"></span></label>
     <label>alpha <input type="range" id="p-alpha" min="0" max="1" step="0.05" /><span id="v-alpha"></span></label>
     <label>emit <input type="range" id="p-emit" min="0" max="5" step="0.1" /><span id="v-emit"></span></label>
-    <label class="url" title="A screen: this page is shown on every four-cornered face of the material (an iframe over the picture; sites that forbid framing stay blank). A 3Draft scene file (.json) is played there instead, turning round its middle.">url <input type="text" id="p-url" placeholder="https://… or a scene .json (empty: no screen)" spellcheck="false" autocapitalize="off" style="grid-column:2 / 4;width:100%;box-sizing:border-box;min-width:0;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:2px 6px;font:inherit" /></label>
+    <label class="url" title="A screen: this page is shown on every four-cornered face of the material (an iframe over the picture; sites that forbid framing stay blank). A 3Draft scene file (.json) is played there instead, turning round its middle. An image (.png .jpg .webp .gif .avif .svg) is laid on the face as a texture (in VR too; its server must allow it: CORS).">url <input type="text" id="p-url" placeholder="https://… a page, an image (.png .jpg…) or a scene .json (empty: no screen)" spellcheck="false" autocapitalize="off" style="grid-column:2 / 4;width:100%;box-sizing:border-box;min-width:0;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:2px 6px;font:inherit" /></label>
     <label title="Soft, skin-like light: it wraps round the form, with a warm scattered band at the shade edge">soft <input type="range" id="p-soft" min="0" max="1" step="0.05" /><span id="v-soft"></span></label>
     <div class="picker" id="picker">
       <div class="sv" id="pickSV" aria-label="Saturation and brightness"><i id="pickDot"></i></div>
@@ -931,7 +931,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/b28ef742b078/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/95a4e9ecdf78/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2194,7 +2194,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/b28ef742b078/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/95a4e9ecdf78/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -2498,6 +2498,37 @@
         .catch((e) => ((spot.error = e.message), sceneNote(`scene screen ${file}: ${e.message}`)));
       return spot;
     };
+    // ---- Image screens: a material's `image` (a .png / .jpg / .webp / .gif / .avif / .svg address) is laid on its four-cornered
+    // faces as a texture, like a scene screen (depth tested, in VR too), filling the face (cut to its shape, not stretched). The
+    // picture is read with fetch, so its server must allow it (CORS: the Spider site's own files and the Blob store do); when it
+    // does not, the desktop shows it as a page screen (an iframe) instead.
+    const imageSpots = new Map(); // absolute address -> { bitmap, ready, error }
+    const imageSpot = (file) => {
+      let addr;
+      try {
+        addr = new URL(file, location.href).href;
+      } catch {
+        return null;
+      }
+      if (!/^https?:/.test(addr)) return null;
+      let spot = imageSpots.get(addr);
+      if (spot) return spot;
+      spot = { bitmap: null, ready: false, error: null };
+      imageSpots.set(addr, spot);
+      fetch(addr, { mode: 'cors' })
+        .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(`${r.status} ${r.statusText}`))))
+        .then((blob) => createImageBitmap(blob))
+        .then((bm) => ((spot.bitmap = bm), (spot.ready = true), redraw()))
+        .catch((e) => ((spot.error = e.message || 'not allowed (CORS)'), sceneNote(`image screen ${file}: ${spot.error}; shown as a page instead`), redraw()));
+      return spot;
+    };
+    const imageFailed = (file) => {
+      try {
+        return Boolean(imageSpots.get(new URL(file, location.href).href)?.error);
+      } catch {
+        return true;
+      }
+    };
     // the corners of a four-cornered face as the screen wants them: top left, top right, bottom right, bottom left, seen from its
     // front (the side its winding faces; up is the world up, the face's own up when it lies flat), and that side's normal
     const screenCorners = (P) => {
@@ -2535,6 +2566,20 @@
           if (vdot(n, vsub(gcam.eye, c)) <= 0 || P.some((p) => project(gcam, p).depth <= 0.05)) return;
           const eps = 0.002 * Math.hypot(...vsub(P[order[0]], P[order[2]]));
           out.push({ corners: order.map((i) => P[i].map((x, k) => x + n[k] * eps)), hole: true });
+          return;
+        }
+        if (m?.image && face.v.length === 4 && out.length < 8) {
+          const img = imageSpot(m.image);
+          if (!img?.ready) return;
+          const P = face.v.map((k) => scene.positions[k]);
+          const { order, n, c } = screenCorners(P);
+          if (vdot(n, vsub(gcam.eye, c)) <= 0) return; // seen from behind
+          const dist = (a2, b2) => Math.hypot(...vsub(P[a2], P[b2]));
+          const fa = dist(order[0], order[1]) / Math.max(1e-9, dist(order[0], order[3])), ia = img.bitmap.width / Math.max(1, img.bitmap.height);
+          const eps = 0.002 * Math.hypot(...vsub(P[order[0]], P[order[2]]));
+          // (the face's shape cut out of the middle of the picture)
+          const uv = fa >= ia ? [0, 0.5 - (0.5 * ia) / fa, 1, 0.5 + (0.5 * ia) / fa] : [0.5 - (0.5 * fa) / ia, 0, 0.5 + (0.5 * fa) / ia, 1];
+          out.push({ corners: order.map((i) => P[i].map((x, k) => x + n[k] * eps)), source: img.bitmap, uv });
           return;
         }
         const file = m?.scene;
@@ -2597,7 +2642,8 @@
         scene.faces.forEach((face, fi) => {
           const mat = face.mat !== undefined ? pal[face.mat] : undefined;
           // a scene screen is drawn by the GPU (sceneScreens); in the SVG view it falls back to this viewer as a player in the iframe
-          const url = mat?.url ?? (mat?.scene && !SHOW && !(mode === 'gpu' && gpu) ? showUrl(mat.scene) : undefined);
+          const gpuOn = !SHOW && mode === 'gpu' && gpu;
+          const url = mat?.url ?? (mat?.image && (!gpuOn || imageFailed(mat.image)) ? mat.image : undefined) ?? (mat?.scene && !gpuOn ? showUrl(mat.scene) : undefined);
           if (!url || face.v.length !== 4 || used >= 6) return;
           const o = owner(fi);
           const P = face.v.map((k) => scene.positions[k]);
@@ -4835,7 +4881,7 @@
         document.getElementById(`p-${k}`).value = m[k] ?? 0;
         document.getElementById(`v-${k}`).textContent = (m[k] ?? 0).toFixed(2);
       }
-      document.getElementById('p-url').value = m.url ?? m.scene ?? '';
+      document.getElementById('p-url').value = m.url ?? m.scene ?? m.image ?? '';
     };
     for (const k of PROPS) {
       document.getElementById(`p-${k}`).addEventListener('input', (e) => {
@@ -4858,14 +4904,23 @@
       if (!/\.json(?:[?#].*)?$/i.test(t)) return '';
       return /^[a-z][a-z0-9+.-]*:/i.test(t) && !/^https?:\/\//i.test(t) ? '' : t;
     };
+    // a picture's address (.png .jpg .jpeg .webp .gif .avif .svg; relative to the page is fine) is an image screen
+    const imageAddr = (v) => {
+      const t = v.trim();
+      if (!/\.(?:png|jpe?g|webp|gif|avif|svg)(?:[?#].*)?$/i.test(t)) return '';
+      return /^[a-z][a-z0-9+.-]*:/i.test(t) && !/^https?:\/\//i.test(t) ? '' : t;
+    };
     urlEl.addEventListener('input', () => {
       const m = materials[current];
       const sc = sceneAddr(urlEl.value);
-      const u = sc ? '' : cleanUrl(urlEl.value);
+      const im = sc ? '' : imageAddr(urlEl.value);
+      const u = sc || im ? '' : cleanUrl(urlEl.value);
       if (u) m.url = u;
       else delete m.url;
       if (sc) m.scene = sc;
       else delete m.scene;
+      if (im) m.image = im;
+      else delete m.image;
       syncPalette();
     });
     urlEl.addEventListener('change', () => saveMaterial(materials[current]));
@@ -9402,6 +9457,21 @@
     };
     const applyScene = (data) => {
       if (EMBED || SHOW) return; // the store and a scene screen have their own objects
+      // materials that come with it (the MCP server's set_screen): new ones are added, a screen's address follows the server
+      let palChanged = false;
+      for (const pm of Array.isArray(data.palette) ? data.palette : []) {
+        if (!pm?.name) continue;
+        let m = materials.find((x) => x.name === pm.name);
+        if (!m) ((m = { ...pm }), materials.push(m), (palChanged = true));
+        for (const k of ['url', 'scene', 'image', 'color']) {
+          if (pm[k] === undefined ? k !== 'color' && m[k] !== undefined : m[k] !== pm[k]) {
+            if (pm[k] === undefined) delete m[k];
+            else m[k] = pm[k];
+            palChanged = true;
+          }
+        }
+      }
+      if (palChanged) syncPalette();
       const next = (data.objects ?? []).map((o, n) => ({ id: o.id ?? o.name ?? `o${n}`, name: o.name ?? `o${n}`, mesh: o.mesh, wire: o.wire, host: true, ...(o.pickable === false ? { pickable: false } : {}) }));
       // db snapshots hand out every document again (also the echo of our own write): an object whose content did not
       // change stays the same instance, so its mesh and its GPU vertices are kept, and an unchanged scene is not rebuilt

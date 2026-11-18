@@ -1,4 +1,4 @@
-// (copied from 3Draft b28ef74 by scripts/sync.mjs: change it there)
+// (copied from 3Draft 95a4e9e by scripts/sync.mjs: change it there)
 // The model and its tools. One scene of named objects (meshes), edited by tool calls
 // and judged by the deterministic SVG preview. No I/O except save/load of JSON files
 // under the working directory. The MCP transport is in server.js.
@@ -179,7 +179,8 @@ export const createScene = () => {
 
   const groups = new Map(); // object name -> group name (objects of one group move as one)
   let joints = []; // the joints (src/joints.ts): glue, pivot, hinge, rail, spring
-  const data = () => ({ format: '3draft-scene', version: 1, rev, objects: [...objects].map(([n, mesh]) => ({ name: n, mesh, ...(groups.has(n) ? { group: groups.get(n) } : {}) })), ...(joints.length ? { joints } : {}) });
+  const screens = new Map(); // material name -> { name, color, url | scene | image }: the screens (set_screen), the scene's palette
+  const data = () => ({ format: '3draft-scene', version: 1, rev, objects: [...objects].map(([n, mesh]) => ({ name: n, mesh, ...(groups.has(n) ? { group: groups.get(n) } : {}) })), ...(joints.length ? { joints } : {}), ...(screens.size ? { palette: [...screens.values()] } : {}) });
   const linked = () => [...objects.keys()].map((n) => ({ name: n, group: groups.get(n) }));
   // the objects that move with `n` (its group, what is glued to it, what it holds), all moved by f(mesh) -> mesh
   const moveWith = (n, f) => {
@@ -760,6 +761,47 @@ export const createScene = () => {
       },
     },
     {
+      name: 'set_screen',
+      description: 'Make faces of an object a screen in the viewer: give exactly one of `image` (a picture, .png .jpg .jpeg .webp .gif .avif .svg: laid on the face as a texture, cut to the face\'s shape, depth tested and seen in VR too; its server must allow cross-origin reading (CORS), else the desktop shows it as a page), `scene` (a 3Draft scene file .json, played on the face turning round its middle) or `url` (a web page, shown in an iframe over the face on the desktop; not in VR, sites that forbid framing stay blank). Only four-cornered faces show it; seen from the front (the side the face\'s CCW winding faces). Without `face` every four-cornered face of the object becomes the screen (a box: all six sides), so for one side give its face index (get_mesh). The screen is a material (`material`, default "screen-<object>") kept in the scene\'s palette (export / import keep it); give none of image / scene / url to make the faces plain again.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          name: nameSchema,
+          face: { type: 'integer', description: 'face index inside the object (get_mesh); omitted: every four-cornered face' },
+          image: { type: 'string', description: 'a picture address (https://… or relative to the viewer page): .png .jpg .jpeg .webp .gif .avif .svg' },
+          scene: { type: 'string', description: 'a 3Draft scene file address (.json)' },
+          url: { type: 'string', description: 'a web page address (https://…)' },
+          material: { type: 'string', description: 'the screen material\'s name (default "screen-<object>"); faces that share it share the screen' },
+          color: colorSchema,
+        },
+        required: ['name'],
+      },
+      run: (a) => {
+        const mesh = need(a.name);
+        const given = ['image', 'scene', 'url'].filter((k) => typeof a[k] === 'string' && a[k].trim());
+        if (given.length > 1) fail('give one of image, scene, url');
+        const kind = given[0], addr = kind ? a[kind].trim() : '';
+        if (kind && /^[a-z][a-z0-9+.-]*:/i.test(addr) && !/^https?:\/\//i.test(addr)) fail(`${kind} must be an http(s) address or a relative path`);
+        if (kind === 'image' && !/\.(?:png|jpe?g|webp|gif|avif|svg)(?:[?#].*)?$/i.test(addr)) fail('image must end in .png .jpg .jpeg .webp .gif .avif or .svg');
+        if (kind === 'scene' && !/\.json(?:[?#].*)?$/i.test(addr)) fail('scene must be a .json scene file');
+        if (kind === 'url' && /\.(?:png|jpe?g|webp|gif|avif|svg|json)(?:[?#].*)?$/i.test(addr)) fail('that address is an image or a scene: give it as image or scene');
+        if (a.face !== undefined && (!Number.isInteger(a.face) || a.face < 0 || a.face >= mesh.faces.length)) fail(`face must be 0..${mesh.faces.length - 1}`);
+        const mat = typeof a.material === 'string' && a.material.trim() ? a.material.trim().slice(0, 60) : `screen-${a.name}`;
+        const picked = mesh.faces.map((f, i) => (a.face === undefined ? f.v.length === 4 : a.face === i));
+        const four = mesh.faces.filter((f, i) => picked[i] && f.v.length === 4).length;
+        if (!kind) {
+          objects.set(a.name, { ...mesh, faces: mesh.faces.map((f, i) => (picked[i] && f.mat === mat ? (({ mat: _m, ...rest }) => rest)(f) : f)) });
+          if (![...objects.values()].some((m) => m.faces.some((f) => f.mat === mat))) screens.delete(mat);
+          return { name: a.name, material: mat, screen: null };
+        }
+        const first = mesh.faces.find((f, i) => picked[i]);
+        const c = a.color !== undefined ? color(a.color) : first?.color ?? '#202020';
+        screens.set(mat, { name: mat, color: c, [kind]: addr });
+        objects.set(a.name, { ...mesh, faces: mesh.faces.map((f, i) => (picked[i] ? { ...f, mat } : f)) });
+        return { name: a.name, material: mat, [kind]: addr, faces: picked.filter(Boolean).length, fourCornered: four, ...(four ? {} : { note: 'no four-cornered face among them: nothing will show (screens need quads)' }) };
+      },
+    },
+    {
       name: 'remove',
       description: 'Remove one object.',
       inputSchema: { type: 'object', properties: { name: nameSchema }, required: ['name'] },
@@ -774,6 +816,7 @@ export const createScene = () => {
       const n = objects.size;
       objects.clear();
       groups.clear();
+      screens.clear();
       joints = [];
       return { removed: n };
     } },
@@ -855,7 +898,13 @@ export const createScene = () => {
         for (const [k, v] of next) objects.set(k, v);
         for (const o of parsed.objects) if (typeof o.group === 'string' && o.group) groups.set(o.name, o.group);
         joints = Array.isArray(parsed.joints) ? parsed.joints.filter((j) => j && objects.has(j.a) && objects.has(j.b)) : [];
-        return { objects: objects.size, groups: new Set(groups.values()).size, joints: joints.length };
+        // (the screens of its palette: the materials with an image, a scene or a url)
+        screens.clear();
+        for (const m of Array.isArray(parsed.palette) ? parsed.palette : []) {
+          const k = ['image', 'scene', 'url'].find((x) => typeof m?.[x] === 'string');
+          if (k && typeof m.name === 'string') screens.set(m.name, { name: m.name, color: color(m.color, '#202020'), [k]: m[k] });
+        }
+        return { objects: objects.size, groups: new Set(groups.values()).size, joints: joints.length, screens: screens.size };
       },
     },
     // ---- The open viewer (the live link): these do not change the scene, they steer what the browser shows

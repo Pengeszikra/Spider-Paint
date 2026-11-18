@@ -61,7 +61,34 @@ Every open viewer gets every change and every command. The viewers do not write 
 3. **Show** it: `viewer` gives the URL for the person. `view_target` aims the viewer at an object, `view_camera` places the eye, `view_state` tells you what the person sees.
 4. **Keep** it: `export` (JSON text, or a `.json` file inside the server's working directory), `import`.
 
-The engine: flat-coloured convex faces, no textures. Y is up, the ground is y = 0. Faces are listed counter-clockwise seen from outside.
+The engine: flat-coloured convex faces, no textures (except screens, below). Y is up, the ground is y = 0. Faces are listed counter-clockwise seen from outside.
+
+### Screens: an image, a scene or a web page on a face
+
+`set_screen` turns four-cornered faces of an object into a screen in the viewer. Give exactly one of:
+
+| | What the face shows | Where it shows |
+|---|---|---|
+| `image` | a picture (`.png .jpg .jpeg .webp .gif .avif .svg`) laid on the face as a texture, cut to the face's shape (not stretched) | the WebGL2 / WebGPU view, **in VR too**; depth tested like the face |
+| `scene` | a 3Draft scene file (`.json`) played on the face, turning round its middle | the same, in VR too |
+| `url` | a web page in an iframe over the face | the desktop only (not in VR, no depth); sites that forbid framing stay blank |
+
+- Only **four-cornered** faces show a screen, seen from the front (the side the face's counter-clockwise winding faces).
+  Without `face` every four-cornered face of the object becomes the screen (a box: all six sides); for one side give its
+  face index (`get_mesh`; an `add_box`'s faces are +z, −z, +x, −x, +y, −y: its front, facing +z, is face 0).
+- An image is read with `fetch`, so its server must allow cross-origin reading (**CORS**): the Spider site's own files
+  (`media/…`, relative addresses) and the online store (Vercel Blob) do, many image hosts do not. When it is refused the
+  desktop shows the picture as a page (an iframe) instead, and the viewer says so.
+- The screen is a material (`material`, default `screen-<object>`; faces that share it share the screen) kept in the
+  scene's `palette`: `export` / `import` keep it, and the viewer adds it to its palette. Call `set_screen` without
+  image / scene / url to make the faces plain again.
+- The person can do the same in the viewer: the palette (P), a material's **url** field takes a page, an image or a scene.
+
+```json
+{ "tool": "add_box", "arguments": { "name": "poster", "size": [1.6, 0.9, 0.04], "at": [0, 1.4, 0], "color": "#202020" } }
+{ "tool": "get_mesh", "arguments": { "name": "poster" } }
+{ "tool": "set_screen", "arguments": { "name": "poster", "face": 0, "image": "https://spider-paint.vercel.app/media/spider-web.png" } }
+```
 
 ### Steering the viewer
 
@@ -103,6 +130,7 @@ Enter: find a target by name. Tab: next target. W/S, A/D, R/F: speed forward, si
 | `move_vertices` | **name**, **indices**, **by** | Move the vertices with the given indices by [dx, dy, dz] (see get_mesh for the indices): shear, lean, pinch a roof ridge, raise a corner. Faces keep their vertices, so moving only some corners of a face can make it non-planar; the result reports that. Move all the corners of a face together to keep it flat. |
 | `boolean` | **a**, **b**, **op**, name, keep | Boolean of two closed solids: union, subtract (a minus b: a door, a window, a hole) or intersect. Both objects must be closed solids with outward faces (inspect says so). The result is a new closed solid; faces keep their colors and a face cut into a solid takes the color of the cutting face. By default a and b are replaced by the result; `keep: true` keeps them. |
 | `recolor` | **name**, **color**, face | Change the color of a whole object, or of one face when `face` is given. |
+| `set_screen` | **name**, face, image, scene, url, material, color | Make faces of an object a screen in the viewer: give exactly one of `image` (a picture, .png .jpg .jpeg .webp .gif .avif .svg: laid on the face as a texture, cut to the face's shape, depth tested and seen in VR too; its server must allow cross-origin reading (CORS), else the desktop shows it as a page), `scene` (a 3Draft scene file .json, played on the face turning round its middle) or `url` (a web page, shown in an iframe over the face on the desktop; not in VR, sites that forbid framing stay blank). Only four-cornered faces show it; seen from the front (the side the face's CCW winding faces). Without `face` every four-cornered face of the object becomes the screen (a box: all six sides), so for one side give its face index (get_mesh). The screen is a material (`material`, default "screen-<object>") kept in the scene's palette (export / import keep it); give none of image / scene / url to make the faces plain again. |
 | `remove` | **name** | Remove one object. |
 | `clear` | – | Remove every object. |
 | `list` | – | List the objects with their face counts and axis-aligned bounds (min / max corners). |
