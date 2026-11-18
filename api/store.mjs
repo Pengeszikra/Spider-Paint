@@ -79,6 +79,40 @@ export default async function handler(req, res) {
     if (!HAS_STORE()) return send(res, 503, { error: 'no Blob store token in this deployment yet: connect the Blob store to the project (Production too) and redeploy', seen: Object.keys(process.env).filter((k) => /BLOB|READ_WRITE|SPIDER|OIDC/.test(k)) });
     const url = new URL(req.url, 'http://x');
     const name = clean(url.searchParams.get('name'));
+    // debug reports from the headset (the VR's right-hand debug function): written without the key, kept apart under debug/
+    // (not in the scene list), at most 4 MB each; read with ?debug=list and ?debug=<name>
+    const dbg = url.searchParams.get('debug');
+    if (req.method === 'GET' && dbg) {
+      if (dbg === 'list') {
+        const items = [];
+        let cursor;
+        do {
+          const page = await list({ prefix: 'debug/', cursor, token: TOKEN() });
+          for (const b of page.blobs) items.push({ name: b.pathname.slice(6).replace(/\.json$/, ''), size: b.size, at: b.uploadedAt });
+          cursor = page.hasMore ? page.cursor : undefined;
+        } while (cursor);
+        items.sort((a, b) => b.at.localeCompare?.(a.at) ?? 0);
+        return send(res, 200, { items });
+      }
+      const n = clean(dbg);
+      const { blobs } = await list({ prefix: `debug/${n}.json`, token: TOKEN() });
+      const blob = blobs.find((b) => b.pathname === `debug/${n}.json`);
+      if (!blob) return send(res, 404, { error: `no debug report "${n}"` });
+      if (isPrivate(blob)) {
+        const got = await get(blob.pathname, { access: 'private', useCache: false, token: TOKEN() });
+        return send(res, 200, await new Response(got.stream).text());
+      }
+      const r = await fetch(`${blob.url}?v=${Date.now()}`);
+      return send(res, r.ok ? 200 : 502, await r.text());
+    }
+    if ((req.method === 'PUT' || req.method === 'POST') && /^debug-/.test(name)) {
+      const body = await readBody(req);
+      if (body.length > 4e6) return send(res, 413, { error: 'a debug report is at most 4 MB' });
+      const data = JSON.parse(body);
+      if (data?.format !== '3draft-debug') return send(res, 400, { error: 'not a debug report' });
+      const b = await putEither(`debug/${name}.json`, body);
+      return send(res, 200, { ok: true, name, size: body.length, url: b.url });
+    }
     if (req.method === 'GET' && !name) {
       const items = [];
       let cursor;
