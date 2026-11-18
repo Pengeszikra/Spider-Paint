@@ -930,7 +930,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/11ec437f446c/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/30a248b43022/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2193,7 +2193,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/11ec437f446c/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/30a248b43022/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -9299,7 +9299,8 @@
         tsh: () => xrState.ws?.st && { left: xrState.ws.st.left.fn?.id ?? null, right: xrState.ws.st.right.fn?.id ?? null, icons: xrState.ws.st.left.icons.map((ic) => ({ id: ic.fn.id, at: ic.at, big: Boolean(ic.big) })), ricons: xrState.ws.st.right.icons.map((ic) => ({ id: ic.fn.id, at: ic.at, big: Boolean(ic.big) })), fist: xrState.ws.st.left.g?.fist ?? null, exitHold: xrState.ws.exitHold ?? 0, extra: xrState.ws.extra?.faces.length ?? 0 },
         ws: () => xrState.ws && { pieceAt: (() => { const o = allObjects().find((x) => x.id === xrState.ws.piece); if (!o) return null; const R = roomToScene(); return { room: R.back(bounds(o.mesh).center), faces: o.mesh.faces.length, verts: o.mesh.positions.length, objects: allObjects().length, vol: +meshVolume(o.mesh).toFixed(6) }; })(), menu: xrState.ws.menu && [...xrState.ws.menu], piece: xrState.ws.piece, grab: Boolean(xrState.ws.grabs?.left?.id || xrState.ws.grabs?.right?.id), making: Boolean(xrState.ws.make?.id), pal: Boolean(xrState.ws.pal), note: xrState.ws.note, on: xrState.ws.on },
         xr: () => ({ log: xrState.log, frames: xrState.frames, on: Boolean(xrState.session), mono: Boolean(xrState.mono), pressed: xrState.pressed, note: xrNote?.textContent }),
-        ship: () => ({ back: xrState.ws?.st?.right.g?.back ?? null, rfist: xrState.ws?.st?.right.g?.fist ?? null, pilot: xrState.pilot, on: Boolean(xrState.ws?.shipOn), note: xrState.ws?.shipNote ?? null, dash: xrState.ws?.dash?.keys.map((k) => ({ key: k.key, at: k.at, z: k.z, down: k.down })) ?? null, ray: Boolean(xrState.ws?.shipRay), hit: xrState.ws?.shipRay?.hit?.obj?.name ?? null, mesh: xrShip.mesh?.faces.length ?? 0, gpu: Boolean(xrShip.gpu) }),
+        tshChoose: (side, id) => tsh?.choose(side, id),
+        ship: () => ({ zoom: skyZoom(), dashC: xrState.ws?.dashPose?.c ?? null, held: Boolean(xrState.ws?.dash?.held), marks: xrTargetLines([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1.6, 0, 1]).length / 14, back: xrState.ws?.st?.right.g?.back ?? null, rfist: xrState.ws?.st?.right.g?.fist ?? null, pilot: xrState.pilot, on: Boolean(xrState.ws?.shipOn), note: xrState.ws?.shipNote ?? null, dash: xrState.ws?.dash?.keys.map((k) => ({ key: k.key, at: k.at, z: xrState.ws.dash.P.z, down: k.down })) ?? null, ray: Boolean(xrState.ws?.shipRay), hit: xrState.ws?.shipRay?.hit?.obj?.name ?? null, mesh: xrShip.mesh?.faces.length ?? 0, gpu: Boolean(xrShip.gpu) }),
         flight: () => ({ roll: +roll.toFixed(4), vehicle, car: car && { p: car.p, heading: car.heading, v: car.v, steer: car.steer, throttle: car.throttle }, orbit: orbit?.phase ?? null, gravity: gravity && { name: gravity.name }, cruise: { ...cruise }, space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
         aim: () => (aim ? { name: aim.obj.name, px: +aim.px.toFixed(1), depth: aim.depth } : null), under: () => hitObj()?.name ?? null, locked: () => lockedObject()?.name ?? null,
         picker: () => ({ ready: picker.ready, failed: picker.failed, busy: Boolean(picker.busy), ver: picker.ver, picks: picker.picks, ms: +picker.ms.toFixed(2), sceneMs: +picker.sceneMs.toFixed(1), restarts: picker.restarts, errors: [...picker.errors] }),
@@ -10396,14 +10397,20 @@
     const TSH_CUBE = 0.05; // the little cube's edge (m)
     const TSH_MATERIALS = ['wood', 'brick', 'lacquer-blue', 'steel', 'copper', 'gold', 'glass', 'ruby-glass'];
     const TSH_EXIT_HOLD = 0.7; // s of fist on exit
-    // ---- The starship with bare hands (in space, the left hand's ship function: two-handed; VR-WORKSHOP.md, "The starship").
+    // ---- The starship with bare hands (VR-WORKSHOP.md, "The starship"). In space the hands keep all their VRTSH functions; the
+    // left hand's **ship** function is one of them (two-handed: chosen on either hand, it takes the other one too; choosing
+    // anything else puts it down: the ship keeps its speed and its course).
     //   LEFT FIST, like a joystick: tilted left / right, the ship turns left / right in its own horizontal plane (yaw).
     //   RIGHT FIST, held flat (the back of the hand up): pushed ahead = W, pulled back = S (the throttle: smooth within ±1, then the
     //   exponential steps, as the right stick does).
     //   RIGHT INDEX AIMS + LEFT PINCH: T, the target is what the right hand points at (or what is straight ahead).
-    // And a floating dashboard in front of the pilot, keys to poke with a fingertip: Space, Esc, Tab, 0, [ and ] ([ ] held: roll).
+    // The dashboard: a little console in the air (a body you can take with a pinch or a fist and put where you like, whatever
+    // the hand's function; the other tools do not touch it) with keys to poke (Space, Esc, Tab, 0, [ and ], [ ] held: roll) and
+    // a slider for the star map's field of view (its zoom: the sky only, not the cockpit or the hands).
     const XR_SHIP_YAW = 0.7; // rad/s at full tilt
     const XR_PUSH = [0.03, 0.12]; // m: the right fist's dead zone and full push
+    const XR_ZOOM_MAX = 8; // the sky's zoom on the slider: 1 .. 8 (log)
+    const XR_HEADSET_FOV = 100; // ° (about the Quest 3's), for the slider's label
     const DASH_KEYS = [
       { key: ' ', code: 'Space', label: 'space', sub: 'stop' },
       { key: 'Escape', code: 'Escape', label: 'esc', sub: 'free' },
@@ -10413,24 +10420,60 @@
       { key: ']', code: 'BracketRight', label: ']', sub: 'roll', hold: true },
     ];
     const DASH_PITCH = 0.078, DASH_KEY = 0.068; // m: from one key to the next, a key's size
-    // the dashboard: 40 cm ahead of where the pilot's eyes were when the flight began, 36 cm below them, tilted to them
-    const dashKeysAt = (pilot) => {
-      const c = v3.add(pilot, [0, -0.36, -0.4]);
-      const z = v3.unit(v3.sub(pilot, c)), x = [1, 0, 0], y = v3.unit(v3.cross(z, x));
-      return { c, x, y, z, keys: DASH_KEYS.map((k, i) => ({ ...k, at: v3.add(c, v3.mul(x, (i - (DASH_KEYS.length - 1) / 2) * DASH_PITCH)), x, y, z })) };
-    };
-    const xrDash = (ws, hands) => {
+    const DASH_W = DASH_KEYS.length * DASH_PITCH + 0.03, DASH_H = 0.17, DASH_T = 0.035; // the body: across, up the face, thick
+    const DASH_KEYS_Y = 0.032, DASH_SLIDER_Y = -0.048, DASH_SLIDER_W = DASH_W - 0.08; // on the face: the keys' row, the slider
+    // the dashboard's pose (the middle of its face, x across, y up the face, z out of the face): first 40 cm ahead of where the
+    // pilot's eyes were when the flight began, 36 cm below them, tilted to them; then where the hands put it
+    const dashPose = (ws) => {
+      if (ws.dashPose) return ws.dashPose;
       const pilot = xrState.pilot;
-      if (!pilot) return void (ws.dash = null);
-      const D = dashKeysAt(pilot);
+      if (!pilot) return null;
+      const c = v3.add(pilot, [0, -0.36, -0.4]);
+      const z = v3.unit(v3.sub(pilot, c)), x = [1, 0, 0];
+      return (ws.dashPose = { c, x, y: v3.unit(v3.cross(z, x)), z });
+    };
+    const dashLocal = (P, q) => { const d = v3.sub(q, P.c); return [v3.dot(d, P.x), v3.dot(d, P.y), v3.dot(d, P.z)]; };
+    const dashAt = (P, lx, ly, lz = 0) => v3.add(P.c, v3.add(v3.mul(P.x, lx), v3.add(v3.mul(P.y, ly), v3.mul(P.z, lz))));
+    const dashKeysOf = (P) => DASH_KEYS.map((k, i) => ({ ...k, lx: (i - (DASH_KEYS.length - 1) / 2) * DASH_PITCH, at: dashAt(P, (i - (DASH_KEYS.length - 1) / 2) * DASH_PITCH, DASH_KEYS_Y, 0.004) }));
+    const skyZoom = () => xrState.skyZoom ?? 1;
+    const zoomFov = (z) => Math.round((2 * Math.atan(Math.tan(((XR_HEADSET_FOV / 2) * Math.PI) / 180) / z) * 180) / Math.PI);
+    // a hand on the body: a pinch (between thumb and index) or a fist (the palm) inside it, or within 2 cm
+    const onDash = (P, q) => {
+      const [a, b, c] = dashLocal(P, q);
+      return Math.abs(a) < DASH_W / 2 + 0.02 && Math.abs(b) < DASH_H / 2 + 0.02 && c < 0.025 && c > -DASH_T - 0.02;
+    };
+    const xrDash = (ws, st, hands) => {
+      const P = dashPose(ws);
+      if (!P) return void (ws.dash = null);
+      // taking it and carrying it: the hand that holds it moves and turns it with the wrist
+      const held = (ws.dashHeld ??= {});
+      for (const side of ['left', 'right']) {
+        const h = hands[side], g = st[side].g;
+        const closing = Boolean(h && g && (g.pinch || g.fist));
+        const cur = held[side];
+        if (closing && !cur && !held[side === 'left' ? 'right' : 'left']) {
+          const q = g.pinch ? v3.mid(h.joints['thumb-tip'], h.joints['index-finger-tip']) : g.palm;
+          // (only a hand that closes on it: one that closed somewhere else and comes in does not take it)
+          held[side] = g.fistFor < 0.25 && !ws.dashWasClosed?.[side] && onDash(P, q) ? { inv0: rigidInv(h.wrist), P0: { ...P } } : { none: true };
+          if (held[side].inv0) wsNote(ws, 'dashboard: carried');
+        } else if (closing && cur?.inv0) {
+          const D = mul4(h.wrist, cur.inv0);
+          const dir = (v) => v3.unit([D[0] * v[0] + D[4] * v[1] + D[8] * v[2], D[1] * v[0] + D[5] * v[1] + D[9] * v[2], D[2] * v[0] + D[6] * v[1] + D[10] * v[2]]);
+          ws.dashPose = { c: xform(D, cur.P0.c), x: dir(cur.P0.x), y: dir(cur.P0.y), z: dir(cur.P0.z) };
+        } else if (!closing && cur) held[side] = null;
+        (ws.dashWasClosed ??= {})[side] = closing;
+      }
+      const P2 = ws.dashPose;
+      const busy = (side) => Boolean(held[side]?.inv0);
+      // the keys and the slider: a fingertip of a hand that is not carrying it
       const down = (ws.dashDown ??= new Set());
-      const tips = ['left', 'right'].map((s2) => hands[s2]?.joints['index-finger-tip']).filter(Boolean);
-      for (const k of D.keys) {
+      const tips = ['left', 'right'].filter((s2) => !busy(s2)).map((s2) => hands[s2]?.joints['index-finger-tip']).filter(Boolean).map((t) => dashLocal(P2, t));
+      for (const k of DASH_KEYS.map((k, i) => ({ ...k, lx: (i - (DASH_KEYS.length - 1) / 2) * DASH_PITCH }))) {
         let inside = false, near = false;
-        for (const t of tips) {
-          const d = v3.sub(t, k.at), lx = v3.dot(d, k.x), ly = v3.dot(d, k.y), lz = v3.dot(d, k.z);
-          if (Math.abs(lx) < DASH_KEY / 2 && Math.abs(ly) < DASH_KEY / 2 && lz < 0.012 && lz > -0.05) inside = true;
-          if (Math.abs(lx) < DASH_KEY / 2 + 0.01 && Math.abs(ly) < DASH_KEY / 2 + 0.01 && lz < 0.025 && lz > -0.07) near = true;
+        for (const [a, b, c] of tips) {
+          const dx = Math.abs(a - k.lx), dy = Math.abs(b - DASH_KEYS_Y);
+          if (dx < DASH_KEY / 2 && dy < DASH_KEY / 2 && c < 0.014 && c > -0.04) inside = true;
+          if (dx < DASH_KEY / 2 + 0.01 && dy < DASH_KEY / 2 + 0.01 && c < 0.028 && c > -0.06) near = true;
         }
         const was = down.has(k.key);
         if (inside && !was) {
@@ -10442,31 +10485,47 @@
           down.delete(k.key);
           if (k.hold) document.dispatchEvent(new KeyboardEvent('keyup', { key: k.key, code: k.code, bubbles: true }));
         }
-        k.down = down.has(k.key);
       }
-      ws.dash = D;
+      ws.sliding = false;
+      for (const [a, b, c] of tips) {
+        if (Math.abs(b - DASH_SLIDER_Y) < 0.025 && Math.abs(a) < DASH_SLIDER_W / 2 + 0.015 && c < 0.014 && c > -0.04) {
+          const t = Math.max(0, Math.min(1, a / DASH_SLIDER_W + 0.5));
+          xrState.skyZoom = Math.exp(t * Math.log(XR_ZOOM_MAX));
+          ws.sliding = true;
+        }
+      }
+      ws.dash = { P: P2, keys: dashKeysOf(P2).map((k) => ({ ...k, down: down.has(k.key) })), held: busy('left') || busy('right'), busy };
     };
     // (out of space, out of VR: a held [ or ] is let go)
     const xrDashRelease = (ws) => {
       for (const k of DASH_KEYS) if (k.hold && ws?.dashDown?.has(k.key)) document.dispatchEvent(new KeyboardEvent('keyup', { key: k.key, code: k.code, bubbles: true }));
       ws?.dashDown?.clear();
-      if (ws) ws.dash = null;
+      if (ws) ((ws.dash = null), (ws.dashPose = null), (ws.dashHeld = null));
+    };
+    // a ray seen through the zoomed sky: the direction it really has (the sky's zoom scales x and y in the head's frame)
+    const unzoomRay = (dir, head) => {
+      const z = skyZoom();
+      if (z === 1 || !head) return dir;
+      const hx = [head[0], head[1], head[2]], hy = [head[4], head[5], head[6]], hz = [head[8], head[9], head[10]];
+      const a = v3.dot(dir, hx) / z, b = v3.dot(dir, hy) / z, c = v3.dot(dir, hz);
+      return v3.unit(v3.add(v3.mul(hx, a), v3.add(v3.mul(hy, b), v3.mul(hz, c))));
     };
     const xrShipHands = (ws, st, hands, head, now) => {
       const dt = ws.shipLast ? Math.min(0.1, (now - ws.shipLast) / 1000) : 0;
       ws.shipLast = now;
       const S = (ws.ship ??= {});
-      xrDash(ws, hands);
+      xrDash(ws, st, hands);
       const on = st.left.fn?.kind === 'ship';
       ws.shipOn = on;
       const fwNow = head ? v3.unit([-head[8], 0, -head[10]]) : [0, 0, -1];
       if (!on) {
-        if (S.push0) xrThrottle(0, now, dt);
+        // (put down: the ship keeps its speed and its course)
         Object.assign(S, { stick: null, push0: null, side: 0, ty: 0 });
         ws.shipRay = null;
         return;
       }
-      const L = st.left.g, R = st.right.g, lh = hands.left, rh = hands.right;
+      const busy = ws.dash?.busy ?? (() => false);
+      const L = busy('left') ? null : st.left.g, R = busy('right') ? null : st.right.g, lh = hands.left, rh = hands.right;
       // the left fist: the stick (its turn since the fist closed, about the way you face)
       if (lh && L?.fist) {
         S.stick ??= { m: Float32Array.from(lh.wrist), fw: fwNow };
@@ -10482,14 +10541,40 @@
       } else if (S.push0) ((S.push0 = null), (S.ty = 0), xrThrottle(0, now, dt));
       // the right index aims; a left pinch takes the target
       const aiming = Boolean(R?.aim && !R.fist && R.rayFrom && R.rayDir);
-      const hit = aiming ? xrPointedAlong(R.rayFrom, R.rayDir) : null;
+      const hit = aiming ? xrPointedAlong(R.rayFrom, unzoomRay(R.rayDir, head)) : null;
       ws.shipRay = aiming ? { from: R.rayFrom, dir: R.rayDir, hit } : null;
-      for (const e of st.events) {
+      if (L) for (const e of st.events) {
         if (e.type !== 'pinchStart' || e.side !== 'left') continue;
         if (hit?.obj) ((locked = hit.obj.id), lookAt(hit.obj), wsNote(ws, `target: ${hit.obj.name ?? hit.obj.id}`));
         else (xrKey('t', 'KeyT'), wsNote(ws, 'T: the target ahead'));
       }
       ws.shipNote = `${S.side ? `turn ${S.side > 0 ? '→' : '←'}${Math.round(Math.abs(S.side) * 9)}  ` : ''}${S.ty ? `thrust ${S.ty > 0 ? '+' : '−'}${Math.round(Math.abs(S.ty) * 9)}  ` : ''}speed ${xrLevel(level.f)}`;
+    };
+    // the target in the headset (the desktop's marks are not drawn in XR): four ticks round it, 50 m out from the eyes in its
+    // direction, as wide as it looks (at least 1°); green and turned 45° while orbiting it, as on the screen
+    const xrTargetLines = (head) => {
+      const t = space() && lockedObject();
+      if (!t || !head) return [];
+      const { origin: o, forward: F, right: Rt, up: U } = xrRig();
+      const b = ballOf(t);
+      const v = vsub(b.center, o), d = Math.hypot(...v);
+      if (!d) return [];
+      const dir = v3.unit([v3.dot(Rt, v), v3.dot(U, v), -v3.dot(F, v)]);
+      const ang = Math.max((1 * Math.PI) / 180, Math.min((8 * Math.PI) / 180, Math.asin(Math.min(1, b.radius / d)) * 1.2));
+      const D = 50, eye = [head[12], head[13], head[14]], mid = v3.add(eye, v3.mul(dir, D));
+      const r0 = v3.unit(v3.cross(dir, Math.abs(dir[1]) > 0.95 ? [1, 0, 0] : [0, 1, 0])), u0 = v3.cross(r0, dir);
+      const turn45 = orbit ? Math.PI / 4 : 0;
+      const w = D * Math.tan(ang), len = Math.max(w * 0.6, D * 0.006);
+      const col = orbit ? [0.22, 1, 0.08] : [1, 0.88, 0.55];
+      const out = [];
+      for (const [a, c] of [[1, 1], [-1, 1], [-1, -1], [1, -1]]) {
+        const diag = v3.unit(v3.add(v3.mul(r0, a), v3.mul(u0, c)));
+        const ct = Math.cos(turn45), st2 = Math.sin(turn45);
+        const along = v3.add(v3.mul(diag, ct), v3.mul(v3.cross(dir, diag), st2));
+        const m = v3.add(mid, v3.mul(diag, w + len / 2));
+        out.push(...v3.sub(m, v3.mul(along, len / 2)), ...col, 1, ...v3.add(m, v3.mul(along, len / 2)), ...col, 1);
+      }
+      return out;
     };
     // ---- The ship round you in VR: a game's ship (its `ship` scene, the LARK-4 of lark.game.json) drawn in metres over the
     // universe, its helm's eye where the pilot's eyes were when the flight began, its nose ahead (the room's −z: where the rig
@@ -10528,11 +10613,9 @@
       xrShip.gpu.render(mesh, orbitView({ yaw: 0, pitch: 0 }), { palette: game.palette, smooth: 40, studio: true, glow: false, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: P, view: v.transform.inverse.matrix, eye: [p.x, p.y, p.z], overlay: true } });
     };
     // in space (a starship) the hands fly the ship: the left hand's ship function (two-handed), exit on the right
-    const tshFunctions = () => (space() ? {
-      left: [{ id: 'ship', label: 'starship', kind: 'ship', both: true }],
-      right: [{ id: 'exit', label: 'exit VR', kind: 'exit', slot: -1 }],
-    } : {
+    const tshFunctions = () => ({
       left: [
+
         // 8 materials: plain ones, metal, gold and glass among them (by name; the palette's first ones fill in what is missing)
         ...TSH_MATERIALS.map((n) => materials.findIndex((mt) => mt.name === n))
           .concat(materials.map((_, i) => i))
@@ -10542,6 +10625,8 @@
         { id: 'grab', label: 'grab', kind: 'grab' },
         { id: 'cube', label: 'cube', kind: 'cube' },
         { id: 'block', label: 'block between the hands', kind: 'block', both: true },
+        // (in space: the starship)
+        ...(space() ? [{ id: 'ship', label: 'starship', kind: 'ship', both: true }] : []),
       ],
       // (exit: on the right hand, in the far corner of its grid, away from the middle)
       right: [
@@ -11354,13 +11439,13 @@
       ws.headAt = head ? [head[12], head[13], head[14]] : null;
       ws.extra = null;
       if (!on) return void (ws.shipOn = false);
-      // (into space or out of it: the other set of functions; in space the ship function is taken at once)
-      if (tsh && ws.inSpace !== space()) tsh = null;
+      tsh ??= createTsh(tshFunctions());
+      // (out of space: the ship function is put down, whoever had it)
+      if (ws.inSpace && !space() && tsh.fn('left')?.kind === 'ship') tsh.release();
       ws.inSpace = space();
-      if (!tsh) ((tsh = createTsh(tshFunctions())), (ws.fnKey = null), space() && tsh.choose('left', 'ship'));
       // (the palette can change: the materials follow it)
       const want = tshFunctions().left.map((f) => `${f.id}:${f.label}`).join();
-      if (want !== ws.fnKey && !space()) ((ws.fnKey = want), tsh.setFunctions('left', tshFunctions().left), tsh.setFunctions('right', tshFunctions().right));
+      if (want !== ws.fnKey) ((ws.fnKey = want), tsh.setFunctions('left', tshFunctions().left), tsh.setFunctions('right', tshFunctions().right));
       // (saved a moment after a change too, so a browser that drops the page does not lose it)
       if (ws.dirtyAt && now - ws.dirtyAt > 1500 && !vrPlayer.on) ((ws.dirtyAt = 0), saveWorkshop());
       const R2S = roomToScene();
@@ -11437,8 +11522,8 @@
       ws.recHold = Rr.fn?.kind === 'rec' && Rr.g?.fist && !ws.recLatch ? Math.min(1, Rr.g.fistFor / TSH_EXIT_HOLD) : 0;
       if (!Rr.g?.fist) ws.recLatch = false;
       if (ws.recHold >= 1 && !vrPlayer.on) ((ws.recLatch = true), vrTape.recording ? vrTape.stop() : vrTape.start(), wsNote(ws, vrTape.recording ? 'recording' : 'recording saved'));
-      if (space()) return void xrShipHands(ws, st, hands, head, now);
-      ws.shipOn = false;
+      if (space()) xrShipHands(ws, st, hands, head, now);
+      else ((ws.shipOn = false), (ws.dash = null));
       xrBuild(ws, st, hands, head, now, R2S, done);
       xrType(ws, st, hands, head, now, R2S, done);
       xrBlock(ws, st, head, now, R2S, done);
@@ -11701,33 +11786,73 @@
         xrQuad(gl, P, mul4(eyeFromRef, [...x, 0, ...y, 0, ...z, 0, ...v3.add(at, [0, 0.03, 0]), 1]), tex, 0.08, 0.0125);
       }
       if (ws.dash) {
-        const D = ws.dash;
-        const back = xrPanelTex(gl, 'dash', 512, 128, 'dash', (c, W, H) => {
-          c.fillStyle = 'rgba(8, 12, 24, 0.72)';
-          c.beginPath();
-          c.roundRect(3, 3, W - 6, H - 6, 18);
-          c.fill();
-          c.strokeStyle = 'rgba(255, 214, 140, 0.5)';
-          c.lineWidth = 3;
-          c.stroke();
+        // the dashboard's body: a box, its faces that look toward the eye (convex: no depth needed), then the keys and the slider
+        const D = ws.dash, Pd = D.P;
+        const eyeR = [eyeFromRef[12], eyeFromRef[13], eyeFromRef[14]];
+        // (the eye in the room: the inverse of the view's translation)
+        const E = [-(eyeFromRef[0] * eyeR[0] + eyeFromRef[1] * eyeR[1] + eyeFromRef[2] * eyeR[2]), -(eyeFromRef[4] * eyeR[0] + eyeFromRef[5] * eyeR[1] + eyeFromRef[6] * eyeR[2]), -(eyeFromRef[8] * eyeR[0] + eyeFromRef[9] * eyeR[1] + eyeFromRef[10] * eyeR[2])];
+        const hold = D.held;
+        const faceTex = (id, fill, edge) => xrPanelTex(gl, `dash-${id}-${hold ? 1 : 0}`, 256, 64, `${id}|${hold}`, (c, W, H) => {
+          c.fillStyle = fill;
+          c.fillRect(0, 0, W, H);
+          c.strokeStyle = hold ? 'rgba(255, 170, 70, 0.95)' : edge;
+          c.lineWidth = 6;
+          c.strokeRect(3, 3, W - 6, H - 6);
         });
-        const hw = (DASH_KEYS.length * DASH_PITCH) / 2 + 0.012;
-        xrQuad(gl, P, mul4(eyeFromRef, [...D.x, 0, ...D.y, 0, ...D.z, 0, ...v3.sub(D.c, v3.mul(D.z, 0.002)), 1]), back, hw, DASH_KEY / 2 + 0.012);
-        for (const k of D.keys) {
-          const tex = xrPanelTex(gl, `dash-${k.code}-${k.down ? 1 : 0}`, 128, 128, `${k.code}|${k.down}`, (c, W, H) => {
-            c.fillStyle = k.down ? 'rgba(47, 184, 192, 0.95)' : k.key === 'Escape' ? 'rgba(120, 30, 12, 0.92)' : k.hold ? 'rgba(70, 66, 52, 0.92)' : 'rgba(22, 26, 34, 0.92)';
+        const mid = v3.sub(Pd.c, v3.mul(Pd.z, DASH_T / 2));
+        const faces = [
+          { n: Pd.z, at: Pd.c, x: Pd.x, y: Pd.y, hw: DASH_W / 2, hh: DASH_H / 2, tex: () => faceTex('top', 'rgba(10, 16, 30, 0.96)', 'rgba(255, 214, 140, 0.55)') },
+          { n: v3.mul(Pd.z, -1), at: v3.sub(Pd.c, v3.mul(Pd.z, DASH_T)), x: v3.mul(Pd.x, -1), y: Pd.y, hw: DASH_W / 2, hh: DASH_H / 2, tex: () => faceTex('under', 'rgb(40, 44, 54)', 'rgba(120, 130, 150, 0.8)') },
+          ...[1, -1].map((k) => ({ n: v3.mul(Pd.y, k), at: v3.add(mid, v3.mul(Pd.y, (k * DASH_H) / 2)), x: v3.mul(Pd.x, k), y: Pd.z, hw: DASH_W / 2, hh: DASH_T / 2, tex: () => faceTex('side', 'rgb(70, 76, 90)', 'rgba(160, 170, 190, 0.8)') })),
+          ...[1, -1].map((k) => ({ n: v3.mul(Pd.x, k), at: v3.add(mid, v3.mul(Pd.x, (k * DASH_W) / 2)), x: v3.mul(Pd.y, -k), y: Pd.z, hw: DASH_H / 2, hh: DASH_T / 2, tex: () => faceTex('end', 'rgb(58, 62, 74)', 'rgba(160, 170, 190, 0.8)') })),
+        ];
+        let topSeen = false;
+        for (const f of faces) {
+          if (v3.dot(f.n, v3.sub(E, f.at)) <= 0) continue;
+          if (f.n === Pd.z) topSeen = true;
+          const z = v3.cross(f.x, f.y);
+          xrQuad(gl, P, mul4(eyeFromRef, [...f.x, 0, ...f.y, 0, ...z, 0, ...f.at, 1]), f.tex(), f.hw, f.hh);
+        }
+        if (topSeen) {
+          const onFace = (lx, ly, lz = 0.002) => dashAt(Pd, lx, ly, lz);
+          for (const k of D.keys) {
+            const tex = xrPanelTex(gl, `dash-${k.code}-${k.down ? 1 : 0}`, 128, 128, `${k.code}|${k.down}`, (c, W, H) => {
+              c.fillStyle = k.down ? 'rgba(47, 184, 192, 0.95)' : k.key === 'Escape' ? 'rgba(120, 30, 12, 0.95)' : k.hold ? 'rgba(70, 66, 52, 0.95)' : 'rgba(30, 36, 48, 0.95)';
+              c.beginPath();
+              c.roundRect(4, 4, W - 8, H - 8, 18);
+              c.fill();
+              c.fillStyle = k.down ? '#04181a' : '#f2eee0';
+              c.textAlign = 'center';
+              c.font = k.label.length > 1 ? '700 34px system-ui, sans-serif' : '700 56px system-ui, sans-serif';
+              c.fillText(k.label, W / 2, k.label.length > 1 ? 60 : 66);
+              c.font = '500 24px system-ui, sans-serif';
+              c.fillStyle = k.down ? '#04181a' : '#9fe6d8';
+              c.fillText(k.sub, W / 2, 104);
+            });
+            xrQuad(gl, P, mul4(eyeFromRef, [...Pd.x, 0, ...Pd.y, 0, ...Pd.z, 0, ...onFace(k.lx, DASH_KEYS_Y, k.down ? 0.001 : 0.004), 1]), tex, DASH_KEY / 2 - 0.002, DASH_KEY / 2 - 0.002);
+          }
+          // the slider: the sky's field of view (its zoom), the knob where it is
+          const z = skyZoom(), t = Math.log(z) / Math.log(XR_ZOOM_MAX);
+          const label = `sky FOV ${zoomFov(z)}°  ×${z.toFixed(z < 2 ? 2 : 1)}`;
+          const tex = xrPanelTex(gl, 'dash-slider', 768, 96, `${label}|${ws.sliding}`, (c, W, H) => {
+            c.fillStyle = 'rgba(30, 36, 48, 0.95)';
             c.beginPath();
-            c.roundRect(4, 4, W - 8, H - 8, 18);
+            c.roundRect(4, 4, W - 8, H - 8, 20);
             c.fill();
-            c.fillStyle = k.down ? '#04181a' : '#f2eee0';
-            c.textAlign = 'center';
-            c.font = k.label.length > 1 ? '700 34px system-ui, sans-serif' : '700 56px system-ui, sans-serif';
-            c.fillText(k.label, W / 2, k.label.length > 1 ? 60 : 66);
-            c.font = '500 24px system-ui, sans-serif';
-            c.fillStyle = k.down ? '#04181a' : '#9fe6d8';
-            c.fillText(k.sub, W / 2, 104);
+            c.fillStyle = ws.sliding ? '#9fe6d8' : '#cfd8ea';
+            c.font = '600 30px system-ui, sans-serif';
+            c.fillText(label, 24, 40);
+            c.fillStyle = 'rgba(255, 214, 140, 0.35)';
+            c.fillRect(24, 62, W - 48, 8);
           });
-          xrQuad(gl, P, mul4(eyeFromRef, [...k.x, 0, ...k.y, 0, ...k.z, 0, ...k.at, 1]), tex, DASH_KEY / 2 - 0.002, DASH_KEY / 2 - 0.002);
+          xrQuad(gl, P, mul4(eyeFromRef, [...Pd.x, 0, ...Pd.y, 0, ...Pd.z, 0, ...onFace(0, DASH_SLIDER_Y), 1]), tex, DASH_SLIDER_W / 2 + 0.012, 0.018);
+          const knob = xrPanelTex(gl, 'dash-knob', 64, 64, 'knob', (c, W, H) => {
+            c.fillStyle = '#ffe2a8';
+            c.beginPath();
+            c.arc(W / 2, H / 2, W / 2 - 4, 0, Math.PI * 2);
+            c.fill();
+          });
+          xrQuad(gl, P, mul4(eyeFromRef, [...Pd.x, 0, ...Pd.y, 0, ...Pd.z, 0, ...onFace((t - 0.5) * DASH_SLIDER_W, DASH_SLIDER_Y - 0.007, 0.004), 1]), knob, 0.009, 0.009);
         }
       }
       if (T?.phase === 'keys') {
@@ -12222,6 +12347,9 @@
       // light-years: convert the clipping distances to scene units as well.
       const xrProjection = (raw) => {
         const glP = Float32Array.from(raw);
+        // (the star map's zoom, the dashboard's slider: the sky only)
+        const zoom = space() ? skyZoom() : 1;
+        if (zoom !== 1) for (const i of [0, 4, 8, 1, 5, 9]) glP[i] *= zoom;
         const near = 0.05 * S;
         const far = space() ? 1e9 : 1e5;
         glP[10] = -(far + near) / (far - near);
@@ -12254,8 +12382,9 @@
         if (!drive()) xrHudDraw(gl, pose.views[0].projectionMatrix, new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]));
         return;
       }
-      let shipNow = null;
+      let shipNow = null, targetNow = [];
       try {
+        targetNow = xrTargetLines(pose.transform.matrix);
         shipNow = xrShipMesh(gl);
       } catch (err) {
         xrLog(`ship: ${err?.message ?? err}`, true);
@@ -12270,6 +12399,7 @@
         gpu.render(sceneNow, xrArgs.view, { ...xrArgs.opts, parts: partsNow, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: engineP, view: Ve, eye } });
         xrSkyDraw(gl, glP, Ve, vp.height, xrArgs.origin);
         xrBackdrop(gl, v.projectionMatrix, v.transform.inverse.matrix, [v.transform.position.x, v.transform.position.y, v.transform.position.z]);
+        if (targetNow.length) xrLines(gl, glP, v.transform.inverse.matrix, targetNow); // (with the sky's zoom: it is on the sky)
         if (shipNow) xrShipDraw(gl, layer, v, vp, shipNow);
         if (!drive() && (!xrState.ws?.on || space())) xrHudDraw(gl, v.projectionMatrix, mul4(v.transform.inverse.matrix, pose.transform.matrix));
         if (!drive() && !xrState.ws?.on) xrHandsDraw(gl, v.projectionMatrix, v.transform.inverse.matrix, v.transform.inverse.matrix);
@@ -12305,6 +12435,7 @@
     // the workshop's work is kept when VR ends: saved here as the scene "vr workshop" (+ scene list, saved), and the view turns to
     // the workpiece
     const saveWorkshop = () => {
+      if (space()) return; // (in a star map nothing of the workshop is kept: the universe is no workpiece)
       try {
         const all = readSaved();
         all['vr workshop'] = sceneFile('vr workshop');
