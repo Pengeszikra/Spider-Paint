@@ -946,7 +946,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/bc1ecf6d80c1/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/e2dc2d21e88f/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2221,7 +2221,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/bc1ecf6d80c1/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/e2dc2d21e88f/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -10250,6 +10250,12 @@
     const xrSay = (t) => (xrNote ? (xrNote.textContent = t) : null);
     // the XR log: the session, the layer, the eyes' viewports, WebGL errors (the console, __3draft.xr().log and localStorage
     // '3draft-xr-log'; no box on the page)
+    // ?handsonly: in VR only the tracked hands count (controllers are ignored: no sticks, no buttons, no controller cockpit)
+    // ?autovr: on a headset's browser VR starts by itself: the browser is offered the session at once (navigator.xr.offerSession,
+    // its own Enter VR), and the page shows a full-screen Enter VR (a tap or a pinch: requestSession needs a gesture)
+    const XR_HANDS_ONLY = new URLSearchParams(location.search).has('handsonly');
+    const XR_AUTO = new URLSearchParams(location.search).has('autovr');
+    const XR_HEADSET = /OculusBrowser|Quest|Pico|Wolvic/i.test(navigator.userAgent);
     const XR_TEST = new URLSearchParams(location.search).get('xrtest'); // '1': only a test cube in VR; '2': the cube and the scene
     const xrLog = (msg, err = false) => {
       const line = `${new Date().toISOString().slice(11, 19)} ${msg}`;
@@ -10329,7 +10335,7 @@
     // (with a frame, each pad also carries its hand: grip, the fist, and ray, the pointing line; both column-major 4×4 matrices in
     // the reference space, metres; and its haptic motor for a short buzz)
     const xrPads = (session, frame = null) =>
-      [...session.inputSources].filter((src) => src.gamepad && !src.hand).map((src) => {
+      [...session.inputSources].filter((src) => src.gamepad && !src.hand && !XR_HANDS_ONLY).map((src) => {
         const at = (space) => {
           try {
             return (space && frame && xrState.space && frame.getPose(space, xrState.space)?.transform.matrix) || null;
@@ -13505,8 +13511,9 @@
       xrState.prevMode = null;
       redraw();
     };
-    const toggleXr = async (mono = false) => {
+    const toggleXr = async (mono = false, offered = null) => {
       if (xrState.session) {
+        if (offered) return offered.end();
         if (xrState.mono === mono) return xrState.session.end();
         xrState.mono = mono; // VR <-> EM in the running session
         return xrButtons();
@@ -13528,7 +13535,8 @@
       const t0 = performance.now();
       let session;
       try {
-        session = await xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor', 'hand-tracking'] });
+        session = offered ?? (await xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor', 'hand-tracking'] }));
+        xrEnterHide();
       } catch (err) {
         xrLog(`requestSession failed: ${err?.name}: ${err?.message ?? err}`, true);
         return xrSay(`could not start VR: ${err?.message ?? err}`);
@@ -13581,12 +13589,28 @@
       xrGlErrors(gl, 'the session setup');
       xrState.session = session;
       session.addEventListener('end', endedXr);
+      session.addEventListener('end', () => setTimeout(() => xrAutoOffer(false), 500)); // (autovr: the browser's offer again, no overlay)
       session.addEventListener('selectstart', (e) => xrLog(`select (${e.inputSource?.handedness})`));
       xrButtons();
       xrSay(mono ? 'in EM' : 'in VR');
       session.requestAnimationFrame(xrFrame);
     };
     xrBtn?.addEventListener('click', () => (toggleXr(false), xrBtn.blur()));
+    // autovr on a headset: the browser's own offer, and a full-screen Enter VR on the page (both again after VR ends)
+    let xrEnterEl = null;
+    const xrEnterHide = () => xrEnterEl && (xrEnterEl.remove(), (xrEnterEl = null));
+    const xrAutoOffer = (overlay = true) => {
+      if (!XR_AUTO || !XR_HEADSET || !navigator.xr || xrState.session || EMBED || SHOW) return;
+      navigator.xr.offerSession?.('immersive-vr', { optionalFeatures: ['local-floor', 'hand-tracking'] })
+        .then((session) => toggleXr(false, session))
+        .catch((err) => xrLog(`offerSession: ${err?.message ?? err}`));
+      if (xrEnterEl || !overlay) return;
+      xrEnterEl = Object.assign(document.createElement('button'), { type: 'button', id: 'xrEnter', textContent: 'ENTER VR' });
+      xrEnterEl.style.cssText = 'position:fixed;inset:0;z-index:50;border:0;background:#0b0b0acc;color:#ff7b54;font:700 clamp(28px,7vw,72px)/1 var(--font-mono, monospace);letter-spacing:0.12em;cursor:pointer';
+      xrEnterEl.addEventListener('click', () => (xrEnterHide(), toggleXr(false)));
+      document.body.append(xrEnterEl);
+    };
+    setTimeout(xrAutoOffer, 0);
     if (!navigator.xr) xrSay('no WebXR in this browser');
 
     if (EMBED) seedStore();
