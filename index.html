@@ -643,6 +643,7 @@
       body.pal:not(.pwa) footer.console .read, body.pal #editbar { left: calc(50% - var(--palR) / 2); }
       body.split.pal:not(.pwa) footer.console .read, body.split.pal #editbar { left: calc(50% + (var(--splitW) - var(--palR)) / 2); }
     }
+    #sceneCloud.cloud-err { background: #8a2a14; color: #ffe2d6; }
 </style>
 </head>
 <body>
@@ -930,7 +931,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/30a248b43022/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/b28ef742b078/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2193,7 +2194,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/30a248b43022/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/b28ef742b078/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -8875,8 +8876,20 @@
     };
     const storeList = async () => {
       if (!STORE) return [];
-      const r = await fetch(STORE, { cache: 'no-store' });
-      if (!r.ok) throw new Error(`the store: HTTP ${r.status}`);
+      let r;
+      try {
+        r = await fetch(STORE, { cache: 'no-store' });
+      } catch (err) {
+        throw new Error(`cannot reach ${STORE} (${err.message})`);
+      }
+      if (!r.ok) {
+        // (the store's own words, e.g. a missing Blob token)
+        let why = '';
+        try {
+          why = (await r.json()).error ?? '';
+        } catch {}
+        throw new Error(`HTTP ${r.status}${why ? `: ${why}` : ''}`);
+      }
       return (await r.json()).items ?? [];
     };
     const storeLoad = async (name) => {
@@ -8907,21 +8920,38 @@
       }
       throw new Error('the store refused the key');
     };
+    // the online list; the ☁ button is always there where there is a store, and says what is wrong when the store does not answer
+    let cloudError = '';
     const showCloud = async () => {
-      const group = document.getElementById('cloudGroup');
+      const group = document.getElementById('cloudGroup'), btn = document.getElementById('sceneCloud');
+      btn.hidden = false;
       try {
         const items = await storeList();
-        group.hidden = !items.length;
+        cloudError = '';
+        btn.classList.remove('cloud-err');
+        btn.textContent = '☁';
+        group.hidden = false;
+        group.label = items.length ? 'online (the store: from anywhere)' : 'online: empty (☁ saves the scene there)';
         group.replaceChildren(...items.map((it) => Object.assign(document.createElement('option'), { value: `cloud:${it.name}`, textContent: it.name })));
-        document.getElementById('sceneCloud').hidden = false;
       } catch (err) {
-        group.hidden = true;
+        cloudError = err.message;
+        btn.classList.add('cloud-err');
+        btn.textContent = '☁!';
+        group.hidden = false;
+        group.label = `online: the store does not answer (${err.message})`;
+        group.replaceChildren();
+        sceneNote(`the online store: ${err.message}`);
         xrLog?.(`store: ${err.message}`);
       }
     };
     if (STORE) showCloud();
     document.getElementById('sceneCloud').addEventListener('click', async (e) => {
       const name = nameOrDate();
+      if (cloudError) {
+        // (first ask the store again: it may be back)
+        await showCloud();
+        if (cloudError) return void sceneNote(`the online store does not answer: ${cloudError}`);
+      }
       try {
         if (e.shiftKey) {
           await storeWrite(name, null);
