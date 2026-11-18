@@ -70,6 +70,11 @@ if (html.includes('../dist/') || html.includes('../examples/')) throw new Error(
 
 writeFileSync(join(here, 'index.html'), html);
 writeFileSync(join(here, 'xr-test.html'), readFileSync(join(src, 'app/xr-test.html'))); // the WebXR loop alone, for a headset that stays black
+// Spider Player (PLAYER.md): a scene on a turntable or a story played, no UI, for an iframe; only the renderer's modules
+const player = readFileSync(join(src, 'app/player.html'), 'utf8').replaceAll("from '../dist/", `from './${engineRel}/`).replace("from './story.js'", "from './models/spider-build-v2.mjs'");
+if (player.includes('../dist/') || player.includes("'./story.js'")) throw new Error('sync: player.html still points into the 3Draft repo');
+writeFileSync(join(here, 'player.html'), player);
+writeFileSync(join(here, 'PLAYER.md'), readFileSync(join(src, 'PLAYER.md')));
 // the same test scene in VR through three.js and through the 3Draft engine (its engine import points at engine/<commit>/)
 writeFileSync(join(here, 'xr-compare.html'), readFileSync(join(src, 'app/xr-compare.html'), 'utf8').replace("from '../dist/index.js'", `from './${engineRel}/index.js'`));
 mkdirSync(join(here, 'models'), { recursive: true });

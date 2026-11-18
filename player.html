@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Spider Player</title>
+    <!--
+      Spider Player: a scene (a 3Draft .scene.json) turning on a turntable round its middle, or a story (a Spider Build v2
+      .build.json) played on its own timeline and camera. No UI at all: it is meant for an <iframe>. Controlled by its URL and
+      by postMessage commands; it reports back the same way. PLAYER.md has the whole interface.
+      Only the renderer, the scene loading and the story format are loaded (about 50-60 kB gzipped), not the editor.
+    -->
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+      canvas { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: block; }
+    </style>
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+    <script type="module">
+      import { createGl } from './engine/8532130ad19f/gl.js';
+      import { orbit } from './engine/8532130ad19f/camera.js';
+      import { merge, bounds } from './engine/8532130ad19f/mesh.js';
+      import { instantiate } from './engine/8532130ad19f/instances.js';
+      import * as storyFormat from './models/spider-build-v2.mjs';
+
+      const canvas = document.getElementById('view');
+      const q = new URLSearchParams(location.search);
+      const RAD = Math.PI / 180;
+      const num = (v, d) => (v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v)) ? Number(v) : d);
+      const flag = (v, d) => (v === null || v === undefined ? d : !/^(0|false|no|off)$/i.test(v));
+
+      // the materials a face may name without the scene defining them (the viewer's own palette)
+      const BASE = {
+        plaster: { color: '#e9e4d8', rough: 0.9 }, sand: { color: '#c9b79a', rough: 0.95 }, wood: { color: '#8a5a36', rough: 0.8 },
+        'dark-wood': { color: '#5a3d2b', rough: 0.7 }, concrete: { color: '#8c8c88', rough: 1 }, slate: { color: '#4f5358', rough: 0.6 },
+        grass: { color: '#7d9b4e', rough: 1 }, brick: { color: '#b5473a', rough: 0.85 }, steel: { color: '#9aa7b4', metal: 1, rough: 0.3 },
+        gold: { color: '#d9b04a', metal: 1, rough: 0.25 }, glass: { color: '#a9d3e8', metal: 0.2, rough: 0.05, alpha: 0.3 },
+        copper: { color: '#c87533', metal: 1, rough: 0.3 }, 'ruby-glass': { color: '#c0263a', metal: 0.2, rough: 0.05, alpha: 0.45 },
+        'lacquer-blue': { color: '#2257b8', metal: 0.15, rough: 0.12 }, lamp: { color: '#ffd36b', rough: 0.5, emit: 1 },
+        monitor: { color: '#101418', metal: 0.1, rough: 0.3, emit: 0.3 },
+      };
+
+      // ---- state
+      const S = {
+        url: null, // what is loaded
+        kind: null, // 'scene' | 'story'
+        mesh: null, parts: null, palette: { ...BASE }, center: [0, 0, 0], radius: 1,
+        doc: null, t: 0, playing: flag(q.get('autoplay'), true), rate: num(q.get('speed'), 1), loop: flag(q.get('loop'), true),
+        loadedKey: null, skin: null, camera: q.get('camera') === 'orbit' ? 'orbit' : 'auto', // auto: a story's own camera, else the turntable
+        spin: num(q.get('spin'), 20), // degrees per second (0: still; negative: the other way)
+        yaw: num(q.get('yaw'), 30) * RAD, pitch: num(q.get('pitch'), 20) * RAD, zoom: num(q.get('zoom'), 1),
+        bg: null, transparent: false, smooth: flag(q.get('smooth'), true), studio: flag(q.get('studio'), true),
+        last: 0, endedSent: false, lastCaption: '', timeSentAt: 0,
+      };
+      const setBackground = (v) => {
+        const s = String(v ?? 'transparent').trim().replace(/^#/, '');
+        if (!s || s === 'transparent' || s === 'none') {
+          S.transparent = true;
+          document.body.style.background = 'transparent';
+          return;
+        }
+        const hex = /^[0-9a-f]{3}$/i.test(s) ? s.replace(/./g, '$&$&') : s;
+        if (!/^[0-9a-f]{6}$/i.test(hex)) throw new Error(`background: "${v}" is not transparent or a #rrggbb colour`);
+        S.transparent = false;
+        S.bg = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+        document.body.style.background = `#${hex}`;
+      };
+      setBackground(q.get('bg') ?? 'transparent');
+
+      // ---- talking to the page round it: events out, commands in
+      const origin = q.get('origin') || '*'; // (the embedding page's origin: give it to keep the events to that page only)
+      const emit = (type, data = {}) => {
+        const msg = { source: 'spider-player', type, ...data };
+        if (window.parent !== window) window.parent.postMessage(msg, origin);
+        window.dispatchEvent(new CustomEvent('spider-player', { detail: msg }));
+      };
+      const fail = (err) => (console.warn('Spider Player:', err), emit('error', { message: String(err?.message ?? err) }));
+
+      // ---- loading
+      const sceneObjects = (data) => {
+        const protos = data.prototypes ?? {};
+        return (data.objects ?? [])
+          .filter((o) => !o.hidden)
+          .map((o) => {
+            if (o.proto && protos[o.proto]) {
+              const lods = protos[o.proto].lods ?? [protos[o.proto]];
+              return { name: o.name, mesh: instantiate(lods[0], { at: o.at, scale: o.scale, mats: o.mats, color: o.color, rot: o.rot }) };
+            }
+            return { name: o.name, mesh: o.mesh };
+          })
+          .filter((o) => o.mesh?.positions?.length && o.mesh.faces?.length);
+      };
+      const usePalette = (list) => {
+        S.palette = { ...BASE };
+        for (const m of Array.isArray(list) ? list : []) if (m?.name) {
+          const { name, ...rest } = m;
+          S.palette[name] = rest;
+        }
+      };
+      const show = (objects, frame) => {
+        S.parts = objects.map((o) => o.mesh);
+        S.mesh = S.parts.length ? merge(...S.parts) : { positions: [], faces: [] };
+        if (frame && S.parts.length) {
+          const b = bounds(S.mesh);
+          S.center = b.center;
+          S.radius = b.radius || 1;
+        }
+      };
+      const load = async (src) => {
+        let data = src;
+        let url = null;
+        if (typeof src === 'string') {
+          url = new URL(src, location.href).href;
+          const r = await fetch(url);
+          if (!r.ok) throw new Error(`${src}: ${r.status} ${r.statusText}`);
+          data = await r.json();
+        }
+        S.url = url;
+        S.loadedKey = null;
+        S.skin = null;
+        S.endedSent = false;
+        S.lastCaption = '';
+        if (data?.format === storyFormat.FORMAT) {
+          const doc = storyFormat.normalizeBuildDocument(data);
+          S.kind = 'story';
+          S.doc = doc;
+          S.t = 0;
+          usePalette(doc.scene.palette);
+          // the turntable's middle: the finished model (the story's last moment)
+          show(storyFormat.constructionAt(doc, doc.timeline.durationMs), true);
+          storyAt(0, true);
+        } else if (Array.isArray(data?.objects)) {
+          S.kind = 'scene';
+          S.doc = null;
+          usePalette(data.palette);
+          show(sceneObjects(data), true);
+        } else throw new Error('not a 3Draft scene (.scene.json) or a Spider Build story (.build.json)');
+        emit('loaded', state());
+      };
+
+      // a story at a moment: its objects (rebuilt only when a construction step is passed), its animation, its captions
+      const storyAt = (t, force = false) => {
+        const doc = S.doc;
+        S.t = Math.max(0, Math.min(t, doc.timeline.durationMs));
+        const index = storyFormat.constructionIndexAtTime(doc, S.t);
+        if (force || index !== S.loadedKey) {
+          const objects = storyFormat.constructionAt(doc, S.t);
+          S.skin = storyFormat.animationSkin(doc, objects);
+          show(S.skin ? objects.filter((o) => !S.skin.names.has(o.name)) : objects, false);
+          S.loadedKey = index;
+        }
+        if (S.skin) storyFormat.animationAt(doc, S.t, S.skin.bones, S.skin.emission);
+        const cues = storyFormat.narrationAt(doc, Math.min(S.t, Math.max(0, doc.timeline.durationMs - 0.001)));
+        const text = cues.map((c) => c.text).filter(Boolean).join('\n');
+        if (text !== S.lastCaption) ((S.lastCaption = text), emit('caption', { text, cues: cues.map((c) => ({ channel: c.channel, text: c.text ?? '' })) }));
+      };
+
+      // ---- drawing
+      let gpu = null;
+      const view = () => {
+        const w = innerWidth, h = innerHeight;
+        const size = Math.max(w, h); // the square canvas covers the frame; the camera backs off to keep the model in the short side
+        const cover = size / Math.max(1, Math.min(w, h));
+        if (S.kind === 'story' && S.camera === 'auto') {
+          const c = storyFormat.cameraAt(S.doc, S.t);
+          const v = orbit({ yaw: c.yaw * RAD, pitch: c.pitch * RAD, roll: (c.roll ?? 0) * RAD });
+          const d = 1e-3;
+          const fov = 2 * Math.atan(Math.tan(((c.fov ?? 35) * RAD) / 2) * cover);
+          return { size, v, fit: { center: c.eye.map((e, i) => e - v.dir[i] * d), radius: 1, dist: d, fov } };
+        }
+        const v = orbit({ yaw: S.yaw, pitch: S.pitch });
+        return { size, v, fit: { center: S.center, radius: (S.radius * cover) / Math.max(0.05, S.zoom) } };
+      };
+      const draw = () => {
+        if (!gpu || !S.mesh) return;
+        const { size, v, fit } = view();
+        canvas.style.width = canvas.style.height = `${size}px`;
+        gpu.render(S.mesh, v, {
+          size, fit, dpr: Math.min(2, devicePixelRatio || 1), palette: S.palette, parts: S.parts,
+          transparent: S.transparent, background: S.bg ?? [0, 0, 0], smooth: S.smooth ? 40 : 0, studio: S.studio,
+          ...(S.skin ? { skin: { meshes: S.skin.meshes, weights: S.skin.weights, bones: S.skin.bones, emission: S.skin.emission } } : {}),
+        });
+      };
+      const frame = (now) => {
+        const dt = S.last ? Math.min(0.1, (now - S.last) / 1000) : 0;
+        S.last = now;
+        try {
+          if (S.kind === 'story' && S.playing) {
+            const end = S.doc.timeline.durationMs;
+            let t = S.t + dt * 1000 * S.rate;
+            if (t >= end) {
+              if (S.loop) ((t = 0), (S.endedSent = false));
+              else ((t = end), (S.playing = false));
+              if (!S.endedSent) ((S.endedSent = true), emit('ended', { loop: S.loop }));
+            }
+            storyAt(t);
+            if (now - S.timeSentAt > 250) ((S.timeSentAt = now), emit('time', { t: Math.round(S.t), durationMs: end }));
+          }
+          if (S.kind === 'scene' || S.camera === 'orbit') S.yaw += S.spin * RAD * dt;
+          draw();
+        } catch (err) {
+          fail(err);
+        }
+        requestAnimationFrame(frame);
+      };
+
+      // ---- the commands
+      const state = () => ({
+        url: S.url, kind: S.kind, playing: S.playing, t: Math.round(S.t), durationMs: S.doc?.timeline.durationMs ?? 0, speed: S.rate, loop: S.loop,
+        camera: S.camera, spin: S.spin, yaw: +(S.yaw / RAD).toFixed(2), pitch: +(S.pitch / RAD).toFixed(2), zoom: S.zoom,
+        background: S.transparent ? 'transparent' : `#${S.bg.map((c) => Math.round(c * 255).toString(16).padStart(2, '0')).join('')}`,
+        objects: S.parts?.length ?? 0, title: S.doc?.metadata?.title ?? null,
+      });
+      const needStory = (cmd) => {
+        if (S.kind !== 'story') throw new Error(`${cmd}: only a story (.build.json) has a timeline`);
+      };
+      const COMMANDS = {
+        load: async (m) => load(m.url ?? m.data),
+        play: () => (needStory('play'), S.t >= S.doc.timeline.durationMs && (S.t = 0), (S.playing = true), (S.endedSent = false)),
+        pause: () => (needStory('pause'), (S.playing = false)),
+        toggle: () => (needStory('toggle'), (S.playing = !S.playing)),
+        seek: (m) => (needStory('seek'), storyAt(num(m.t, 0), false), (S.endedSent = false)),
+        speed: (m) => (S.rate = Math.max(0, Math.min(16, num(m.value, 1)))),
+        loop: (m) => (S.loop = Boolean(m.value)),
+        camera: (m) => {
+          if (!['auto', 'orbit'].includes(m.value)) throw new Error('camera: "auto" (a story\'s own camera) or "orbit" (the turntable)');
+          S.camera = m.value;
+        },
+        spin: (m) => (S.spin = num(m.value, 20)),
+        yaw: (m) => (S.yaw = num(m.value, 0) * RAD),
+        pitch: (m) => (S.pitch = Math.max(-89, Math.min(89, num(m.value, 20))) * RAD),
+        zoom: (m) => (S.zoom = Math.max(0.05, Math.min(50, num(m.value, 1)))),
+        background: (m) => setBackground(m.value),
+        smooth: (m) => (S.smooth = Boolean(m.value)),
+        studio: (m) => (S.studio = Boolean(m.value)),
+        state: () => {},
+      };
+      const run = async (m) => {
+        const cmd = m?.cmd;
+        if (!COMMANDS[cmd]) throw new Error(`unknown command "${cmd}" (known: ${Object.keys(COMMANDS).join(', ')})`);
+        await COMMANDS[cmd](m);
+        return state();
+      };
+      window.addEventListener('message', async (e) => {
+        const m = e.data;
+        if (!m || typeof m !== 'object' || m.target !== 'spider-player') return;
+        try {
+          const st = await run(m);
+          emit('state', { ...st, id: m.id ?? null, cmd: m.cmd });
+        } catch (err) {
+          emit('error', { message: String(err?.message ?? err), id: m.id ?? null, cmd: m.cmd });
+        }
+      });
+      // the same commands for a script on the same page (or same origin): spiderPlayer.send({ cmd: 'pause' })
+      window.spiderPlayer = { send: (m) => run(m), state };
+
+      // ---- start
+      try {
+        gpu = await createGl(canvas, { onError: (msg) => fail(msg) });
+      } catch (err) {
+        fail(`WebGL2 is not available: ${err?.message ?? err}`);
+      }
+      const first = q.get('scene') ?? q.get('src');
+      try {
+        if (first) await load(first);
+      } catch (err) {
+        fail(err);
+      }
+      emit('ready', state());
+      requestAnimationFrame(frame);
+    </script>
+  </body>
+</html>
