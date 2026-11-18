@@ -946,7 +946,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/d9f672817901/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/bd82825fb6e8/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2221,7 +2221,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/d9f672817901/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/bd82825fb6e8/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -4128,6 +4128,27 @@
       pivotNear(); // a star map: turn round a point just ahead of the eye, not 0.05 ly ahead
       yaw += dYaw;
       pitch = wrapPitch(pitch + dPitch);
+      redraw();
+    };
+    // the eye goes round the target on the sphere through it (the distance stays): sideways round the ship's up (positive: to
+    // the right), up and down round its right (positive: down); then the nose turns back onto the target. The pivot keeps its
+    // distance ahead, so the space scale does not jump (and in an orbit the pivot is the target itself)
+    const swingRound = (o, aSide, aDown) => {
+      travel = null;
+      const c = ballOf(o).center, eye = eyeNow(), { right, up } = shipBasis();
+      const spin = (e, k, a) => {
+        const ca = Math.cos(a), sa = Math.sin(a), kd = v3.dot(k, e), kx = v3.cross(k, e);
+        return e.map((v, i) => v * ca + kx[i] * sa + k[i] * kd * (1 - ca));
+      };
+      let e = vsub(eye, c);
+      if (aSide) e = spin(e, up, aSide);
+      if (aDown) e = spin(e, right, aDown);
+      const at = c.map((v, i) => v + e[i]), len = Math.hypot(...e) || 1;
+      yaw = Math.atan2(-e[0], e[2]);
+      pitch = Math.max(-LIMIT, Math.min(LIMIT, Math.asin(Math.max(-1, Math.min(1, e[1] / len)))));
+      const f = makeCamera(orbit_({ yaw, pitch }), nothing, 100, { center: [0, 0, 0], radius: 1, dist: 1 }).f;
+      const d = fit.dist ?? FLY_DIST;
+      fit.center = at.map((v, i) => v + f[i] * d);
       redraw();
     };
     // puts the eye at a point of the scene (the fly view), looking along yaw / pitch (degrees)
@@ -9524,6 +9545,7 @@
         skyZoom: (z) => (z === undefined ? skyZoom() : (xrState.skyZoom = z)),
         debugShot: () => (xrState.debugShot = { hands: xrState.ws?.hands ?? {}, head: null, st: {} }),
         ship: () => ({ P: xrState.ws?.dash?.P ?? null, kbOn: Boolean(xrState.ws?.kbOn), kb: xrState.ws?.kb?.keys.map((k) => ({ key: k.key, lx: k.lx, ly: k.ly })) ?? null, search: xrState.ws?.searchText ?? null, hint: xrState.ws?.searchHint ?? null, zoom: skyZoom(), dashC: xrState.ws?.dashPose?.c ?? null, held: Boolean(xrState.ws?.dash?.held), marks: xrTargetLines([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1.6, 0, 1]).length / 14, back: xrState.ws?.st?.right.g?.back ?? null, rfist: xrState.ws?.st?.right.g?.fist ?? null, pilot: xrState.pilot, on: Boolean(xrState.ws?.shipOn), note: xrState.ws?.shipNote ?? null, dash: xrState.ws?.dash?.keys.map((k) => ({ key: k.key, at: k.at, z: xrState.ws.dash.P.z, down: k.down })) ?? null, ray: Boolean(xrState.ws?.shipRay), hit: xrState.ws?.shipRay?.hit?.obj?.name ?? null, mesh: game?.cabin ? game.cabin.reduce((n, o) => n + o.mesh.faces.length, 0) : 0, gpu: Boolean(xrShip.gpu) }),
+        swing: (a = 0, b = 0) => { const o = lockedObject(); if (!o) return null; const c = ballOf(o).center, d0 = Math.hypot(...vsub(eyeNow(), c)); swingRound(o, a, b); const e = eyeNow(), d1 = Math.hypot(...vsub(e, c)), f = shipBasis().forward, u = v3.unit(vsub(c, e)); return { name: o.name, d0, d1, aimDot: v3.dot(f, u) }; }, // (a test hook)
         heading: (y = yaw, p = pitch, r = roll) => ((yaw = y), (pitch = p), (roll = r), { yaw, pitch, roll }), // (a test hook: point the ship)
         flight: () => ({ roll: +roll.toFixed(4), vehicle, car: car && { p: car.p, heading: car.heading, v: car.v, steer: car.steer, throttle: car.throttle }, orbit: orbit?.phase ?? null, gravity: gravity && { name: gravity.name }, cruise: { ...cruise }, space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
         aim: () => (aim ? { name: aim.obj.name, px: +aim.px.toFixed(1), depth: aim.depth } : null), under: () => hitObj()?.name ?? null, locked: () => lockedObject()?.name ?? null,
@@ -10893,7 +10915,9 @@
         // and the nod (R / F): tilted forward (the top ahead) the nose goes down, back: up, as the controller's stick does
         const rightAx = v3.cross(S.stick.fw, [0, 1, 0]);
         S.nod = band(-v3.dot(rv, rightAx), XR_TILT);
-        if ((S.side || S.nod) && !frozen) turn(S.side * XR_SHIP_YAW * dt, S.nod * XR_NOD_RATE * dt);
+        // with a target in space: the ship goes round it on the sphere of its distance, nose on the target; else it turns
+        const tg = space() && locked && lockedObject();
+        if ((S.side || S.nod) && !frozen) tg ? swingRound(tg, S.side * XR_SHIP_YAW * dt, S.nod * XR_NOD_RATE * dt) : turn(S.side * XR_SHIP_YAW * dt, S.nod * XR_NOD_RATE * dt);
       } else ((S.stick = null), (S.side = 0), (S.nod = 0));
       // the right fist, held flat: the throttle (how far it went ahead since it closed)
       if (rh && R?.fist && R.back[1] > 0.5) {
