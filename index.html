@@ -946,7 +946,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/2c1881947268/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/601df084edcb/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2221,7 +2221,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/2c1881947268/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/601df084edcb/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -11198,6 +11198,8 @@
         // so a 5 cm cube would be a cube 5 cm × 9.5e15 big round the head: see the debug report of 18 Nov; with a ship they work in
         // its cabin, in metres)
         ...(space() && !cabinOn() ? [] : [{ id: 'cube', label: 'cube', kind: 'cube' }, { id: 'block', label: 'block between the hands', kind: 'block', both: true }]),
+        // fly (walk, turn, and up / down when armed) on this hand too
+        ...(space() && !cabinOn() ? [] : [{ id: 'fly', label: 'fly', kind: 'fly' }]),
         // delete an object (where things are made in metres) and undo (everywhere)
         ...(space() && !cabinOn() ? [] : [{ id: 'delete', label: 'delete object', kind: 'delete' }]),
         { id: 'undo', label: 'undo', kind: 'undo' },
@@ -11734,7 +11736,9 @@
     // straight ahead: still). The rig keeps where it left you (xrState.walk).
     const WALK_PER_RAD = 0.25; // m per radian of circling
     const xrMove = (ws, st, hands, head, now, done) => {
-      const R = st.right, g = R.g;
+      // (fly on either hand; the right one wins when both have it)
+      const flies = (x) => x.fn?.kind === 'move' || x.fn?.kind === 'fly';
+      const R = flies(st.right) ? st.right : st.left, g = R.g;
       ws.moving = null;
       if ((R.fn?.kind !== 'move' && R.fn?.kind !== 'fly') || !g || !head) {
         ws.circle = [];

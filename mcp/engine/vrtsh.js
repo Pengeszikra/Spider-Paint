@@ -190,17 +190,31 @@ export const createTsh = (opts = {}) => {
             ? { back: unit(lerp(was.back, now.back, k)), fwd: unit(lerp(was.fwd, now.fwd, k)), palm: lerp(was.palm, now.palm, k) }
             : now;
     };
+    // While the other hand's index comes to choose (its tip within `hold` of the grid), the grid stays where it was: the wrist's
+    // tracking trembles when the hands come close (one hides the other from the cameras), and a grid that moved under the finger
+    // chose the wrong icon. A real move of the hand (the wrist 6 cm away from where it was held) lets it go again.
+    const hold = opts.hold ?? 0.12;
+    const held = { left: null, right: null };
+    const tips = { left: null, right: null };
     const layout = (side, g, h) => {
         const list = fns[side];
         if (list.length < 2)
             return []; // (one function: nothing to choose)
         const local = onHand[side];
-        const z = local ? unit(byWrist(h.wrist, local.back, false)) : g.back;
-        const fwd = local ? byWrist(h.wrist, local.fwd, false) : g.forward;
-        const palm = local ? byWrist(h.wrist, local.palm, true) : g.palm;
-        const y = unit(sub(fwd, mul(z, dot(fwd, z))));
-        // x to the viewer's right when the back of the hand faces them (mirrored for the left hand's thumb side, which is fine)
-        const x = cross(y, z);
+        const wp = [h.wrist[12], h.wrist[13], h.wrist[14]];
+        const last = held[side], tip = tips[side];
+        let z, palm, y, x;
+        if (last && tip && len(sub(tip, add(last.palm, mul(last.z, lift)))) < hold && len(sub(wp, last.wp)) < 0.06)
+            ({ palm, x, y, z } = last);
+        else {
+            z = local ? unit(byWrist(h.wrist, local.back, false)) : g.back;
+            const fwd = local ? byWrist(h.wrist, local.fwd, false) : g.forward;
+            palm = local ? byWrist(h.wrist, local.palm, true) : g.palm;
+            y = unit(sub(fwd, mul(z, dot(fwd, z))));
+            // x to the viewer's right when the back of the hand faces them (mirrored for the left hand's thumb side, which is fine)
+            x = cross(y, z);
+            held[side] = { palm, x, y, z, wp };
+        }
         // the cells: fixed slots first, the rest in order (−1: the last cell of the last row, a corner, away from the middle)
         let rows = Math.max(1, Math.ceil(list.length / columns));
         for (const fn of list)
@@ -243,6 +257,8 @@ export const createTsh = (opts = {}) => {
         const events = [];
         const hp = head ? [head[12], head[13], head[14]] : null;
         const state = {};
+        for (const side of ['left', 'right'])
+            tips[side] = hands[side === 'left' ? 'right' : 'left']?.joints['index-finger-tip'] ?? null;
         for (const side of ['left', 'right']) {
             const h = hands[side];
             const g = h ? handGestures(side, h, mem[side], now) : null;
