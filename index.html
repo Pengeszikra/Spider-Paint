@@ -946,7 +946,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/2c3f5576bfca/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/f59c07405f92/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2209,7 +2209,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/2c3f5576bfca/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/f59c07405f92/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -9486,6 +9486,7 @@
         xr: () => ({ log: xrState.log, frames: xrState.frames, on: Boolean(xrState.session), mono: Boolean(xrState.mono), pressed: xrState.pressed, note: xrNote?.textContent }),
         tshChoose: (side, id) => tsh?.choose(side, id),
         skyZoom: (z) => (z === undefined ? skyZoom() : (xrState.skyZoom = z)),
+        debugShot: () => (xrState.debugShot = { hands: xrState.ws?.hands ?? {}, head: null, st: {} }),
         ship: () => ({ zoom: skyZoom(), dashC: xrState.ws?.dashPose?.c ?? null, held: Boolean(xrState.ws?.dash?.held), marks: xrTargetLines([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1.6, 0, 1]).length / 14, back: xrState.ws?.st?.right.g?.back ?? null, rfist: xrState.ws?.st?.right.g?.fist ?? null, pilot: xrState.pilot, on: Boolean(xrState.ws?.shipOn), note: xrState.ws?.shipNote ?? null, dash: xrState.ws?.dash?.keys.map((k) => ({ key: k.key, at: k.at, z: xrState.ws.dash.P.z, down: k.down })) ?? null, ray: Boolean(xrState.ws?.shipRay), hit: xrState.ws?.shipRay?.hit?.obj?.name ?? null, mesh: xrShip.mesh?.faces.length ?? 0, gpu: Boolean(xrShip.gpu) }),
         flight: () => ({ roll: +roll.toFixed(4), vehicle, car: car && { p: car.p, heading: car.heading, v: car.v, steer: car.steer, throttle: car.throttle }, orbit: orbit?.phase ?? null, gravity: gravity && { name: gravity.name }, cruise: { ...cruise }, space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
         aim: () => (aim ? { name: aim.obj.name, px: +aim.px.toFixed(1), depth: aim.depth } : null), under: () => hitObj()?.name ?? null, locked: () => lockedObject()?.name ?? null,
@@ -10682,12 +10683,15 @@
     const DASH_KEYS_Y = 0.032, DASH_SLIDER_Y = -0.048, DASH_SLIDER_W = DASH_W - 0.08; // on the face: the keys' row, the slider
     // the dashboard's pose (the middle of its face, x across, y up the face, z out of the face): first 40 cm ahead of where the
     // pilot's eyes were when the flight began, 36 cm below them, tilted to them; then where the hands put it
-    const dashPose = (ws) => {
+    // (where it appears: in front of you wherever you take the controls, like a desk in an open office: 40 cm ahead of the eyes,
+    // 36 cm lower, tilted to them; put the controls down and it is gone, take them up somewhere else and it is there)
+    const dashPose = (ws, head) => {
       if (ws.dashPose) return ws.dashPose;
-      const pilot = xrState.pilot;
-      if (!pilot) return null;
-      const c = v3.add(pilot, [0, -0.36, -0.4]);
-      const z = v3.unit(v3.sub(pilot, c)), x = [1, 0, 0];
+      if (!head) return null;
+      const eye = [head[12], head[13], head[14]];
+      const fw = v3.unit([-head[8], 0, -head[10]]);
+      const c = v3.add(eye, v3.add(v3.mul(fw, 0.4), [0, -0.36, 0]));
+      const z = v3.unit(v3.sub(eye, c)), x = v3.unit(v3.cross([0, 1, 0], z));
       return (ws.dashPose = { c, x, y: v3.unit(v3.cross(z, x)), z });
     };
     const dashLocal = (P, q) => { const d = v3.sub(q, P.c); return [v3.dot(d, P.x), v3.dot(d, P.y), v3.dot(d, P.z)]; };
@@ -10700,8 +10704,8 @@
       const [a, b, c] = dashLocal(P, q);
       return Math.abs(a) < DASH_W / 2 + 0.02 && Math.abs(b) < DASH_H / 2 + 0.02 && c < 0.025 && c > -DASH_T - 0.02;
     };
-    const xrDash = (ws, st, hands) => {
-      const P = dashPose(ws);
+    const xrDash = (ws, st, hands, head) => {
+      const P = dashPose(ws, head);
       if (!P) return void (ws.dash = null);
       // taking it and carrying it: the hand that holds it moves and turns it with the wrist
       const held = (ws.dashHeld ??= {});
@@ -10772,9 +10776,11 @@
       const dt = ws.shipLast ? Math.min(0.1, (now - ws.shipLast) / 1000) : 0;
       ws.shipLast = now;
       const S = (ws.ship ??= {});
-      xrDash(ws, st, hands);
       const on = st.left.fn?.kind === 'ship';
       ws.shipOn = on;
+      // the dashboard comes with the controls: there while the ship function is held, gone when it is put down
+      if (on) xrDash(ws, st, hands, head);
+      else if (ws.dash || ws.dashPose) xrDashRelease(ws);
       const fwNow = head ? v3.unit([-head[8], 0, -head[10]]) : [0, 0, -1];
       if (!on) {
         // (put down: the ship keeps its speed and its course)
@@ -12106,25 +12112,43 @@
         xrQuad(gl, P, mul4(eyeFromRef, [...x, 0, ...y, 0, ...z, 0, ...v3.add(at, [0, 0.03, 0]), 1]), tex, 0.08, 0.0125);
       }
       if (ws.dash) {
-        // the dashboard's body: a box, its faces that look toward the eye (convex: no depth needed), then the keys and the slider
+        // the dashboard as a hologram: a see-through cyan slab (its faces that look toward the eye, convex: no depth needed) with
+        // glowing edges, faint scan lines and a bright line sweeping across, the keys and the slider as light on its face
         const D = ws.dash, Pd = D.P;
         const eyeR = [eyeFromRef[12], eyeFromRef[13], eyeFromRef[14]];
         // (the eye in the room: the inverse of the view's translation)
         const E = [-(eyeFromRef[0] * eyeR[0] + eyeFromRef[1] * eyeR[1] + eyeFromRef[2] * eyeR[2]), -(eyeFromRef[4] * eyeR[0] + eyeFromRef[5] * eyeR[1] + eyeFromRef[6] * eyeR[2]), -(eyeFromRef[8] * eyeR[0] + eyeFromRef[9] * eyeR[1] + eyeFromRef[10] * eyeR[2])];
         const hold = D.held;
-        const faceTex = (id, fill, edge) => xrPanelTex(gl, `dash-${id}-${hold ? 1 : 0}`, 256, 64, `${id}|${hold}`, (c, W, H) => {
-          c.fillStyle = fill;
+        const tint = hold ? '255, 176, 90' : '90, 230, 255'; // (carried: amber)
+        const sweep = Math.floor(((now / 1600) % 1) * 24); // the sweeping line's place (24 steps: the textures are kept)
+        const flick = 0.9 + 0.1 * Math.sin(now / 90) * Math.sin(now / 37); // a slight shimmer
+        const faceTex = (id, a0) => xrPanelTex(gl, `holo-${id}-${hold ? 1 : 0}-${id === 'top' ? sweep : 0}`, 256, 96, `${id}|${hold}|${id === 'top' ? sweep : 0}`, (c, W, H) => {
+          c.clearRect(0, 0, W, H);
+          c.fillStyle = `rgba(${tint}, ${a0})`;
           c.fillRect(0, 0, W, H);
-          c.strokeStyle = hold ? 'rgba(255, 170, 70, 0.95)' : edge;
-          c.lineWidth = 6;
+          c.fillStyle = `rgba(${tint}, ${a0 * 0.9})`;
+          for (let y = 2; y < H; y += 6) c.fillRect(0, y, W, 1); // scan lines
+          if (id === 'top') {
+            const x = (sweep / 24) * W;
+            const g = c.createLinearGradient(x - 26, 0, x + 26, 0);
+            g.addColorStop(0, `rgba(${tint}, 0)`);
+            g.addColorStop(0.5, `rgba(${tint}, 0.35)`);
+            g.addColorStop(1, `rgba(${tint}, 0)`);
+            c.fillStyle = g;
+            c.fillRect(x - 26, 0, 52, H);
+          }
+          c.strokeStyle = `rgba(${tint}, 0.95)`;
+          c.lineWidth = 4;
+          c.shadowColor = `rgba(${tint}, 1)`;
+          c.shadowBlur = 8;
           c.strokeRect(3, 3, W - 6, H - 6);
         });
         const mid = v3.sub(Pd.c, v3.mul(Pd.z, DASH_T / 2));
         const faces = [
-          { n: Pd.z, at: Pd.c, x: Pd.x, y: Pd.y, hw: DASH_W / 2, hh: DASH_H / 2, tex: () => faceTex('top', 'rgba(10, 16, 30, 0.96)', 'rgba(255, 214, 140, 0.55)') },
-          { n: v3.mul(Pd.z, -1), at: v3.sub(Pd.c, v3.mul(Pd.z, DASH_T)), x: v3.mul(Pd.x, -1), y: Pd.y, hw: DASH_W / 2, hh: DASH_H / 2, tex: () => faceTex('under', 'rgb(40, 44, 54)', 'rgba(120, 130, 150, 0.8)') },
-          ...[1, -1].map((k) => ({ n: v3.mul(Pd.y, k), at: v3.add(mid, v3.mul(Pd.y, (k * DASH_H) / 2)), x: v3.mul(Pd.x, k), y: Pd.z, hw: DASH_W / 2, hh: DASH_T / 2, tex: () => faceTex('side', 'rgb(70, 76, 90)', 'rgba(160, 170, 190, 0.8)') })),
-          ...[1, -1].map((k) => ({ n: v3.mul(Pd.x, k), at: v3.add(mid, v3.mul(Pd.x, (k * DASH_W) / 2)), x: v3.mul(Pd.y, -k), y: Pd.z, hw: DASH_H / 2, hh: DASH_T / 2, tex: () => faceTex('end', 'rgb(58, 62, 74)', 'rgba(160, 170, 190, 0.8)') })),
+          { n: Pd.z, at: Pd.c, x: Pd.x, y: Pd.y, hw: DASH_W / 2, hh: DASH_H / 2, tex: () => faceTex('top', 0.1 * flick) },
+          { n: v3.mul(Pd.z, -1), at: v3.sub(Pd.c, v3.mul(Pd.z, DASH_T)), x: v3.mul(Pd.x, -1), y: Pd.y, hw: DASH_W / 2, hh: DASH_H / 2, tex: () => faceTex('under', 0.05) },
+          ...[1, -1].map((k) => ({ n: v3.mul(Pd.y, k), at: v3.add(mid, v3.mul(Pd.y, (k * DASH_H) / 2)), x: v3.mul(Pd.x, k), y: Pd.z, hw: DASH_W / 2, hh: DASH_T / 2, tex: () => faceTex('side', 0.14) })),
+          ...[1, -1].map((k) => ({ n: v3.mul(Pd.x, k), at: v3.add(mid, v3.mul(Pd.x, (k * DASH_W) / 2)), x: v3.mul(Pd.y, -k), y: Pd.z, hw: DASH_H / 2, hh: DASH_T / 2, tex: () => faceTex('end', 0.14) })),
         ];
         let topSeen = false;
         for (const f of faces) {
@@ -12136,43 +12160,54 @@
         if (topSeen) {
           const onFace = (lx, ly, lz = 0.002) => dashAt(Pd, lx, ly, lz);
           for (const k of D.keys) {
-            const tex = xrPanelTex(gl, `dash-${k.code}-${k.down ? 1 : 0}`, 128, 128, `${k.code}|${k.down}`, (c, W, H) => {
-              c.fillStyle = k.down ? 'rgba(47, 184, 192, 0.95)' : k.key === 'Escape' ? 'rgba(120, 30, 12, 0.95)' : k.hold ? 'rgba(70, 66, 52, 0.95)' : 'rgba(30, 36, 48, 0.95)';
+            const tex = xrPanelTex(gl, `holo-${k.code}-${k.down ? 1 : 0}-${hold ? 1 : 0}`, 128, 128, `${k.code}|${k.down}|${hold}`, (c, W, H) => {
+              c.clearRect(0, 0, W, H);
+              const warn = k.key === 'Escape';
+              const col = warn ? '255, 120, 90' : tint;
+              c.fillStyle = `rgba(${col}, ${k.down ? 0.55 : 0.12})`;
               c.beginPath();
-              c.roundRect(4, 4, W - 8, H - 8, 18);
+              c.roundRect(6, 6, W - 12, H - 12, 18);
               c.fill();
-              c.fillStyle = k.down ? '#04181a' : '#f2eee0';
+              c.shadowColor = `rgba(${col}, 1)`;
+              c.shadowBlur = k.down ? 18 : 10;
+              c.strokeStyle = `rgba(${col}, 0.95)`;
+              c.lineWidth = 4;
+              c.stroke();
+              c.fillStyle = k.down ? '#eaffff' : `rgba(${col}, 1)`;
               c.textAlign = 'center';
               c.font = k.label.length > 1 ? '700 34px system-ui, sans-serif' : '700 56px system-ui, sans-serif';
               c.fillText(k.label, W / 2, k.label.length > 1 ? 60 : 66);
+              c.shadowBlur = 4;
               c.font = '500 24px system-ui, sans-serif';
-              c.fillStyle = k.down ? '#04181a' : '#9fe6d8';
               c.fillText(k.sub, W / 2, 104);
             });
-            xrQuad(gl, P, mul4(eyeFromRef, [...Pd.x, 0, ...Pd.y, 0, ...Pd.z, 0, ...onFace(k.lx, DASH_KEYS_Y, k.down ? 0.001 : 0.004), 1]), tex, DASH_KEY / 2 - 0.002, DASH_KEY / 2 - 0.002);
+            xrQuad(gl, P, mul4(eyeFromRef, [...Pd.x, 0, ...Pd.y, 0, ...Pd.z, 0, ...onFace(k.lx, DASH_KEYS_Y, k.down ? 0.001 : 0.006), 1]), tex, DASH_KEY / 2 - 0.002, DASH_KEY / 2 - 0.002);
           }
           // the slider: the sky's field of view (its zoom), the knob where it is
           const z = skyZoom(), t = Math.log(z) / Math.log(XR_ZOOM_MAX);
           const label = `sky FOV ${zoomFov(z)}°  ×${z.toFixed(z < 2 ? 2 : 1)}`;
-          const tex = xrPanelTex(gl, 'dash-slider', 768, 96, `${label}|${ws.sliding}`, (c, W, H) => {
-            c.fillStyle = 'rgba(30, 36, 48, 0.95)';
-            c.beginPath();
-            c.roundRect(4, 4, W - 8, H - 8, 20);
-            c.fill();
-            c.fillStyle = ws.sliding ? '#9fe6d8' : '#cfd8ea';
+          const tex = xrPanelTex(gl, 'holo-slider', 768, 96, `${label}|${ws.sliding}|${hold}`, (c, W, H) => {
+            c.clearRect(0, 0, W, H);
+            c.shadowColor = `rgba(${tint}, 1)`;
+            c.shadowBlur = 8;
+            c.fillStyle = ws.sliding ? '#eaffff' : `rgba(${tint}, 1)`;
             c.font = '600 30px system-ui, sans-serif';
             c.fillText(label, 24, 40);
-            c.fillStyle = 'rgba(255, 214, 140, 0.35)';
-            c.fillRect(24, 62, W - 48, 8);
+            c.fillStyle = `rgba(${tint}, 0.8)`;
+            c.fillRect(24, 64, W - 48, 4);
+            for (let i = 0; i <= 8; i++) c.fillRect(24 + ((W - 48) * i) / 8, 58, 2, 16); // ticks
           });
           xrQuad(gl, P, mul4(eyeFromRef, [...Pd.x, 0, ...Pd.y, 0, ...Pd.z, 0, ...onFace(0, DASH_SLIDER_Y), 1]), tex, DASH_SLIDER_W / 2 + 0.012, 0.018);
-          const knob = xrPanelTex(gl, 'dash-knob', 64, 64, 'knob', (c, W, H) => {
-            c.fillStyle = '#ffe2a8';
+          const knob = xrPanelTex(gl, `holo-knob-${hold ? 1 : 0}`, 64, 64, `knob|${hold}`, (c, W, H) => {
+            c.clearRect(0, 0, W, H);
+            c.shadowColor = `rgba(${tint}, 1)`;
+            c.shadowBlur = 12;
+            c.fillStyle = '#eaffff';
             c.beginPath();
-            c.arc(W / 2, H / 2, W / 2 - 4, 0, Math.PI * 2);
+            c.arc(W / 2, H / 2, W / 2 - 14, 0, Math.PI * 2);
             c.fill();
           });
-          xrQuad(gl, P, mul4(eyeFromRef, [...Pd.x, 0, ...Pd.y, 0, ...Pd.z, 0, ...onFace((t - 0.5) * DASH_SLIDER_W, DASH_SLIDER_Y - 0.007, 0.004), 1]), knob, 0.009, 0.009);
+          xrQuad(gl, P, mul4(eyeFromRef, [...Pd.x, 0, ...Pd.y, 0, ...Pd.z, 0, ...onFace((t - 0.5) * DASH_SLIDER_W, DASH_SLIDER_Y - 0.007, 0.006), 1]), knob, 0.011, 0.011);
         }
       }
       if (T?.phase === 'keys') {
