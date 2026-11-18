@@ -878,12 +878,12 @@
           <input id="sceneName" type="text" placeholder="name" maxlength="40" spellcheck="false" autocapitalize="off" aria-label="Name of the scene to save" title="The name a scene is saved under here (empty: a dated name)">
           <button id="sceneSave" type="button" class="cream" title="Save the scene on this computer (this browser) under that name; it then shows in the list">save</button>
           <button id="sceneCloud" type="button" class="teal" hidden title="Save the scene online, in the store, under that name: then every device opens it from the list (online). The first time it asks for the store's key. Shift+click: take that name out of the store">☁</button>
-          <button id="sceneDown" type="button" class="cream" title="Download the scene as a .json file">f↓</button>
+          <button id="sceneDown" type="button" class="cream" title="Download the scene as a .3draft file (3Draft scene JSON)">f↓</button>
           <button id="sceneOpen" type="button" class="cream" title="Add a scene from a .json file">f↑</button>
           <button id="sceneForget" type="button" class="slate" title="Forget the saved scene with the name in the box">✕</button>
           <button id="boolBtn" type="button" class="slate" title="Boolean: select two objects (B), then this; the first taken is A, the second B">bool</button>
           <button id="charBtn" type="button" class="teal" title="Assets: the character builder. Make a figure from a few sliders, hair, clothes and a prop (presets: scientist, mechanic, space crew, astronaut; every part a palette material), then place it at the cross; edit a placed one">char</button>
-          <input id="sceneFile" type="file" accept=".json,application/json" hidden>
+          <input id="sceneFile" type="file" accept=".3draft,.json,application/json" hidden>
         </span>
       </span>
       <span class="grp rows" data-label="sys">
@@ -946,7 +946,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/8532130ad19f/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/f92eb445bf3c/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2209,7 +2209,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/8532130ad19f/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/f92eb445bf3c/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -4913,10 +4913,10 @@
       if (!t) return '';
       return /^https?:\/\//i.test(t) ? t : /^[a-z][a-z0-9+.-]*:/i.test(t) ? '' : `https://${t}`; // only http(s): no javascript: or data:
     };
-    // a .json address is a scene screen (a 3Draft scene played on the face, relative to the page is fine); anything else a page
+    // a .3draft (or .json) address is a scene screen (a 3Draft scene played on the face, relative to the page is fine); anything else a page
     const sceneAddr = (v) => {
       const t = v.trim();
-      if (!/\.json(?:[?#].*)?$/i.test(t)) return '';
+      if (!/\.(?:3draft|json)(?:[?#].*)?$/i.test(t)) return '';
       return /^[a-z][a-z0-9+.-]*:/i.test(t) && !/^https?:\/\//i.test(t) ? '' : t;
     };
     // a picture's address (.png .jpg .jpeg .webp .gif .avif .svg; relative to the page is fine) is an image screen
@@ -9154,7 +9154,7 @@
       if (!allObjects().length) return sceneNote('nothing to save: the scene is empty');
       const name = nameOrDate();
       const url = URL.createObjectURL(new Blob([JSON.stringify(sceneFile(name))], { type: 'application/json' }));
-      const a = Object.assign(document.createElement('a'), { href: url, download: `${name.replace(/[^\w.-]+/g, '-')}.json` });
+      const a = Object.assign(document.createElement('a'), { href: url, download: `${name.replace(/[^\w.-]+/g, '-')}.3draft` });
       document.body.append(a);
       a.click();
       a.remove();

@@ -4,7 +4,7 @@ A bare 3D player to embed in any web page. It shows one thing and has **no UI of
 captions on screen, no keyboard or mouse handling. The page around it controls it with URL parameters and `postMessage`
 commands, and it reports back with events.
 
-- A **scene** (a 3Draft scene, `.scene.json`) turns slowly on a turntable round its middle.
+- A **scene** (a 3Draft scene file, `.3draft`; older ones `.scene.json`) turns slowly on a turntable round its middle.
 - A **story** (a Spider Build v2 file, `.build.json`) plays on its own timeline: the model is built step by step and the
   recorded camera moves with it. It loops by default.
 - The background is **transparent** (the page shows through) or a colour you give.
@@ -40,7 +40,7 @@ A relative address is relative to the player page.
 
 | Parameter | Default | Meaning |
 |---|---|---|
-| `scene` (or `src`) | — | the scene (`.scene.json`) or story (`.build.json`) to load |
+| `scene` (or `src`) | — | the scene (`.3draft`, or an older `.scene.json`) or story (`.build.json`) to load |
 | `bg` | `transparent` | `transparent`, or a colour: `1a1a2e`, `#1a1a2e`, `fff` |
 | `spin` | `20` | the turntable's speed, degrees per second; `0` stands still, negative turns the other way |
 | `yaw` | `30` | the turntable's starting angle round the vertical, degrees |

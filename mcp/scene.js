@@ -1,4 +1,4 @@
-// (copied from 3Draft 8532130 by scripts/sync.mjs: change it there)
+// (copied from 3Draft f92eb44 by scripts/sync.mjs: change it there)
 // The model and its tools. One scene of named objects (meshes), edited by tool calls
 // and judged by the deterministic SVG preview. No I/O except save/load of JSON files
 // under the working directory. The MCP transport is in server.js.
@@ -152,7 +152,7 @@ const safePath = (p) => {
   const full = resolve(process.cwd(), p);
   const rel = relative(process.cwd(), full);
   if (rel.startsWith('..') || isAbsolute(rel)) fail('path must stay inside the server working directory');
-  if (extname(full) !== '.json') fail('path must end in .json');
+  if (!['.json', '.3draft'].includes(extname(full))) fail('path must end in .3draft or .json');
   return full;
 };
 
@@ -762,14 +762,14 @@ export const createScene = () => {
     },
     {
       name: 'set_screen',
-      description: 'Make faces of an object a screen in the viewer: give exactly one of `image` (a picture, .png .jpg .jpeg .webp .gif .avif .svg: laid on the face as a texture, cut to the face\'s shape, depth tested and seen in VR too; its server must allow cross-origin reading (CORS), else the desktop shows it as a page), `scene` (a 3Draft scene file .json, played on the face turning round its middle) or `url` (a web page, shown in an iframe over the face on the desktop; not in VR, sites that forbid framing stay blank). Only four-cornered faces show it; seen from the front (the side the face\'s CCW winding faces). Without `face` every four-cornered face of the object becomes the screen (a box: all six sides), so for one side give its face index (get_mesh). The screen is a material (`material`, default "screen-<object>") kept in the scene\'s palette (export / import keep it); give none of image / scene / url to make the faces plain again.',
+      description: 'Make faces of an object a screen in the viewer: give exactly one of `image` (a picture, .png .jpg .jpeg .webp .gif .avif .svg: laid on the face as a texture, cut to the face\'s shape, depth tested and seen in VR too; its server must allow cross-origin reading (CORS), else the desktop shows it as a page), `scene` (a 3Draft scene file .3draft / .json, played on the face turning round its middle) or `url` (a web page, shown in an iframe over the face on the desktop; not in VR, sites that forbid framing stay blank). Only four-cornered faces show it; seen from the front (the side the face\'s CCW winding faces). Without `face` every four-cornered face of the object becomes the screen (a box: all six sides), so for one side give its face index (get_mesh). The screen is a material (`material`, default "screen-<object>") kept in the scene\'s palette (export / import keep it); give none of image / scene / url to make the faces plain again.',
       inputSchema: {
         type: 'object',
         properties: {
           name: nameSchema,
           face: { type: 'integer', description: 'face index inside the object (get_mesh); omitted: every four-cornered face' },
           image: { type: 'string', description: 'a picture address (https://… or relative to the viewer page): .png .jpg .jpeg .webp .gif .avif .svg' },
-          scene: { type: 'string', description: 'a 3Draft scene file address (.json)' },
+          scene: { type: 'string', description: 'a 3Draft scene file address (.3draft or .json)' },
           url: { type: 'string', description: 'a web page address (https://…)' },
           material: { type: 'string', description: 'the screen material\'s name (default "screen-<object>"); faces that share it share the screen' },
           color: colorSchema,
@@ -783,8 +783,8 @@ export const createScene = () => {
         const kind = given[0], addr = kind ? a[kind].trim() : '';
         if (kind && /^[a-z][a-z0-9+.-]*:/i.test(addr) && !/^https?:\/\//i.test(addr)) fail(`${kind} must be an http(s) address or a relative path`);
         if (kind === 'image' && !/\.(?:png|jpe?g|webp|gif|avif|svg)(?:[?#].*)?$/i.test(addr)) fail('image must end in .png .jpg .jpeg .webp .gif .avif or .svg');
-        if (kind === 'scene' && !/\.json(?:[?#].*)?$/i.test(addr)) fail('scene must be a .json scene file');
-        if (kind === 'url' && /\.(?:png|jpe?g|webp|gif|avif|svg|json)(?:[?#].*)?$/i.test(addr)) fail('that address is an image or a scene: give it as image or scene');
+        if (kind === 'scene' && !/\.(?:3draft|json)(?:[?#].*)?$/i.test(addr)) fail('scene must be a .3draft (or .json) scene file');
+        if (kind === 'url' && /\.(?:png|jpe?g|webp|gif|avif|svg|json|3draft)(?:[?#].*)?$/i.test(addr)) fail('that address is an image or a scene: give it as image or scene');
         if (a.face !== undefined && (!Number.isInteger(a.face) || a.face < 0 || a.face >= mesh.faces.length)) fail(`face must be 0..${mesh.faces.length - 1}`);
         const mat = typeof a.material === 'string' && a.material.trim() ? a.material.trim().slice(0, 60) : `screen-${a.name}`;
         const picked = mesh.faces.map((f, i) => (a.face === undefined ? f.v.length === 4 : a.face === i));
@@ -866,7 +866,7 @@ export const createScene = () => {
     },
     {
       name: 'export',
-      description: 'Return the scene as JSON, or write it to `path` (relative, inside the server working directory, must end in .json).',
+      description: 'Return the scene as JSON, or write it to `path` (relative, inside the server working directory, ending in .3draft (the 3Draft scene file) or .json).',
       inputSchema: { type: 'object', properties: { path: { type: 'string' } } },
       annotations: { readOnlyHint: true },
       run: (a) => {
@@ -941,14 +941,14 @@ export const createScene = () => {
     },
     {
       name: 'view_sky',
-      description: 'Make a space scene from a sky catalogue and show it in the open viewer (the format is app/sky.md, "3draft-sky"): stars, planets, moons, dwarf planets, exoplanets, black holes and galaxies in astronomers\' units. A place is ra / dec (degrees, or "hh mm ss" / "±dd mm ss" strings, or ra_h hours) with dist + unit (ly, pc, kpc, Mpc, AU, kly, Mly, Gly) or parallax (mas), or at [x, y, z] in scene light years (the Sun at the origin, y = equatorial north). A star: spect (e.g. "G2V", "M5.5Ve", "DA"), temp (K), lum (L☉) or absmag or vmag, radius (R☉). A planet / moon goes round another object with around (its name), a (AU) or a_km, optional incl / node / angle (degrees), radius_earth / radius_km / radius_jup, teq (K, else from the star), surface (a planet shader recipe), ring, orbit: true (draw the orbit). A black hole: mass (M☉), radius_ly (drawn size). A galaxy: kind (spiral, elliptical, irregular, dwarf, interacting, early), diameter_kly or radius_ly, incl / pa, arms, bar. Any object: name, info (shown under the name when targeted), category (the find box\'s kind), color. start: { near: name, distance: ly } or { eye, yaw, pitch }. Returns the counts and notes about anything left out; save writes the made scene as a .json file the viewer opens (f↑).',
+      description: 'Make a space scene from a sky catalogue and show it in the open viewer (the format is app/sky.md, "3draft-sky"): stars, planets, moons, dwarf planets, exoplanets, black holes and galaxies in astronomers\' units. A place is ra / dec (degrees, or "hh mm ss" / "±dd mm ss" strings, or ra_h hours) with dist + unit (ly, pc, kpc, Mpc, AU, kly, Mly, Gly) or parallax (mas), or at [x, y, z] in scene light years (the Sun at the origin, y = equatorial north). A star: spect (e.g. "G2V", "M5.5Ve", "DA"), temp (K), lum (L☉) or absmag or vmag, radius (R☉). A planet / moon goes round another object with around (its name), a (AU) or a_km, optional incl / node / angle (degrees), radius_earth / radius_km / radius_jup, teq (K, else from the star), surface (a planet shader recipe), ring, orbit: true (draw the orbit). A black hole: mass (M☉), radius_ly (drawn size). A galaxy: kind (spiral, elliptical, irregular, dwarf, interacting, early), diameter_kly or radius_ly, incl / pa, arms, bar. Any object: name, info (shown under the name when targeted), category (the find box\'s kind), color. start: { near: name, distance: ly } or { eye, yaw, pitch }. Returns the counts and notes about anything left out; save writes the made scene as a .3draft file the viewer opens (f↑).',
       inputSchema: {
         type: 'object',
         properties: {
           sky: { type: 'object', description: 'the catalogue: { format: "3draft-sky", name, start, objects: [ { type, name, … } ] }', properties: { name: { type: 'string' }, objects: { type: 'array', items: { type: 'object', properties: { type: { type: 'string', enum: [...SKY_TYPES] }, name: { type: 'string' } } } } } },
-          path: { type: 'string', description: 'or read the catalogue from a .json file (relative, inside the server working directory)' },
+          path: { type: 'string', description: 'or read the catalogue from a .json (or .3draft) file (relative, inside the server working directory)' },
           replace: { type: 'boolean', description: 'clear the viewer first (default true)' },
-          save: { type: 'string', description: 'also write the made scene to this .json path' },
+          save: { type: 'string', description: 'also write the made scene to this path (.3draft, or .json)' },
         },
       },
       live: true,
