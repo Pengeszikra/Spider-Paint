@@ -946,7 +946,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/67de475b11f9/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/2c3f5576bfca/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2209,7 +2209,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/67de475b11f9/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/2c3f5576bfca/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -8046,6 +8046,8 @@
         bridgeGl ??= await createGl(bridgeCanvas);
         game = {
           name, doc, mesh, palette: gamePalette(shipData.palette), grid: shipGrid(mesh, { step: walk.step }), helm, walk,
+          // the ship's objects as they are (ship coordinates, metres): the VR workshop works on them in flight (the cabin)
+          cabin: objs.map((o, i) => ({ id: `cab-${i}`, name: o.name, mesh: o.mesh })), cabinVer: 0, cabinMeshVer: 0,
           mode: 'ship', pos: [helm.eye[0], helm.eye[2]], eyeY: helm.eye[1], look: { yaw: 0, pitch: 0 }, ship: null, keys: new Set(), last: 0,
           keymap: Object.entries(doc.keys ?? { c: 'helm' }).map(([k, a]) => [k, KEYMAP[k]]),
         };
@@ -10574,6 +10576,63 @@
     // what a hand may take or cut: the loose objects, up to 1.5 m across (not the floor or the bench)
     // what a hand may take, paint or cut: every loose object, of any size, instances too (the Lark's parts); not the floor, the
     // bench or the ghost of a replay
+    // ---- The workshop's scene. On the ground: the scene itself. In flight (a game's ship in VR, the cabin): the ship's own objects,
+    // in metres in the ship's frame, drawn round you by the ship's renderer, while the universe goes by outside; so every tool works
+    // on board as it does on the ground (VR-WORKSHOP.md, "On board"). The cabin rig says where the room lies in the ship: first
+    // the helm's eye where your eyes were when the flight began, then where the move / fly functions take you; a turn of the cabin
+    // turns the universe with it, so the ship's nose and the sky ahead stay together.
+    const cabinOn = () => Boolean(game?.cabin && space() && game.mode === 'ship' && xrState.session && xrState.pilot);
+    const cabinRig = () => {
+      if (xrState.cabin) return xrState.cabin;
+      const hy = game.helm.yaw ?? 0, e = game.helm.eye, P = xrState.pilot;
+      const fS = [Math.sin(hy), 0, -Math.cos(hy)], rS = [Math.cos(hy), 0, Math.sin(hy)];
+      // ship(p) = origin + right·p.x + up·p.y − forward·p.z, and ship(pilot) = the helm's eye
+      return (xrState.cabin = { origin: [0, 1, 2].map((i) => e[i] - (rS[i] * P[0] + (i === 1 ? P[1] : 0) - fS[i] * P[2])), forward: fS, right: rS });
+    };
+    const cabinToRoom = (C) => (q) => {
+      const d = [q[0] - C.origin[0], q[1] - C.origin[1], q[2] - C.origin[2]];
+      return [d[0] * C.right[0] + d[2] * C.right[2], d[1], -(d[0] * C.forward[0] + d[2] * C.forward[2])];
+    };
+    const cabinR2S = () => {
+      const C = cabinRig();
+      const dir = (d) => [0, 1, 2].map((i) => C.right[i] * d[0] + (i === 1 ? d[1] : 0) - C.forward[i] * d[2]);
+      return { p: (r) => v3.add(C.origin, dir(r)), d: dir, back: cabinToRoom(C) };
+    };
+    // the angle the cabin has turned from the ship's heading (radians, right positive): the universe turns with it
+    const cabinTurn = () => {
+      const C = xrState.cabin;
+      if (!C || !game) return 0;
+      const hy = game.helm.yaw ?? 0, fS = [Math.sin(hy), 0, -Math.cos(hy)], rS = [Math.cos(hy), 0, Math.sin(hy)];
+      return Math.atan2(v3.dot(C.forward, rS), v3.dot(C.forward, fS));
+    };
+    const cabinDirty = () => (game.cabinVer = (game.cabinVer ?? 0) + 1);
+    let cabinUid = 0;
+    const groundWS = { cabin: false, all: () => allObjects(), workable: () => workable(), create: (n, m) => create(n, m), change: (o, m) => change(o, m), erase: (o) => erase(o), has: (o) => has(o), restore: (o) => restore(o), r2s: () => roomToScene() };
+    const cabinWS = {
+      cabin: true,
+      all: () => game.cabin,
+      workable: () => game.cabin.filter((o) => o.mesh.faces.length),
+      create: (name, mesh) => {
+        const o = { id: `cab-n${++cabinUid}`, name, mesh };
+        game.cabin.push(o);
+        cabinDirty();
+        history.push(() => cabinWS.erase(o));
+        return o;
+      },
+      change: (o, mesh) => {
+        const live = game.cabin.find((x) => x.id === o.id) ?? o;
+        live.mesh = mesh;
+        cabinDirty();
+      },
+      erase: (o) => {
+        game.cabin = game.cabin.filter((x) => x.id !== o.id);
+        cabinDirty();
+      },
+      has: (o) => game.cabin.some((x) => x.id === o.id),
+      restore: (o) => (game.cabin.push(o), cabinDirty()),
+      r2s: () => cabinR2S(),
+    };
+    let WS = groundWS;
     const workable = () => allObjects().filter((o) => o.mesh.faces.length && !/^(floor|bench |vr-ghost)/.test(o.name ?? ''));
     // is a scene point on (or within `margin` of) an object: its box first (kept per mesh); then, for a simple solid (a block, a
     // panel, a carved block: convex), behind every face plane; a complex one (letters, a ship's part) counts by its box
@@ -10779,7 +10838,8 @@
     // universe, its helm's eye where the pilot's eyes were when the flight began, its nose ahead (the room's −z: where the rig
     // turns the universe with the ship). A second renderer on the same WebGL2 context keeps its own buffers, so neither uploads
     // the other's mesh every frame; it clears only the depth (xr.overlay).
-    const xrShip = { gpu: null, pending: false, mesh: null, of: null, at: null };
+    const xrShip = { gpu: null, pending: false, mesh: null, parts: null, of: null, at: null };
+    const xrShipRoom = new WeakMap(); // object mesh -> { rig, out }: its vertices in the room
     const xrShipMesh = (gl) => {
       const g = game, pilot = xrState.pilot;
       if (!g || !space() || g.mode !== 'ship' || !pilot) return null;
@@ -10789,18 +10849,27 @@
         if (!xrShip.pending) ((xrShip.pending = true), createGl(gl.canvas).then((x) => ((xrShip.gpu = x), xrLog('ship: renderer ready'))).catch((err) => xrLog(`ship: ${err?.message ?? err}`, true)));
         return null;
       }
-      if (xrShip.of !== g.mesh || xrShip.at !== pilot) {
-        const hy = g.helm.yaw ?? 0, e = g.helm.eye;
-        const fS = [Math.sin(hy), 0, -Math.cos(hy)], rS = [Math.cos(hy), 0, Math.sin(hy)];
-        const toRoom = (q) => {
-          const d = [q[0] - e[0], q[1] - e[1], q[2] - e[2]];
-          return [pilot[0] + d[0] * rS[0] + d[2] * rS[2], pilot[1] + d[1], pilot[2] - (d[0] * fS[0] + d[2] * fS[2])];
-        };
-        xrShip.mesh = { ...g.mesh, positions: g.mesh.positions.map(toRoom) };
-        if (window.__dbgShip === 'noglass') xrShip.mesh = { ...xrShip.mesh, faces: xrShip.mesh.faces.filter((f) => !((g.palette[f.mat]?.alpha ?? 1) < 1)) };
-        xrShip.of = g.mesh;
-        xrShip.at = pilot;
-        xrLog(`ship: ${g.doc.ship.scene} round the pilot (${g.mesh.faces.length} faces)`);
+      if (xrShip.game !== g) ((xrShip.game = g), (xrShip.of = null), (xrShip.at = null));
+      const C = cabinRig();
+      const rigKey = `${C.origin.join()}|${C.forward.join()}`;
+      if (xrShip.of !== g.cabinVer || xrShip.at !== rigKey) {
+        const toRoom = cabinToRoom(C);
+        xrShip.parts = g.cabin.map((o) => {
+          const hit = xrShipRoom.get(o.mesh);
+          if (hit && hit.rig === rigKey) return hit.out;
+          const out = { ...o.mesh, positions: o.mesh.positions.map(toRoom) };
+          xrShipRoom.set(o.mesh, { rig: rigKey, out });
+          return out;
+        });
+        xrShip.mesh = xrShip.parts.length ? merge(...xrShip.parts) : { positions: [], faces: [] };
+        if (xrShip.of !== g.cabinVer && g.cabinMeshVer !== g.cabinVer) {
+          // (the desktop's bridge and the walking grid see the ship as the hands left it)
+          g.mesh = g.cabin.length ? merge(...g.cabin.map((o) => o.mesh)) : { positions: [], faces: [] };
+          g.cabinMeshVer = g.cabinVer;
+        }
+        if (xrShip.of === null || xrShip.of === undefined) xrLog(`ship: ${g.doc.ship.scene} round the pilot (${xrShip.mesh.faces.length} faces, ${g.cabin.length} objects)`);
+        xrShip.of = g.cabinVer;
+        xrShip.at = rigKey;
       }
       return xrShip.mesh;
     };
@@ -10812,7 +10881,7 @@
       const P = Float32Array.from(glP);
       for (const i of [2, 6, 10, 14]) P[i] = (glP[i] + glP[i + 1]) * 0.5;
       const p = v.transform.position;
-      xrShip.gpu.render(mesh, orbitView({ yaw: 0, pitch: 0 }), { palette: game.palette, smooth: 40, studio: true, glow: false, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: P, view: v.transform.inverse.matrix, eye: [p.x, p.y, p.z], overlay: true } });
+      xrShip.gpu.render(mesh, orbitView({ yaw: 0, pitch: 0 }), { palette: game.palette, parts: xrShip.parts, smooth: 40, studio: true, glow: false, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: P, view: v.transform.inverse.matrix, eye: [p.x, p.y, p.z], overlay: true } });
     };
     // in space (a starship) the hands fly the ship: the left hand's ship function (two-handed), exit on the right
     const tshFunctions = () => ({
@@ -10825,16 +10894,17 @@
           .slice(0, 8)
           .map((i) => ({ id: `mat${i}`, label: materials[i].name, kind: 'material', data: i })),
         { id: 'grab', label: 'grab', kind: 'grab' },
-        // (the tools that make things in metres are left out in a star map: there the scene's unit is the light year, so a 5 cm cube
-        // would be a cube 5 cm × 9.5e15 big round the head: see the debug report of 18 Nov)
-        ...(space() ? [] : [{ id: 'cube', label: 'cube', kind: 'cube' }, { id: 'block', label: 'block between the hands', kind: 'block', both: true }]),
+        // (the tools that make things in metres are left out in a star map without a ship: there the scene's unit is the light year,
+        // so a 5 cm cube would be a cube 5 cm × 9.5e15 big round the head: see the debug report of 18 Nov; with a ship they work in
+        // its cabin, in metres)
+        ...(space() && !cabinOn() ? [] : [{ id: 'cube', label: 'cube', kind: 'cube' }, { id: 'block', label: 'block between the hands', kind: 'block', both: true }]),
         // (in space: the starship)
         ...(space() ? [{ id: 'ship', label: 'starship', kind: 'ship', both: true }] : []),
       ],
       // (exit: on the right hand, in the far corner of its grid, away from the middle)
       right: [
         { id: 'grab', label: 'grab', kind: 'grab' },
-        ...(space()
+        ...(space() && !cabinOn()
           ? []
           : [
               { id: 'build', label: 'build walls', kind: 'build', both: true },
@@ -10873,7 +10943,7 @@
       const A = v3.unit([thin[0], 0, thin[2]]), B = v3.cross(A, Y);
       return { O: v3.sub(v3.add(c, v3.mul(A, GRID / 2)), [0, GRID / 2, 0]), X: A, Y, Z: B };
     };
-    const panels = () => allObjects().filter((o) => /^panel-/.test(o.name ?? ''));
+    const panels = () => WS.all().filter((o) => /^panel-/.test(o.name ?? ''));
     const xrGrid = (ws, head, R2S) => {
       if (ws.grid && panels().length) return ws.grid;
       const first = panels()[0];
@@ -10971,7 +11041,7 @@
         ws.build.ray = [g.rayFrom, R2S.back(fromGrid(grid, slot.hit))];
         if (clicked && slot.ok && slot.centre) {
           const mt = materials[current] ?? materials[0];
-          const o = create(`panel-${slot.axis === 'v' ? (slot.centre[1] > 0 ? 'ceiling' : 'floor') : 'wall'}-${shortId()}`, panelMesh(grid, slot, mt));
+          const o = WS.create(`panel-${slot.axis === 'v' ? (slot.centre[1] > 0 ? 'ceiling' : 'floor') : 'wall'}-${shortId()}`, panelMesh(grid, slot, mt));
           if (!ws.grid) ws.grid = grid; // (the first panel fixes the grid)
           ws.piece = o.id;
           done();
@@ -10986,9 +11056,9 @@
         ws.build.ray = [g.rayFrom, best ? R2S.back(best.point) : v3.add(g.rayFrom, v3.mul(g.rayDir, 6))];
         ws.build.target = best?.o ?? null;
         if (clicked && best) {
-          erase(best.o);
+          WS.erase(best.o);
           const o = best.o;
-          history.push(() => has(o) || restore(o));
+          { const W = WS; history.push(() => W.has(o) || W.restore(o)); }
           done();
           wsNote(ws, `${o.name.split('-')[1]} erased`);
         }
@@ -11056,7 +11126,7 @@
         if (!g || !(g.aim || g.point) || g.fist || !g.rayFrom) return;
         const from = R2S.p(g.rayFrom), dir = v3.unit(R2S.d(g.rayDir));
         let best = null;
-        for (const o of allObjects()) {
+        for (const o of WS.all()) {
           if (!o.mesh.faces.length || o.inst || /^vr-ghost/.test(o.name ?? '')) continue;
           const h = rayConvex(o.mesh, from, dir);
           if (h && (!best || h.t < best.t)) best = h;
@@ -11097,8 +11167,8 @@
           return;
         }
         if (key === 'esc') {
-          const o = T.obj && allObjects().find((x) => x.id === T.obj.id);
-          if (o) erase(o);
+          const o = T.obj && WS.all().find((x) => x.id === T.obj.id);
+          if (o) WS.erase(o);
           Object.assign(T, { phase: 'point', text: '', obj: null });
           wsNote(ws, 'the words are gone: take a new point');
           return;
@@ -11106,9 +11176,9 @@
         T.text = key === 'space' ? `${T.text} ` : key === 'enter' ? `${T.text}\n` : key === 'del' ? T.text.slice(0, -1) : T.text + key;
       }
       const mesh = typeMesh(T, typeFrame(T, R2S, head), mt);
-      const o = T.obj && allObjects().find((x) => x.id === T.obj.id);
-      if (o) change(o, mesh);
-      else if (mesh.faces.length) T.obj = create(`text-${shortId()}`, mesh);
+      const o = T.obj && WS.all().find((x) => x.id === T.obj.id);
+      if (o) WS.change(o, mesh);
+      else if (mesh.faces.length) T.obj = WS.create(`text-${shortId()}`, mesh);
       done();
       wsNote(ws, `“${T.text.replace(/\n/g, ' ⏎ ').slice(-28)}”`);
     };
@@ -11149,16 +11219,16 @@
           const fw = head ? v3.unit([-head[8], 0, -head[10]]) : [0, 0, -1];
           const frame = { x: v3.cross(fw, [0, 1, 0]), y: [0, 1, 0], z: v3.mul(fw, -1) };
           const b = blockMesh(frame);
-          const o = create(`block-${shortId()}`, b.mesh);
+          const o = WS.create(`block-${shortId()}`, b.mesh);
           Object.assign(mk, { id: o.id, frame, last: [pl, pr], still: 0 });
           ws.piece = o.id;
           wsNote(ws, `block ${cm(b.size)}`);
         }
       } else {
-        const o = allObjects().find((x) => x.id === mk.id);
+        const o = WS.all().find((x) => x.id === mk.id);
         if (!o) ws.make = null;
         else if (gap < 0.05) {
-          erase(o);
+          WS.erase(o);
           ws.make = { armed: true };
           ws.piece = null;
           wsNote(ws, 'block taken back');
@@ -11172,7 +11242,7 @@
             wsNote(ws, `block made · hands together for the next`);
           } else {
             const b = blockMesh(mk.frame);
-            change(o, b.mesh);
+            WS.change(o, b.mesh);
             wsNote(ws, `block ${cm(b.size)}`);
           }
         }
@@ -11188,8 +11258,8 @@
       const endCarve = () => {
         const c = ws.carve;
         ws.carve = null;
-        const o = c && allObjects().find((x) => x.id === c.id);
-        if (o && o.mesh !== c.mesh0) (history.push(() => has(o) && change(o, c.mesh0)), done());
+        const o = c && WS.all().find((x) => x.id === c.id);
+        if (o && o.mesh !== c.mesh0) (history.push(() => WS.has(o) && WS.change(o, c.mesh0)), done());
       };
       if (R.fn?.kind !== 'saw' || !g?.fist) return void endCarve();
       const mt = materials[current] ?? materials[0];
@@ -11245,11 +11315,11 @@
         if (pieces.length < 2) return false;
         const keep = pieces.reduce((a, b) => (meshVolume(b) > meshVolume(a) ? b : a));
         if (front && v3.dot(v3.sub(bounds(keep).center, pl.point), pl.n) <= 0) return false;
-        xrState.lastEdit = { id: o.id, mesh: o.mesh, at: performance.now() }; // (if the next frames fail, this cut is taken back)
-        change(o, keep);
+        xrState.lastEdit = { id: o.id, mesh: o.mesh, at: performance.now(), W: WS }; // (if the next frames fail, this cut is taken back)
+        WS.change(o, keep);
         return true;
       };
-      const obj = workable().find((x) => touches(x, at, 0.12) && segs(x, plane).length);
+      const obj = WS.workable().find((x) => touches(x, at, 0.12) && segs(x, plane).length);
       if (ws.carve && obj?.id !== ws.carve.id) endCarve();
       if (obj && !ws.carve) {
         ws.carve = { id: obj.id, mesh0: obj.mesh, last: g.palm, t: now };
@@ -11267,7 +11337,7 @@
           c.t = now;
         }
       }
-      const live = obj && allObjects().find((x) => x.id === obj.id);
+      const live = obj && WS.all().find((x) => x.id === obj.id);
       if (live) ws.sawLine = segs(live, plane).map(([a, b]) => [R2S.back(a), R2S.back(b)]);
     };
     // ---- Moving (right hand). A fist drawing circles that stand upright, in the plane of the way you face: rolling forward (the
@@ -11289,7 +11359,7 @@
       ws.moveAt = now;
       const fw = v3.unit([-head[8], 0, -head[10]]), rightR = v3.cross(fw, [0, 1, 0]);
       const hp = [head[12], head[13], head[14]];
-      const base = () => (xrState.walk ??= (() => { const r = xrRig(); return { origin: [...r.origin], forward: [...r.forward], right: [...r.right] }; })());
+      const base = () => (WS.cabin ? cabinRig() : (xrState.walk ??= (() => { const r = xrRig(); return { origin: [...r.origin], forward: [...r.forward], right: [...r.right] }; })()));
       // circles: the fist's last 0.8 s in the upright plane ahead (a: along the way you face, b: up)
       let v = 0;
       if (g.fist) {
@@ -11670,6 +11740,7 @@
       ws.on = on;
       ws.hands = hands;
       ws.headAt = head ? [head[12], head[13], head[14]] : null;
+      WS = cabinOn() ? cabinWS : groundWS; // (in flight: the ship's cabin is the workshop)
       ws.extra = null;
       if (!on) return void (ws.shipOn = false);
       tsh ??= createTsh(tshFunctions());
@@ -11677,11 +11748,11 @@
       if (ws.inSpace && !space() && tsh.fn('left')?.kind === 'ship') tsh.release();
       ws.inSpace = space();
       // (the palette can change: the materials follow it)
-      const want = `${tshFunctions().left.map((f) => `${f.id}:${f.label}`).join()}|${tshFunctions().right.map((f) => f.id).join()}`;
+      const want = `${tshFunctions().left.map((f) => `${f.id}:${f.label}`).join()}|${tshFunctions().right.map((f) => f.id).join()}|${cabinOn()}`;
       if (want !== ws.fnKey) ((ws.fnKey = want), tsh.setFunctions('left', tshFunctions().left), tsh.setFunctions('right', tshFunctions().right));
       // (saved a moment after a change too, so a browser that drops the page does not lose it)
       if (ws.dirtyAt && now - ws.dirtyAt > 1500 && !vrPlayer.on) ((ws.dirtyAt = 0), saveWorkshop());
-      const R2S = roomToScene();
+      const R2S = WS.r2s();
       const st = tsh.update(hands, head, now);
       ws.st = st;
       const done = () => ((ws.used = true), (ws.dirtyAt = performance.now()));
@@ -11698,19 +11769,19 @@
         if (holding && !cur) {
           const at = R2S.p(g.pinch ? v3.mid(h.joints['thumb-tip'], h.joints['index-finger-tip']) : g.palm);
           const other = grabs[side === 'left' ? 'right' : 'left'];
-          const o = workable().find((x) => x.id !== other?.id && touches(x, at, 0.04));
+          const o = WS.workable().find((x) => x.id !== other?.id && touches(x, at, 0.04));
           grabs[side] = o ? { id: o.id, inv0: rigidInv(h.wrist), room0: o.mesh.positions.map(R2S.back), mesh0: o.mesh } : { none: true };
           if (o) ((ws.piece = o.id), wsNote(ws, `holding ${o.name}`));
         } else if (holding && cur?.id) {
-          const o = allObjects().find((x) => x.id === cur.id);
+          const o = WS.all().find((x) => x.id === cur.id);
           if (o) {
             const D = mul4(h.wrist, cur.inv0);
-            change(o, { ...o.mesh, positions: cur.room0.map((r) => R2S.p(xform(D, r))) });
+            WS.change(o, { ...o.mesh, positions: cur.room0.map((r) => R2S.p(xform(D, r))) });
           } else grabs[side] = { none: true };
         } else if (!holding && cur) {
           grabs[side] = null;
-          const o = cur.id && allObjects().find((x) => x.id === cur.id);
-          if (o && o.mesh !== cur.mesh0) (done(), history.push(() => has(o) && change(o, cur.mesh0)));
+          const o = cur.id && WS.all().find((x) => x.id === cur.id);
+          if (o && o.mesh !== cur.mesh0) (done(), history.push(() => WS.has(o) && WS.change(o, cur.mesh0)));
         }
       }
 
@@ -11719,13 +11790,13 @@
       if (L.fn?.kind === 'material' && lh) {
         current = L.fn.data;
         const tip = R2S.p(lh.joints['index-finger-tip']);
-        const o = workable().find((x) => touches(x, tip, 0.006));
+        const o = WS.workable().find((x) => touches(x, tip, 0.006));
         if (o && ws.painted !== o.id) {
           ws.painted = o.id;
           const mt = matOf(L.fn), before = o.mesh;
           if (o.mesh.faces.some((f) => f.mat !== mt.name || f.color !== mt.color)) {
-            history.push(() => has(o) && change(o, before));
-            change(o, { ...o.mesh, faces: o.mesh.faces.map((f) => ({ ...f, color: mt.color, mat: mt.name })) });
+            history.push(() => WS.has(o) && WS.change(o, before));
+            WS.change(o, { ...o.mesh, faces: o.mesh.faces.map((f) => ({ ...f, color: mt.color, mat: mt.name })) });
             done();
             ws.piece = o.id;
             wsNote(ws, `${o.name} painted ${mt.name}`);
@@ -11741,7 +11812,7 @@
           const right = v3.unit(R2S.d(v3.cross(fw, [0, 1, 0]))), up = v3.unit(R2S.d([0, 1, 0]));
           const mt = materials[current] ?? materials[0];
           const solid = box({ size: [TSH_CUBE, TSH_CUBE, TSH_CUBE], at: R2S.p(roomAt), axes: [right, up, v3.cross(right, up)], color: mt.color });
-          const o = create(`cube-${shortId()}`, { ...solid, faces: solid.faces.map((f) => ({ ...f, mat: mt.name })) });
+          const o = WS.create(`cube-${shortId()}`, { ...solid, faces: solid.faces.map((f) => ({ ...f, mat: mt.name })) });
           ws.piece = o.id;
           done();
           wsNote(ws, `a cube (${mt.name})`);
@@ -11978,7 +12049,7 @@
       // the builder: the floor grid round you, the ray, the slot it asks for (green: free, red: not there), the panel to erase
       const B = ws.build;
       if (B) {
-        const R2S = roomToScene();
+        const R2S = WS.r2s();
         const gp = (u) => R2S.back(fromGrid(B.grid, u));
         const gc = [0.55, 0.6, 0.5];
         for (let k = -3; k <= 3; k++) {
@@ -12475,7 +12546,15 @@
         const e = eyeNow();
         return { origin: [e[0], 0, e[2]], ...flat(yaw), scale: 1 };
       }
-      return { origin: eyeNow(), ...shipBasis(), scale: 1 / (LY_KM * 1000) };
+      const B = shipBasis();
+      // (the cabin turned with the move function: the room's −z is no longer the ship's nose, so the universe turns as much)
+      const a = cabinOn() ? cabinTurn() : 0;
+      if (a) {
+        const c = Math.cos(a), sn = Math.sin(a);
+        const F = B.forward.map((v, i) => v * c + B.right[i] * sn), R = B.right.map((v, i) => v * c - B.forward[i] * sn);
+        return { origin: eyeNow(), ...B, forward: F, right: R, scale: 1 / (LY_KM * 1000) };
+      }
+      return { origin: eyeNow(), ...B, scale: 1 / (LY_KM * 1000) };
     };
     // Some IWER versions report a full-width left viewport and a zero-width
     // right viewport. Validate the entire stereo pair; use the XR-provided
@@ -12552,7 +12631,7 @@
       try {
         const hands = readHands(session, frame, xrState.space), head = frame.getViewerPose(xrState.space)?.transform.matrix ?? null;
         // the pilot's place: where the eyes are when a flight in space begins (the ship's helm and the dashboard are put there)
-        if (!space() || frameNo === 1) (xrState.pilot && xrDashRelease(xrState.ws), (xrState.pilot = null));
+        if (!space() || frameNo === 1) (xrState.pilot && xrDashRelease(xrState.ws), (xrState.pilot = null), (xrState.cabin = null));
         if (space() && !xrState.pilot && head) xrState.pilot = [head[12], head[13], head[14]];
         vrTape.frame(hands, head, now); // (recorded / sent to the live link: exactly what the workshop gets)
         xrWorkshop(hands, head, now);
@@ -12774,10 +12853,11 @@
         const le = xrState.lastEdit;
         if (run === 3 && le) {
           xrState.lastEdit = null;
-          const o = allObjects().find((x) => x.id === le.id);
+          const W = le.W ?? groundWS;
+          const o = W.all().find((x) => x.id === le.id);
           if (o) {
             try {
-              change(o, le.mesh);
+              W.change(o, le.mesh);
               xrLog('xr: frames failed after a change: it is taken back', true);
               if (xrState.ws) wsNote(xrState.ws, 'that cut broke the view: taken back');
             } catch {}
@@ -12838,6 +12918,7 @@
       } catch {}
       xrDashRelease(xrState.ws); // (a [ or ] still held on the dashboard)
       xrState.pilot = null;
+      xrState.cabin = null;
       xrState.walk = null;
       try {
         vrTape.end();
