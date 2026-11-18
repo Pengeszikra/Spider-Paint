@@ -946,7 +946,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/09e7b24f3f6c/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/79faa76c1f4b/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2219,7 +2219,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/09e7b24f3f6c/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/79faa76c1f4b/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -9516,7 +9516,7 @@
         build: () => ({ slot: xrState.ws?.build?.slot ?? null, panels: allObjects().filter((o) => /^panel-/.test(o.name ?? '')).map((o) => ({ name: o.name, c: bounds(o.mesh).center.map((x) => +x.toFixed(3)) })), walk: xrState.walk && { origin: xrState.walk.origin.map((x) => +x.toFixed(3)), forward: xrState.walk.forward.map((x) => +x.toFixed(3)) }, moving: xrState.ws?.moving ?? null, walkV: xrState.ws?.walkV ?? null, note: xrState.ws?.note }),
         backdrop: (name) => (name !== undefined && (sceneBackdrop = name), { name: sceneBackdrop, points: backdropData.pts ? backdropData.pts.length / 8 : 0 }),
         tsh: () => xrState.ws?.st && { left: xrState.ws.st.left.fn?.id ?? null, right: xrState.ws.st.right.fn?.id ?? null, icons: xrState.ws.st.left.icons.map((ic) => ({ id: ic.fn.id, at: ic.at, big: Boolean(ic.big) })), ricons: xrState.ws.st.right.icons.map((ic) => ({ id: ic.fn.id, at: ic.at, big: Boolean(ic.big) })), fist: xrState.ws.st.left.g?.fist ?? null, exitHold: xrState.ws.exitHold ?? 0, extra: xrState.ws.extra?.faces.length ?? 0 },
-        ws: () => xrState.ws && { pieceAt: (() => { const o = allObjects().find((x) => x.id === xrState.ws.piece); if (!o) return null; const R = roomToScene(); return { room: R.back(bounds(o.mesh).center), faces: o.mesh.faces.length, verts: o.mesh.positions.length, objects: allObjects().length, vol: +meshVolume(o.mesh).toFixed(6) }; })(), menu: xrState.ws.menu && [...xrState.ws.menu], piece: xrState.ws.piece, grab: Boolean(xrState.ws.grabs?.left?.id || xrState.ws.grabs?.right?.id), making: Boolean(xrState.ws.make?.id), pal: Boolean(xrState.ws.pal), note: xrState.ws.note, on: xrState.ws.on },
+        ws: () => xrState.ws && { pieceAt: (() => { const o = allObjects().find((x) => x.id === xrState.ws.piece); if (!o) return null; const R = roomToScene(); return { room: R.back(bounds(o.mesh).center), faces: o.mesh.faces.length, verts: o.mesh.positions.length, objects: allObjects().length, vol: +meshVolume(o.mesh).toFixed(6) }; })(), menu: xrState.ws.menu && [...xrState.ws.menu], piece: xrState.ws.piece, grab: Boolean(xrState.ws.grabs?.left?.id || xrState.ws.grabs?.right?.id), making: Boolean(xrState.ws.make?.id), pal: Boolean(xrState.ws.pal), note: xrState.ws.note, on: xrState.ws.on, moving: xrState.ws.moving, vMode: xrState.ws.vMode ?? null, vArm: xrState.ws.vArm ?? null, ot: xrState.ws.openTrack ?? null, mvAt: xrState.ws.moveAt ?? null, upV: xrState.ws.upV ?? 0, walk: xrState.walk?.origin ?? null },
         xr: () => ({ log: xrState.log, frames: xrState.frames, on: Boolean(xrState.session), mono: Boolean(xrState.mono), pressed: xrState.pressed, note: xrNote?.textContent }),
         tshChoose: (side, id) => tsh?.choose(side, id),
         skyZoom: (z) => (z === undefined ? skyZoom() : (xrState.skyZoom = z)),
@@ -10872,7 +10872,7 @@
       const fwNow = head ? v3.unit([-head[8], 0, -head[10]]) : [0, 0, -1];
       if (!on) {
         // (put down: the ship keeps its speed and its course)
-        Object.assign(S, { stick: null, push0: null, side: 0, ty: 0 });
+        Object.assign(S, { stick: null, push0: null, side: 0, nod: 0, ty: 0 });
         ws.shipRay = null;
         return;
       }
@@ -10883,8 +10883,11 @@
         S.stick ??= { m: Float32Array.from(lh.wrist), fw: fwNow };
         const rv = turnBetweenPoses(S.stick.m, lh.wrist);
         S.side = band(v3.dot(rv, S.stick.fw), XR_TILT); // (the top to the right: positive)
-        if (S.side && !frozen) turn(S.side * XR_SHIP_YAW * dt, 0);
-      } else ((S.stick = null), (S.side = 0));
+        // and the nod (R / F): tilted forward (the top ahead) the nose goes down, back: up, as the controller's stick does
+        const rightAx = v3.cross(S.stick.fw, [0, 1, 0]);
+        S.nod = band(-v3.dot(rv, rightAx), XR_TILT);
+        if ((S.side || S.nod) && !frozen) turn(S.side * XR_SHIP_YAW * dt, S.nod * XR_NOD_RATE * dt);
+      } else ((S.stick = null), (S.side = 0), (S.nod = 0));
       // the right fist, held flat: the throttle (how far it went ahead since it closed)
       if (rh && R?.fist && R.back[1] > 0.5) {
         S.push0 ??= { at: [...R.palm], fw: fwNow };
@@ -10900,7 +10903,7 @@
         if (hit?.obj) ((locked = hit.obj.id), lookAt(hit.obj), wsNote(ws, `target: ${hit.obj.name ?? hit.obj.id}`));
         else (xrKey('t', 'KeyT'), wsNote(ws, 'T: the target ahead'));
       }
-      ws.shipNote = `${S.side ? `turn ${S.side > 0 ? '→' : '←'}${Math.round(Math.abs(S.side) * 9)}  ` : ''}${S.ty ? `thrust ${S.ty > 0 ? '+' : '−'}${Math.round(Math.abs(S.ty) * 9)}  ` : ''}speed ${xrLevel(level.f)}`;
+      ws.shipNote = `${S.side ? `turn ${S.side > 0 ? '→' : '←'}${Math.round(Math.abs(S.side) * 9)}  ` : ''}${S.nod ? `nod ${S.nod > 0 ? '↓' : '↑'}${Math.round(Math.abs(S.nod) * 9)}  ` : ''}${S.ty ? `thrust ${S.ty > 0 ? '+' : '−'}${Math.round(Math.abs(S.ty) * 9)}  ` : ''}speed ${xrLevel(level.f)}`;
     };
     // the target in the headset (the desktop's marks are not drawn in XR): four ticks round it, 50 m out from the eyes in its
     // direction, as wide as it looks (at least 1°); green and turned 45° while orbiting it, as on the screen
@@ -11474,18 +11477,38 @@
           if (round && rad > 0.04 && rad < 0.4 && Math.abs(swept) > 0.8) v = (-swept / span) * WALK_PER_RAD;
         }
       } else ws.circle = [];
+      // up and down (fly) are armed first, so they do not mix with walking: an OPEN hand moved up (8 cm) arms rising, then close
+      // the fist and pull it down: up you go (like a rope); an open hand moved down arms sinking, then the fist pushed up takes you
+      // down. The fist keeps that mode until it opens; meanwhile it does not walk.
+      if (R.fn.kind === 'fly') {
+        const closing = g.fist && !ws.lastFist;
+        if (!g.fist) {
+          ws.vMode = null;
+          const y = g.palm[1];
+          if (!ws.openTrack || now - ws.openTrack.t > 1000) ws.openTrack = { y0: y, t: now };
+          const dy = y - ws.openTrack.y0;
+          if (Math.abs(dy) > 0.08) ((ws.vArm = { dir: dy > 0 ? 'up' : 'down', t: now }), (ws.openTrack = { y0: y, t: now }));
+        } else if (closing) {
+          ws.vMode = ws.vArm && now - ws.vArm.t < 1500 ? ws.vArm.dir : null;
+          ws.vArm = null;
+          ws.openTrack = null;
+        }
+      } else ((ws.vMode = null), (ws.vArm = null));
+      if (ws.vMode) v = 0; // (an armed fist climbs or sinks, it does not walk)
       ws.walkV = (ws.walkV ?? 0) + (v - (ws.walkV ?? 0)) * Math.min(1, dt * 6);
-      // up and down: the fist moved nearly upright (not circling): pulled down lifts you, pushed up lowers you, as fast as the
-      // hand goes (× 1.5)
       let up = 0;
       if (g.fist && dt > 0 && ws.lastFist) {
         const vel = v3.mul(v3.sub(g.palm, ws.lastFist), 1 / dt);
         ws.fistVel = ws.fistVel ? v3.add(ws.fistVel, v3.mul(v3.sub(vel, ws.fistVel), Math.min(1, dt * 10))) : vel;
-        const fv = ws.fistVel, across = Math.hypot(fv[0], fv[2]);
-        if (R.fn.kind === 'fly' && !v && Math.abs(fv[1]) > 0.12 && across < 0.5 * Math.abs(fv[1])) up = -fv[1] * 1.5;
+        const fv = ws.fistVel;
+        // armed for rising: the fist pulled down lifts you; armed for sinking: the fist pushed up lowers you (× 1.5 the hand's speed)
+        if (ws.vMode === 'up' && fv[1] < -0.05) up = -fv[1] * 1.5;
+        else if (ws.vMode === 'down' && fv[1] > 0.05) up = -fv[1] * 1.5;
       } else ws.fistVel = null;
       ws.lastFist = g.fist ? g.palm : null;
       ws.upV = (ws.upV ?? 0) + (up - (ws.upV ?? 0)) * Math.min(1, dt * 8);
+      if (ws.vMode && Math.abs(ws.upV) <= 0.02) ws.moving = ws.vMode === 'up' ? 'rising armed: pull the fist down' : 'sinking armed: push the fist up';
+      else if (R.fn.kind === 'fly' && ws.vArm && now - ws.vArm.t < 1500) ws.moving = ws.vArm.dir === 'up' ? 'rise: now a fist, pull down' : 'sink: now a fist, push up';
       if (Math.abs(ws.upV) > 0.02) {
         const w = base();
         w.origin = v3.add(w.origin, [0, ws.upV * dt, 0]);
