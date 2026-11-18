@@ -644,6 +644,11 @@
       body.split.pal:not(.pwa) footer.console .read, body.split.pal #editbar { left: calc(50% + (var(--splitW) - var(--palR)) / 2); }
     }
     #sceneCloud.cloud-err { background: #8a2a14; color: #ffe2d6; }
+    #storeKeyBox { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: rgba(0, 0, 0, 0.55); }
+    #storeKeyBox form { display: grid; gap: 8px; min-width: min(360px, 90vw); padding: 16px; background: var(--panel, #1b1c17); color: var(--fg, #eee); border: 1px solid var(--line, #444); border-radius: 8px; font: inherit; }
+    #storeKeyBox span { opacity: 0.7; font-size: 0.85em; }
+    #storeKeyBox input { font: inherit; padding: 6px 8px; background: #0e0f0c; color: inherit; border: 1px solid var(--line, #444); border-radius: 4px; }
+    #storeKeyBox div { display: flex; gap: 8px; justify-content: flex-end; }
 </style>
 </head>
 <body>
@@ -931,7 +936,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/95a4e9ecdf78/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/3529b0296778/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2194,7 +2199,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/95a4e9ecdf78/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/3529b0296778/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -8920,15 +8925,29 @@
         return '';
       }
     };
-    const askStoreKey = () => {
-      const k = prompt('The store\'s key (SPIDER_KEY in the Vercel project): it is kept in this browser');
-      if (k) {
-        try {
-          localStorage.setItem('3draft.storeKey', k.trim());
-        } catch {}
-      }
-      return k?.trim() ?? '';
-    };
+    // the key, asked on the page itself (not window.prompt: embedded browsers and some headsets give no prompt at all)
+    const askStoreKey = () =>
+      new Promise((resolve) => {
+        const box = document.createElement('div');
+        box.id = 'storeKeyBox';
+        box.innerHTML = '<form><b>The online store\'s key</b><span>SPIDER_KEY of the Vercel project; kept in this browser only</span><input type="password" autocomplete="off" spellcheck="false" aria-label="the store key" /><div><button type="button" data-no>cancel</button><button type="submit" class="teal">save</button></div></form>';
+        const input = box.querySelector('input');
+        const done = (v) => {
+          box.remove();
+          const k = (v ?? '').trim();
+          if (k) {
+            try {
+              localStorage.setItem('3draft.storeKey', k);
+            } catch {}
+          }
+          resolve(k);
+        };
+        box.querySelector('form').addEventListener('submit', (e) => (e.preventDefault(), done(input.value)));
+        box.querySelector('[data-no]').addEventListener('click', () => done(''));
+        input.addEventListener('keydown', (e) => (e.stopPropagation(), e.key === 'Escape' && done('')));
+        document.body.append(box);
+        input.focus();
+      });
     const storeList = async () => {
       if (!STORE) return [];
       let r;
@@ -8957,7 +8976,7 @@
       if (!STORE) throw new Error('no store here');
       for (let tries = 0; tries < 2; tries++) {
         let key = storeKey();
-        if (!key && !quiet) key = askStoreKey();
+        if (!key && !quiet) key = await askStoreKey();
         if (!key) throw new Error('the store needs its key');
         const r = await fetch(`${STORE}?name=${encodeURIComponent(name)}`, {
           method: data ? 'PUT' : 'DELETE',
