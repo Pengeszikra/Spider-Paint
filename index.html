@@ -946,7 +946,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/601df084edcb/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/8fa668821759/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -1884,7 +1884,7 @@
       else if (rollKeys.size) {
         let d = 0;
         for (const k of rollKeys) d += k;
-        roll = wrapPitch(roll + d * ROLL_RATE * dt);
+        roll = wrapPitch(roll + d * ROLL_RATE * (xrState.session ? XR_ROLL_SOFT : 1) * dt); // (in the headset gentler: a turning horizon sickens)
         redraw();
       }
       if (locked && (!space() || orbitOn())) return stepTarget(dt);
@@ -2221,7 +2221,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/601df084edcb/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/8fa668821759/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -10904,7 +10904,13 @@
     // The dashboard: a little console in the air (a body you can take with a pinch or a fist and put where you like, whatever
     // the hand's function; the other tools do not touch it) with keys to poke (Space, Esc, Tab, 0, [ and ], [ ] held: roll) and
     // a slider for the star map's field of view (its zoom: the sky only, not the cockpit or the hands).
-    const XR_SHIP_YAW = 0.7; // rad/s at full tilt
+    const XR_SHIP_YAW = 0.7; // rad/s at full tilt (the controllers' sticks)
+    // the bare-hand stick, gentler (a fast-turning sky in the headset sickens, and a wrist trembles): a wider dead zone (7°), full at
+    // 34°, a squared curve (fine near the middle), at most 0.3 rad/s (17°/s) round, 0.25 rad/s up / down, 0.25 rad/s round a
+    // target, and eased in and out (about a third of a second) so a sudden tilt does not jerk the sky
+    const XR_HAND_TILT = [0.12, 0.6], XR_HAND_YAW = 0.3, XR_HAND_NOD = 0.25, XR_HAND_SWING = 0.25, XR_HAND_EASE = 0.35;
+    const XR_ROLL_SOFT = 0.4; // (the roll keys in the headset: 24°/s instead of 60°/s)
+    const soft = (v) => Math.sign(v) * v * v;
     const XR_PUSH = [0.03, 0.12]; // m: the right fist's dead zone and full push
     const XR_ZOOM_MAX = 8; // the sky's zoom on the slider: 1 .. 8 (log)
     const XR_HEADSET_FOV = 100; // ° (about the Quest 3's), for the slider's label
@@ -11078,7 +11084,7 @@
       const fwNow = head ? v3.unit([-head[8], 0, -head[10]]) : [0, 0, -1];
       if (!on) {
         // (put down: the ship keeps its speed and its course)
-        Object.assign(S, { stick: null, push0: null, side: 0, nod: 0, ty: 0 });
+        Object.assign(S, { stick: null, push0: null, side: 0, nod: 0, sideTo: 0, nodTo: 0, ty: 0 });
         ws.shipRay = null;
         return;
       }
@@ -11088,14 +11094,22 @@
       if (lh && L?.fist) {
         S.stick ??= { m: Float32Array.from(lh.wrist), fw: fwNow };
         const rv = turnBetweenPoses(S.stick.m, lh.wrist);
-        S.side = band(v3.dot(rv, S.stick.fw), XR_TILT); // (the top to the right: positive)
+        S.sideTo = soft(band(v3.dot(rv, S.stick.fw), XR_HAND_TILT)); // (the top to the right: positive)
         // and the nod (R / F): tilted forward (the top ahead) the nose goes down, back: up, as the controller's stick does
         const rightAx = v3.cross(S.stick.fw, [0, 1, 0]);
-        S.nod = band(-v3.dot(rv, rightAx), XR_TILT);
+        S.nodTo = soft(band(-v3.dot(rv, rightAx), XR_HAND_TILT));
+      } else ((S.stick = null), (S.sideTo = 0), (S.nodTo = 0));
+      // eased toward where the stick is (and back to still when the fist opens)
+      const ease = 1 - Math.exp(-dt / XR_HAND_EASE);
+      S.side = (S.side ?? 0) + ((S.sideTo ?? 0) - (S.side ?? 0)) * ease;
+      S.nod = (S.nod ?? 0) + ((S.nodTo ?? 0) - (S.nod ?? 0)) * ease;
+      if (Math.abs(S.side) < 1e-3 && !S.sideTo) S.side = 0;
+      if (Math.abs(S.nod) < 1e-3 && !S.nodTo) S.nod = 0;
+      {
         // with a target in space: the ship goes round it on the sphere of its distance, nose on the target; else it turns
         const tg = space() && locked && lockedObject();
-        if ((S.side || S.nod) && !frozen) tg ? swingRound(tg, S.side * XR_SHIP_YAW * dt, S.nod * XR_NOD_RATE * dt) : turn(S.side * XR_SHIP_YAW * dt, S.nod * XR_NOD_RATE * dt);
-      } else ((S.stick = null), (S.side = 0), (S.nod = 0));
+        if ((S.side || S.nod) && !frozen) tg ? swingRound(tg, S.side * XR_HAND_SWING * dt, S.nod * XR_HAND_SWING * dt) : turn(S.side * XR_HAND_YAW * dt, S.nod * XR_HAND_NOD * dt);
+      }
       // the right fist, held flat: the throttle (how far it went ahead since it closed)
       if (rh && R?.fist && R.back[1] > 0.5) {
         S.push0 ??= { at: [...R.palm], fw: fwNow };
