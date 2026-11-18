@@ -946,7 +946,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/456c44328285/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/6848847c5a83/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -1530,7 +1530,16 @@
     // slower). The cruise, the braking program and the orbit work on the scaled speed.
     const SYSTEM_PACE = 0.2; // the scale per light year of distance (level 1 = 0.25 ly/s · scale)
     let spaceScale = 1;
+    let nearCache = { key: '', d: 0 };
     const nearSurface = (withTarget = true) => {
+      const e0 = eyeNow();
+      const key = `${e0[0]}|${e0[1]}|${e0[2]}|${withTarget}|${locked}|${scene === nearCache.scene}`;
+      if (key === nearCache.key && nearCache.scene === scene) return nearCache.d;
+      const d = nearSurfaceNow(withTarget);
+      nearCache = { key, d, scene };
+      return d;
+    };
+    const nearSurfaceNow = (withTarget = true) => {
       const e = eyeNow();
       let d = Infinity;
       for (const o of allObjects()) {
@@ -2088,8 +2097,9 @@
       found = [];
       if (q) {
         const hits = [];
+        const shown = new Set(owners.map((w) => w.obj.id));
         for (const o of allObjects()) {
-          if (!o.mesh.positions.length || !owners.some((w) => w.obj.id === o.id)) continue;
+          if (!o.mesh.positions.length || !shown.has(o.id)) continue;
           let r = findRank(fold(o.name ?? o.id), q);
           // the category: a word of it (or all of it) counts as a word start of the name, so "planet" lists the nearest planets
           const c = categoryOf(o);
@@ -2209,7 +2219,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/456c44328285/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/6848847c5a83/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -4542,6 +4552,11 @@
       if (!gcam || gcam.ortho) return;
       const all = allObjects();
       const now = performance.now();
+      if (xrState.session && all.length > LOD_BIG) {
+        // (in VR a big scene's levels follow when you are still, or every 3 s while you fly: not a full merge every 150 ms)
+        const moving = motion.v > 1e-12 || motion.w > 0.5 || level.f || level.r || level.u || orbit;
+        if (moving && now - lodAt < 3000) return;
+      }
       if (all.length > LOD_BIG && now - lodAt < LOD_EVERY) {
         if (!lodTimer) lodTimer = setTimeout(() => ((lodTimer = 0), redraw()), LOD_EVERY - (now - lodAt) + 1);
         return;
@@ -10917,7 +10932,8 @@
     // turns the universe with the ship). A second renderer on the same WebGL2 context keeps its own buffers, so neither uploads
     // the other's mesh every frame; it clears only the depth (xr.overlay).
     const xrShip = { gpu: null, pending: false, mesh: null, parts: null, of: null, at: null };
-    const xrShipRoom = new WeakMap(); // object mesh -> { rig, out }: its vertices in the room
+    // the ship is drawn in its own coordinates (the cabin objects as they are, cached by the renderer per object); where it lies in the
+    // room (the cabin rig) goes into the view matrix, so walking or turning in the cabin moves no vertex
     const xrShipMesh = (gl) => {
       const g = game, pilot = xrState.pilot;
       if (!g || !space() || g.mode !== 'ship' || !pilot) return null;
@@ -10927,29 +10943,21 @@
         if (!xrShip.pending) ((xrShip.pending = true), createGl(gl.canvas).then((x) => ((xrShip.gpu = x), xrLog('ship: renderer ready'))).catch((err) => xrLog(`ship: ${err?.message ?? err}`, true)));
         return null;
       }
-      if (xrShip.game !== g) ((xrShip.game = g), (xrShip.of = null), (xrShip.at = null));
-      const C = cabinRig();
-      const rigKey = `${C.origin.join()}|${C.forward.join()}`;
-      if (xrShip.of !== g.cabinVer || xrShip.at !== rigKey) {
-        const toRoom = cabinToRoom(C);
-        xrShip.parts = g.cabin.map((o) => {
-          const hit = xrShipRoom.get(o.mesh);
-          if (hit && hit.rig === rigKey) return hit.out;
-          const out = { ...o.mesh, positions: o.mesh.positions.map(toRoom) };
-          xrShipRoom.set(o.mesh, { rig: rigKey, out });
-          return out;
-        });
+      if (xrShip.game !== g) ((xrShip.game = g), (xrShip.of = null));
+      cabinRig();
+      if (xrShip.of !== g.cabinVer) {
+        xrShip.parts = g.cabin.map((o) => o.mesh);
         xrShip.mesh = xrShip.parts.length ? merge(...xrShip.parts) : { positions: [], faces: [] };
-        if (xrShip.of !== g.cabinVer && g.cabinMeshVer !== g.cabinVer) {
-          // (the desktop's bridge and the walking grid see the ship as the hands left it)
-          g.mesh = g.cabin.length ? merge(...g.cabin.map((o) => o.mesh)) : { positions: [], faces: [] };
-          g.cabinMeshVer = g.cabinVer;
-        }
+        if (g.cabinMeshVer !== g.cabinVer) ((g.mesh = xrShip.mesh), (g.cabinMeshVer = g.cabinVer)); // (the desktop's bridge sees it too)
         if (xrShip.of === null || xrShip.of === undefined) xrLog(`ship: ${g.doc.ship.scene} round the pilot (${xrShip.mesh.faces.length} faces, ${g.cabin.length} objects)`);
         xrShip.of = g.cabinVer;
-        xrShip.at = rigKey;
       }
       return xrShip.mesh;
+    };
+    // ship → room as a matrix (column-major), from the cabin rig: room = [right·(q−o), q.y − o.y, −forward·(q−o)]
+    const cabinMatrix = () => {
+      const C = cabinRig(), R = C.right, F = C.forward, o = C.origin;
+      return new Float32Array([R[0], 0, -F[0], 0, 0, 1, 0, 0, R[2], 0, -F[2], 0, -(R[0] * o[0] + R[2] * o[2]), -o[1], F[0] * o[0] + F[2] * o[2], 1]);
     };
     const xrShipDraw = (gl, layer, v, vp, mesh) => {
       const glP = Float32Array.from(v.projectionMatrix);
@@ -10959,7 +10967,8 @@
       const P = Float32Array.from(glP);
       for (const i of [2, 6, 10, 14]) P[i] = (glP[i] + glP[i + 1]) * 0.5;
       const p = v.transform.position;
-      xrShip.gpu.render(mesh, orbitView({ yaw: 0, pitch: 0 }), { fit: { center: [0, 0, 0], radius: 1 }, palette: game.palette, parts: xrShip.parts, smooth: 40, studio: true, glow: false, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: P, view: v.transform.inverse.matrix, eye: [p.x, p.y, p.z], overlay: true } });
+      const eyeShip = cabinR2S().p([p.x, p.y, p.z]);
+      xrShip.gpu.render(mesh, orbitView({ yaw: 0, pitch: 0 }), { fit: { center: [0, 0, 0], radius: 1 }, palette: game.palette, parts: xrShip.parts, smooth: 40, studio: true, glow: false, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: P, view: mul4(v.transform.inverse.matrix, cabinMatrix()), eye: eyeShip, overlay: true } });
     };
     // in space (a starship) the hands fly the ship: the left hand's ship function (two-handed), exit on the right
     const tshFunctions = () => ({
