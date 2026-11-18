@@ -946,7 +946,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/79faa76c1f4b/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/d9f672817901/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -1518,7 +1518,9 @@
     const orbitOn = () => orbit?.phase === 'on';
     const shipBasis = () => {
       const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
-      const forward = [sy * cp, -sp, -cy * cp], right = [cy, 0, sy], up = [0, 1, 0];
+      // (up square to forward and right: right × forward. It was the world's up, which leans against forward as the nose pitches
+      // and at ±90° coincides with it: the VR rig then squashed the whole universe flat, the debug report of 18 Nov, 16:07)
+      const forward = [sy * cp, -sp, -cy * cp], right = [cy, 0, sy], up = [sy * sp, cp, -cy * sp];
       if (!roll) return { forward, right, up };
       const c = Math.cos(roll), s = Math.sin(roll); // banked: the ship's right and up turn round the forward axis
       return { forward, right: right.map((v, i) => v * c - up[i] * s), up: up.map((v, i) => v * c + right[i] * s) };
@@ -2219,7 +2221,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/79faa76c1f4b/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/d9f672817901/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -9522,6 +9524,7 @@
         skyZoom: (z) => (z === undefined ? skyZoom() : (xrState.skyZoom = z)),
         debugShot: () => (xrState.debugShot = { hands: xrState.ws?.hands ?? {}, head: null, st: {} }),
         ship: () => ({ P: xrState.ws?.dash?.P ?? null, kbOn: Boolean(xrState.ws?.kbOn), kb: xrState.ws?.kb?.keys.map((k) => ({ key: k.key, lx: k.lx, ly: k.ly })) ?? null, search: xrState.ws?.searchText ?? null, hint: xrState.ws?.searchHint ?? null, zoom: skyZoom(), dashC: xrState.ws?.dashPose?.c ?? null, held: Boolean(xrState.ws?.dash?.held), marks: xrTargetLines([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1.6, 0, 1]).length / 14, back: xrState.ws?.st?.right.g?.back ?? null, rfist: xrState.ws?.st?.right.g?.fist ?? null, pilot: xrState.pilot, on: Boolean(xrState.ws?.shipOn), note: xrState.ws?.shipNote ?? null, dash: xrState.ws?.dash?.keys.map((k) => ({ key: k.key, at: k.at, z: xrState.ws.dash.P.z, down: k.down })) ?? null, ray: Boolean(xrState.ws?.shipRay), hit: xrState.ws?.shipRay?.hit?.obj?.name ?? null, mesh: game?.cabin ? game.cabin.reduce((n, o) => n + o.mesh.faces.length, 0) : 0, gpu: Boolean(xrShip.gpu) }),
+        heading: (y = yaw, p = pitch, r = roll) => ((yaw = y), (pitch = p), (roll = r), { yaw, pitch, roll }), // (a test hook: point the ship)
         flight: () => ({ roll: +roll.toFixed(4), vehicle, car: car && { p: car.p, heading: car.heading, v: car.v, steer: car.steer, throttle: car.throttle }, orbit: orbit?.phase ?? null, gravity: gravity && { name: gravity.name }, cruise: { ...cruise }, space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
         aim: () => (aim ? { name: aim.obj.name, px: +aim.px.toFixed(1), depth: aim.depth } : null), under: () => hitObj()?.name ?? null, locked: () => lockedObject()?.name ?? null,
         picker: () => ({ ready: picker.ready, failed: picker.failed, busy: Boolean(picker.busy), ver: picker.ver, picks: picker.picks, ms: +picker.ms.toFixed(2), sceneMs: +picker.sceneMs.toFixed(1), restarts: picker.restarts, errors: [...picker.errors] }),
@@ -10714,6 +10717,7 @@
       { key: '[', code: 'BracketLeft', label: '[', sub: 'roll', hold: true },
       { key: ']', code: 'BracketRight', label: ']', sub: 'roll', hold: true },
       { key: 'search', code: 'search', label: '⌕', sub: 'find', local: true }, // (opens the dashboard's own keyboard: the find box)
+      { key: 'bug', code: 'bug', label: 'bug', sub: 'report', local: true }, // (a debug report, as the right hand's debug function)
     ];
     const DASH_PITCH = 0.078, DASH_KEY = 0.068; // m: from one key to the next, a key's size
     const DASH_W = DASH_KEYS.length * DASH_PITCH + 0.03, DASH_H = 0.17, DASH_T = 0.035; // the body: across, up the face, thick
@@ -10758,7 +10762,9 @@
       const [a, b, c] = dashLocal(P, q);
       return Math.abs(a) < DASH_W / 2 + 0.02 && Math.abs(b) < DASH_H / 2 + 0.02 && c < 0.025 && c > -DASH_T - 0.02;
     };
+    let dashHead = null;
     const xrDash = (ws, st, hands, head) => {
+      dashHead = head;
       const P = dashPose(ws, head);
       if (!P) return void (ws.dash = null);
       // taking it and carrying it: the hand that holds it moves and turns it with the wrist
@@ -10794,10 +10800,11 @@
         const was = down.has(k.key);
         if (inside && !was) {
           down.add(k.key);
-          if (k.local) ((ws.kbOn = !ws.kbOn), ws.kbOn && (ws.searchText ??= ''));
+          if (k.key === 'bug') xrState.debugShot = { hands, head: dashHead, st: { left: st.left.fn?.id, right: st.right.fn?.id, lg: st.left.g, rg: st.right.g } };
+          else if (k.local) ((ws.kbOn = !ws.kbOn), ws.kbOn && (ws.searchText ??= ''));
           else if (k.hold) document.dispatchEvent(new KeyboardEvent('keydown', { key: k.key, code: k.code, bubbles: true }));
           else xrKey(k.key, k.code);
-          wsNote(ws, k.local ? (ws.kbOn ? 'find: type a name, enter' : 'find closed') : `${k.label}: ${k.sub}`);
+          wsNote(ws, k.key === 'bug' ? 'debug: capturing…' : k.local ? (ws.kbOn ? 'find: type a name, enter' : 'find closed') : `${k.label}: ${k.sub}`);
         } else if (!near && was) {
           down.delete(k.key);
           if (k.hold) document.dispatchEvent(new KeyboardEvent('keyup', { key: k.key, code: k.code, bubbles: true }));
