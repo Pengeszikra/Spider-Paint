@@ -946,7 +946,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/e2dc2d21e88f/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/2c1881947268/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2221,7 +2221,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/e2dc2d21e88f/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/2c1881947268/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -11198,6 +11198,9 @@
         // so a 5 cm cube would be a cube 5 cm × 9.5e15 big round the head: see the debug report of 18 Nov; with a ship they work in
         // its cabin, in metres)
         ...(space() && !cabinOn() ? [] : [{ id: 'cube', label: 'cube', kind: 'cube' }, { id: 'block', label: 'block between the hands', kind: 'block', both: true }]),
+        // delete an object (where things are made in metres) and undo (everywhere)
+        ...(space() && !cabinOn() ? [] : [{ id: 'delete', label: 'delete object', kind: 'delete' }]),
+        { id: 'undo', label: 'undo', kind: 'undo' },
         // (in space: the starship)
         ...(space() ? [{ id: 'ship', label: 'starship', kind: 'ship', both: true }] : []),
       ],
@@ -11214,9 +11217,7 @@
               // (no plain move: fly walks and turns the same, and goes up and down only when armed)
               { id: 'fly', label: 'fly', kind: 'fly' },
               { id: 'graffiti', label: 'graffiti sketch', kind: 'graffiti', both: true },
-              { id: 'delete', label: 'delete object', kind: 'delete' },
             ]),
-        { id: 'undo', label: 'undo', kind: 'undo' },
         { id: 'debug', label: 'debug report', kind: 'debug' },
         { id: 'exit', label: 'exit VR', kind: 'exit', slot: -1 },
       ],
@@ -12244,17 +12245,18 @@
       xrBlock(ws, st, head, now, R2S, done);
       xrSaw(ws, st, now, R2S, done);
       xrGraffiti(ws, st, now, R2S, done);
-      // undo (the right hand): every fist closed takes back one step (a cube, a cut, a paint, a stroke, a delete…)
-      if (Rr.fn?.kind === 'undo') for (const e of st.events) {
-        if (e.type !== 'fistClose' || e.side !== 'right') continue;
+      // undo (the left hand): every fist closed takes back one step (a cube, a cut, a paint, a stroke, a delete…)
+      for (const e of st.events) {
+        if (e.type !== 'fistClose' || st[e.side]?.fn?.kind !== 'undo') continue;
         if (!history.length) { wsNote(ws, 'undo: nothing left'); continue; }
         undo();
         ws.dirtyAt = performance.now();
         wsNote(ws, `undone (${history.length} step${history.length === 1 ? '' : 's'} left)`);
       }
-      // delete object (the right hand): a fist or a pinch on an object (or within 4 cm of it) takes it away; one undo brings it back
-      if (Rr.fn?.kind === 'delete' && hands.right && Rr.g) {
-        const h = hands.right, g = Rr.g;
+      // delete object (the left hand): a fist or a pinch on an object (or within 4 cm of it) takes it away; one undo brings it back
+      const Dl = st.left;
+      if (Dl.fn?.kind === 'delete' && hands.left && Dl.g) {
+        const h = hands.left, g = Dl.g;
         if ((g.fist || g.pinch) && !ws.delLatch) {
           ws.delLatch = true;
           const at = R2S.p(g.pinch ? v3.mid(h.joints['thumb-tip'], h.joints['index-finger-tip']) : g.palm);
@@ -13311,10 +13313,12 @@
         tSky += lap();
         if (shipNow) xrShipDraw(gl, layer, v, vp, shipNow);
         tShip += lap();
-        if (!drive() && (!xrState.ws?.on || space())) xrHudDraw(gl, v.projectionMatrix, mul4(v.transform.inverse.matrix, pose.transform.matrix));
+        // (the floating readout and the frame meter: only at the helm, the starship function in hand)
+        const hudOn = !drive() && (!xrState.ws?.on || (space() && xrState.ws.shipOn));
+        if (hudOn) xrHudDraw(gl, v.projectionMatrix, mul4(v.transform.inverse.matrix, pose.transform.matrix));
         if (!drive() && !xrState.ws?.on) xrHandsDraw(gl, v.projectionMatrix, v.transform.inverse.matrix, v.transform.inverse.matrix);
         xrWorkshopDraw(gl, v.projectionMatrix, v.transform.inverse.matrix, v.transform.inverse.matrix, now);
-        xrFpsDraw(gl, v.projectionMatrix, mul4(v.transform.inverse.matrix, pose.transform.matrix));
+        if (hudOn) xrFpsDraw(gl, v.projectionMatrix, mul4(v.transform.inverse.matrix, pose.transform.matrix));
         tUi += lap();
         if (XR_TEST === '2') xrTestDraw(gl, v, vp, t / 1000);
         if (n <= 3) xrGlErrors(gl, `the ${v.eye} eye, frame ${n}`);
