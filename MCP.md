@@ -77,7 +77,7 @@ The engine: flat-coloured convex faces, no textures (except screens, below). Y i
   Without `face` every four-cornered face of the object becomes the screen (a box: all six sides); for one side give its
   face index (`get_mesh`; an `add_box`'s faces are +z, −z, +x, −x, +y, −y: its front, facing +z, is face 0).
 - An image is read with `fetch`, so its server must allow cross-origin reading (**CORS**): the Spider site's own files
-  (`media/…`, relative addresses) and the online store (Vercel Blob) do, many image hosts do not. When it is refused the
+  (`media/…`, relative addresses) do, many image hosts do not. When it is refused the
   desktop shows the picture as a page (an iframe) instead, and the viewer says so.
 - The screen is a material (`material`, default `screen-<object>`; faces that share it share the screen) kept in the
   scene's `palette`: `export` / `import` keep it, and the viewer adds it to its palette. Call `set_screen` without
