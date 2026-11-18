@@ -946,7 +946,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/6848847c5a83/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/09e7b24f3f6c/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2219,7 +2219,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/6848847c5a83/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/09e7b24f3f6c/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -8365,6 +8365,7 @@
     const drawBridge = (size, lens) => {
       const g = game;
       if (!g || !bridgeGl || !size) return void (bridgeCanvas.hidden = true);
+      if (g.cabin && g.cabinMeshVer !== g.cabinVer) ((g.mesh = g.cabin.length ? merge(...g.cabin.map((o) => o.mesh)) : { positions: [], faces: [] }), (g.cabinMeshVer = g.cabinVer)); // (what the hands did on board)
       const walk = g.mode === 'walk' && g.ship;
       const v = orbitView({ yaw: g.helm.yaw + (walk ? yaw - g.ship.yaw : 0), pitch: g.helm.pitch + (walk ? pitch - g.ship.pitch : 0) });
       const eye = walk ? [g.pos[0], g.eyeY, g.pos[1]] : g.helm.eye;
@@ -9520,7 +9521,7 @@
         tshChoose: (side, id) => tsh?.choose(side, id),
         skyZoom: (z) => (z === undefined ? skyZoom() : (xrState.skyZoom = z)),
         debugShot: () => (xrState.debugShot = { hands: xrState.ws?.hands ?? {}, head: null, st: {} }),
-        ship: () => ({ P: xrState.ws?.dash?.P ?? null, kbOn: Boolean(xrState.ws?.kbOn), kb: xrState.ws?.kb?.keys.map((k) => ({ key: k.key, lx: k.lx, ly: k.ly })) ?? null, search: xrState.ws?.searchText ?? null, hint: xrState.ws?.searchHint ?? null, zoom: skyZoom(), dashC: xrState.ws?.dashPose?.c ?? null, held: Boolean(xrState.ws?.dash?.held), marks: xrTargetLines([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1.6, 0, 1]).length / 14, back: xrState.ws?.st?.right.g?.back ?? null, rfist: xrState.ws?.st?.right.g?.fist ?? null, pilot: xrState.pilot, on: Boolean(xrState.ws?.shipOn), note: xrState.ws?.shipNote ?? null, dash: xrState.ws?.dash?.keys.map((k) => ({ key: k.key, at: k.at, z: xrState.ws.dash.P.z, down: k.down })) ?? null, ray: Boolean(xrState.ws?.shipRay), hit: xrState.ws?.shipRay?.hit?.obj?.name ?? null, mesh: xrShip.mesh?.faces.length ?? 0, gpu: Boolean(xrShip.gpu) }),
+        ship: () => ({ P: xrState.ws?.dash?.P ?? null, kbOn: Boolean(xrState.ws?.kbOn), kb: xrState.ws?.kb?.keys.map((k) => ({ key: k.key, lx: k.lx, ly: k.ly })) ?? null, search: xrState.ws?.searchText ?? null, hint: xrState.ws?.searchHint ?? null, zoom: skyZoom(), dashC: xrState.ws?.dashPose?.c ?? null, held: Boolean(xrState.ws?.dash?.held), marks: xrTargetLines([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1.6, 0, 1]).length / 14, back: xrState.ws?.st?.right.g?.back ?? null, rfist: xrState.ws?.st?.right.g?.fist ?? null, pilot: xrState.pilot, on: Boolean(xrState.ws?.shipOn), note: xrState.ws?.shipNote ?? null, dash: xrState.ws?.dash?.keys.map((k) => ({ key: k.key, at: k.at, z: xrState.ws.dash.P.z, down: k.down })) ?? null, ray: Boolean(xrState.ws?.shipRay), hit: xrState.ws?.shipRay?.hit?.obj?.name ?? null, mesh: game?.cabin ? game.cabin.reduce((n, o) => n + o.mesh.faces.length, 0) : 0, gpu: Boolean(xrShip.gpu) }),
         flight: () => ({ roll: +roll.toFixed(4), vehicle, car: car && { p: car.p, heading: car.heading, v: car.v, steer: car.steer, throttle: car.throttle }, orbit: orbit?.phase ?? null, gravity: gravity && { name: gravity.name }, cruise: { ...cruise }, space: space(), fly, throttle: +throttle.toFixed(4), speed: +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * UNIT * throttle).toFixed(3), level: { ...level }, steer: steer && { ...steer }, eye: eyeNow(), fov: +(fovNow * 180 / Math.PI).toFixed(1), yaw, pitch }),
         aim: () => (aim ? { name: aim.obj.name, px: +aim.px.toFixed(1), depth: aim.depth } : null), under: () => hitObj()?.name ?? null, locked: () => lockedObject()?.name ?? null,
         picker: () => ({ ready: picker.ready, failed: picker.failed, busy: Boolean(picker.busy), ver: picker.ver, picks: picker.picks, ms: +picker.ms.toFixed(2), sceneMs: +picker.sceneMs.toFixed(1), restarts: picker.restarts, errors: [...picker.errors] }),
@@ -10745,7 +10746,7 @@
         let x = -total / 2;
         row.forEach((key, i) => {
           const w = widths[i];
-          out.push({ key, w, lx: (x + w / 2) * DASH_KB_PITCH, ly: DASH_H / 2 + 0.03 + (rows - 1 - r + 0.5) * DASH_KB_PITCH });
+          out.push({ key, w, lx: (x + w / 2) * DASH_KB_PITCH, ly: -(DASH_H / 2 + 0.025 + (r + 0.5) * DASH_KB_PITCH) });
           x += w;
         });
       });
@@ -10802,7 +10803,7 @@
           if (k.hold) document.dispatchEvent(new KeyboardEvent('keyup', { key: k.key, code: k.code, bubbles: true }));
         }
       }
-      // the find keyboard (⌕): QWERTZ in the dashboard's plane, above it; a fingertip types, enter finds and targets (the desktop's
+      // the find keyboard (⌕): QWERTZ in the dashboard's plane, under it (the line with the text stays in view above the keys); a fingertip types, enter finds and targets (the desktop's
       // Enter search: case and accents do not matter, kinds too), esc / exit closes it
       ws.kb = null;
       if (ws.kbOn) {
@@ -10946,10 +10947,11 @@
       if (xrShip.game !== g) ((xrShip.game = g), (xrShip.of = null));
       cabinRig();
       if (xrShip.of !== g.cabinVer) {
+        // (no merge of the whole ship on every change: the renderer builds from the parts, keeping the unchanged ones; the mesh it
+        // gets is only a new token that says something changed, the camera comes from the XR view)
         xrShip.parts = g.cabin.map((o) => o.mesh);
-        xrShip.mesh = xrShip.parts.length ? merge(...xrShip.parts) : { positions: [], faces: [] };
-        if (g.cabinMeshVer !== g.cabinVer) ((g.mesh = xrShip.mesh), (g.cabinMeshVer = g.cabinVer)); // (the desktop's bridge sees it too)
-        if (xrShip.of === null || xrShip.of === undefined) xrLog(`ship: ${g.doc.ship.scene} round the pilot (${xrShip.mesh.faces.length} faces, ${g.cabin.length} objects)`);
+        xrShip.mesh = { positions: [], faces: [], cabinVer: g.cabinVer };
+        if (xrShip.of === null || xrShip.of === undefined) xrLog(`ship: ${g.doc.ship.scene} round the pilot (${g.cabin.reduce((n, o) => n + o.mesh.faces.length, 0)} faces, ${g.cabin.length} objects)`);
         xrShip.of = g.cabinVer;
       }
       return xrShip.mesh;
@@ -12991,7 +12993,7 @@
         const biggest = objs.filter((x) => Number.isFinite(size(x))).sort((a, b) => size(b) - size(a)).slice(0, 12).map(({ o, b }) => ({ name: o.name, faces: o.mesh.faces.length, ...b }));
         // the same with the parts the renderer got (they are relative to the floating origin, like the eye here)
         const partsHolding = (d.partsNow ?? []).map((m, k) => ({ k, b: boxOfMesh(m), m })).filter(({ b }) => inBox(b, eye, 1e-12)).slice(0, 20).map(({ k, b, m }) => ({ part: k, name: allObjects()[k]?.name ?? null, faces: m.faces.length, ...b, mats: [...new Set(m.faces.slice(0, 50).map((f) => f.mat ?? f.color))].slice(0, 6) }));
-        const ship = xrShip.mesh ? { faces: xrShip.mesh.faces.length, ...boxOfMesh(xrShip.mesh), gpu: Boolean(xrShip.gpu) } : { gpu: Boolean(xrShip.gpu), mesh: null };
+        const ship = game?.cabin ? { faces: game.cabin.reduce((n, o) => n + o.mesh.faces.length, 0), objects: game.cabin.length, cabin: xrState.cabin ?? null, gpu: Boolean(xrShip.gpu) } : { gpu: Boolean(xrShip.gpu), mesh: null };
         const headAt = d.head ? [d.head[12], d.head[13], d.head[14]] : null;
         report = {
           format: '3draft-debug', version: 1, at: new Date().toISOString(), engine: displayVersion(version), ua: navigator.userAgent,
@@ -12999,7 +13001,7 @@
           flight: { yaw: r4(yaw), pitch: r4(pitch), roll: r4(roll), level: { ...level }, locked, orbit: Boolean(orbit), frozen, skyZoom: skyZoom() },
           game: game ? { title: game.doc.title, mode: game.mode, helm: game.helm, ship: game.doc.ship?.scene, meshFaces: game.mesh?.faces.length } : null,
           rig: { origin: r4(rig.origin), forward: r4(rig.forward), right: r4(rig.right), up: r4(rig.up), scale: rig.scale },
-          pilot: xrState.pilot, walk: xrState.walk, head: d.head ? r4(d.head) : null, headInShip: headAt && xrShip.mesh ? inBox(boxOfMesh(xrShip.mesh), headAt) : null,
+          pilot: xrState.pilot, walk: xrState.walk, head: d.head ? r4(d.head) : null, headInShip: null,
           eyeScene: r4(eye), eyeView: r4(d.view?.transform?.inverse?.matrix), projection: r4(d.view?.projectionMatrix), glP: r4(d.glP),
           render: { background: xrArgs?.opts?.background ?? null, transparent: xrArgs?.opts?.transparent ?? null, panel: getComputedStyle(document.documentElement).getPropertyValue('--panel').trim(), sceneFaces: d.sceneNow?.faces?.length ?? null, parts: d.partsNow?.length ?? null, opts: Object.keys(xrArgs?.opts ?? {}), sceneBox: d.sceneNow ? boxOfMesh(d.sceneNow) : null },
           ship, holding, partsHolding, origin: xrArgs?.origin ?? null, biggest,
