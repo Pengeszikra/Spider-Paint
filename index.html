@@ -946,7 +946,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/f92eb445bf3c/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/647d8743e5de/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2209,7 +2209,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/f92eb445bf3c/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/647d8743e5de/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -11193,7 +11193,32 @@
           return [];
         }
       };
+      // the safeguard: a sawn piece is only ever a part of what was there when the fist closed. Every point of it must be a real
+      // number inside that first box (a hair of slack), every face a real polygon of its own points, and it can be no bigger and
+      // hold no more volume; anything else (a broken cut) is thrown away and the object stays as it was.
+      const sane = (pc, box0, vol0) => {
+        if (!pc?.positions?.length || !pc.faces?.length) return false;
+        const { lo, hi, slack } = box0;
+        for (const q of pc.positions) {
+          if (!q || q.length !== 3) return false;
+          for (let k = 0; k < 3; k++) if (!Number.isFinite(q[k]) || q[k] < lo[k] - slack || q[k] > hi[k] + slack) return false;
+        }
+        const n = pc.positions.length;
+        for (const f of pc.faces) if (!f?.v || f.v.length < 3 || f.v.some((k) => !Number.isInteger(k) || k < 0 || k >= n)) return false;
+        const vol = meshVolume(pc);
+        return Number.isFinite(vol) && vol > 0 && vol <= vol0 * 1.001;
+      };
+      const boxOf = (m) => {
+        const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+        for (const q of m.positions) for (let k = 0; k < 3; k++) ((lo[k] = Math.min(lo[k], q[k])), (hi[k] = Math.max(hi[k], q[k])));
+        return { lo, hi, slack: 1e-4 * Math.max(1e-6, Math.hypot(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2])) };
+      };
       const cutOnce = (o, pl, front) => {
+        // (what the object was when this fist closed: the limit for every cut of it)
+        const c = ws.carve;
+        const first = c?.id === o.id ? c.mesh0 : o.mesh;
+        if (c && c.id === o.id && !c.box0) ((c.box0 = boxOf(first)), (c.vol0 = meshVolume(first)));
+        const box0 = c?.box0 ?? boxOf(first), vol0 = c?.vol0 ?? meshVolume(first);
         let cut = null;
         try {
           cut = saw(o.mesh, pl, { color: mt.color, mat: mt.name });
@@ -11203,7 +11228,7 @@
         const r0 = bounds(o.mesh).radius;
         const pieces = (cut ? [...cut.front, ...cut.back] : []).filter((pc) => {
           try {
-            return pc.faces.length >= 4 && bounds(pc).radius <= r0 * 1.02 && health(pc).allSolid;
+            return pc.faces.length >= 4 && bounds(pc).radius <= r0 * 1.02 && health(pc).allSolid && sane(pc, box0, vol0);
           } catch {
             return false;
           }
@@ -11211,6 +11236,7 @@
         if (pieces.length < 2) return false;
         const keep = pieces.reduce((a, b) => (meshVolume(b) > meshVolume(a) ? b : a));
         if (front && v3.dot(v3.sub(bounds(keep).center, pl.point), pl.n) <= 0) return false;
+        xrState.lastEdit = { id: o.id, mesh: o.mesh, at: performance.now() }; // (if the next frames fail, this cut is taken back)
         change(o, keep);
         return true;
       };
@@ -12610,8 +12636,28 @@
     const xrFrame = (t, frame) => {
       try {
         xrFrameBody(t, frame);
+        xrState.errRun = 0;
       } catch (err) {
         const count = xrState.frameErrs = (xrState.frameErrs ?? 0) + 1;
+        // the way out of a frame that keeps failing: first take back the last change of the workshop (a cut that broke the scene),
+        // then, if it still fails, end the VR session, so nobody is left in a magenta headset
+        const run = (xrState.errRun = (xrState.errRun ?? 0) + 1);
+        const le = xrState.lastEdit;
+        if (run === 3 && le) {
+          xrState.lastEdit = null;
+          const o = allObjects().find((x) => x.id === le.id);
+          if (o) {
+            try {
+              change(o, le.mesh);
+              xrLog('xr: frames failed after a change: it is taken back', true);
+              if (xrState.ws) wsNote(xrState.ws, 'that cut broke the view: taken back');
+            } catch {}
+          }
+        }
+        if (run === 90) {
+          xrLog('xr: frames keep failing: VR ends', true);
+          xrState.session?.end().catch(() => {});
+        }
         const details = `frame ${xrState.frames}, phase ${xrState.phase ?? 'unknown'}: ${err?.name ?? 'Error'}: ${err?.message ?? err}\n${err?.stack ?? ''}`;
         if (count <= 5) {
           xrLog(details, true);
