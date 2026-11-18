@@ -946,7 +946,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/75ef12fcfa87/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/456c44328285/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2209,7 +2209,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/75ef12fcfa87/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/456c44328285/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -12594,6 +12594,31 @@
       const a = 0.3, ca = Math.cos(a), sa = Math.sin(a);
       xrQuad(gl, P, mul4(eyeFromHead, [1, 0, 0, 0, 0, ca, sa, 0, 0, -sa, ca, 0, 0, -0.34, -1.1, 1]), tex, 0.36, 0.1013);
     };
+    // the frame meter: frames a second (from the real frame interval), the JavaScript's share of a frame and the frame time, refreshed
+    // twice a second; a small panel in head space, always in view (above the flight readout)
+    const xrFpsDraw = (gl, P, eyeFromHead) => {
+      const pf = xrState.perf;
+      if (!pf?.interval) return;
+      const now = performance.now();
+      if (!xrState.fpsShow || now - xrState.fpsShow.t > 500) xrState.fpsShow = { t: now, fps: Math.round(1000 / pf.interval), js: pf.frame, iv: pf.interval };
+      const F = xrState.fpsShow;
+      const col = F.fps >= 68 ? '#8cffaa' : F.fps >= 45 ? '#ffe28a' : '#ff8a6a';
+      const tex = xrPanelTex(gl, 'fps', 512, 96, `${F.fps}|${F.js.toFixed(1)}|${F.iv.toFixed(1)}`, (c, W, H) => {
+        c.clearRect(0, 0, W, H);
+        c.fillStyle = 'rgba(6, 10, 22, 0.55)';
+        c.beginPath();
+        c.roundRect(3, 3, W - 6, H - 6, 18);
+        c.fill();
+        c.fillStyle = col;
+        c.font = '700 54px system-ui, sans-serif';
+        c.fillText(`${F.fps} fps`, 22, 66);
+        c.fillStyle = '#cfd8ea';
+        c.font = '500 28px system-ui, sans-serif';
+        c.fillText(`js ${F.js.toFixed(1)} ms · frame ${F.iv.toFixed(1)} ms`, 200, 60);
+      });
+      const a = 0.2, ca = Math.cos(a), sa = Math.sin(a);
+      xrQuad(gl, P, mul4(eyeFromHead, [1, 0, 0, 0, 0, ca, sa, 0, 0, -sa, ca, 0, 0, -0.205, -1.1, 1]), tex, 0.14, 0.026);
+    };
     // the right hand: the pointing line, the hand panel; the left: the stick while it is held
     const xrHandsDraw = (gl, P, V, eyeFromRef) => {
       const h = xrState.hands;
@@ -12889,6 +12914,7 @@
         if (!drive() && (!xrState.ws?.on || space())) xrHudDraw(gl, v.projectionMatrix, mul4(v.transform.inverse.matrix, pose.transform.matrix));
         if (!drive() && !xrState.ws?.on) xrHandsDraw(gl, v.projectionMatrix, v.transform.inverse.matrix, v.transform.inverse.matrix);
         xrWorkshopDraw(gl, v.projectionMatrix, v.transform.inverse.matrix, v.transform.inverse.matrix, now);
+        xrFpsDraw(gl, v.projectionMatrix, mul4(v.transform.inverse.matrix, pose.transform.matrix));
         tUi += lap();
         if (XR_TEST === '2') xrTestDraw(gl, v, vp, t / 1000);
         if (n <= 3) xrGlErrors(gl, `the ${v.eye} eye, frame ${n}`);
