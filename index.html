@@ -946,7 +946,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/1c86b820d656/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/ce1749cbfe73/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2221,7 +2221,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/1c86b820d656/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/ce1749cbfe73/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -11036,7 +11036,7 @@
               { id: 'saw', label: 'saw', kind: 'saw' },
               // (no plain move: fly walks and turns the same, and goes up and down only when armed)
               { id: 'fly', label: 'fly', kind: 'fly' },
-              { id: 'graffiti', label: 'graffiti', kind: 'graffiti', both: true },
+              { id: 'graffiti', label: 'graffiti sketch', kind: 'graffiti', both: true },
               { id: 'delete', label: 'delete object', kind: 'delete' },
             ]),
         { id: 'undo', label: 'undo', kind: 'undo' },
@@ -11241,29 +11241,27 @@
       const parts = T.text.split('\n').map((line, i) => (line.trim() ? textMesh(line, { ...frame, origin: v3.sub(frame.origin, v3.mul(frame.up, i * TYPE_H * 1.6)) }, { mat: mt.name, color: mt.color }) : null)).filter(Boolean);
       return parts.length ? merge(...parts) : { positions: [], faces: [] };
     };
-    // ---- Graffiti (the right hand, two-handed), as the desktop's sketch (5) with V: the right index aims at a surface, the left
-    // pinch draws. Held and moved, the pinch draws freehand where the ray meets the surfaces; a pinch that stays on one spot draws
-    // a straight line from where the last line ended (within 10 s; else it only marks where the next one starts), so outlines go point by point too. A stroke becomes its own object: a ribbon
-    // 1.2 cm wide lying on the surfaces, 2 mm above them, in the material chosen last (one undo step).
-    const GRAF_W = 0.012, GRAF_LIFT = 0.002, GRAF_STEP = 0.006;
-    const grafRibbon = (pts) => {
-      const P = [], faces = [];
-      for (let i = 0; i < pts.length; i++) {
-        const a = pts[Math.max(0, i - 1)].p, b = pts[Math.min(pts.length - 1, i + 1)].p, n = pts[i].n;
-        let t = v3.sub(b, a);
-        t = v3.sub(t, v3.mul(n, v3.dot(t, n)));
-        const side = v3.unit(v3.cross(n, v3.len(t) > 1e-9 ? v3.unit(t) : [1, 0, 0]));
-        const c = v3.add(pts[i].p, v3.mul(n, GRAF_LIFT));
-        P.push(v3.add(c, v3.mul(side, GRAF_W / 2)), v3.sub(c, v3.mul(side, GRAF_W / 2)));
-      }
+    // ---- Graffiti (the right hand, two-handed): the desktop's sketch (5) with bare hands, straight lines so the faces stay simple.
+    // The right index aims at a surface, every left pinch puts a point there: the outline goes from point to point, in the plane
+    // of the first point's surface. A point on the first one again (within 2.5 cm, after 2 more) closes it: the outline becomes a
+    // face, its own object, 2 mm above the surface, in the material chosen last. Then the extrusion: a right fist moved along the
+    // face's normal pulls it out into a prism (or pushes it in), live; opening the fist fixes it (each pull one undo step). The next
+    // left pinch starts a new outline. While an outline is open, a right fist takes its last point back.
+    const GRAF_LIFT = 0.002, GRAF_CLOSE = 0.025;
+    const grafPrism = (ring, n, h) => {
       const mt = materials[current] ?? materials[0];
-      for (let i = 0; i + 1 < pts.length; i++) faces.push({ v: [2 * i, 2 * i + 1, 2 * i + 3, 2 * i + 2], color: mt.color, mat: mt.name });
-      return { positions: P, faces };
+      const face = (v) => ({ v, color: mt.color, mat: mt.name });
+      const k = ring.length;
+      if (Math.abs(h) < 0.001) return { positions: ring.map((q) => [...q]), faces: [face(ring.map((_, i) => i))] };
+      const top = ring.map((q) => v3.add(q, v3.mul(n, h)));
+      const faces = [face(ring.map((_, i) => k + i)), face(ring.map((_, i) => k - 1 - i))];
+      for (let i = 0; i < k; i++) { const j = (i + 1) % k; faces.push(face([i, j, k + j, k + i])); }
+      return { positions: [...ring, ...top], faces: h < 0 ? faces.map((f) => ({ ...f, v: [...f.v].reverse() })) : faces };
     };
     const xrGraffiti = (ws, st, now, R2S, done) => {
       const R = st.right;
       if (R.fn?.kind !== 'graffiti') return void (ws.graf = null);
-      const G = (ws.graf ??= { stroke: null, last: null, ray: null });
+      const G = (ws.graf ??= { pts: [], ray: null, made: null });
       const g = R.g;
       let hit = null;
       G.ray = null;
@@ -11275,29 +11273,56 @@
           if (h && (!hit || h.t < hit.t)) hit = h;
         }
         if (hit && v3.dot(hit.normal, dir) > 0) hit = { ...hit, normal: v3.mul(hit.normal, -1) }; // (the side facing the hand)
-        G.ray = [g.rayFrom, hit ? R2S.back(hit.point) : v3.add(g.rayFrom, v3.mul(g.rayDir, 4)), Boolean(hit)];
-      }
-      const pinch = Boolean(st.left.g?.pinch);
-      if (pinch && !G.stroke) G.stroke = { t0: now, pts: [] };
-      if (pinch && hit) {
-        const pts = G.stroke.pts, n = v3.unit(hit.normal);
-        if (!pts.length || v3.len(v3.sub(hit.point, pts[pts.length - 1].p)) >= GRAF_STEP) pts.push({ p: hit.point, n, room: R2S.back(hit.point) });
-      }
-      if (!pinch && G.stroke) {
-        let pts = G.stroke.pts;
-        const tap = pts.length === 1; // (the pinch did not move a step: a point, the line comes from the last end)
-        if (tap && pts.length && G.last && now - G.last.at < 10000) {
-          // a straight line from where the last one ended, its points a few cm apart (so it bends over an edge only at its ends)
-          const a = G.last.pt, b = pts[pts.length - 1], k = Math.max(1, Math.ceil(v3.len(v3.sub(b.p, a.p)) / 0.03));
-          pts = Array.from({ length: k + 1 }, (_, i) => { const t = i / k; return { p: v3.add(a.p, v3.mul(v3.sub(b.p, a.p), t)), n: v3.unit(v3.add(v3.mul(a.n, 1 - t), v3.mul(b.n, t))) }; });
+        if (hit && G.pts.length) {
+          // on the outline's plane: the first point's surface
+          const { p: p0, n: n0 } = G.pts[0];
+          const t = v3.dot(v3.sub(p0, from), n0) / (v3.dot(dir, n0) || 1e-9);
+          hit = t > 0 ? { ...hit, point: v3.add(from, v3.mul(dir, t)), normal: n0 } : null;
+          if (hit && G.pts.length >= 3 && v3.len(v3.sub(hit.point, p0)) < GRAF_CLOSE) hit = { ...hit, point: p0, closes: true };
         }
-        if (pts.length >= 2) {
-          WS.create(`graffiti-${shortId()}`, grafRibbon(pts));
+        G.ray = [g.rayFrom, hit ? R2S.back(hit.point) : v3.add(g.rayFrom, v3.mul(g.rayDir, 4)), Boolean(hit), Boolean(hit?.closes)];
+      }
+      const pinched = st.events.some((e) => e.type === 'pinchStart' && e.side === 'left');
+      if (pinched && hit) {
+        if (G.made && !G.pull) G.made = null; // (a new outline: the last face stays as it is)
+        if (!G.made) {
+          if (hit.closes) {
+            const n = v3.unit(G.pts[0].n), ring = G.pts.map((q) => v3.add(q.p, v3.mul(n, GRAF_LIFT)));
+            const o = WS.create(`sketch-${shortId()}`, grafPrism(ring, n, 0));
+            G.made = { id: o.id, ring, n, h: 0 };
+            G.pts = [];
+            done();
+            wsNote(ws, 'a face: a right fist pulls it out along its normal');
+          } else {
+            G.pts.push({ p: hit.point, n: v3.unit(hit.normal), room: R2S.back(hit.point) });
+            wsNote(ws, `sketch: ${G.pts.length} point${G.pts.length === 1 ? '' : 's'}${G.pts.length >= 3 ? ' · back on the first closes it' : ''}`);
+          }
+        }
+      }
+      // the right fist: pulls the face out (or takes the last point back while the outline is open)
+      const fist = Boolean(g?.fist);
+      if (fist && !G.fistOn) {
+        G.fistOn = true;
+        const o = G.made && WS.all().find((x) => x.id === G.made.id);
+        if (o) G.pull = { at: R2S.p(g.palm), h0: G.made.h, mesh0: o.mesh };
+        else if (G.pts.length) (G.pts.pop(), wsNote(ws, `sketch: point taken back (${G.pts.length} left)`));
+      } else if (fist && G.pull) {
+        const o = WS.all().find((x) => x.id === G.made.id);
+        if (o) {
+          G.made.h = G.pull.h0 + v3.dot(v3.sub(R2S.p(g.palm), G.pull.at), G.made.n);
+          WS.change(o, grafPrism(G.made.ring, G.made.n, G.made.h));
+          wsNote(ws, `extrude ${(G.made.h * 100).toFixed(1)} cm`);
+        } else ((G.pull = null), (G.made = null));
+      } else if (!fist && G.fistOn) {
+        G.fistOn = false;
+        const P = G.pull;
+        G.pull = null;
+        const o = P && WS.all().find((x) => x.id === G.made?.id);
+        if (o && o.mesh !== P.mesh0) {
+          const M = G.made, h0 = P.h0, W = WS;
+          history.push(() => { if (W.has(o)) W.change(o, P.mesh0); if (ws.graf?.made === M) M.h = h0; });
           done();
-          wsNote(ws, `graffiti: a stroke (${(materials[current] ?? materials[0]).name})`);
         }
-        if (pts.length) G.last = { pt: pts[pts.length - 1], at: now };
-        G.stroke = null;
       }
     };
     const xrType = (ws, st, hands, head, now, R2S, done) => {
@@ -12345,15 +12370,17 @@
         lines.push(...T.ray[0], 0.35, 0.95, 0.85, 0.9, ...T.ray[1], 0.35, 0.95, 0.85, 0.3);
         if (T.ray[2]) for (const ax of [[0.015, 0, 0], [0, 0.015, 0], [0, 0, 0.015]]) lines.push(...v3.sub(T.ray[1], ax), 1, 0.9, 0.3, 1, ...v3.add(T.ray[1], ax), 1, 0.9, 0.3, 1);
       }
-      // graffiti: the aim (a cross where it meets a surface) and the stroke being drawn
+      // graffiti: the aim (a cross where it meets a surface; green where it closes the outline), the outline and its rubber line
       const GF = ws.graf;
       if (GF?.ray) {
-        lines.push(...GF.ray[0], 1, 0.55, 0.85, 0.8, ...GF.ray[1], 1, 0.55, 0.85, 0.25);
-        if (GF.ray[2]) for (const ax of [[0.01, 0, 0], [0, 0.01, 0], [0, 0, 0.01]]) lines.push(...v3.sub(GF.ray[1], ax), 1, 0.55, 0.85, 1, ...v3.add(GF.ray[1], ax), 1, 0.55, 0.85, 1);
+        const c = GF.ray[3] ? [0.3, 1, 0.4] : [1, 0.55, 0.85];
+        lines.push(...GF.ray[0], ...c, 0.8, ...GF.ray[1], ...c, 0.25);
+        if (GF.ray[2]) for (const ax of [[0.01, 0, 0], [0, 0.01, 0], [0, 0, 0.01]]) lines.push(...v3.sub(GF.ray[1], ax), ...c, 1, ...v3.add(GF.ray[1], ax), ...c, 1);
       }
-      if (GF?.stroke?.pts.length > 1) {
-        const q = GF.stroke.pts;
+      if (GF?.pts.length) {
+        const q = GF.pts;
         for (let i = 0; i + 1 < q.length; i++) lines.push(...q[i].room, 1, 0.55, 0.85, 1, ...q[i + 1].room, 1, 0.55, 0.85, 1);
+        if (GF.ray?.[2]) lines.push(...q[q.length - 1].room, 1, 0.55, 0.85, 0.6, ...GF.ray[1], 1, 0.55, 0.85, 0.6);
       }
       // the starship: the right hand's aim (bright on an object)
       const SR = ws.shipRay;
