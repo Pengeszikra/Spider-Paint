@@ -10,7 +10,12 @@ import { put, list, del, get } from '@vercel/blob';
 
 const PREFIX = 'store/';
 // the store's token: BLOB_READ_WRITE_TOKEN, or <PREFIX>_READ_WRITE_TOKEN when the store was connected with a custom prefix
-const TOKEN = () => process.env.BLOB_READ_WRITE_TOKEN || Object.entries(process.env).find(([k, v]) => /_READ_WRITE_TOKEN$/.test(k) && /^vercel_blob_rw_/.test(v ?? ''))?.[1] || '';
+// A store connected the new way has no token: the SDK signs in with the project's OIDC token and BLOB_STORE_ID by itself, and
+// that wins over an old read-write token (left by an earlier store) when both are there.
+const RW_TOKEN = () => process.env.BLOB_READ_WRITE_TOKEN || Object.entries(process.env).find(([k, v]) => /_READ_WRITE_TOKEN$/.test(k) && /^vercel_blob_rw_/.test(v ?? ''))?.[1] || '';
+const OIDC = () => Boolean(process.env.BLOB_STORE_ID);
+const TOKEN = () => (OIDC() ? undefined : RW_TOKEN() || undefined);
+const HAS_STORE = () => OIDC() || Boolean(RW_TOKEN());
 const clean = (name) => String(name ?? '').trim().replace(/[^\p{L}\p{N} _.-]/gu, '').slice(0, 60);
 const pathOf = (name) => `${PREFIX}${encodeURIComponent(name)}.json`;
 const nameOf = (pathname) => decodeURIComponent(pathname.slice(PREFIX.length).replace(/\.json$/, ''));
@@ -71,7 +76,7 @@ const putEither = async (path, body) => {
 export default async function handler(req, res) {
   try {
     if (req.method === 'OPTIONS') return send(res, 204, '');
-    if (!TOKEN()) return send(res, 503, { error: 'no Blob store token in this deployment yet: connect the Blob store to the project (Production too) and redeploy', seen: Object.keys(process.env).filter((k) => /BLOB|READ_WRITE|SPIDER/.test(k)) });
+    if (!HAS_STORE()) return send(res, 503, { error: 'no Blob store token in this deployment yet: connect the Blob store to the project (Production too) and redeploy', seen: Object.keys(process.env).filter((k) => /BLOB|READ_WRITE|SPIDER|OIDC/.test(k)) });
     const url = new URL(req.url, 'http://x');
     const name = clean(url.searchParams.get('name'));
     if (req.method === 'GET' && !name) {
@@ -83,7 +88,7 @@ export default async function handler(req, res) {
         cursor = page.hasMore ? page.cursor : undefined;
       } while (cursor);
       items.sort((a, b) => a.name.localeCompare(b.name));
-      return send(res, 200, { items });
+      return send(res, 200, { items, via: OIDC() ? 'oidc' : 'token' }); // (via: how this deployment reaches its store)
     }
     if (!name) return send(res, 400, { error: 'name?' });
     if (req.method === 'GET') {
