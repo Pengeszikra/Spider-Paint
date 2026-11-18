@@ -649,6 +649,16 @@
     #storeKeyBox span { opacity: 0.7; font-size: 0.85em; }
     #storeKeyBox input { font: inherit; padding: 6px 8px; background: #0e0f0c; color: inherit; border: 1px solid var(--line, #444); border-radius: 4px; }
     #storeKeyBox div { display: flex; gap: 8px; justify-content: flex-end; }
+    .page-ask { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: rgba(0, 0, 0, 0.55); }
+    .page-ask form { display: grid; gap: 10px; max-width: min(440px, 90vw); padding: 16px; background: var(--panel, #1b1c17); color: var(--fg, #eee); border: 1px solid var(--line, #444); border-radius: 8px; font: inherit; }
+    .page-ask span { opacity: 0.8; font-size: 0.9em; line-height: 1.4; }
+    .page-ask div { display: flex; gap: 8px; justify-content: flex-end; }
+    .page-ask .danger { background: #8a2a14; color: #ffe2d6; }
+    #cloudToast { position: fixed; left: 50%; bottom: 150px; transform: translateX(-50%); z-index: 40; max-width: min(640px, 92vw); padding: 8px 14px; border-radius: 6px; font: inherit; font-size: 0.9em; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5); pointer-events: none; }
+    #cloudToast.busy { background: #24303a; color: #cfe6f0; }
+    #cloudToast.ok { background: #1d3a26; color: #c9f2d4; }
+    #cloudToast.info { background: #33332c; color: #e6e2d0; }
+    #cloudToast.err { background: #5a1c10; color: #ffd9cc; }
 </style>
 </head>
 <body>
@@ -936,7 +946,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/3529b0296778/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/8d2f5e7b3914/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2199,7 +2209,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/3529b0296778/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/8d2f5e7b3914/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -8926,11 +8936,11 @@
       }
     };
     // the key, asked on the page itself (not window.prompt: embedded browsers and some headsets give no prompt at all)
-    const askStoreKey = () =>
+    const askStoreKey = (warn = '') =>
       new Promise((resolve) => {
         const box = document.createElement('div');
         box.id = 'storeKeyBox';
-        box.innerHTML = '<form><b>The online store\'s key</b><span>SPIDER_KEY of the Vercel project; kept in this browser only</span><input type="password" autocomplete="off" spellcheck="false" aria-label="the store key" /><div><button type="button" data-no>cancel</button><button type="submit" class="teal">save</button></div></form>';
+        box.innerHTML = `<form><b>The online store's key</b><span>${warn ? `<em style="color:#ff9a7a">${warn}.</em> ` : ''}SPIDER_KEY of the Vercel project; kept in this browser only</span><input type="password" autocomplete="off" spellcheck="false" aria-label="the store key" /><div><button type="button" data-no>cancel</button><button type="submit" class="teal">save</button></div></form>`;
         const input = box.querySelector('input');
         const done = (v) => {
           box.remove();
@@ -8976,20 +8986,32 @@
       if (!STORE) throw new Error('no store here');
       for (let tries = 0; tries < 2; tries++) {
         let key = storeKey();
-        if (!key && !quiet) key = await askStoreKey();
-        if (!key) throw new Error('the store needs its key');
-        const r = await fetch(`${STORE}?name=${encodeURIComponent(name)}`, {
-          method: data ? 'PUT' : 'DELETE',
-          headers: { 'content-type': 'application/json', 'x-spider-key': key },
-          body: data ? JSON.stringify(data) : undefined,
-        });
+        if (!key && !quiet) key = await askStoreKey(tries ? 'That key was refused: try again' : '');
+        if (!key) throw new Error(tries ? 'the store refused the key' : 'the store needs its key (none given)');
+        let r;
+        try {
+          r = await fetch(`${STORE}?name=${encodeURIComponent(name)}`, {
+            method: data ? 'PUT' : 'DELETE',
+            headers: { 'content-type': 'application/json', 'x-spider-key': key },
+            body: data ? JSON.stringify(data) : undefined,
+          });
+        } catch (err) {
+          throw new Error(`the store cannot be reached (${err.message}): the network?`);
+        }
         if (r.status === 401 && !quiet) {
           try {
             localStorage.removeItem('3draft.storeKey');
           } catch {}
           continue;
         }
-        if (!r.ok) throw new Error(`the store: HTTP ${r.status} ${(await r.text()).slice(0, 120)}`);
+        if (!r.ok) {
+          const t = await r.text();
+          let why = t.slice(0, 160);
+          try {
+            why = JSON.parse(t).error ?? why;
+          } catch {}
+          throw new Error(`the store answered ${r.status}${r.status === 413 ? ' (too big)' : ''}: ${why}`);
+        }
         return r.json();
       }
       throw new Error('the store refused the key');
@@ -9019,24 +9041,81 @@
       }
     };
     if (STORE) showCloud();
+    // a question on the page (window.confirm gives nothing in embedded browsers and some headsets): resolves true / false
+    const pageAsk = ({ title, text, ok = 'ok', danger = false }) =>
+      new Promise((resolve) => {
+        const box = document.createElement('div');
+        box.className = 'page-ask';
+        const form = document.createElement('form');
+        const b = Object.assign(document.createElement('b'), { textContent: title });
+        const span = Object.assign(document.createElement('span'), { textContent: text });
+        const row = document.createElement('div');
+        const no = Object.assign(document.createElement('button'), { type: 'button', textContent: 'cancel' });
+        const yes = Object.assign(document.createElement('button'), { type: 'submit', textContent: ok, className: danger ? 'danger' : 'teal' });
+        row.append(no, yes);
+        form.append(b, span, row);
+        box.append(form);
+        const done = (v) => (box.remove(), document.removeEventListener('keydown', key, true), resolve(v));
+        const key = (e) => e.key === 'Escape' && (e.stopPropagation(), done(false));
+        form.addEventListener('submit', (e) => (e.preventDefault(), done(true)));
+        no.addEventListener('click', () => done(false));
+        document.addEventListener('keydown', key, true);
+        document.body.append(box);
+        yes.focus();
+      });
+    // the cloud's own feedback, beside the scene panel: what it is doing, and how it went (ok / the problem)
+    const cloudToast = (() => {
+      let el = null, timer = 0;
+      return (state, text) => {
+        el ??= Object.assign(document.createElement('div'), { id: 'cloudToast', role: 'status' });
+        if (!el.isConnected) document.body.append(el);
+        clearTimeout(timer);
+        el.className = state; // busy | ok | info | err
+        el.textContent = `${{ busy: '☁ …', ok: '☁ ✓', info: '☁', err: '☁ ✗' }[state]}  ${text}`;
+        if (state !== 'busy') timer = setTimeout(() => el.remove(), state === 'ok' ? 4000 : 9000);
+        sceneNote(text);
+      };
+    })();
+    const sizeText = (n) => (n > 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1e3))} kB`);
+    let cloudBusy = false;
     document.getElementById('sceneCloud').addEventListener('click', async (e) => {
+      if (cloudBusy) return;
+      const btn = e.currentTarget;
       const name = nameOrDate();
-      if (cloudError) {
-        // (first ask the store again: it may be back)
-        await showCloud();
-        if (cloudError) return void sceneNote(`the online store does not answer: ${cloudError}`);
-      }
+      const erase = e.shiftKey;
+      cloudBusy = true;
+      btn.disabled = true;
       try {
-        if (e.shiftKey) {
+        cloudToast('busy', 'asking the online store…');
+        if (cloudError) {
+          // (first ask the store again: it may be back)
+          await showCloud();
+          if (cloudError) return void cloudToast('err', `the online store does not answer: ${cloudError}`);
+        }
+        // what is there now (fresh), to ask before overwriting or taking out
+        const there = (await storeList()).find((it) => it.name === name);
+        if (erase) {
+          if (!there) return void cloudToast('err', `no "${name}" in the online store`);
+          if (!(await pageAsk({ title: `Take "${name}" out of the online store?`, text: `Saved ${new Date(there.at).toLocaleString()} (${sizeText(there.size)}). Every device loses it; it cannot be undone.`, ok: 'take it out', danger: true }))) return void cloudToast('info', 'nothing taken out');
+          cloudToast('busy', `taking "${name}" out…`);
           await storeWrite(name, null);
-          sceneNote(`"${name}" taken out of the store`);
+          cloudToast('ok', `"${name}" taken out of the online store`);
         } else {
-          await storeWrite(name, sceneFile(name));
-          sceneNote(`"${name}" saved online: every device opens it from the list (online)`);
+          if (!allObjects().length) return void cloudToast('err', 'nothing to save: the scene is empty');
+          if (there && !(await pageAsk({ title: `"${name}" is already in the online store`, text: `Saved ${new Date(there.at).toLocaleString()} (${sizeText(there.size)}). Overwrite it with this scene (${allObjects().length} objects)?`, ok: 'overwrite', danger: true }))) return void cloudToast('info', 'not saved: give it another name to keep both');
+          const data = sceneFile(name);
+          cloudToast('busy', `saving "${name}" (${sizeText(JSON.stringify(data).length)})…`);
+          await storeWrite(name, data);
+          // read the list back: it is saved when the store shows it
+          const back = (await storeList()).find((it) => it.name === name);
+          cloudToast('ok', `"${name}" saved online${back ? ` (${sizeText(back.size)})` : ''}: every device opens it from the list (online)`);
         }
         showCloud();
       } catch (err) {
-        sceneNote(err.message);
+        cloudToast('err', `${erase ? 'not taken out' : 'not saved'}: ${err.message}`);
+      } finally {
+        cloudBusy = false;
+        btn.disabled = false;
       }
     });
     exampleEl.addEventListener('change', async () => {
