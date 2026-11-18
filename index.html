@@ -946,7 +946,7 @@
   </footer>
 
   <script type="module">
-    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/aa64332b6df3/index.js';
+    import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/bc1ecf6d80c1/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -2221,7 +2221,7 @@
     const PICK_ASYNC_FACES = 4000;
     let kernelFull = false;
     const PICK_HANG_MS = 5000;
-    const ENGINE_URL = new URL('./engine/aa64332b6df3/index.js', import.meta.url).href;
+    const ENGINE_URL = new URL('./engine/bc1ecf6d80c1/index.js', import.meta.url).href;
     const PICK_WORKER_SRC = `
       let api = null, kernel = null, mesh = null, ver = -1;
       const ready = import(ENGINE_URL).then(async (m) => {
@@ -3932,10 +3932,27 @@
       gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
       gl.bindVertexArray(null);
       const u = Object.fromEntries(['uEye', 'uC', 'uN', 'uE1', 'uRs', 'uIn', 'uOut', 'uB', 'uCore', 'uVp', 'uPj', 'uM'].map((n) => [n, gl.getUniformLocation(prog, n)]));
-      return { prog, vao, u };
+      // the half-resolution layer (the tracer is the costly part: a quarter of the pixels) and its upscaling onto the eye
+      const comp = gl.createProgram();
+      gl.attachShader(comp, sh(gl.VERTEX_SHADER, `#version 300 es
+        in vec2 aP; out vec2 vUv; void main() { vUv = aP * 0.5 + 0.5; gl_Position = vec4(aP, 0.0, 1.0); }`));
+      gl.attachShader(comp, sh(gl.FRAGMENT_SHADER, `#version 300 es
+        precision mediump float; uniform sampler2D uT; uniform vec2 uUv; in vec2 vUv; out vec4 o;
+        void main() { o = texture(uT, vUv * uUv); }`));
+      gl.linkProgram(comp);
+      if (!gl.getProgramParameter(comp, gl.LINK_STATUS)) return { failed: true };
+      const cvao = gl.createVertexArray();
+      gl.bindVertexArray(cvao);
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      const cl = gl.getAttribLocation(comp, 'aP');
+      gl.enableVertexAttribArray(cl);
+      gl.vertexAttribPointer(cl, 2, gl.FLOAT, false, 0, 0);
+      gl.bindVertexArray(null);
+      return { prog, vao, u, comp, cvao, cu: { uT: gl.getUniformLocation(comp, 'uT'), uUv: gl.getUniformLocation(comp, 'uUv') }, tex: null, fbo: null, tw: 0, th: 0 };
     };
     let xrHoleList = { at: -1e9, scene: null, list: [] };
-    const xrHoleDraw = (gl, P, V, vp, origin) => {
+    const XR_HOLE_RES = 0.5; // the tracer's resolution in the headset (of the eye's)
+    const xrHoleDraw = (gl, P, V, vp, origin, fb = null) => {
       if (!space() || bench) return;
       const now = performance.now();
       if (now - xrHoleList.at > 1000 || xrHoleList.scene !== scene) xrHoleList = { at: now, scene, list: allObjects().filter((o) => isHole(o.inst)) };
@@ -3965,21 +3982,44 @@
         .sort((x, y) => y.px - x.px)
         .slice(0, 2);
       if (!ranked.length) return;
+      // into the half-resolution layer first
+      const w2 = Math.max(1, Math.round(vp.width * XR_HOLE_RES)), h2 = Math.max(1, Math.round(vp.height * XR_HOLE_RES));
+      if (!G.fbo || G.tw < w2 || G.th < h2) {
+        if (G.tex) (gl.deleteTexture(G.tex), gl.deleteFramebuffer(G.fbo));
+        G.tw = Math.max(w2, G.tw);
+        G.th = Math.max(h2, G.th);
+        G.tex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, G.tex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, G.tw, G.th, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        G.fbo = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, G.fbo);
+        gl.framebufferTexture2D(gl.DRAW_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, G.tex, 0);
+      }
+      gl.bindFramebuffer(gl.FRAMEBUFFER, G.fbo);
+      gl.viewport(0, 0, w2, h2);
+      gl.disable(gl.SCISSOR_TEST);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
       gl.useProgram(G.prog);
       gl.bindVertexArray(G.vao);
       gl.disable(gl.DEPTH_TEST);
       gl.depthMask(false);
-      gl.enable(gl.BLEND);
-      gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      gl.disable(gl.BLEND);
       gl.enable(gl.SCISSOR_TEST);
+      const half = { x: 0, y: 0, width: w2, height: h2 };
       const rows = [inv[0], inv[3], inv[6], inv[1], inv[4], inv[7], inv[2], inv[5], inv[8]]; // (column-major for the shader)
       gl.uniformMatrix3fv(G.u.uM, false, rows);
-      gl.uniform4f(G.u.uVp, vp.x, vp.y, vp.width, vp.height);
+      gl.uniform4f(G.u.uVp, 0, 0, w2, h2);
       gl.uniform4f(G.u.uPj, P[8], P[9], P[0], P[5]);
+      let drawn = false;
       for (const h of ranked) {
         const R = HOLE_REACH * h.rs;
         // the square on screen round the reach (the whole viewport when the eye is inside it or it is beside / behind the eye)
-        let box = [vp.x, vp.y, vp.width, vp.height];
+        let box = [0, 0, w2, h2];
         const dv = [V[0] * h.d[0] + V[4] * h.d[1] + V[8] * h.d[2], V[1] * h.d[0] + V[5] * h.d[1] + V[9] * h.d[2], V[2] * h.d[0] + V[6] * h.d[1] + V[10] * h.d[2]];
         const sc = Math.hypot(V[0], V[1], V[2]); // (the view's scale: the reach in view units)
         const Rv = R * sc, zf = -dv[2];
@@ -3988,7 +4028,7 @@
           const rx = (P[0] * Rv) / Math.sqrt(Math.max(1e-30, zf * zf - Rv * Rv)) * 1.1, ry = (P[5] * Rv) / Math.sqrt(Math.max(1e-30, zf * zf - Rv * Rv)) * 1.1;
           const x0 = Math.max(-1, nx - rx), x1 = Math.min(1, nx + rx), y0 = Math.max(-1, ny - ry), y1 = Math.min(1, ny + ry);
           if (x1 <= x0 || y1 <= y0) continue;
-          box = [vp.x + ((x0 + 1) / 2) * vp.width, vp.y + ((y0 + 1) / 2) * vp.height, ((x1 - x0) / 2) * vp.width, ((y1 - y0) / 2) * vp.height];
+          box = [((x0 + 1) / 2) * half.width, ((y0 + 1) / 2) * half.height, ((x1 - x0) / 2) * half.width, ((y1 - y0) / 2) * half.height];
         } else if (zf < -R * sc * 1.05) continue; // all behind
         gl.scissor(Math.floor(box[0]), Math.floor(box[1]), Math.ceil(box[2]) + 1, Math.ceil(box[3]) + 1);
         const N = holeAxis(h.o.inst);
@@ -4005,8 +4045,23 @@
         gl.uniform1f(G.u.uB, HOLE_REACH);
         gl.uniform1f(G.u.uCore, HOLE_CORE);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        drawn = true;
       }
       gl.disable(gl.SCISSOR_TEST);
+      // then upscaled onto the eye (premultiplied: the shadow covers, the disc glows over the stars)
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+      gl.viewport(vp.x, vp.y, vp.width, vp.height);
+      if (drawn) {
+        gl.useProgram(G.comp);
+        gl.bindVertexArray(G.cvao);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, G.tex);
+        gl.uniform1i(G.cu.uT, 0);
+        gl.uniform2f(G.cu.uUv, w2 / G.tw, h2 / G.th);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      }
       gl.disable(gl.BLEND);
       gl.depthMask(true);
       gl.enable(gl.DEPTH_TEST);
@@ -13244,7 +13299,7 @@
         gpu.render(dq.get('dbgparts') === '0' ? { positions: [], faces: [] } : sceneNow, xrArgs.view, { ...xrArgs.opts, ...(dq.get('dbgplanets') === '0' ? { planets: undefined } : {}), ...(dq.get('dbginst') === '0' ? { instances: undefined } : {}), ...(dq.get('dbgmain') === '0' ? { planets: undefined, instances: undefined, screens: undefined } : {}), parts: dq.get('dbgparts') === '0' || dq.get('dbgmain') === '0' ? undefined : partsNow, background: sky, xr: { framebuffer: layer.framebuffer, viewport: [vp.x, vp.y, vp.width, vp.height], projection: engineP, view: Ve, eye } });
         tMain += lap();
         if (dq.get('dbgsky') !== '0') xrSkyDraw(gl, glP, Ve, vp.height, xrArgs.origin);
-        if (dq.get('dbghole') !== '0') xrHoleDraw(gl, glP, Ve, vp, xrArgs.origin);
+        if (dq.get('dbghole') !== '0') xrHoleDraw(gl, glP, Ve, vp, xrArgs.origin, layer.framebuffer);
         xrBackdrop(gl, v.projectionMatrix, v.transform.inverse.matrix, [v.transform.position.x, v.transform.position.y, v.transform.position.z]);
         if (targetNow.length) xrLines(gl, glP, v.transform.inverse.matrix, targetNow); // (with the sky's zoom: it is on the sky)
         tSky += lap();

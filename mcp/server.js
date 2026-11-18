@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// (copied from 3Draft aa64332 by scripts/sync.mjs: change it there)
+// (copied from 3Draft bc1ecf6 by scripts/sync.mjs: change it there)
 // 3Draft MCP server: JSON-RPC 2.0 over stdio, one JSON message per line.
 // No dependencies. stdout carries the protocol only; logs go to stderr.
 
