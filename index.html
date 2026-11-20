@@ -9361,7 +9361,7 @@
         const spec=a.spec??CHARACTER_PRESETS[a.preset??'mechanic'];
         if (!spec) throw Error('Unknown character preset');
         if (!['stand','sit','walk'].includes(a.pose??'stand')) throw Error('pose: stand, sit or walk');
-        const at=a.at??[0,0,0],yaw=a.yaw??0,scale=a.scale??1;
+        const at=a.at??[0,0,0],yaw=a.yaw??0,scale=a.size??1;
         if (!Array.isArray(at)||at.length!==3||!at.every(Number.isFinite)||!Number.isFinite(yaw)||!Number.isFinite(scale)||scale<=0)throw Error('Invalid character placement');
         const rec=charRead({spec,pose:a.pose??'stand',frame:{at,yaw:yaw*Math.PI/180,scale}});
         const made=create(name,charMesh(rec));
