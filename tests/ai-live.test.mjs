@@ -71,6 +71,8 @@ test('Workshop controls inspect the actual browser UI inventory',async()=>{
   const r=await call('workshop_controls',{session:token});
   const x=JSON.parse(r.content[0].text);
   assert.equal(x.capabilities.editable,true);
+  assert.equal(typeof x.serverVersion,'string');
+  assert.equal(typeof x.versionMatch,'boolean');
   assert.equal(x.capabilities.controls[0].id,'undo');
 });
 test('Workshop mutations are queued, not claimed completed',async()=>{
