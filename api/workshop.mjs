@@ -20,7 +20,12 @@ const bodyOf = async (req) => {
   return JSON.parse(text);
 };
 const load = async (path) => {
-  const r = await get(path, { access:'private', useCache:false, ...opts() });
+  // Vercel Blob private get(path) may throw 400 for a missing key. Resolve
+  // existence first so a non-existent workshop returns 404, not HTTP 500.
+  const found = await list({prefix:path,limit:20,...opts()});
+  const blob = found.blobs.find(b=>b.pathname===path);
+  if (!blob) return null;
+  const r = await get(blob.url, { access:'private', useCache:false, ...opts() });
   if (!r || r.statusCode !== 200) return null;
   return JSON.parse(await new Response(r.stream).text());
 };
