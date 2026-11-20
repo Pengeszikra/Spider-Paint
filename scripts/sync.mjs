@@ -68,6 +68,10 @@ for (const [name, from, to] of steps) {
 }
 if (html.includes('../dist/') || html.includes('../examples/')) throw new Error('sync: a path into the 3Draft repo is left in index.html');
 
+// Preserve Spider Paint's opt-in AI live MCP sharing button after every 3Draft update.
+const shareAnchor = '    const showSaved = () => {';
+if (!html.includes(shareAnchor)) throw new Error('sync: scene control anchor missing for AI live');
+html = html.replace(shareAnchor, readFileSync(join(here, 'scripts/ai-live-ui.txt'), 'utf8') + shareAnchor);
 writeFileSync(join(here, 'index.html'), html);
 writeFileSync(join(here, 'xr-test.html'), readFileSync(join(src, 'app/xr-test.html'))); // the WebXR loop alone, for a headset that stays black
 // Spider Player (PLAYER.md): a scene on a turntable or a story played, no UI, for an iframe; only the renderer's modules
@@ -109,7 +113,8 @@ writeFileSync(join(here, 'models/spider-build-v2.mjs'), `// (copied from 3Draft 
 // models/human.scene.json (the low poly human) and models/tr74.scene.json (the TR-74 module) live only in this repo: sync leaves them alone
 
 // ---- The MCP server (mcp/): 3Draft's server, scene tools and live link, with the engine beside them (mcp/engine/, the runtime
-// files of dist/), so it runs from this repo alone. mcp/serve.js (the static server: Spider Paint at /, a 3Draft checkout at
+// files of dist/), so it runs from this repo alone.
+// mcp/http.js is intentionally maintained here (the public AI live tools); it is not overwritten by sync. mcp/serve.js (the static server: Spider Paint at /, a 3Draft checkout at
 // /3draft/) and MCP.md are this repo's own; sync fills MCP.md's tool list (between the tools markers) from the tools themselves.
 const mcpDir = join(here, 'mcp');
 const engineDir = join(mcpDir, 'engine');
@@ -120,7 +125,8 @@ const mcpSteps = {
   'server.js': [["from '../dist/index.js'", "from './engine/index.js'"], ["serverInfo: { name: '3draft', version }", "serverInfo: { name: 'spider-paint', version }"], ['3draft MCP server ${version} ready on stdio', 'Spider Paint MCP server (3Draft ${version}) ready on stdio']],
   'scene.js': [["from '../dist/index.js'", "from './engine/index.js'"]],
   'live.js': [["from '../app/serve.js'", "from './serve.js'"]],
-  'http.js': [["from '../dist/index.js'", "from './engine/index.js'"]], // the public HTTP server (api/mcp.mjs)
+  // http.js belongs to Spider Paint: it extends 3Draft with opt-in get_scene/get_render.
+  // Do not replace it with 3Draft's copy or the public MCP live bridge would disappear.
 };
 for (const [file, reps] of Object.entries(mcpSteps)) {
   let text = readFileSync(join(src, 'mcp', file), 'utf8');
