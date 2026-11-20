@@ -72,6 +72,10 @@ if (html.includes('../dist/') || html.includes('../examples/')) throw new Error(
 const shareAnchor = '    const showSaved = () => {';
 if (!html.includes(shareAnchor)) throw new Error('sync: scene control anchor missing for AI live');
 html = html.replace(shareAnchor, readFileSync(join(here, 'scripts/ai-live-ui.txt'), 'utf8') + readFileSync(join(here, 'scripts/workshop-ui.txt'), 'utf8') + shareAnchor);
+// Tutorial keycast is a Spider Paint UI addition and must survive 3Draft syncs.
+const tutorialAnchor = '    Object.assign(window, { ACTIONS, KEYMAP, bindKey });';
+if (!html.includes(tutorialAnchor)) throw new Error('sync: keycast insertion anchor missing');
+html = html.replace(tutorialAnchor, tutorialAnchor + '\n' + readFileSync(join(here, 'scripts/tutorial-keycast.txt'), 'utf8'));
 writeFileSync(join(here, 'index.html'), html);
 writeFileSync(join(here, 'xr-test.html'), readFileSync(join(src, 'app/xr-test.html'))); // the WebXR loop alone, for a headset that stays black
 // Spider Player (PLAYER.md): a scene on a turntable or a story played, no UI, for an iframe; only the renderer's modules
