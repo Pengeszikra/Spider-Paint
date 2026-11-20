@@ -111,3 +111,18 @@ test('Browser UI and durable source template have matching workshop dispatcher',
   assert.ok(html.includes(ui));
   assert.ok(html.includes('Allow AI edits in this browser'));
 });
+
+test('Tutorial keycast is wired, safe for pointer clicks and retained by sync',()=>{
+  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+  const keycast=readFileSync(new URL('../scripts/tutorial-keycast.txt',import.meta.url),'utf8');
+  const sync=readFileSync(new URL('../scripts/sync.mjs',import.meta.url),'utf8');
+  assert.ok(html.includes(keycast),'Current editor contains keycast module');
+  assert.ok(sync.includes("scripts/tutorial-keycast.txt"),'3Draft synchronization retains keycast');
+  assert.match(keycast,/pointer-events: none !important/);
+  assert.match(keycast,/user-select: none !important/);
+  assert.match(keycast,/window.addEventListener\('keydown'/);
+  assert.match(keycast,/window.addEventListener\('keyup'/);
+  assert.match(keycast,/tutorialButton.addEventListener\('click'/);
+  assert.match(keycast,/localStorage.setItem\('spider-paint.tutorial'/);
+  assert.match(keycast,/event.repeat/);
+});
