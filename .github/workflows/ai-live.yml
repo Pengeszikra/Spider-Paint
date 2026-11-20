@@ -1,0 +1,21 @@
+name: AI live MCP tests
+on:
+  push:
+    paths:
+      - 'index.html'
+      - 'mcp/http.js'
+      - 'api/live.mjs'
+      - 'tests/ai-live.test.mjs'
+      - '.github/workflows/ai-live.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check api/live.mjs
+      - run: node --check mcp/http.js
+      - run: node --test tests/ai-live.test.mjs
