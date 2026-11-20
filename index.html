@@ -9307,6 +9307,7 @@
       'ui.action','ui.click','ui.set','ui.key','ui.pointer','story.open'
     ];
     const workshopCapabilities = () => ({
+      version:displayVersion(version), engineVersion:version,
       editable: Boolean(aiLiveEdits), operations: workshopOps,
       controls: workshopAllControls().map(({el,id}) => ({
         id, type:el.tagName.toLowerCase(), title:(el.title||el.getAttribute('aria-label')||el.textContent||'').trim().slice(0,160),
