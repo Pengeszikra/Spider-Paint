@@ -126,3 +126,19 @@ test('Tutorial keycast is wired, safe for pointer clicks and retained by sync',(
   assert.match(keycast,/localStorage.setItem\('spider-paint.tutorial'/);
   assert.match(keycast,/event.repeat/);
 });
+
+test('spi3der branding and folded console survive 3Draft synchronization',()=>{
+ const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+ const manifest=JSON.parse(readFileSync(new URL('../manifest.webmanifest',import.meta.url),'utf8'));
+ const sync=readFileSync(new URL('../scripts/sync.mjs',import.meta.url),'utf8');
+ assert.match(html,/<h1>spi3der<\/h1>/);
+ assert.match(html,/<title>spi3der<\/title>/);
+ assert.equal(manifest.name,'spi3der');
+ assert.equal(manifest.short_name,'spi3der');
+ for(const label of ['view','fly','scene','sys']){
+   assert.match(html,new RegExp('<span class="grp[^"]*folded[^"]*" data-label="'+label+'"'));
+ }
+ assert.match(sync,/Spider Paint build version is separate/);
+ assert.match(sync,/spi3der<\/h1>/);
+ assert.match(sync,/g\.classList\.add\('folded'\)/);
+});
