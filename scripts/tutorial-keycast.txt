@@ -5,9 +5,9 @@
       #tutorialKeycast {
         position: fixed; z-index: 2147483000; left: 50%; top: clamp(48px, 7vh, 78px);
         transform: translate(-50%, -8px); display: flex; align-items: center; justify-content: center;
-        gap: 6px; padding: 10px 16px; min-height: 30px; max-width: calc(100vw - 36px);
-        box-sizing: border-box; border-radius: 12px; border: 1px solid #ffffff48;
-        background: #10171be8; color: #fff; box-shadow: 0 6px 25px #0008;
+        gap: 6px; padding: 0; max-width: calc(100vw - 36px);
+        box-sizing: border-box; border: 0; border-radius: 0;
+        background: transparent; color: #fff; box-shadow: none;
         font: 600 clamp(16px, 2.5vw, 28px)/1.25 'DM Mono', monospace;
         letter-spacing: .02em; white-space: nowrap;
         opacity: 0; visibility: hidden; transition: opacity .16s ease, transform .16s ease, visibility .16s;
