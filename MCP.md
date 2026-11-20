@@ -21,6 +21,10 @@ Tools:
 | `sky_guide` | the sky catalogue guide (sky.md) |
 | `get_scene` | read the actively shared editor scene, materials and camera (optionally full geometry) |
 | `get_render` | read the actively shared SVG or GPU image, with the browser's actual camera |
+| `open_workshop` | show the interactive editor through an MCP Apps UI resource |
+| `workshop_controls` | inspect this browser's exposed semantic and UI commands |
+| `workshop_apply` | queue named model, material, scene, camera and UI actions |
+| `workshop_result` | confirm each queued action was executed or failed |
 
 Links hold the scene in the URL fragment (deflate-raw, base64url), so they never reach a server; very large scenes (over ~200 KB of link) are refused.
 
@@ -37,6 +41,79 @@ The public MCP also provides **`get_scene`** and **`get_render`**. Unlike `build
 The viewer publishes a fresh scene and camera render approximately every **8 seconds** while sharing is enabled. The live snapshot is held in a private Vercel Blob (requires the project Blob store to be connected), and expired after **2 hours** without updates. This is a **read-only** bridge: MCP cannot modify a user's current browser through these two tools. The ordinary `build_model` remains independent, stateless, and continues via `open_url`. The service supports up to 4 MiB per snapshot, with a thumbnail GPU readback. In immersive XR, desktop frame capture is unavailable until the viewer exits XR.
 
 For developers: `api/live.mjs` implements the private snapshot exchange and `scripts/ai-live-ui.txt` keeps the opt-in UI through 3Draft syncs. After deployment, refresh/rescan the custom MCP connection so the new tools become visible.
+
+## Human × AI × 3D Workshop
+
+The public MCP endpoint supports a **real interactive workshop** in addition to the
+stateless scene-link tools. The editor is the same browser-based Spider Paint,
+with WebGL2/WebGPU/SVG and its complete keyboard/UI model (not a second editor).
+
+- **`open_workshop`**: launch the interactive editor as an MCP App resource
+  (`ui://spider-paint/workshop.html`, MIME `text/html;profile=mcp-app`).
+  Client support decides whether this appears inline, beside chat, or fullscreen.
+  The embedded editor can also be opened in a full browser tab.
+- **`workshop_controls({session})`**: ask the *running* browser which named
+  button IDs, selects, input controls, keyboard shortcuts, scenes, and semantic
+  model/editor operations are available. Unlike fixed documentation, the answer
+  reflects the actual UI version the user has open.
+- **`workshop_apply({session,actions})`**: enqueue up to 30 editor operations,
+  addressed by object name or named UI control. Returns **queued** and a
+  command `id`, not a success claim.
+- **`workshop_result({session,id})`**: read the execution acknowledgement,
+  including per-action errors. The agent must call this before claiming success.
+- **`get_scene({session,full:true})`** and **`get_render({session})`**:
+  inspect the human's actual scene, materials (including alpha), camera and image.
+
+### Start a shared session
+
+1. Open Spider Paint (or `open_workshop` in an MCP Apps-capable host).
+2. Click **AI live** and copy the private, random 64-character session code.
+3. Paste the code to the agent for read-only observation.
+4. **Separately tick "Allow AI edits in this browser"** to authorize modifications.
+5. The agent calls `workshop_controls`, `workshop_apply`, then
+   `workshop_result`. Changes are made inside your *running* browser, so
+   manual edits and agent edits affect the same scene.
+6. Stop sharing at any moment to revoke access and delete queued commands and
+   acknowledgements.
+
+### Operations
+
+- Geometry: `model.create`, `model.mesh`, `model.transform` (move, scale,
+  X/Y/Z rotation, pivot), `model.paint`, `model.rename`, `model.delete`.
+- Materials: `material.upsert` (color, metal, rough, alpha, emit, soft),
+  `material.select`.
+- Scenes: `scene.load`, `story.open`, `scene.replace`, `scene.clear`,
+  `scene.undo`.
+- Navigation: `camera.look`, `camera.target`, `camera.reset`,
+  `vehicle.set`, `render.set`.
+- Existing UI: `ui.action` for named ACTIONS, `ui.click` for advertised
+  button IDs, `ui.set` for advertised form controls, `ui.key` for
+  keyboard actions. The capabilities tool lists what the current browser accepts.
+  This is how story transport, editor selection, visual switches, grouping,
+  viewport controls and other existing functionality remain reusable without
+  rewriting them into an alternative editor.
+
+Note: **WebXR session startup, file pickers, browser permission dialogs and
+other browser gestures cannot be forced by an AI agent**. Those stay under
+human control. Some UI operations also require a current selection or pointer
+position, which the agent can inspect through `get_scene`/`get_render` but
+cannot invent. `ui.key` is a best-effort synthetic key event; use semantic
+model actions when precision matters.
+
+The sharing endpoint stores the browser's scene/render in a private Vercel Blob,
+updated every ~8 seconds. The mailbox stores independently numbered commands
+in private Blob objects; the browser polls and executes them while AI editing is
+authorized. No database migration or application build step is required.
+The endpoint requires the project to have **Vercel Blob** configured. Stopping
+the session deletes snapshots and queued messages on a best-effort basis;
+inactive sessions expire after two hours. Avoid putting secrets in 3D materials
+or scenes shared with an agent.
+
+**Verification:** `node --test tests/ai-live.test.mjs` exercises the MCP tool
+metadata, resource, permission guard, queue response and browser JavaScript syntax.
+The full end-to-end browser + Vercel + ChatGPT flow needs an additional live test.
+Reconnect or rescan your ChatGPT custom MCP after deployment to see newly
+registered tools.
 
 ## Set up
 
