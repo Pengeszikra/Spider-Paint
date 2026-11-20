@@ -9137,6 +9137,121 @@
         ...(skyPaths.length ? { paths: skyPaths } : {}),
       };
     };
+    // Explicit opt-in bridge from this running editor to the public MCP.
+    // A new 256-bit session secret is created per sharing session and never persisted.
+    // Only a person holding that secret can retrieve the scene and camera render.
+    const aiLiveButton = document.createElement('button');
+    aiLiveButton.type = 'button';
+    aiLiveButton.className = 'slate';
+    aiLiveButton.textContent = 'AI live';
+    aiLiveButton.title = 'Share this editor\'s current scene and render with an AI agent using a private MCP session code';
+    exampleEl.parentElement.append(aiLiveButton);
+    let aiLiveToken = null;
+    let aiLiveTimer = null;
+    let aiLiveSending = false;
+    let aiLivePanel = null;
+    const aiLiveEndpoint = new URL('./api/live', location.href).pathname;
+    const aiLiveStatus = (message) => {
+      if (aiLivePanel) aiLivePanel.querySelector('[data-live-status]').textContent = message;
+    };
+    const aiLiveRender = async () => {
+      if (xrState.session) return { kind: activeKind, data: null, note: 'Exit immersive XR for a desktop render' };
+      if (mode !== 'gpu') return { kind: 'svg', data: layer.querySelector('svg')?.outerHTML ?? null };
+      // Use the engine's GPU readback, not the on-screen canvas's potentially discarded backing buffer.
+      if (typeof renderGpu !== 'function') return { kind: activeKind, data: null, note: 'GPU readback not ready' };
+      try {
+        const raw = await renderGpu(true);
+        if (!raw?.data || !raw.width || !raw.height) return { kind: activeKind, data: null, note: 'GPU readback returned no pixels' };
+        const source = document.createElement('canvas');
+        source.width = raw.width; source.height = raw.height;
+        source.getContext('2d').putImageData(new ImageData(raw.data, raw.width, raw.height), 0, 0);
+        const output = document.createElement('canvas');
+        const ratio = Math.min(1, 640 / Math.max(source.width, source.height));
+        output.width = Math.max(1, Math.round(source.width * ratio));
+        output.height = Math.max(1, Math.round(source.height * ratio));
+        output.getContext('2d').drawImage(source, 0, 0, output.width, output.height);
+        return { kind: activeKind, data: output.toDataURL('image/jpeg', 0.72), width: output.width, height: output.height };
+      } catch (err) {
+        return { kind: activeKind, data: null, note: String(err?.message ?? err).slice(0, 120) };
+      }
+    };
+    const aiLivePublish = async () => {
+      if (!aiLiveToken || aiLiveSending) return;
+      aiLiveSending = true;
+      try {
+        const token = aiLiveToken;
+        const scene = sceneFile(nameEl.value.trim() || 'Live Spider Paint scene');
+        const render = await aiLiveRender();
+        if (token !== aiLiveToken) return;
+        const response = await fetch(aiLiveEndpoint, {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ token, scene, render }),
+          cache: 'no-store',
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || ('HTTP ' + response.status));
+        aiLiveStatus('Live · ' + result.objects + ' objects · updated ' + new Date(result.updated).toLocaleTimeString());
+      } catch (err) {
+        aiLiveStatus('Cannot share: ' + (err?.message ?? err));
+      } finally { aiLiveSending = false; }
+    };
+    const aiLiveStop = () => {
+      const token = aiLiveToken;
+      aiLiveToken = null;
+      clearInterval(aiLiveTimer);
+      aiLiveTimer = null;
+      aiLiveButton.classList.remove('on');
+      aiLiveButton.textContent = 'AI live';
+      aiLivePanel?.remove();
+      aiLivePanel = null;
+      if (token) fetch(aiLiveEndpoint + '?token=' + token, { method: 'DELETE' }).catch(() => {});
+    };
+    aiLiveButton.addEventListener('click', () => {
+      if (aiLiveToken) return aiLiveStop();
+      if (!crypto?.getRandomValues || !location.protocol.startsWith('https')) {
+        alert('AI live needs HTTPS and a browser with crypto.getRandomValues');
+        return;
+      }
+      aiLiveToken = [...crypto.getRandomValues(new Uint8Array(32))]
+        .map((v) => v.toString(16).padStart(2, '0')).join('');
+      aiLiveButton.classList.add('on');
+      aiLiveButton.textContent = 'AI live ●';
+      const panel = document.createElement('aside');
+      panel.setAttribute('role', 'dialog');
+      panel.setAttribute('aria-label', 'AI live session');
+      Object.assign(panel.style, {
+        position: 'fixed', right: '16px', top: '76px', zIndex: '100000',
+        background: '#1b1c17', color: '#eee', border: '1px solid #6a817b',
+        borderRadius: '8px', padding: '16px', width: 'min(380px, calc(100vw - 32px))',
+        font: '13px/1.5 monospace', boxShadow: '0 8px 30px #0009',
+      });
+      const heading = document.createElement('strong');
+      heading.textContent = 'AI live · private scene access';
+      const info = document.createElement('p');
+      info.textContent = 'Copy this secret code into the AI chat. The current scene, materials and camera image are shared approximately every 8 seconds until you stop. Anyone with the code can read the scene.';
+      const secret = document.createElement('code');
+      secret.textContent = aiLiveToken;
+      Object.assign(secret.style, { display: 'block', wordBreak: 'break-all', background: '#111', padding: '8px', marginBottom: '8px', userSelect: 'all' });
+      const copy = document.createElement('button');
+      copy.textContent = 'Copy MCP session code';
+      copy.addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(aiLiveToken ?? ''); aiLiveStatus('Code copied; send it to the agent.'); }
+        catch { aiLiveStatus('Select the code above to copy it.'); }
+      });
+      const stop = document.createElement('button');
+      stop.textContent = 'Stop sharing';
+      stop.style.marginLeft = '8px';
+      stop.addEventListener('click', aiLiveStop);
+      const status = document.createElement('p');
+      status.dataset.liveStatus = '';
+      status.textContent = 'Connecting…';
+      panel.append(heading, info, secret, copy, stop, status);
+      document.body.append(panel);
+      aiLivePanel = panel;
+      aiLivePublish();
+      aiLiveTimer = setInterval(aiLivePublish, 8000);
+    });
+    window.addEventListener('pagehide', aiLiveStop);
     const showSaved = () => {
       const names = Object.keys(readSaved()).sort();
       savedGroup.hidden = !names.length;
