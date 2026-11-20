@@ -79,7 +79,10 @@ with WebGL2/WebGPU/SVG and its complete keyboard/UI model (not a second editor).
 ### Operations
 
 - Geometry: `model.create`, `model.mesh`, `model.transform` (move, scale,
-  X/Y/Z rotation, pivot), `model.paint`, `model.rename`, `model.delete`.
+  X/Y/Z rotation, pivot), `model.paint`, `model.rename`, `model.delete`,
+  `model.extrude` and `model.boolean`.
+- Procedural figures: `model.character` (preset/spec/pose/position/size),
+  `model.pose` (stand/sit/walk).
 - Materials: `material.upsert` (color, metal, rough, alpha, emit, soft),
   `material.select`.
 - Scenes: `scene.load`, `story.open`, `scene.replace`, `scene.clear`,
@@ -88,7 +91,9 @@ with WebGL2/WebGPU/SVG and its complete keyboard/UI model (not a second editor).
   `vehicle.set`, `render.set`.
 - Existing UI: `ui.action` for named ACTIONS, `ui.click` for advertised
   button IDs, `ui.set` for advertised form controls, `ui.key` for
-  keyboard actions. The capabilities tool lists what the current browser accepts.
+  keyboard actions, and `ui.pointer` for viewport pointer/click/wheel events
+  (CSS pixel coordinates). The capabilities tool lists what the current browser accepts,
+  **including dynamic controls without native HTML IDs**.
   This is how story transport, editor selection, visual switches, grouping,
   viewport controls and other existing functionality remain reusable without
   rewriting them into an alternative editor.
