@@ -9304,7 +9304,7 @@
       'model.character','model.pose','model.extrude','model.boolean',
       'material.upsert','material.select','scene.load','scene.replace','scene.clear','scene.undo',
       'camera.look','camera.target','camera.reset','vehicle.set','render.set',
-      'ui.action','ui.click','ui.set','ui.key','story.open'
+      'ui.action','ui.click','ui.set','ui.key','ui.pointer','story.open'
     ];
     const workshopCapabilities = () => ({
       editable: Boolean(aiLiveEdits), operations: workshopOps,
@@ -9509,6 +9509,19 @@
         el.dispatchEvent(new Event('input',{bubbles:true}));
         el.dispatchEvent(new Event('change',{bubbles:true}));
         return {set:a.id,value:el.tagName==='INPUT'&&(el.type==='checkbox'||el.type==='radio')?el.checked:el.value};
+      }
+      if (a.op === 'ui.pointer') {
+        if(!Number.isFinite(a.x)||!Number.isFinite(a.y))throw Error('Pointer x/y required in CSS pixels');
+        const rect=stage.getBoundingClientRect();
+        if(a.x<0||a.y<0||a.x>rect.width||a.y>rect.height)throw Error('Pointer outside editor');
+        const type=a.type??'move';
+        if(!['move','down','up','click','double','wheel'].includes(type))throw Error('type: move, down, up, click, double, wheel');
+        const props={bubbles:true,cancelable:true,clientX:rect.left+a.x,clientY:rect.top+a.y,button:a.button??0,
+          pointerId:1,pointerType:'mouse',isPrimary:true,shiftKey:Boolean(a.shift),ctrlKey:Boolean(a.ctrl),metaKey:Boolean(a.meta)};
+        if(type==='wheel')stage.dispatchEvent(new WheelEvent('wheel',{...props,deltaX:Number(a.deltaX)||0,deltaY:Number(a.deltaY)||0}));
+        else if(type==='click'||type==='double')stage.dispatchEvent(new MouseEvent(type==='double'?'dblclick':'click',props));
+        else stage.dispatchEvent(new PointerEvent('pointer'+(type==='move'?'move':type==='down'?'down':'up'),props));
+        return {pointer:type,x:a.x,y:a.y};
       }
       if (a.op === 'ui.key') {
         if(typeof a.key!=='string'||a.key.length>20||!/^([a-zA-Z0-9?;/[\]öőúé]|Escape|Enter|Tab|Backspace| |Arrow(?:Up|Down|Left|Right))$/.test(a.key))
