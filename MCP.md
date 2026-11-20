@@ -4,7 +4,7 @@ This file is for the AI (and the person setting it up). Spider Paint carries an 
 
 ## Public endpoint (Gemini, ChatGPT, any web MCP client)
 
-**`https://spider-paint.vercel.app/api/mcp`** is a public Streamable HTTP MCP server: no install, no sign-in (choose "no authentication" where a client asks). It is `api/mcp.mjs`, a Vercel function around `mcp/http.js`, and it is stateless: it writes no files and cannot steer an open viewer, so every result carries an `open_url` link that opens the scene in Spider Paint.
+**`https://spider-paint.vercel.app/api/mcp`** is a public Streamable HTTP MCP server: no install, no sign-in (choose "no authentication" where a client asks). It is `api/mcp.mjs`, a Vercel function around `mcp/http.js`, and it is stateless for modelling requests: created scenes are carried in `open_url`. The separate opt-in AI live bridge below lets the agent read an open browser scene when the person explicitly shares its private session code.
 
 - **Gemini:** Customize → Connectors → **+ Custom** → MCP Server URL: `https://spider-paint.vercel.app/api/mcp` → Next.
 - **ChatGPT:** Settings → Apps / Connectors → create a custom connector (developer mode) with the same URL, authentication: none.
@@ -19,8 +19,24 @@ Tools:
 | `find` | searches the Deep Sky catalogue (stars, galaxies, nebulae, planets) → name, kind, distance and a `?scene=deepsky&target=…` link |
 | `examples` | the bundled scenes with their links |
 | `sky_guide` | the sky catalogue guide (sky.md) |
+| `get_scene` | read the actively shared editor scene, materials and camera (optionally full geometry) |
+| `get_render` | read the actively shared SVG or GPU image, with the browser's actual camera |
 
 Links hold the scene in the URL fragment (deflate-raw, base64url), so they never reach a server; very large scenes (over ~200 KB of link) are refused.
+
+## AI live — read the scene you are editing
+
+The public MCP also provides **`get_scene`** and **`get_render`**. Unlike `build_model`, these read the **actual open Spider Paint editor** (including your edits, face materials/alpha, and current camera). Sharing is **opt-in**:
+
+1. Open https://spider-paint.vercel.app/ in a browser.
+2. In the **+ scene** toolbar, click **AI live**. The panel displays a fresh 64-character private session code.
+3. Click **Copy MCP session code** and paste it to your agent. The code is a secret: anyone holding it can inspect the shared scene.
+4. Ask your agent to call `get_scene({ session: code })`, optionally `full: true` for every vertex and face; `get_render({ session: code })` returns the SVG of the live SVG viewer, or a JPEG image read back from WebGL2/WebGPU.
+5. Click **Stop sharing** to end the session and delete the stored snapshot. Sharing also stops when the browser tab is closed.
+
+The viewer publishes a fresh scene and camera render approximately every **8 seconds** while sharing is enabled. The live snapshot is held in a private Vercel Blob (requires the project Blob store to be connected), and expired after **2 hours** without updates. This is a **read-only** bridge: MCP cannot modify a user's current browser through these two tools. The ordinary `build_model` remains independent, stateless, and continues via `open_url`. The service supports up to 4 MiB per snapshot, with a thumbnail GPU readback. In immersive XR, desktop frame capture is unavailable until the viewer exits XR.
+
+For developers: `api/live.mjs` implements the private snapshot exchange and `scripts/ai-live-ui.txt` keeps the opt-in UI through 3Draft syncs. After deployment, refresh/rescan the custom MCP connection so the new tools become visible.
 
 ## Set up
 
