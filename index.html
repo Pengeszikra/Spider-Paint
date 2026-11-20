@@ -946,6 +946,7 @@
   </footer>
 
   <script type="module">
+    import { spiderVersion } from './spider-version.js';
     import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/8fa668821759/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
@@ -969,7 +970,8 @@
     const pitchEl = document.getElementById('pitch');
     const countEl = document.getElementById('count');
     const surfaceEl = document.getElementById('surface');
-    document.getElementById('build').textContent = displayVersion(version);
+    document.getElementById('build').textContent = displayVersion(spiderVersion);
+    document.getElementById('build').title = 'Spider Paint ' + displayVersion(spiderVersion) + ' · 3Draft engine ' + displayVersion(version);
 
     const HOME = { center: [0, 0.5, 0], radius: 1.6 }; // framing of an empty scene
     const fit = { ...HOME }; // follows the scene the MCP server sends
@@ -9337,7 +9339,7 @@
         font: '13px/1.5 monospace', boxShadow: '0 8px 30px #0009',
       });
       const heading = document.createElement('strong');
-      heading.textContent = 'AI live · ' + displayVersion(version) + ' · private scene access';
+      heading.textContent = 'AI live · ' + displayVersion(spiderVersion) + ' · private scene access';
       const info = document.createElement('p');
       info.textContent = 'Copy this secret code into the AI chat. The current scene, materials and camera image are shared approximately every 8 seconds until you stop. Anyone with the code can read the scene. AI editing is OFF unless you explicitly enable it below.';
       const secret = document.createElement('code');
@@ -9412,7 +9414,7 @@
       'ui.action','ui.click','ui.set','ui.key','ui.pointer','story.open'
     ];
     const workshopCapabilities = () => ({
-      version:displayVersion(version), engineVersion:version,
+      version:displayVersion(spiderVersion), engineVersion:version,
       editable: Boolean(aiLiveEdits), operations: workshopOps,
       controls: workshopAllControls().map(({el,id}) => ({
         id, type:el.tagName.toLowerCase(), title:(el.title||el.getAttribute('aria-label')||el.textContent||'').trim().slice(0,160),
