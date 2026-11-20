@@ -76,6 +76,13 @@ html = html.replace(shareAnchor, readFileSync(join(here, 'scripts/ai-live-ui.txt
 const tutorialAnchor = '    Object.assign(window, { ACTIONS, KEYMAP, bindKey });';
 if (!html.includes(tutorialAnchor)) throw new Error('sync: keycast insertion anchor missing');
 html = html.replace(tutorialAnchor, tutorialAnchor + '\n' + readFileSync(join(here, 'scripts/tutorial-keycast.txt'), 'utf8'));
+// Spider Paint build version is separate from the 3Draft engine version.
+const spiderVersionImport = '<script type="module">';
+if (!html.includes(spiderVersionImport)) throw new Error('sync: module entry missing');
+html = html.replace(spiderVersionImport, spiderVersionImport + "\n    import { spiderVersion } from './spider-version.js';");
+const engineBuildLine = "document.getElementById('build').textContent = displayVersion(version);";
+if (!html.includes(engineBuildLine)) throw new Error('sync: version display anchor missing');
+html = html.replace(engineBuildLine, "document.getElementById('build').textContent = displayVersion(spiderVersion);\n    document.getElementById('build').title = 'Spider Paint ' + displayVersion(spiderVersion) + ' · 3Draft engine ' + displayVersion(version);");
 writeFileSync(join(here, 'index.html'), html);
 writeFileSync(join(here, 'xr-test.html'), readFileSync(join(src, 'app/xr-test.html'))); // the WebXR loop alone, for a headset that stays black
 // Spider Player (PLAYER.md): a scene on a turntable or a story played, no UI, for an iframe; only the renderer's modules
