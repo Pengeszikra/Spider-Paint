@@ -219,7 +219,7 @@ export const publicTools = () => [
       const snap=await liveSnapshot(a,ctx);
       const scene=snap.scene;
       const objects=scene.objects.map(o=>({name:o.name,vertices:o.mesh?.positions?.length??0,faces:o.mesh?.faces?.length??0,materials:[...new Set((o.mesh?.faces??[]).map(f=>f.mat).filter(Boolean))]}));
-      return {updated:new Date(snap.updated).toISOString(),age_s:Math.round((Date.now()-snap.updated)/1000),
+      return {version:snap.capabilities?.version??null,serverVersion:version,updated:new Date(snap.updated).toISOString(),age_s:Math.round((Date.now()-snap.updated)/1000),
         object_count:objects.length,objects,palette:scene.palette,view:scene.view,vehicle:scene.vehicle,
         ...(a.full?{scene}:{note:'Pass full: true to retrieve all geometry.'})};
     }
@@ -246,7 +246,7 @@ export const publicTools = () => [
     annotations:{readOnlyHint:true,openWorldHint:false},
     run:async(a,ctx)=>{
       const snap=await liveSnapshot(a,ctx);
-      return {updated:new Date(snap.updated).toISOString(),capabilities:snap.capabilities??{note:'Refresh the browser to publish its workshop control list'}};
+      return {updated:new Date(snap.updated).toISOString(),serverVersion:version,clientVersion:snap.capabilities?.version??null,versionMatch:(!snap.capabilities?.engineVersion||snap.capabilities.engineVersion===version),capabilities:snap.capabilities??{note:'Refresh the browser to publish its workshop control list'}};
     }
   },
   {
@@ -344,7 +344,7 @@ export const handleMcp = async (msg, ctx) => {
     case 'resources/read': {
       if(params?.uri!=='ui://spider-paint/workshop.html')return errorOf(id,-32602,'Unknown UI resource');
       const origin=String(ctx.origin).replace(/\/$/,'');
-      const html='<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;height:100%;background:#10110e;color:#eee;font:13px system-ui}header{display:flex;gap:12px;align-items:center;padding:8px 12px}iframe{border:0;width:100%;height:calc(100% - 42px)}a{color:#83d7e0}</style></head><body><header><strong>Spider Paint · AI workshop</strong><span>Enable AI live inside the editor, then share your session code in chat.</span><a target="_blank" rel="noopener" href="'+origin+'/">Full screen</a></header><iframe title="Spider Paint interactive 3D editor" allow="fullscreen; xr-spatial-tracking" src="'+origin+'/" loading="eager"></iframe></body></html>';
+      const html='<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;height:100%;background:#10110e;color:#eee;font:13px system-ui}header{display:flex;gap:12px;align-items:center;padding:8px 12px}iframe{border:0;width:100%;height:calc(100% - 42px)}a{color:#83d7e0}</style></head><body><header><strong>Spider Paint · AI workshop</strong><span>3Draft '+version+' · Enable AI live inside the editor, then share your session code in chat.</span><a target="_blank" rel="noopener" href="'+origin+'/">Full screen</a></header><iframe title="Spider Paint interactive 3D editor" allow="fullscreen; xr-spatial-tracking" src="'+origin+'/" loading="eager"></iframe></body></html>';
       return answer(id,{contents:[{uri:'ui://spider-paint/workshop.html',mimeType:'text/html;profile=mcp-app',text:html,_meta:{ui:{prefersBorder:false,csp:{frameDomains:[origin],connectDomains:[origin],resourceDomains:[origin]}}}}]});
     }
     case 'tools/call': {
