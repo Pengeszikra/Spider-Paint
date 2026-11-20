@@ -24,8 +24,8 @@ mkdirSync(join(here, engineRel), { recursive: true });
 for (const f of readdirSync(join(src, 'dist'))) if (f.endsWith('.js') && !f.endsWith('.test.js')) copyFileSync(join(src, 'dist', f), join(here, engineRel, f));
 
 const steps = [
-  ['title', '<title>3Draft Viewer</title>', '<title>Spider Paint</title>'],
-  ['header', '<h1>3Draft<span>viewer</span></h1>', '<h1>Spider Paint<span>3Draft</span></h1>'],
+  ['title', '<title>3Draft Viewer</title>', '<title>spi3der</title>'],
+  ['header', '<h1>3Draft<span>viewer</span></h1>', '<h1>spi3der</h1>'],
   ['engine import', "from '../dist/index.js';", `from '${engine}';`],
   ['worker engine', "new URL('../dist/index.js', import.meta.url).href", `new URL('${engine}', import.meta.url).href`],
   // the table example is gone; the prisms keep the old table leg's base
@@ -54,7 +54,7 @@ const steps = [
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Spider Paint">`],
+  <meta name="apple-mobile-web-app-title" content="spi3der">`],
   // the scene starts with the globe; not in an artifact, where the shared database holds the scene
   // (adding it there would write a new bridge into the database at every visit)
   ['starting scene', '\n    draw();\n    window.__ready = true;', "\n    draw();\n    window.__ready = true;\n    // works offline once opened (not in an artifact, nor from a file)\n    if (!EMBED && 'serviceWorker' in navigator && location.protocol.startsWith('http') && !globalThis.claude?.use) navigator.serviceWorker.register('sw.js').catch(() => {});"],
@@ -83,6 +83,25 @@ html = html.replace(spiderVersionImport, spiderVersionImport + "\n    import { s
 const engineBuildLine = "document.getElementById('build').textContent = displayVersion(version);";
 if (!html.includes(engineBuildLine)) throw new Error('sync: version display anchor missing');
 html = html.replace(engineBuildLine, "document.getElementById('build').textContent = displayVersion(spiderVersion);\n    document.getElementById('build').title = 'Spider Paint ' + displayVersion(spiderVersion) + ' · 3Draft engine ' + displayVersion(version);");
+// The spi3der console begins with View, Fly, Scene and Sys folded.
+for (const [key, value] of [
+  ['<span class="grp rows" data-label="view">','<span class="grp rows folded" data-label="view">'],
+  ['<span class="grp only-build rows" data-label="scene">','<span class="grp only-build rows folded" data-label="scene">'],
+  ['<span class="grp rows" data-label="sys">','<span class="grp rows folded" data-label="sys">'],
+]) {
+  if (!html.includes(key)) throw new Error('sync: missing console group ' + key);
+  html = html.replace(key,value);
+}
+const foldStart = html.indexOf('      try {\n        const kept = localStorage.getItem(');
+if(foldStart < 0) throw new Error('sync: fold storage anchor missing');
+const foldEnd = html.indexOf('      } catch {}', foldStart);
+if(foldEnd < 0) throw new Error('sync: fold storage end missing');
+html = html.slice(0,foldStart) + "      g.classList.add('folded');" + html.slice(foldEnd + '      } catch {}'.length);
+const foldSaveStart = html.indexOf('        try {\n          localStorage.setItem(\`3draft.fold.');
+if(foldSaveStart < 0) throw new Error('sync: fold persistence anchor missing');
+const foldSaveEnd = html.indexOf('        } catch {}', foldSaveStart);
+if(foldSaveEnd < 0) throw new Error('sync: fold persistence end missing');
+html = html.slice(0,foldSaveStart) + "        // All panels start folded in the next session." + html.slice(foldSaveEnd + '        } catch {}'.length);
 writeFileSync(join(here, 'index.html'), html);
 writeFileSync(join(here, 'xr-test.html'), readFileSync(join(src, 'app/xr-test.html'))); // the WebXR loop alone, for a headset that stays black
 // Spider Player (PLAYER.md): a scene on a turntable or a story played, no UI, for an iframe; only the renderer's modules
