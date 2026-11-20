@@ -68,7 +68,10 @@
       aiLiveButton.textContent = 'AI live';
       aiLivePanel?.remove();
       aiLivePanel = null;
-      if (token) fetch(aiLiveEndpoint + '?token=' + token, { method: 'DELETE' }).catch(() => {});
+      if (token) {
+        fetch('./api/workshop?token=' + token, { method:'DELETE', keepalive:true }).catch(()=>{});
+        fetch(aiLiveEndpoint + '?token=' + token, { method:'DELETE', keepalive:true }).catch(()=>{});
+      }
     };
     aiLiveButton.addEventListener('click', () => {
       if (aiLiveToken) return aiLiveStop();
