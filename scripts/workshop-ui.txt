@@ -1,0 +1,223 @@
+    // Human x AI workshop: direct, named access to the same UI and 3D model, never
+    // a second model engine. The owner's "Allow AI edits" switch gates execution.
+    const workshopButtonIds = new Set([
+      'gameBtn','editHelp','helpClose','storyClose','charClose','charVary','charSave','charForget',
+      'charPlace','charPick','charApply','palClose','addColor','pickMat','zenOff','keyclose',
+      'freeze','gpuBtn','lines','light','paletteBtn','sceneBtn','smooth','studio','filmic',
+      'editSw','place','brush','delete','travel','mergeSw','clear','sceneSave',
+      'sceneDown','sceneOpen','boolBtn','charBtn','undo','reset','zen','keys',
+      'skyMine','skyOrbit','skyIau','stStart','stPrev','stPlay','stNext','stEnd',
+      'stHelp','stExit','stInfo','stCam','stText','netExit','netOff'
+    ]);
+    // XR entry must be initiated by a human gesture. Cloud saves, deletes and
+    // browser file/recording pickers are deliberately not remotely invokable.
+    const workshopInputIds = new Set([
+      'p-metal','p-rough','p-alpha','p-emit','p-soft','custom','pickHue',
+      'sceneName','charName','stTime','p-url','findInput','textBox'
+    ]);
+    const workshopSelectIds = new Set(['examples','vehicle','stSpeed','stChapter','charLib']);
+    const workshopOps = [
+      'model.create','model.mesh','model.transform','model.paint','model.rename','model.delete',
+      'material.upsert','material.select','scene.load','scene.replace','scene.clear','scene.undo',
+      'camera.look','camera.target','camera.reset','vehicle.set','render.set',
+      'ui.action','ui.click','ui.set','ui.key','story.open'
+    ];
+    const workshopCapabilities = () => ({
+      editable: Boolean(aiLiveEdits), operations: workshopOps,
+      controls: [...document.querySelectorAll('button[id],input[id],select[id]')]
+        .filter((el) => (el.tagName === 'BUTTON' ? workshopButtonIds : el.tagName === 'SELECT' ? workshopSelectIds : workshopInputIds).has(el.id))
+        .map((el) => ({
+          id: el.id, type: el.tagName.toLowerCase(), title: (el.title || el.getAttribute('aria-label') || '').slice(0,160),
+          ...(el.tagName === 'SELECT' ? { options:[...el.options].map(o=>o.value).filter(Boolean).slice(0,60) } : {}),
+        })),
+      actions: Object.keys(ACTIONS),
+      keys: Object.keys(KEYMAP),
+      scenes: [...exampleEl.options].map(x=>x.value).filter(Boolean),
+      xr: { available: Boolean(navigator.xr), active: Boolean(xrState.session),
+        note:'WebXR requires a human gesture: click Enter XR in the editor.' },
+    });
+    const workshopMesh = (raw) => {
+      if (!raw || !Array.isArray(raw.positions) || !Array.isArray(raw.faces)) throw Error('mesh.positions and mesh.faces required');
+      if (raw.positions.length > 100000 || raw.faces.length > 100000) throw Error('mesh too large');
+      for (const p of raw.positions) if (!Array.isArray(p) || p.length !== 3 || !p.every(Number.isFinite)) throw Error('invalid vertex');
+      for (const f of raw.faces) if (!Array.isArray(f.v) || f.v.length < 3 || f.v.length > 128 ||
+        !f.v.every(i=>Number.isInteger(i) && i>=0 && i<raw.positions.length)) throw Error('invalid face');
+      return { positions:raw.positions.map(p=>[...p]), faces:raw.faces.map(f=>({...f,v:[...f.v]})) };
+    };
+    const workshopObject = (name) => {
+      const found = allObjects().find(o=>o.name===name);
+      if (!found) throw Error('Object not found: '+name);
+      return found;
+    };
+    const workshopName = (s) => {
+      if (typeof s!=='string' || !s.trim() || s.length>64) throw Error('Name must have 1–64 characters');
+      return s.trim();
+    };
+    const workshopRun = async (a) => {
+      if (!a || typeof a !== 'object' || !workshopOps.includes(a.op)) throw Error('Unknown workshop operation');
+      if (a.op === 'scene.load' || a.op === 'story.open') {
+        const name=workshopName(a.name);
+        if (![...exampleEl.options].some(o=>o.value===name)) throw Error('Scene not in the picker: '+name);
+        await addExample(name);
+        return { loaded:name };
+      }
+      if (a.op === 'scene.replace') {
+        const data=a.scene;
+        if (data?.format!=='3draft-scene' || !Array.isArray(data.objects)) throw Error('Expected a 3draft-scene');
+        await loadScene(data,true);
+        return { loaded:data.objects.length };
+      }
+      if (a.op === 'scene.clear') { clearScene(); redraw(); return { cleared:true }; }
+      if (a.op === 'scene.undo') { undo(); return { undone:true }; }
+      if (a.op === 'model.create') {
+        const name=workshopName(a.name);
+        if (allObjects().some(o=>o.name===name)) throw Error('Object name already exists');
+        const made=create(name,workshopMesh(a.mesh));
+        redraw();
+        return { name:made.name };
+      }
+      if (a.op === 'model.rename') {
+        const o=workshopObject(a.name);
+        const next=workshopName(a.to);
+        if (allObjects().some(x=>x!==o && x.name===next)) throw Error('Object name already exists');
+        const old=o.name;
+        history.push(()=>{o.name=old;rebuild();redraw();});
+        o.name=next; rebuild(); redraw(); return {name:next};
+      }
+      if (a.op === 'model.delete') {
+        const o=workshopObject(a.name);
+        history.push(()=>{ if(!has(o)){ mine.push(o); rebuild(); redraw(); } });
+        erase(o); redraw(); return {removed:a.name};
+      }
+      if (a.op === 'model.mesh' || a.op === 'model.paint' || a.op === 'model.transform') {
+        const o=workshopObject(a.name);
+        const original=o.mesh;
+        let next;
+        if (a.op === 'model.mesh') next=workshopMesh(a.mesh);
+        else if (a.op === 'model.paint') {
+          const faces=Array.isArray(a.faces)?a.faces:original.faces.map((_,i)=>i);
+          if(!faces.every(i=>Number.isInteger(i)&&i>=0&&i<original.faces.length))throw Error('Invalid face index');
+          if(a.material && !materials.some(m=>m.name===a.material)) throw Error('Define the material first');
+          if(a.color && !/^#[0-9a-f]{6}$/i.test(a.color))throw Error('Color must be #rrggbb');
+          const set=new Set(faces);
+          next={...original,faces:original.faces.map((f,i)=>set.has(i)?{
+            ...f,...(a.material?{mat:a.material}:{}),...(a.color?{color:a.color}:{})
+          }:f)};
+        } else {
+          const move=a.move??[0,0,0], scale=a.scale??[1,1,1];
+          const rot=a.rotate??[0,0,0];
+          for(const [name,v] of [['move',move],['scale',scale],['rotate',rot]])
+            if(!Array.isArray(v)||v.length!==3||!v.every(Number.isFinite))throw Error(name+' must be three finite numbers');
+          if(scale.some(n=>n===0)) throw Error('Scale cannot contain zero');
+          const pts=original.positions;
+          const pivot=a.pivot??[0,1,2].map(i=>(Math.min(...pts.map(p=>p[i]))+Math.max(...pts.map(p=>p[i])))/2);
+          if(!Array.isArray(pivot)||pivot.length!==3||!pivot.every(Number.isFinite))throw Error('Invalid pivot');
+          const [rx,ry,rz]=rot.map(v=>v*Math.PI/180),cx=Math.cos(rx),sx=Math.sin(rx),cy=Math.cos(ry),sy=Math.sin(ry),cz=Math.cos(rz),sz=Math.sin(rz);
+          next={...original,positions:pts.map(p=>{
+            let [x,y,z]=p.map((v,i)=>(v-pivot[i])*scale[i]);
+            [y,z]=[y*cx-z*sx,y*sx+z*cx];
+            [x,z]=[x*cy+z*sy,-x*sy+z*cy];
+            [x,y]=[x*cz-y*sz,x*sz+y*cz];
+            return [x+pivot[0]+move[0],y+pivot[1]+move[1],z+pivot[2]+move[2]];
+          })};
+        }
+        history.push(()=>{if(has(o)){change(o,original);redraw();}});
+        change(o,next); redraw();
+        return {name:o.name,vertices:next.positions.length,faces:next.faces.length};
+      }
+      if (a.op === 'material.upsert') {
+        const v=a.material;
+        if(!v||typeof v!=='object')throw Error('material object required');
+        const name=workshopName(v.name);
+        if(v.color!==undefined&&!/^#[0-9a-f]{6}$/i.test(v.color)) throw Error('material.color must be #rrggbb');
+        for(const k of ['metal','rough','alpha','emit','soft'])
+          if(v[k]!==undefined&&(!Number.isFinite(v[k])||v[k]<0||v[k]>1))throw Error(k+' must be 0–1');
+        const before=materials.find(m=>m.name===name);
+        const m={...(before??{name,color:'#cccccc',metal:0,rough:0.8,alpha:1,emit:0}),...v,name};
+        if(v.url||v.image||v.scene)throw Error('External URL materials must be set manually in the UI');
+        if(before) Object.assign(before,m); else materials.push(m);
+        syncPalette(); showPalette(); saveMaterial(m); return {material:m};
+      }
+      if (a.op === 'material.select') {
+        const i=materials.findIndex(m=>m.name===a.name);
+        if(i<0)throw Error('Unknown material');
+        current=i; showPalette(); return {selected:a.name};
+      }
+      if (a.op === 'camera.look') {
+        if(!Array.isArray(a.eye)||a.eye.length!==3||!a.eye.every(Number.isFinite)||
+          !Number.isFinite(a.yaw)||!Number.isFinite(a.pitch))throw Error('eye, yaw, pitch required');
+        lookFrom(a.eye,a.yaw,a.pitch); return {eye:a.eye,yaw:a.yaw,pitch:a.pitch};
+      }
+      if (a.op === 'camera.target') { targetByName(workshopName(a.name)); return {target:a.name}; }
+      if (a.op === 'camera.reset') { reset(); return {reset:true}; }
+      if (a.op === 'vehicle.set') {
+        if(![null,'car','starship'].includes(a.vehicle??null))throw Error('vehicle: car, starship or null');
+        setVehicle(a.vehicle??null); return {vehicle:a.vehicle??null};
+      }
+      if (a.op === 'render.set') {
+        if(!['svg','gpu','gl'].includes(a.mode))throw Error('mode: svg, gpu or gl');
+        await setMode(a.mode); redraw(); return {render:viewOf().render};
+      }
+      if (a.op === 'ui.action') {
+        const act=ACTIONS[a.name];
+        if(!act)throw Error('Unknown action: '+a.name);
+        act.run({shiftKey:Boolean(a.shift),ctrlKey:false,metaKey:false,altKey:false,repeat:false,preventDefault(){}});
+        redraw(); return {action:a.name};
+      }
+      if (a.op === 'ui.click') {
+        if(!workshopButtonIds.has(a.id))throw Error('This button is not available for MCP control');
+        const el=document.getElementById(a.id);
+        if(!el||el.disabled)throw Error('Control unavailable: '+a.id);
+        el.click(); return {clicked:a.id};
+      }
+      if (a.op === 'ui.set') {
+        const ids=a.id==='examples'||a.id==='vehicle'?workshopSelectIds:document.getElementById(a.id)?.tagName==='SELECT'?workshopSelectIds:workshopInputIds;
+        if(!ids.has(a.id))throw Error('This control cannot be set by MCP');
+        const el=document.getElementById(a.id);
+        if(!el||el.disabled)throw Error('Control unavailable');
+        if(el.tagName==='SELECT'&&!([...el.options].some(o=>o.value===a.value)))throw Error('Invalid option');
+        el.value=String(a.value??'');
+        el.dispatchEvent(new Event('input',{bubbles:true}));
+        el.dispatchEvent(new Event('change',{bubbles:true}));
+        return {set:a.id,value:el.value};
+      }
+      if (a.op === 'ui.key') {
+        if(typeof a.key!=='string'||a.key.length>20||!/^([a-zA-Z0-9?;/[\]öőúé]|Escape|Enter|Tab|Backspace| |Arrow(?:Up|Down|Left|Right))$/.test(a.key))
+          throw Error('Unsupported key');
+        const options={key:a.key,code:a.code||'',bubbles:true,cancelable:true,
+          shiftKey:Boolean(a.shift),ctrlKey:Boolean(a.ctrl),metaKey:Boolean(a.meta)};
+        document.dispatchEvent(new KeyboardEvent('keydown',options));
+        document.dispatchEvent(new KeyboardEvent('keyup',options));
+        return {key:a.key};
+      }
+      throw Error('Unsupported operation');
+    };
+    let aiLiveEdits = false;
+    let workshopPollTimer = null;
+    const workshopDone = new Set();
+    let workshopBusy = false;
+    const workshopPoll = async () => {
+      if(!aiLiveToken||!aiLiveEdits||workshopBusy||document.hidden)return;
+      workshopBusy=true;
+      try {
+        const token=aiLiveToken;
+        const res=await fetch('./api/workshop?token='+token,{cache:'no-store'});
+        if(!res.ok)throw Error('HTTP '+res.status);
+        const data=await res.json();
+        for(const cmd of data.commands??[]) {
+          if(!aiLiveEdits||token!==aiLiveToken)break;
+          if(workshopDone.has(cmd.id))continue;
+          workshopDone.add(cmd.id);
+          const results=[];
+          for(const action of cmd.actions??[]) {
+            try { results.push({op:action.op,ok:true,result:await workshopRun(action)}); }
+            catch(e){results.push({op:action.op,ok:false,error:String(e?.message??e)});}
+          }
+          await fetch('./api/workshop',{method:'POST',headers:{'content-type':'application/json'},
+            body:JSON.stringify({kind:'ack',token,id:cmd.id,ok:results.every(r=>r.ok),results}),cache:'no-store'});
+          aiLiveStatus('AI command '+cmd.id.slice(0,6)+' · '+results.filter(r=>r.ok).length+'/'+results.length+' actions');
+          await aiLivePublish();
+        }
+      } catch(e){ aiLiveStatus('Workshop connection: '+String(e?.message??e)); }
+      finally {workshopBusy=false;}
+    };
