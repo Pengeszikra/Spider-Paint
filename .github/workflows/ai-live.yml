@@ -5,6 +5,11 @@ on:
       - 'index.html'
       - 'mcp/http.js'
       - 'api/live.mjs'
+      - 'api/workshop.mjs'
+      - 'api/mcp.mjs'
+      - 'scripts/workshop-ui.txt'
+      - 'scripts/ai-live-ui.txt'
+      - 'scripts/sync.mjs'
       - 'tests/ai-live.test.mjs'
       - '.github/workflows/ai-live.yml'
   workflow_dispatch:
@@ -17,5 +22,8 @@ jobs:
         with:
           node-version: '22'
       - run: node --check api/live.mjs
+      - run: node --check api/workshop.mjs
+      - run: node --check api/mcp.mjs
+      - run: node --check scripts/sync.mjs
       - run: node --check mcp/http.js
       - run: node --test tests/ai-live.test.mjs
