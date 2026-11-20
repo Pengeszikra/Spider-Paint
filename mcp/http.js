@@ -257,7 +257,7 @@ export const publicTools = () => [
       actions:{type:'array',minItems:1,maxItems:30,items:{type:'object',properties:{
         op:{type:'string',enum:['model.create','model.mesh','model.transform','model.paint','model.rename','model.delete','model.character','model.pose','model.extrude','model.boolean','material.upsert','material.select','scene.load','scene.replace','scene.clear','scene.undo','camera.look','camera.target','camera.reset','vehicle.set','render.set','ui.action','ui.click','ui.set','ui.key','story.open']},
         name:{type:'string'},id:{type:'string'},value:{},to:{type:'string'},mesh:{type:'object'},material:{type:'object'},scene:{type:'object'},
-        spec:{type:'object'},preset:{type:'string'},pose:{type:'string'},at:{type:'array',items:{type:'number'}},face:{type:'integer'},distance:{type:'number'},operation:{type:'string'},a:{type:'string'},b:{type:'string'},
+        spec:{type:'object'},preset:{type:'string'},pose:{type:'string'},at:{type:'array',items:{type:'number'}},size:{type:'number'},face:{type:'integer'},distance:{type:'number'},operation:{type:'string'},a:{type:'string'},b:{type:'string'},
         faces:{type:'array',items:{type:'integer'}},color:{type:'string'},move:{type:'array',items:{type:'number'}},scale:{type:'array',items:{type:'number'}},rotate:{type:'array',items:{type:'number'}},pivot:{type:'array',items:{type:'number'}},
         eye:{type:'array',items:{type:'number'}},yaw:{type:'number'},pitch:{type:'number'},vehicle:{type:['string','null']},mode:{type:'string'},key:{type:'string'},shift:{type:'boolean'}
       },required:['op']}}
