@@ -9278,22 +9278,27 @@
     window.addEventListener('pagehide', aiLiveStop);
     // Human x AI workshop: direct, named access to the same UI and 3D model, never
     // a second model engine. The owner's "Allow AI edits" switch gates execution.
-    const workshopButtonIds = new Set([
-      'gameBtn','editHelp','helpClose','storyClose','charClose','charVary','charSave','charForget',
-      'charPlace','charPick','charApply','palClose','addColor','pickMat','zenOff','keyclose',
-      'freeze','gpuBtn','lines','light','paletteBtn','sceneBtn','smooth','studio','filmic',
-      'editSw','place','brush','delete','travel','mergeSw','clear','sceneSave',
-      'sceneDown','sceneOpen','boolBtn','charBtn','undo','reset','zen','keys',
-      'skyMine','skyOrbit','skyIau','stStart','stPrev','stPlay','stNext','stEnd',
-      'stHelp','stExit','stInfo','stCam','stText','netExit','netOff'
+    // Every safe visible control is inventoried, including the dynamic character
+    // builder, edit-mode buttons, palettes and story selectors without HTML IDs.
+    // Buttons requiring a browser gesture, file chooser or external write stay human-only.
+    const workshopDenied = new Set([
+      'xrBtn','sceneCloud','sceneOpen','sceneForget','rec','play',
+      'playFile','sceneFile','charForget','netExit','netOff',
     ]);
-    // XR entry must be initiated by a human gesture. Cloud saves, deletes and
-    // browser file/recording pickers are deliberately not remotely invokable.
-    const workshopInputIds = new Set([
-      'p-metal','p-rough','p-alpha','p-emit','p-soft','custom','pickHue',
-      'sceneName','charName','stTime','p-url','findInput','textBox'
-    ]);
-    const workshopSelectIds = new Set(['examples','vehicle','stSpeed','stChapter','charLib']);
+    let workshopControlSerial=0;
+    const workshopAllControls=()=>{
+      const allowed=new Set(['BUTTON','INPUT','SELECT']);
+      return [...document.querySelectorAll('button,input,select')]
+        .filter(el=>allowed.has(el.tagName) && !workshopDenied.has(el.id) &&
+          !el.closest('#storeKeyBox,[data-workshop-secret]') &&
+          (el.tagName!=='INPUT' || !['file','password','hidden'].includes(el.type)))
+        .map(el=>{
+          if(!el.id && !el.dataset.workshopControl)
+            el.dataset.workshopControl='wc-'+(++workshopControlSerial);
+          return {el,id:el.id||el.dataset.workshopControl};
+        });
+    };
+    const workshopFindControl=(id)=>workshopAllControls().find(c=>c.id===id)?.el;
     const workshopOps = [
       'model.create','model.mesh','model.transform','model.paint','model.rename','model.delete',
       'model.character','model.pose','model.extrude','model.boolean',
@@ -9303,12 +9308,11 @@
     ];
     const workshopCapabilities = () => ({
       editable: Boolean(aiLiveEdits), operations: workshopOps,
-      controls: [...document.querySelectorAll('button[id],input[id],select[id]')]
-        .filter((el) => (el.tagName === 'BUTTON' ? workshopButtonIds : el.tagName === 'SELECT' ? workshopSelectIds : workshopInputIds).has(el.id))
-        .map((el) => ({
-          id: el.id, type: el.tagName.toLowerCase(), title: (el.title || el.getAttribute('aria-label') || '').slice(0,160),
-          ...(el.tagName === 'SELECT' ? { options:[...el.options].map(o=>o.value).filter(Boolean).slice(0,60) } : {}),
-        })),
+      controls: workshopAllControls().map(({el,id}) => ({
+        id, type:el.tagName.toLowerCase(), title:(el.title||el.getAttribute('aria-label')||el.textContent||'').trim().slice(0,160),
+        ...(el.tagName==='SELECT' ? { options:[...el.options].map(o=>o.value).filter(Boolean).slice(0,100) } : {}),
+        ...(el.tagName==='INPUT' ? {inputType:el.type} : {}),
+      })),
       actions: Object.keys(ACTIONS),
       keys: Object.keys(KEYMAP),
       scenes: [...exampleEl.options].map(x=>x.value).filter(Boolean),
@@ -9492,21 +9496,19 @@
         redraw(); return {action:a.name};
       }
       if (a.op === 'ui.click') {
-        if(!workshopButtonIds.has(a.id))throw Error('This button is not available for MCP control');
-        const el=document.getElementById(a.id);
-        if(!el||el.disabled)throw Error('Control unavailable: '+a.id);
+        const el=workshopFindControl(a.id);
+        if(!el||el.tagName!=='BUTTON'||el.disabled)throw Error('Button not available: '+a.id);
         el.click(); return {clicked:a.id};
       }
       if (a.op === 'ui.set') {
-        const ids=a.id==='examples'||a.id==='vehicle'?workshopSelectIds:document.getElementById(a.id)?.tagName==='SELECT'?workshopSelectIds:workshopInputIds;
-        if(!ids.has(a.id))throw Error('This control cannot be set by MCP');
-        const el=document.getElementById(a.id);
-        if(!el||el.disabled)throw Error('Control unavailable');
-        if(el.tagName==='SELECT'&&!([...el.options].some(o=>o.value===a.value)))throw Error('Invalid option');
-        el.value=String(a.value??'');
+        const el=workshopFindControl(a.id);
+        if(!el||el.disabled||!['SELECT','INPUT'].includes(el.tagName))throw Error('Input not available: '+a.id);
+        if(el.tagName==='SELECT'&&!([...el.options].some(o=>o.value===String(a.value))))throw Error('Invalid option');
+        if(el.tagName==='INPUT' && (el.type==='checkbox'||el.type==='radio')) el.checked=Boolean(a.value);
+        else el.value=String(a.value??'');
         el.dispatchEvent(new Event('input',{bubbles:true}));
         el.dispatchEvent(new Event('change',{bubbles:true}));
-        return {set:a.id,value:el.value};
+        return {set:a.id,value:el.tagName==='INPUT'&&(el.type==='checkbox'||el.type==='radio')?el.checked:el.value};
       }
       if (a.op === 'ui.key') {
         if(typeof a.key!=='string'||a.key.length>20||!/^([a-zA-Z0-9?;/[\]öőúé]|Escape|Enter|Tab|Backspace| |Arrow(?:Up|Down|Left|Right))$/.test(a.key))
