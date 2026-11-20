@@ -1,0 +1,35 @@
+name: Auto bump Spider Paint build
+on:
+  push:
+    branches: [master]
+    paths-ignore:
+      - 'spider-version.js'
+      - '**/*.md'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: spider-paint-version-master
+  cancel-in-progress: false
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Bump the release version on current master
+        run: |
+          git fetch origin master
+          git checkout master
+          git reset --hard origin/master
+          node scripts/bump-spider.mjs
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add spider-version.js
+          git commit -m "build: bump Spider Paint version [skip ci]"
+          git push origin master
