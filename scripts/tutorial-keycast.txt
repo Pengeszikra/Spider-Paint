@@ -1,0 +1,104 @@
+    // Tutorial keycast: video-friendly overlay, completely click-through and unselectable.
+    // Enabled by the human. Shows keyboard combinations without consuming events.
+    const tutorialStyle = document.createElement('style');
+    tutorialStyle.textContent = `
+      #tutorialKeycast {
+        position: fixed; z-index: 2147483000; left: 50%; top: clamp(48px, 7vh, 78px);
+        transform: translate(-50%, -8px); display: flex; align-items: center; justify-content: center;
+        gap: 6px; padding: 10px 16px; min-height: 30px; max-width: calc(100vw - 36px);
+        box-sizing: border-box; border-radius: 12px; border: 1px solid #ffffff48;
+        background: #10171be8; color: #fff; box-shadow: 0 6px 25px #0008;
+        font: 600 clamp(16px, 2.5vw, 28px)/1.25 'DM Mono', monospace;
+        letter-spacing: .02em; white-space: nowrap;
+        opacity: 0; visibility: hidden; transition: opacity .16s ease, transform .16s ease, visibility .16s;
+        pointer-events: none !important; user-select: none !important; -webkit-user-select: none !important;
+        touch-action: none;
+      }
+      #tutorialKeycast.visible { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
+      #tutorialKeycast .tutorial-key { padding: 2px 7px; border-radius: 5px; border: 1px solid #ffffff60;
+        background: #ffffff12; box-shadow: 0 2px 0 #ffffff35; }
+      #tutorialKeyToggle.on { color: #fff; background: #16756c; border-color: #49cdbb; }
+      @media (prefers-reduced-motion: reduce) {
+        #tutorialKeycast { transition: none; }
+      }
+    `;
+    document.head.append(tutorialStyle);
+    const tutorialOverlay = document.createElement('div');
+    tutorialOverlay.id = 'tutorialKeycast';
+    tutorialOverlay.setAttribute('aria-hidden', 'true');
+    document.body.append(tutorialOverlay);
+    const tutorialButton = document.createElement('button');
+    tutorialButton.id = 'tutorialKeyToggle';
+    tutorialButton.type = 'button';
+    tutorialButton.className = 'slate';
+    tutorialButton.textContent = '⌨ tutorial';
+    tutorialButton.title = 'Tutorial keycast: show pressed keyboard shortcuts at the top of screen (click-through for videos)';
+    document.getElementById('keys').parentElement.append(tutorialButton);
+    let tutorialEnabled = false;
+    let tutorialHideTimer = null;
+    const tutorialHeld = new Set();
+    const tutorialModifier = (event) => {
+      const mac = /Mac|iPhone|iPad/.test(navigator.platform || '');
+      return [
+        event.ctrlKey ? (mac ? '⌃' : 'Ctrl') : null,
+        event.altKey ? (mac ? '⌥' : 'Alt') : null,
+        event.shiftKey ? (mac ? '⇧' : 'Shift') : null,
+        event.metaKey ? (mac ? '⌘' : 'Meta') : null,
+      ].filter(Boolean);
+    };
+    const tutorialKeyName = (event) => {
+      const k = event.key;
+      if (['Control','Shift','Alt','Meta','AltGraph'].includes(k)) return null;
+      const known = {
+        ' ': 'Space', Escape: 'Esc', Backspace: '⌫', Delete: 'Del',
+        ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',
+        Enter: '↵', Tab: '⇥', PageUp: 'PgUp', PageDown: 'PgDn',
+      };
+      return known[k] || (k.length === 1 ? k.toUpperCase() : k);
+    };
+    const tutorialShow = (keys) => {
+      clearTimeout(tutorialHideTimer);
+      tutorialOverlay.replaceChildren(...keys.map(key => {
+        const cap = document.createElement('span');
+        cap.className = 'tutorial-key';
+        cap.textContent = key;
+        return cap;
+      }));
+      tutorialOverlay.classList.toggle('visible', keys.length > 0 && tutorialEnabled);
+    };
+    const tutorialOff = () => {
+      tutorialHeld.clear();
+      clearTimeout(tutorialHideTimer);
+      tutorialOverlay.classList.remove('visible');
+      tutorialHideTimer = null;
+    };
+    const setTutorial = (enabled) => {
+      tutorialEnabled = Boolean(enabled);
+      tutorialButton.classList.toggle('on', tutorialEnabled);
+      tutorialButton.setAttribute('aria-pressed', String(tutorialEnabled));
+      tutorialButton.textContent = tutorialEnabled ? '⌨ tutorial ●' : '⌨ tutorial';
+      if (!tutorialEnabled) tutorialOff();
+      try { localStorage.setItem('spider-paint.tutorial', tutorialEnabled ? '1' : '0'); } catch {}
+    };
+    tutorialButton.addEventListener('click', () => setTutorial(!tutorialEnabled));
+    try { setTutorial(localStorage.getItem('spider-paint.tutorial') === '1'); }
+    catch { setTutorial(false); }
+    window.addEventListener('keydown', (event) => {
+      if (!tutorialEnabled || event.isComposing || event.key === 'Dead' || event.key === 'Process') return;
+      // Only actual key presses, not the browser's repeated keydown while held.
+      if (event.repeat) return;
+      const key = tutorialKeyName(event);
+      if (key) tutorialHeld.add(key);
+      const keys = [...tutorialModifier(event), ...tutorialHeld];
+      if (keys.length) tutorialShow(keys);
+    }, true);
+    window.addEventListener('keyup', (event) => {
+      if (!tutorialEnabled) return;
+      const key = tutorialKeyName(event);
+      if (key) tutorialHeld.delete(key);
+      // Keep the last shortcut legible in the recording after release.
+      clearTimeout(tutorialHideTimer);
+      if (tutorialHeld.size) tutorialShow([...tutorialModifier(event), ...tutorialHeld]);
+      else tutorialHideTimer = setTimeout(() => tutorialOverlay.classList.remove('visible'), 1050);
+    }, true);
+    window.addEventListener('blur', tutorialOff);
