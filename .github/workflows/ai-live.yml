@@ -9,6 +9,7 @@ on:
       - 'api/mcp.mjs'
       - 'scripts/workshop-ui.txt'
       - 'scripts/ai-live-ui.txt'
+      - 'scripts/tutorial-keycast.txt'
       - 'scripts/sync.mjs'
       - 'tests/ai-live.test.mjs'
       - '.github/workflows/ai-live.yml'
