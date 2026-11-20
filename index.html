@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-  <title>Spider Paint</title>
+  <title>spi3der</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -12,7 +12,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Spider Paint">
+  <meta name="apple-mobile-web-app-title" content="spi3der">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600&family=DM+Mono:wght@400;500&display=swap">
   <style>
     /* Layout: one-screen instrument. Slim title bar, one square drawing stage, readout bar below. */
@@ -663,7 +663,7 @@
 </head>
 <body>
   <header class="bar">
-    <h1>Spider Paint<span>3Draft</span></h1>
+    <h1>spi3der</h1>
     <p class="build"><span id="fps" title="Frames drawn in the last second (– while nothing moves: a still picture is not redrawn)">–</span> <span id="build" title="Build, YY.MM.DD.NNN">–</span></p>
   </header>
 
@@ -767,7 +767,7 @@
     <textarea id="gpuerr" readonly hidden rows="4" aria-label="WebGPU error text (select and copy)" style="width:100%;box-sizing:border-box;font:12px/1.4 var(--font-mono);background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:6px"></textarea>
     <span class="actions">
       <button id="xrBtn" type="button" class="red" title="VR: show the scene in a headset, one picture per eye (immersive-vr; on a Mac: the Meta Immersive Web Emulator). While on it glows; press again to leave (or X on the left controller)">VR</button>
-      <span class="grp rows" data-label="view">
+      <span class="grp rows folded" data-label="view">
         <span class="row">
           <button id="freeze" type="button" class="sw red" title="Freeze: everything that moves stands still (; — é on a Hungarian keyboard)"><i></i>freeze</button>
           <button id="gpuBtn" type="button" class="sw" title="The view now: SVG, WebGPU or WebGL2 (9 switches)"><i></i><span>SVG</span></button>
@@ -843,7 +843,7 @@
           <button type="button" class="slate" data-key="j" title="Leave pose mode; the figure goes back as it was (J or Esc)"><b>J</b>done</button>
         </span>
       </span>
-      <span class="grp only-build rows" data-label="scene">
+      <span class="grp only-build rows folded" data-label="scene">
         <span class="row">
           <select id="examples" aria-label="Add an example or a saved scene to the scene" title="Add an example or a saved scene to the scene">
           <option value="">+ scene</option>
@@ -886,7 +886,7 @@
           <input id="sceneFile" type="file" accept=".3draft,.json,application/json" hidden>
         </span>
       </span>
-      <span class="grp rows" data-label="sys">
+      <span class="grp rows folded" data-label="sys">
         <span class="row">
           <button id="undo" type="button" class="slate ic" title="Undo (U)" aria-label="Undo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7L4 12l5 5"/><path d="M4 12h10a6 6 0 0 1 0 12" transform="translate(0 -5)"/></svg></button>
           <button id="reset" type="button" class="slate ic" title="Reset the view" aria-label="Reset view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><circle cx="12" cy="12" r="2.5"/></svg></button>
@@ -8854,8 +8854,8 @@
         turn(...moves[e.key]);
       }
     });
-    // the console's groups view, fly, scene and sys fold: their label is a button; folded, only the label shows, on its side. Fly
-    // starts folded. Whether each is folded is remembered in this browser (a convenience: without storage they start as above).
+    // All four main console groups start folded to leave the 3D canvas uncluttered.
+    // The viewer can open any group independently during the current session.
     for (const g of document.querySelectorAll('footer.console .grp[data-label]')) {
       const name = g.dataset.label;
       if (!['view', 'fly', 'scene', 'sys'].includes(name)) continue;
@@ -8863,18 +8863,13 @@
       b.type = 'button';
       b.className = 'fold';
       b.textContent = name;
-      try {
-        const kept = localStorage.getItem(`3draft.fold.${name}`);
-        if (kept !== null) g.classList.toggle('folded', kept === '1');
-      } catch {}
+      g.classList.add('folded');
       const sync = () => (b.title = g.classList.contains('folded') ? `Open the ${name} panel` : `Fold the ${name} panel`);
       sync();
       b.addEventListener('click', () => {
         g.classList.toggle('folded');
         sync();
-        try {
-          localStorage.setItem(`3draft.fold.${name}`, g.classList.contains('folded') ? '1' : '0');
-        } catch {}
+        // No stored override: new editor sessions always start with folded groups.
         b.blur();
       });
       g.prepend(b);
