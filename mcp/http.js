@@ -240,6 +240,61 @@ export const publicTools = () => [
     }
   },
   {
+    name: 'workshop_controls',
+    description: 'Discover all currently available editor operations, UI buttons, inputs, selectors, keyboard actions, scenes and XR capabilities from a user-shared Spider Paint browser. AI live code required.',
+    inputSchema: {type:'object',properties:{session:{type:'string',description:'Private AI live code from the user'}},required:['session']},
+    annotations:{readOnlyHint:true,openWorldHint:false},
+    run:async(a,ctx)=>{
+      const snap=await liveSnapshot(a,ctx);
+      return {updated:new Date(snap.updated).toISOString(),capabilities:snap.capabilities??{note:'Refresh the browser to publish its workshop control list'}};
+    }
+  },
+  {
+    name: 'workshop_apply',
+    description: 'Queue one or more named model, mesh, material, scene, camera, story or UI operations for the human-edited Spider Paint browser. The owner must additionally turn on "Allow AI edits". It is asynchronous: call workshop_result using the returned id to inspect success/errors. Never assume an action was applied until workshop_result confirms it. Supports model.create/mesh/transform/paint/rename/delete; material.upsert/select; scene.load/replace/clear/undo; camera.look/target/reset; vehicle.set; render.set; ui.action/click/set/key; story.open. Call workshop_controls first for available IDs.',
+    inputSchema:{type:'object',properties:{
+      session:{type:'string',description:'Private AI live code explicitly shared by the user'},
+      actions:{type:'array',minItems:1,maxItems:30,items:{type:'object',properties:{
+        op:{type:'string',enum:['model.create','model.mesh','model.transform','model.paint','model.rename','model.delete','material.upsert','material.select','scene.load','scene.replace','scene.clear','scene.undo','camera.look','camera.target','camera.reset','vehicle.set','render.set','ui.action','ui.click','ui.set','ui.key','story.open']},
+        name:{type:'string'},id:{type:'string'},value:{},to:{type:'string'},mesh:{type:'object'},material:{type:'object'},scene:{type:'object'},
+        faces:{type:'array',items:{type:'integer'}},color:{type:'string'},move:{type:'array',items:{type:'number'}},scale:{type:'array',items:{type:'number'}},rotate:{type:'array',items:{type:'number'}},pivot:{type:'array',items:{type:'number'}},
+        eye:{type:'array',items:{type:'number'}},yaw:{type:'number'},pitch:{type:'number'},vehicle:{type:['string','null']},mode:{type:'string'},key:{type:'string'},shift:{type:'boolean'}
+      },required:['op']}}
+    },required:['session','actions']},
+    annotations:{readOnlyHint:false,destructiveHint:true,openWorldHint:false},
+    run:async(a,ctx)=>{
+      const snap=await liveSnapshot(a,ctx);
+      if(!snap.capabilities?.editable)fail('The owner must switch on "Allow AI edits" in the Spider Paint AI live panel.');
+      if(!Array.isArray(a.actions)||!a.actions.length||a.actions.length>30)fail('Supply 1–30 actions');
+      const allowed=new Set(['model.create','model.mesh','model.transform','model.paint','model.rename','model.delete','material.upsert','material.select','scene.load','scene.replace','scene.clear','scene.undo','camera.look','camera.target','camera.reset','vehicle.set','render.set','ui.action','ui.click','ui.set','ui.key','story.open']);
+      if(!a.actions.every(x=>allowed.has(x?.op)))fail('One or more actions are not supported');
+      const response=await ctx.callWorkshop('POST',a.session,{kind:'enqueue',actions:a.actions});
+      if(response.error)fail(response.error);
+      return {...response,note:'Queued, not completed. Call workshop_result with the id to confirm browser execution.'};
+    }
+  },
+  {
+    name: 'workshop_result',
+    description: 'Check whether an earlier workshop_apply command has actually been executed by the human browser. Returns per-action results, errors, or pending.',
+    inputSchema:{type:'object',properties:{session:{type:'string'},id:{type:'string'}},required:['session','id']},
+    annotations:{readOnlyHint:true,openWorldHint:false},
+    run:async(a,ctx)=>{
+      await liveSnapshot(a,ctx);
+      if(!/^[0-9a-f]{24}$/.test(String(a.id??'')))fail('Invalid command id');
+      const r=await ctx.callWorkshop('GET',a.session,{result:a.id});
+      if(r.error)fail(r.error);
+      return r;
+    }
+  },
+  {
+    name: 'open_workshop',
+    description: 'Open the interactive Spider Paint / 3Draft WebGL2/SVG editor as an MCP App inside ChatGPT. Both the human and the AI can work on the same scene after AI live sharing and explicit edit permission are enabled in the editor. The host decides inline, side-panel or fullscreen layout.',
+    inputSchema:{type:'object',properties:{}},
+    annotations:{readOnlyHint:true,openWorldHint:true},
+    uiMeta:{ui:{resourceUri:'ui://spider-paint/workshop.html'},'openai/outputTemplate':'ui://spider-paint/workshop.html'},
+    run:(a,ctx)=>({open_url:ctx.origin+'/',note:'The workshop is an interactive MCP App. In its AI live panel enable sharing, then separately enable AI edits; give the private session code to the agent.'})
+  },
+  {
     name: 'sky_guide',
     description: 'The sky guide (Markdown): how the viewer shows stars, planets, black holes and galaxies, the whole 3draft-sky catalogue format with examples, where to find real data, and what is real and what is made up. Read it before writing a catalogue for sky_scene.',
     inputSchema: { type: 'object', properties: {} },
@@ -282,7 +337,15 @@ export const handleMcp = async (msg, ctx) => {
     case 'ping':
       return answer(id, {});
     case 'tools/list':
-      return answer(id, { tools: tools.map(({ name, description, inputSchema, annotations }) => ({ name, description, inputSchema, annotations })) });
+      return answer(id, { tools: tools.map(({ name, description, inputSchema, annotations, uiMeta }) => ({ name, description, inputSchema, annotations, ...(uiMeta ? { _meta:uiMeta } : {}) })) });
+    case 'resources/list':
+      return answer(id,{resources:[{uri:'ui://spider-paint/workshop.html',name:'Spider Paint Workshop',description:'Interactive 3Draft / WebGL2 3D editor',mimeType:'text/html;profile=mcp-app',_meta:{ui:{}}}]});
+    case 'resources/read': {
+      if(params?.uri!=='ui://spider-paint/workshop.html')return errorOf(id,-32602,'Unknown UI resource');
+      const origin=String(ctx.origin).replace(/\/$/,'');
+      const html='<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;height:100%;background:#10110e;color:#eee;font:13px system-ui}header{display:flex;gap:12px;align-items:center;padding:8px 12px}iframe{border:0;width:100%;height:calc(100% - 42px)}a{color:#83d7e0}</style></head><body><header><strong>Spider Paint · AI workshop</strong><span>Enable AI live inside the editor, then share your session code in chat.</span><a target="_blank" rel="noopener" href="'+origin+'/">Full screen</a></header><iframe title="Spider Paint interactive 3D editor" allow="fullscreen; xr-spatial-tracking" src="'+origin+'/" loading="eager"></iframe></body></html>';
+      return answer(id,{contents:[{uri:'ui://spider-paint/workshop.html',mimeType:'text/html;profile=mcp-app',text:html,_meta:{ui:{prefersBorder:false,csp:{frameDomains:[origin],connectDomains:[origin],resourceDomains:[origin]}}}}]});
+    }
     case 'tools/call': {
       const tool = tools.find((t) => t.name === params?.name);
       if (!tool) return errorOf(id, -32602, `unknown tool: ${params?.name}`);
@@ -309,7 +372,7 @@ export const handleMcp = async (msg, ctx) => {
  * POST: one JSON-RPC message (a batch is answered message by message); a notification or a response gets 202. GET (the
  * server-sent stream) and DELETE (ending a session) are not offered: 405. OPTIONS: CORS.
  */
-export const handleHttp = async ({ method, body, origin, fetchText }) => {
+export const handleHttp = async ({ method, body, origin, fetchText, fetchWorkshop }) => {
   const cors = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'POST, GET, OPTIONS', 'access-control-allow-headers': 'content-type, accept, mcp-protocol-version, mcp-session-id, authorization', 'access-control-expose-headers': 'mcp-protocol-version' };
   if (method === 'OPTIONS') return { status: 204, headers: cors, body: '' };
   if (method === 'GET') return { status: 405, headers: { ...cors, allow: 'POST', 'content-type': 'application/json' }, body: JSON.stringify({ error: 'This is the Spider Paint MCP endpoint (Streamable HTTP): POST JSON-RPC messages here.', server: 'spider-paint', viewer: `${origin}/` }) };
@@ -320,7 +383,13 @@ export const handleHttp = async ({ method, body, origin, fetchText }) => {
   } catch {
     return { status: 400, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify(errorOf(null, -32700, 'parse error')) };
   }
-  const ctx = { origin, fetchText, fetchLive: async (session) => {
+  const ctx = { origin, fetchText,
+    callWorkshop:async(method,session,extra={})=>{
+      if(!/^[0-9a-f]{64}$/.test(String(session??'')))fail('Invalid workshop session code');
+      if(typeof fetchWorkshop!=='function')fail('Workshop API is not configured');
+      return fetchWorkshop(method,session,extra);
+    },
+    fetchLive: async (session) => {
     let data;
     try { data=await fetchText('/api/live?token='+encodeURIComponent(session)); }
     catch { fail('Live snapshot unavailable. Enable AI live in the browser, check the Vercel Blob deployment and session code.'); }
