@@ -41,6 +41,17 @@ export default async function handler(req, res) {
     const q = req.method === 'POST' ? await bodyOf(req) : { token:url.searchParams.get('token') };
     const token = q.token;
     if (!validToken(token)) return json(res,400,{error:'64-character workshop session token required'});
+    if (req.method === 'DELETE') {
+      if (!sameOrigin(req)) return json(res,403,{error:'Only the sharing browser can end the workshop'});
+      const prefix=`workshop/${token}/`;
+      let cursor,removed=0;
+      do {
+        const page=await list({prefix,cursor,limit:100,...opts()});
+        if(page.blobs.length){ await del(page.blobs.map(b=>b.url),opts()); removed+=page.blobs.length; }
+        cursor=page.hasMore?page.cursor:undefined;
+      } while(cursor);
+      return json(res,200,{stopped:true,deleted:removed});
+    }
     if (!(await active(token))) return json(res,404,{error:'No active AI live session; enable AI live in Spider Paint'});
     if (req.method === 'POST' && q.kind === 'enqueue') {
       if (!Array.isArray(q.actions) || !q.actions.length || q.actions.length > 30) return json(res,400,{error:'1–30 actions required'});
