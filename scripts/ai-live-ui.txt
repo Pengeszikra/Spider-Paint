@@ -93,7 +93,7 @@
         font: '13px/1.5 monospace', boxShadow: '0 8px 30px #0009',
       });
       const heading = document.createElement('strong');
-      heading.textContent = 'AI live · ' + displayVersion(version) + ' · private scene access';
+      heading.textContent = 'AI live · ' + displayVersion(spiderVersion) + ' · private scene access';
       const info = document.createElement('p');
       info.textContent = 'Copy this secret code into the AI chat. The current scene, materials and camera image are shared approximately every 8 seconds until you stop. Anyone with the code can read the scene. AI editing is OFF unless you explicitly enable it below.';
       const secret = document.createElement('code');
