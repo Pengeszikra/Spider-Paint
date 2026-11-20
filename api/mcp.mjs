@@ -24,7 +24,24 @@ export default async function handler(req, res) {
     return r.text();
   };
   const body = req.method === 'POST' ? await readBody(req) : '';
-  const out = await handleHttp({ method: req.method, body, origin, fetchText });
+  // Same-origin server-side call to the private, token-gated workshop mailbox.
+  const fetchWorkshop = async (method, token, extra = {}) => {
+    const url = new URL(origin + '/api/workshop');
+    let init;
+    if (method === 'GET') {
+      url.searchParams.set('token', token);
+      if (extra.result) url.searchParams.set('result', extra.result);
+      init = { method:'GET', cache:'no-store' };
+    } else {
+      init = { method:'POST', headers:{'content-type':'application/json'},
+        body:JSON.stringify({token,...extra}), cache:'no-store' };
+    }
+    const r = await fetch(url, init);
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Workshop HTTP '+r.status);
+    return data;
+  };
+  const out = await handleHttp({ method: req.method, body, origin, fetchText, fetchWorkshop });
   for (const [k, v] of Object.entries(out.headers ?? {})) res.setHeader(k, v);
   res.statusCode = out.status;
   res.end(out.body ?? '');
