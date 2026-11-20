@@ -18,7 +18,7 @@ const MAX_URL = 200000; // characters: longer links are refused (browsers and ch
 
 const INSTRUCTIONS = [
   'Spider Paint is a no-install 3D viewer in the browser (3Draft engine): a modeller, and a first-person universe browser with real-scale stars, planets, exoplanets, black holes and galaxies.',
-  'This server keeps no state and cannot reach the user\'s browser: every tool that makes something returns open_url, a link that opens the viewer with exactly that scene. Give the user the link.',
+  'This MCP is stateless. build_model returns a scene URL. For reading the human-edited browser, ask the user to enable AI live inside Spider Paint and share its private code, then call get_scene and get_render with session. Never invent a session code.',
   'Models: build_model takes a list of steps (add_box, add_extrusion, add_mesh, transform, extrude_face, move_vertices, boolean, recolor, remove...) and runs them in order, returns a render (SVG text) and the link; continue with from: <the last open_url>. Y is up, the ground is y = 0, faces counter-clockwise seen from outside.',
   'Space: sky_scene makes a scene from a sky catalogue (format 3draft-sky: stars, planets, moons, exoplanets, black holes, galaxies in astronomers\' units; read sky_guide first). find searches the bundled deep sky (the Solar System, 3000 stars, 500 exoplanets, 400 black holes, 1000 galaxies) and links straight to an object. examples lists the bundled scenes.',
 ].join(' ');
@@ -208,6 +208,38 @@ export const publicTools = () => [
     run: (a, ctx) => ({ examples: EXAMPLES.map(([name, about]) => ({ name, about, open_url: `${ctx.origin}/?scene=${encodeURIComponent(name)}` })), viewer: `${ctx.origin}/`, guide: `${ctx.origin}/sky.html` }),
   },
   {
+    name: 'get_scene',
+    description: 'Read the actual scene in a Spider Paint browser that its owner explicitly shared with AI live. Requires the private 64-character session code shown by the viewer (no other open tab is accessible). Returns scene materials, camera/view, and the current object geometry; full=true includes all meshes.',
+    inputSchema: { type: 'object', properties: {
+      session: { type: 'string', description: 'The 64-character AI live session code copied by the user from Spider Paint.' },
+      full: { type: 'boolean', description: 'Return the full 3draft-scene including mesh vertex/face arrays (default false, for concise summary).' },
+    }, required: ['session'] },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+    run: async (a,ctx) => {
+      const snap=await liveSnapshot(a,ctx);
+      const scene=snap.scene;
+      const objects=scene.objects.map(o=>({name:o.name,vertices:o.mesh?.positions?.length??0,faces:o.mesh?.faces?.length??0,materials:[...new Set((o.mesh?.faces??[]).map(f=>f.mat).filter(Boolean))]}));
+      return {updated:new Date(snap.updated).toISOString(),age_s:Math.round((Date.now()-snap.updated)/1000),
+        object_count:objects.length,objects,palette:scene.palette,view:scene.view,vehicle:scene.vehicle,
+        ...(a.full?{scene}:{note:'Pass full: true to retrieve all geometry.'})};
+    }
+  },
+  {
+    name: 'get_render',
+    description: 'Look at the current SVG or WebGL2/WebGPU screenshot produced by a Spider Paint browser shared using AI live. Unlike build_model render, this is captured from the human-edited browser scene and its actual camera. Requires the session code from the viewer.',
+    inputSchema: {type:'object',properties:{session:{type:'string',description:'The 64-character AI live session code copied by the user from Spider Paint.'}},required:['session']},
+    annotations: { readOnlyHint:true, openWorldHint:false },
+    run: async (a,ctx) => {
+      const snap=await liveSnapshot(a,ctx);
+      const r=snap.render;
+      if(!r.data)fail('The viewer did not capture a render. Leave immersive XR and try SVG mode (9) or desktop GPU view.');
+      if(r.kind==='svg')return {kind:'svg',updated:new Date(snap.updated).toISOString(),render:r.data};
+      const m=/^data:(image\/(?:jpeg|png));base64,([A-Za-z0-9+/=]+)$/.exec(r.data);
+      if(!m)fail('The saved GPU render is not a supported image');
+      return {kind:r.kind,updated:new Date(snap.updated).toISOString(),imageData:m[2],mimeType:m[1]};
+    }
+  },
+  {
     name: 'sky_guide',
     description: 'The sky guide (Markdown): how the viewer shows stars, planets, black holes and galaxies, the whole 3draft-sky catalogue format with examples, where to find real data, and what is real and what is made up. Read it before writing a catalogue for sky_scene.',
     inputSchema: { type: 'object', properties: {} },
@@ -215,6 +247,13 @@ export const publicTools = () => [
     run: async (a, ctx) => ({ text: await ctx.fetchText('/sky.md') }),
   },
 ];
+
+const liveSnapshot=async (a,ctx)=>{
+  if(!/^[0-9a-f]{64}$/.test(String(a.session??''))) fail('Open Spider Paint, switch on AI live, and paste the 64-character session code here.');
+  const snap=await ctx.fetchLive(a.session);
+  if(snap?.format!=='spider-paint-live'||!Array.isArray(snap.scene?.objects))fail('Live viewer returned an invalid scene');
+  return snap;
+};
 
 // the deep sky catalogue, read once per warm instance
 let deepSkyCache = null;
@@ -250,9 +289,10 @@ export const handleMcp = async (msg, ctx) => {
       try {
         const out = await tool.run(params.arguments ?? {}, ctx);
         // the render is SVG text: it goes in a content block of its own, so the rest stays plain JSON
-        const { render, text, ...rest } = out ?? {};
+        const { render, text, imageData, mimeType, ...rest } = out ?? {};
         const content = [{ type: 'text', text: text ?? JSON.stringify(rest) }];
         if (render) content.push({ type: 'text', text: render });
+        if (imageData && mimeType) content.push({ type: 'image', data: imageData, mimeType });
         return answer(id, { content });
       } catch (e) {
         if (e instanceof ToolFail) return answer(id, { content: [{ type: 'text', text: e.message }], isError: true });
@@ -280,7 +320,12 @@ export const handleHttp = async ({ method, body, origin, fetchText }) => {
   } catch {
     return { status: 400, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify(errorOf(null, -32700, 'parse error')) };
   }
-  const ctx = { origin, fetchText };
+  const ctx = { origin, fetchText, fetchLive: async (session) => {
+    const data=await fetchText('/api/live?token='+encodeURIComponent(session));
+    const parsed=JSON.parse(data);
+    if(parsed.error)fail(parsed.error);
+    return parsed;
+  } };
   const json = { ...cors, 'content-type': 'application/json' };
   if (Array.isArray(msg)) {
     const outs = (await Promise.all(msg.map((m) => handleMcp(m, ctx)))).filter(Boolean);
