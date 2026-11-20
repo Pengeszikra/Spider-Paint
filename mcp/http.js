@@ -251,13 +251,13 @@ export const publicTools = () => [
   },
   {
     name: 'workshop_apply',
-    description: 'Queue one or more named model, mesh, material, scene, camera, story or UI operations for the human-edited Spider Paint browser. The owner must additionally turn on "Allow AI edits". It is asynchronous: call workshop_result using the returned id to inspect success/errors. Never assume an action was applied until workshop_result confirms it. Supports model.create/mesh/transform/paint/rename/delete/character/pose/extrude/boolean; material.upsert/select; scene.load/replace/clear/undo; camera.look/target/reset; vehicle.set; render.set; ui.action/click/set/key; story.open. Call workshop_controls first for available IDs.',
+    description: 'Queue one or more named model, mesh, material, scene, camera, story or UI operations for the human-edited Spider Paint browser. The owner must additionally turn on "Allow AI edits". It is asynchronous: call workshop_result using the returned id to inspect success/errors. Never assume an action was applied until workshop_result confirms it. Supports model.create/mesh/transform/paint/rename/delete/character/pose/extrude/boolean; material.upsert/select; scene.load/replace/clear/undo; camera.look/target/reset; vehicle.set; render.set; ui.action/click/set/key/pointer; story.open. Call workshop_controls first for available IDs.',
     inputSchema:{type:'object',properties:{
       session:{type:'string',description:'Private AI live code explicitly shared by the user'},
       actions:{type:'array',minItems:1,maxItems:30,items:{type:'object',properties:{
-        op:{type:'string',enum:['model.create','model.mesh','model.transform','model.paint','model.rename','model.delete','model.character','model.pose','model.extrude','model.boolean','material.upsert','material.select','scene.load','scene.replace','scene.clear','scene.undo','camera.look','camera.target','camera.reset','vehicle.set','render.set','ui.action','ui.click','ui.set','ui.key','story.open']},
+        op:{type:'string',enum:['model.create','model.mesh','model.transform','model.paint','model.rename','model.delete','model.character','model.pose','model.extrude','model.boolean','material.upsert','material.select','scene.load','scene.replace','scene.clear','scene.undo','camera.look','camera.target','camera.reset','vehicle.set','render.set','ui.action','ui.click','ui.set','ui.key','ui.pointer','story.open']},
         name:{type:'string'},id:{type:'string'},value:{},to:{type:'string'},mesh:{type:'object'},material:{type:'object'},scene:{type:'object'},
-        spec:{type:'object'},preset:{type:'string'},pose:{type:'string'},at:{type:'array',items:{type:'number'}},size:{type:'number'},face:{type:'integer'},distance:{type:'number'},operation:{type:'string'},a:{type:'string'},b:{type:'string'},
+        spec:{type:'object'},preset:{type:'string'},pose:{type:'string'},at:{type:'array',items:{type:'number'}},size:{type:'number'},x:{type:'number'},y:{type:'number'},type:{type:'string'},button:{type:'integer'},deltaX:{type:'number'},deltaY:{type:'number'},ctrl:{type:'boolean'},meta:{type:'boolean'},face:{type:'integer'},distance:{type:'number'},operation:{type:'string'},a:{type:'string'},b:{type:'string'},
         faces:{type:'array',items:{type:'integer'}},color:{type:'string'},move:{type:'array',items:{type:'number'}},scale:{type:'array',items:{type:'number'}},rotate:{type:'array',items:{type:'number'}},pivot:{type:'array',items:{type:'number'}},
         eye:{type:'array',items:{type:'number'}},yaw:{type:'number'},pitch:{type:'number'},vehicle:{type:['string','null']},mode:{type:'string'},key:{type:'string'},shift:{type:'boolean'}
       },required:['op']}}
@@ -267,7 +267,7 @@ export const publicTools = () => [
       const snap=await liveSnapshot(a,ctx);
       if(!snap.capabilities?.editable)fail('The owner must switch on "Allow AI edits" in the Spider Paint AI live panel.');
       if(!Array.isArray(a.actions)||!a.actions.length||a.actions.length>30)fail('Supply 1–30 actions');
-      const allowed=new Set(['model.create','model.mesh','model.transform','model.paint','model.rename','model.delete','model.character','model.pose','model.extrude','model.boolean','material.upsert','material.select','scene.load','scene.replace','scene.clear','scene.undo','camera.look','camera.target','camera.reset','vehicle.set','render.set','ui.action','ui.click','ui.set','ui.key','story.open']);
+      const allowed=new Set(['model.create','model.mesh','model.transform','model.paint','model.rename','model.delete','model.character','model.pose','model.extrude','model.boolean','material.upsert','material.select','scene.load','scene.replace','scene.clear','scene.undo','camera.look','camera.target','camera.reset','vehicle.set','render.set','ui.action','ui.click','ui.set','ui.key','ui.pointer','story.open']);
       if(!a.actions.every(x=>allowed.has(x?.op)))fail('One or more actions are not supported');
       const response=await ctx.callWorkshop('POST',a.session,{kind:'enqueue',actions:a.actions});
       if(response.error)fail(response.error);
