@@ -81,12 +81,12 @@
         const next=workshopName(a.to);
         if (allObjects().some(x=>x!==o && x.name===next)) throw Error('Object name already exists');
         const old=o.name;
-        history.push(()=>{o.name=old;rebuild();redraw();});
-        o.name=next; rebuild(); redraw(); return {name:next};
+        history.push(()=>{o.name=old;change(o,o.mesh);redraw();});
+        o.name=next; change(o,o.mesh); redraw(); return {name:next};
       }
       if (a.op === 'model.delete') {
         const o=workshopObject(a.name);
-        history.push(()=>{ if(!has(o)){ mine.push(o); rebuild(); redraw(); } });
+        history.push(()=>{ if(!has(o)){ restore(o); redraw(); } });
         erase(o); redraw(); return {removed:a.name};
       }
       if (a.op === 'model.mesh' || a.op === 'model.paint' || a.op === 'model.transform') {
@@ -210,6 +210,7 @@
           workshopDone.add(cmd.id);
           const results=[];
           for(const action of cmd.actions??[]) {
+            if (!aiLiveEdits || token!==aiLiveToken) { results.push({op:action.op,ok:false,error:'AI editing permission revoked'}); break; }
             try { results.push({op:action.op,ok:true,result:await workshopRun(action)}); }
             catch(e){results.push({op:action.op,ok:false,error:String(e?.message??e)});}
           }
