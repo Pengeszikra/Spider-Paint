@@ -11,14 +11,20 @@ const snapshot={format:'spider-paint-live',updated:Date.now(),scene:{
   format:'3draft-scene',version:1,name:'paper boat',view:{render:'webgl2',cam:{yaw:10,pitch:20}},
   palette:[{name:'water',color:'#a9d3e8',alpha:0.3}],
   objects:[{name:'boat',mesh:{positions:[[0,0,0],[1,0,0],[0,1,0]],faces:[{v:[0,1,2],mat:'paper'}]}}]
-},render:{kind:'webgl2',data:'data:image/png;base64,aGVsbG8='}};
+},render:{kind:'webgl2',data:'data:image/png;base64,aGVsbG8='},capabilities:{editable:true,operations:['model.create','model.transform','material.upsert'],controls:[{id:'undo',type:'button'}],keys:['u']}};
+const fetchWorkshop=async(method,session,extra)=>{
+  assert.equal(session,token);
+  if(method==='POST')return {queued:true,id:'ab'.repeat(12),actions:extra.actions.length};
+  if(method==='GET')return {id:extra.result,ok:true,results:[{op:'model.transform',ok:true}]};
+  throw Error('Unexpected method');
+};
 const fetchText=async (path)=>{
   assert.equal(path,'/api/live?token='+token);
   return JSON.stringify(snapshot);
 };
 async function call(name,args) {
   const res=await handleHttp({method:'POST',origin:'https://example.test',fetchText,
-    body:JSON.stringify({jsonrpc:'2.0',id:7,method:'tools/call',params:{name,arguments:args}})});
+    body:JSON.stringify({jsonrpc:'2.0',id:7,method:'tools/call',params:{name,arguments:args}}),fetchWorkshop});
   assert.equal(res.status,200);
   return JSON.parse(res.body).result;
 }
@@ -59,4 +65,47 @@ test('inline browser module parses as JavaScript',()=>{
     writeFileSync(path,code);
     execFileSync('node',['--check',path]);
   } finally { rmSync(dir,{recursive:true,force:true}); }
+});
+
+test('Workshop controls inspect the actual browser UI inventory',async()=>{
+  const r=await call('workshop_controls',{session:token});
+  const x=JSON.parse(r.content[0].text);
+  assert.equal(x.capabilities.editable,true);
+  assert.equal(x.capabilities.controls[0].id,'undo');
+});
+test('Workshop mutations are queued, not claimed completed',async()=>{
+  const r=await call('workshop_apply',{session:token,actions:[{op:'model.transform',name:'boat',move:[1,0,0]}]});
+  const x=JSON.parse(r.content[0].text);
+  assert.equal(x.queued,true);
+  assert.match(x.note,/Queued, not completed/);
+  const done=await call('workshop_result',{session:token,id:x.id});
+  assert.equal(JSON.parse(done.content[0].text).ok,true);
+});
+test('Workshop mutations fail when the user has not approved AI edits',async()=>{
+  snapshot.capabilities.editable=false;
+  try{
+    const r=await call('workshop_apply',{session:token,actions:[{op:'scene.clear'}]});
+    assert.equal(r.isError,true);
+    assert.match(r.content[0].text,/Allow AI edits/);
+  }finally{snapshot.capabilities.editable=true;}
+});
+test('Open-workshop advertises a valid MCP App UI resource',async()=>{
+  const init=(method,params={})=>handleHttp({method:'POST',origin:'https://example.test',fetchText,fetchWorkshop,
+    body:JSON.stringify({jsonrpc:'2.0',id:42,method,params})});
+  const tools=JSON.parse((await init('tools/list')).body).result.tools;
+  const tool=tools.find(x=>x.name==='open_workshop');
+  assert.equal(tool._meta.ui.resourceUri,'ui://spider-paint/workshop.html');
+  const listed=JSON.parse((await init('resources/list')).body).result.resources;
+  assert.equal(listed[0].mimeType,'text/html;profile=mcp-app');
+  const resource=JSON.parse((await init('resources/read',{uri:'ui://spider-paint/workshop.html'})).body).result.contents[0];
+  assert.equal(resource.mimeType,'text/html;profile=mcp-app');
+  assert.match(resource.text,/<iframe/);
+});
+test('Browser UI and durable source template have matching workshop dispatcher',()=>{
+  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+  const ui=readFileSync(new URL('../scripts/workshop-ui.txt',import.meta.url),'utf8');
+  assert.ok(ui.includes('workshopCapabilities'));
+  assert.ok(ui.includes('workshopRun'));
+  assert.ok(html.includes(ui));
+  assert.ok(html.includes('Allow AI edits in this browser'));
 });
