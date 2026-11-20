@@ -46,7 +46,7 @@ export default async function handler(req,res) {
       if (!input.scene || input.scene.format !== '3draft-scene' || !Array.isArray(input.scene.objects)) return send(res,400,{error:'Expected a 3draft-scene'});
       if (!input.render || !['svg','webgl2','webgpu'].includes(input.render.kind)) return send(res,400,{error:'Invalid render kind'});
       if (input.render.data && (typeof input.render.data !== 'string' || input.render.data.length > 650000)) return send(res,413,{error:'Render too large'});
-      const snapshot={format:'spider-paint-live',version:1,updated:Date.now(),scene:input.scene,render:input.render};
+      const snapshot={format:'spider-paint-live',version:1,updated:Date.now(),scene:input.scene,render:input.render,capabilities:input.capabilities && typeof input.capabilities==='object' ? input.capabilities : null};
       const json=JSON.stringify(snapshot);
       if (Buffer.byteLength(json,'utf8')>MAX_BYTES) return send(res,413,{error:'Snapshot exceeds 4 MiB'});
       await put(blobPath(input.token),json,{access:'private',addRandomSuffix:false,allowOverwrite:true,contentType:'application/json',token:tokenOption()});
