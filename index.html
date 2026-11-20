@@ -9296,6 +9296,7 @@
     const workshopSelectIds = new Set(['examples','vehicle','stSpeed','stChapter','charLib']);
     const workshopOps = [
       'model.create','model.mesh','model.transform','model.paint','model.rename','model.delete',
+      'model.character','model.pose','model.extrude','model.boolean',
       'material.upsert','material.select','scene.load','scene.replace','scene.clear','scene.undo',
       'camera.look','camera.target','camera.reset','vehicle.set','render.set',
       'ui.action','ui.click','ui.set','ui.key','story.open'
@@ -9353,6 +9354,54 @@
         const made=create(name,workshopMesh(a.mesh));
         redraw();
         return { name:made.name };
+      }
+      if (a.op === 'model.character') {
+        const name=workshopName(a.name);
+        if (allObjects().some(o=>o.name===name)) throw Error('Object name already exists');
+        const spec=a.spec??CHARACTER_PRESETS[a.preset??'mechanic'];
+        if (!spec) throw Error('Unknown character preset');
+        if (!['stand','sit','walk'].includes(a.pose??'stand')) throw Error('pose: stand, sit or walk');
+        const at=a.at??[0,0,0],yaw=a.yaw??0,scale=a.scale??1;
+        if (!Array.isArray(at)||at.length!==3||!at.every(Number.isFinite)||!Number.isFinite(yaw)||!Number.isFinite(scale)||scale<=0)throw Error('Invalid character placement');
+        const rec=charRead({spec,pose:a.pose??'stand',frame:{at,yaw:yaw*Math.PI/180,scale}});
+        const made=create(name,charMesh(rec));
+        made.character=rec;
+        redraw();
+        return {name,pose:rec.pose,parts:rec.parts.length};
+      }
+      if (a.op === 'model.pose') {
+        const o=workshopObject(a.name);
+        if(!o.character) throw Error('Object is not a character');
+        if(!['stand','sit','walk'].includes(a.pose))throw Error('pose: stand, sit or walk');
+        const previous=o.character,mesh0=o.mesh;
+        const next=charRead({...previous,pose:a.pose});
+        history.push(()=>{if(has(o)){charSet(o,previous,mesh0);redraw();}});
+        charSet(o,next); redraw();
+        return {name:o.name,pose:next.pose};
+      }
+      if (a.op === 'model.extrude') {
+        const o=workshopObject(a.name),i=a.face;
+        if(!Number.isInteger(i)||i<0||i>=o.mesh.faces.length||!Number.isFinite(a.distance))throw Error('face index and finite distance required');
+        const original=o.mesh;
+        const next=extrudeFace(original,i,{distance:a.distance}).mesh;
+        history.push(()=>{if(has(o)){change(o,original);redraw();}});
+        change(o,next); redraw();
+        return {name:o.name,faces:next.faces.length};
+      }
+      if (a.op === 'model.boolean') {
+        if(!['union','subtract','intersect'].includes(a.operation))throw Error('operation: union, subtract or intersect');
+        const left=workshopObject(a.a),right=workshopObject(a.b);
+        if(left===right)throw Error('Choose two different objects');
+        const result=boolean(left.mesh,right.mesh,a.operation,{strict:false});
+        if(!result.faces.length)throw Error('Boolean result empty');
+        const name=workshopName(a.name??(left.name+'-'+a.operation+'-'+right.name));
+        if(allObjects().some(o=>o.name===name&&o!==left&&o!==right))throw Error('Result name exists');
+        erase(left);erase(right);
+        const made=create(name,result);
+        history.pop();
+        history.push(()=>{erase(made);restore(left);restore(right);redraw();});
+        redraw();
+        return {name,faces:result.faces.length};
       }
       if (a.op === 'model.rename') {
         const o=workshopObject(a.name);
