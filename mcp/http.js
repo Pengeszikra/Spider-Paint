@@ -321,7 +321,9 @@ export const handleHttp = async ({ method, body, origin, fetchText }) => {
     return { status: 400, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify(errorOf(null, -32700, 'parse error')) };
   }
   const ctx = { origin, fetchText, fetchLive: async (session) => {
-    const data=await fetchText('/api/live?token='+encodeURIComponent(session));
+    let data;
+    try { data=await fetchText('/api/live?token='+encodeURIComponent(session)); }
+    catch { fail('Live snapshot unavailable. Enable AI live in the browser, check the Vercel Blob deployment and session code.'); }
     const parsed=JSON.parse(data);
     if(parsed.error)fail(parsed.error);
     return parsed;
