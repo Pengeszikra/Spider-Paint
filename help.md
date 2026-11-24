@@ -140,19 +140,18 @@ A game brings scenes together: **Fifth Percent** (the scene list, *games*, or `?
 
 ## Characters (the char button)
 
-**char** (scene group) opens the **character builder**: quick, animatable extras for a scene. The figure at the top turns with a drag, and **stand / sit / walk** show it in that pose; every change shows at once.
+**char** (scene group) opens the **character panel**: modular low-poly humans and robots, built from interchangeable modules (models/modular-characters/). The figure at the top turns with a drag; every change shows at once.
 
-- **Presets**: **Scientist** (lab coat, glasses, tablet), **Mechanic** (bun, overall, wrench), **Space crew** (a Moonbase-style tunic: beige with the left sleeve in the department's colour, a black collar and belt, flared trousers, a commlock in hand), **Astronaut** (suit, helmet with a gold visor, a small pack). After a preset everything stays editable. **variate** makes another person in the same role: a new face, hair, build, skin and hair (a crew member's sleeve colour too), while the outfit and the prop stay.
-- **Body**: female or male base, height, build, shoulders, head size (the sliders stop where the poses and the clothes still fit).
-- **Face**: shape (oval, round, square, long), jaw, nose, skin.
-- **Hair**: short, long, bun or bald (flat locks over a cap, like paper-craft hair), its material, glasses, a beard (full or goatee).
-- **Outfit**: coat, overall, workwear, crew or astronaut (helmet on or off), a **main** and a **second** material (crew: the tunic and the left sleeve); one **prop** in the right hand (tablet, wrench, commlock).
-- **No colour pickers: every part is a palette material.** Skin, hair and cloth are chosen from the palette (the character's own entries, skin-1 to skin-7, hair-…, denim, lab-white, suit-white…, are added to the palette when missing; the list offers every other palette entry too). Edit a material in the palette (P) and every character made of it changes.
-- **save** keeps the settings under a name in this browser; the list next to it opens them again.
-- **place**: in an empty scene the figure stands at the origin (0, 0, 0), facing you. Otherwise it floats under the pointer in place mode (as **G G**): a click stands it on the surface under the pointer, **Enter** keeps it (one **U** step), **Esc** takes it away. Place the same preset as often as you like; every copy is its own. The preview shows the figure in studio light, without edges.
-- **edit selected** takes the character under the cross (or the target) back into the builder; **apply** changes only that one (one U step).
+- **The ready ones**: 20 characters (dockhand, navigator, researcher, medic, commander, thin and fat builds… and four robots: scout, dock loader, service unit, repair unit). A click puts one in the panel.
+- **random**: every part and colour at random (a human stays human, a robot robot).
+- **figure**: body (straight, tapered, sturdy, slender, curved, thin, fat, three robot frames), head, face. **hair**: style, colour, an extra (glasses, headset, beard, visor). **clothes**: top, bottom, shoes and the outfit's colours. **skin**.
+- Faces, hair and extras are fitted to every head, clothes to every body, so any combination fits. The materials (mc-…) come into the palette; edit one there and every character made of it changes.
+- **save** keeps the selection under a name in this browser; the list next to it opens it again.
+- **place**: in an empty scene the character stands at the origin (0, 0, 0), facing you. Otherwise it floats under the pointer in place mode (as **G G**): a click stands it on the surface under the pointer, **Enter** keeps it, **Esc** takes it away. One **U** takes it back.
+- **edit selected** takes the character under the cross (or the target) back into the panel; **apply** rebuilds only that one, where it stands (one U step).
+- **designer ↗** opens the designer page: every module side by side, the line-up, the face and exploded views.
 
-A placed character moves with **G**, turns with **R** and sizes with **S** like any object; **G G** always holds it by where it stands (the middle of its footprint, up is up), wherever you grabbed it, and is saved in the scene. A **walking** character walks to and fro along its heading (3 m each way); **freeze** stops it, and while it walks the cross does not pick it (freeze, then edit). The figure is stylized, about six heads tall with a big round head, and a few meshes: the body (trunk and legs, one closed surface), the arms, the head, the face (eyes, brows and mouth as flat plates lying just over the skin, like a face drawn on with 5 + V), the hair (and beard), the gear (glasses, a coat's skirt, straps, a belt, a helmet) and the prop. The body and the arms bend smoothly at the joints; the clothes are the body's own surface in cloth materials, so they cannot come off in any pose. Hair and glasses follow the head, the prop the hand. Smooth shading (the SMOOTH switch) is meant for them.
+A placed character is a **group of instances**: one object per module (body, head, face, hair, top, bottom, shoes, extra), grouped under the character's name, each an instance of the library's prototype. So a crowd shares a few meshes. It moves with **G**, turns with **R** and sizes with **S** as one, and stays made of instances (a save writes the prototypes once and a short record per module); an edit of its mesh, or a tilt off upright, makes that part an ordinary object.
 
 ## Two views: build and store
 

@@ -196,7 +196,8 @@
     #charView canvas { display: block; margin: 0 auto; }
     #charPanel .crow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
     #charPanel .crow button { padding: 6px 10px; border-radius: 8px; }
-    #charPanel #charPoseRow button.on { background: var(--teal); color: #04181a; }
+    #charPanel #charPresets button { padding: 4px 8px; font-size: 12px; }
+    #charPanel #charPresets button.on { background: var(--teal); color: #04181a; }
     #charPanel #charName { flex: 1; min-width: 90px; }
     #charPanel #charLib { max-width: 140px; }
     #charControls { display: grid; gap: 8px; }
@@ -731,14 +732,14 @@
   </aside>
   <div id="storyCaption" hidden><b id="stCapTitle"></b><span id="stCapText"></span></div>
 
-  <aside id="charPanel" class="side wide" hidden aria-label="Character builder">
+  <aside id="charPanel" class="side wide" hidden aria-label="Characters">
     <div class="sidehead"><b>characters</b><button id="charClose" type="button" class="slate" aria-label="Close">✕</button></div>
     <div id="charView" title="Drag: turn the figure round"></div>
-    <div class="crow" id="charPoseRow"><button type="button" data-pose="stand" class="slate">stand</button><button type="button" data-pose="sit" class="slate">sit</button><button type="button" data-pose="walk" class="slate">walk</button></div>
-    <div class="crow" id="charPresets"><button type="button" data-preset="scientist" class="cream">Scientist</button><button type="button" data-preset="mechanic" class="cream">Mechanic</button><button type="button" data-preset="crew" class="cream">Space crew</button><button type="button" data-preset="astronaut" class="cream">Astronaut</button><button type="button" id="charVary" class="teal" title="Another person in the same role: face, hair, build, skin and hair change, the outfit and the prop stay">variate</button></div>
+    <div class="crow" id="charPresets"></div>
+    <div class="crow"><button type="button" id="charRandom" class="teal" title="Another character: every part and colour chosen at random (humans stay human, robots robot)">random</button><button type="button" id="charDesigner" class="slate" title="The modular character designer page (models/modular-characters/): every module, the line-up, the face and exploded views">designer ↗</button></div>
     <div id="charControls"></div>
-    <div class="crow"><input id="charName" type="text" placeholder="name" maxlength="40" spellcheck="false" autocapitalize="off" aria-label="Character name"><button id="charSave" type="button" class="cream" title="Save these settings under the name (this browser)">save</button><select id="charLib" aria-label="Open a saved character"></select><button id="charForget" type="button" class="slate" title="Forget the saved character with this name">✕</button></div>
-    <div class="crow"><button id="charPlace" type="button" class="red" title="Put the figure down at the cross, facing you (one undo step)">place</button><button id="charPick" type="button" class="slate" title="Edit the placed character under the cross (or the target)">edit selected</button><button id="charApply" type="button" class="teal" disabled title="Give the edited settings to that placed character only (one undo step)">apply to selected</button></div>
+    <div class="crow"><input id="charName" type="text" placeholder="name" maxlength="40" spellcheck="false" autocapitalize="off" aria-label="Character name"><button id="charSave" type="button" class="cream" title="Save this selection under the name (this browser)">save</button><select id="charLib" aria-label="Saved characters"></select><button id="charForget" type="button" class="slate" title="Forget the saved character of this name">forget</button></div>
+    <div class="crow"><button id="charPlace" type="button" class="red" title="Put the character down at the cross, facing you (one undo step): a group of instances of the library's modules">place</button><button id="charPick" type="button" class="slate" title="Take the placed character under the cross (or the target) back into the panel">edit selected</button><button id="charApply" type="button" class="cream" disabled>apply to selected</button></div>
     <p id="charNote" class="note"></p>
   </aside>
   <aside id="palette" class="side" hidden aria-label="Material palette">
@@ -892,7 +893,7 @@
           <button id="sceneOpen" type="button" class="cream" title="Add a scene from a .json file">f↑</button>
           <button id="sceneForget" type="button" class="slate" title="Forget the saved scene with the name in the box">✕</button>
           <button id="boolBtn" type="button" class="slate" title="Boolean: select two objects (B), then this; the first taken is A, the second B">bool</button>
-          <button id="charBtn" type="button" class="teal ic" title="Assets: the character builder. Make a figure from a few sliders, hair, clothes and a prop (presets: scientist, mechanic, space crew, astronaut; every part a palette material), then place it at the cross; edit a placed one" aria-label="Character builder">🧍</button>
+          <button id="charBtn" type="button" class="teal ic" title="Characters: modular low-poly humans and robots (models/modular-characters/): 20 ready ones, or every part and colour chosen; placed as a group of instances of the library's modules" aria-label="Character builder">🧍</button>
           <input id="sceneFile" type="file" accept=".3draft,.json,application/json" hidden>
         </span>
       </span>
@@ -976,7 +977,7 @@
       if (!WORKSHOP_EMBED || !workshopSessionId || !workshopSceneReady) return;
       clearTimeout(workshopDirtyTimer);
       workshopDirtyTimer = setTimeout(() => {
-        if (workshopSceneReady) workshopNotice('native_scene_changed', { scene: sceneFile('workshop') });
+        if (workshopSceneReady) workshopNotice('native_scene_changed', { scene: sceneFile('workshop', { plain: true }) });
       }, 350);
     };
     if (WORKSHOP_EMBED) window.addEventListener('message', async (e) => {
@@ -4705,7 +4706,11 @@
     };
     const change = (stale, mesh, wire = stale.wire) => {
       const obj = live(stale) ?? stale;
-      delete obj.inst; // an edited instance is an ordinary object from now on
+      if (obj.inst) {
+        const next = fitInst(obj.inst, mesh); // moved, turned about y or sized: still an instance; edited: an ordinary object
+        if (next) obj.inst = next;
+        else delete obj.inst;
+      }
       charHooks.follow?.(obj, mesh); // a character's frame follows a move, an edit makes it a plain object
       if (obj.textFrame && obj.mesh.positions.length === mesh.positions.length && mesh.positions.length) {
         // a text model that is only moved takes the place its words stand in along
@@ -4812,6 +4817,31 @@
     // coarsest level of detail and `applyLod` swaps in the finer ones as the eye comes closer
     const placement = (i) => ({ at: i.at, scale: i.scale, mats: i.mats, color: i.color, rot: i.rot });
     const instSize = (i, slot) => (typeof i.scale === 'number' ? i.scale : (i.scale[slot] ?? i.scale['*'] ?? 1));
+    // The placement of an instance whose mesh is now `mesh`: its turn about x stays; a turn about y, a uniform size and a shift
+    // are read from the mesh. null when the mesh is not such a copy of the prototype (an edit, a tilt, a stretch): then it is an
+    // ordinary object. So G, R, S, G G, U keep an instance an instance (and it is saved as one).
+    const fitInst = (i, mesh) => {
+      if (!i?.proto?.lods || typeof i.scale !== 'number' || !(i.level >= -1)) return null;
+      const lod = i.proto.lods[i.level >= 0 ? i.level : i.proto.lods.length - 1];
+      const b = mesh.positions;
+      if (!lod || lod.positions.length !== b.length || b.length < 2) return null;
+      const ax = i.rot?.[0] ?? 0;
+      const a = instantiate(lod, { at: [0, 0, 0], scale: 1, rot: [ax, 0] }).positions;
+      const mid = (ps) => ps.reduce((m, q) => [m[0] + q[0] / ps.length, m[1] + q[1] / ps.length, m[2] + q[2] / ps.length], [0, 0, 0]);
+      const ca = mid(a), cb = mid(b);
+      let far = 0;
+      a.forEach((q, k) => { if (Math.hypot(q[0] - ca[0], q[2] - ca[2]) > Math.hypot(a[far][0] - ca[0], a[far][2] - ca[2])) far = k; });
+      const ra = Math.hypot(a[far][0] - ca[0], a[far][1] - ca[1], a[far][2] - ca[2]);
+      if (Math.hypot(a[far][0] - ca[0], a[far][2] - ca[2]) < 1e-9) return null;
+      const s = Math.hypot(b[far][0] - cb[0], b[far][1] - cb[1], b[far][2] - cb[2]) / ra;
+      const th = Math.atan2(b[far][0] - cb[0], b[far][2] - cb[2]) - Math.atan2(a[far][0] - ca[0], a[far][2] - ca[2]);
+      const c = Math.cos(th), sn = Math.sin(th);
+      const at = [cb[0] - s * (ca[0] * c + ca[2] * sn), cb[1] - s * ca[1], cb[2] - s * (-ca[0] * sn + ca[2] * c)];
+      const next = { ...i, at, rot: [ax, th], scale: s };
+      const test = instantiate(lod, placement(next)).positions;
+      const tol = 1e-5 * Math.max(1, ra * s);
+      return test.every((q, k) => Math.hypot(q[0] - b[k][0], q[1] - b[k][1], q[2] - b[k][2]) < tol) ? next : null;
+    };
     const LOD_NONE = 0.3; // pixels: a solid smaller than this on screen is not in the scene
     // a big scene (more than LOD_BIG instances) changes its levels at most every LOD_EVERY ms while you move: every change merges
     // the whole scene again, and with thousands of stars some level changes in nearly every frame
@@ -4953,7 +4983,7 @@
         workshopNotice('native_scene_loaded', { objects: allObjects().length });
         if (WORKSHOP_EMBED && workshopSessionId) {
           workshopSceneReady = true;
-          workshopNotice('native_scene_changed', { scene: sceneFile('workshop') });
+          workshopNotice('native_scene_changed', { scene: sceneFile('workshop', { plain: true }) });
         }
       });
     // a sky catalogue ('3draft-sky', src/sky.ts) -> a scene; its warnings go to the scene note
@@ -4977,7 +5007,7 @@
       const madeIds = new Map(); // name -> id of the objects made by this load (for the joints)
       loaderStep(`building ${raw.length} objects`);
       await new Promise((r) => requestAnimationFrame(() => r()));
-      const objects = raw.map((o) => (o.proto ? { name: o.name, inst: { ...o, proto: prototypes[o.proto] }, mesh: instantiate(prototypes[o.proto].lods.at(-1), placement(o)), ...(o.pickable === false ? { pickable: false } : {}) } : o));
+      const objects = raw.map((o) => (o.proto ? { name: o.name, inst: { ...o, key: o.proto, proto: prototypes[o.proto] }, ...(o.group ? { group: o.group } : {}), ...(o.modular ? { modular: o.modular } : {}), mesh: instantiate(prototypes[o.proto].lods.at(-1), placement(o)), ...(o.pickable === false ? { pickable: false } : {}) } : o));
       // a scene may bring its own materials; the ones the palette lacks are added (and saved with a db)
       for (const m of extra ?? []) {
         if (materials.some((x) => x.name === m.name)) continue;
@@ -5004,6 +5034,7 @@
           if (o.inst) (live(made) ?? made).inst = { ...o.inst, at: [o.inst.at[0] + dx, o.inst.at[1], o.inst.at[2]], level: -1 };
           if (o.pickable === false) (live(made) ?? made).pickable = false;
           if (o.skyLine) (live(made) ?? made).skyLine = o.skyLine;
+          if (o.modular) (live(made) ?? made).modular = o.modular; // a member of a modular character (the character panel)
           if (o.character) {
             const rec = charHooks.read?.(o.character); // a placed character (character builder)
             if (rec) ((rec.frame.at[0] += dx), ((live(made) ?? made).character = rec));
@@ -7395,19 +7426,7 @@
       redraw();
     };
 
-    // ---- the builder panel
-    const charPanelEl = document.getElementById('charPanel');
-    const charViewEl = document.getElementById('charView');
-    const charNoteEl = document.getElementById('charNote');
-    let charSpec = normalizeCharacter(CHARACTER_PRESETS.mechanic);
-    let charPose = 'stand';
-    let charView = { yaw: -0.5, pitch: 0.12, drag: null };
-    let charTarget = null; // the placed character being edited (its id)
-    let charVaryN = 1;
-    const CHAR_LABELS = { height: 'height (m)', build: 'build', shoulders: 'shoulders', head: 'head size', jaw: 'jaw', nose: 'nose' };
-    const charControls = document.getElementById('charControls');
-    // a material choice: the group first (skins, hair, cloth), then every other palette entry; the character materials are
-    // added to the palette when missing, so a palette edit restyles every character made of it
+    // the palette entries of the old builder's figures (a scene that still holds one: charRead)
     const charMats = () => {
       let added = false;
       for (const m of characterPalette()) {
@@ -7418,73 +7437,65 @@
       }
       if (added) syncPalette();
     };
-    const CHAR_GROUPS = { skin: CHARACTER_SKINS, hairMat: CHARACTER_HAIRS, main: CHARACTER_CLOTHS, second: CHARACTER_CLOTHS };
-    const matPick = (key, title) => `<span class="matpick" title="${title}"><i></i><select data-mat="${key}"></select></span>`;
-    const charMatOptions = () => {
-      for (const sel of charControls.querySelectorAll('select[data-mat]')) {
-        const group = CHAR_GROUPS[sel.dataset.mat];
-        const rest = materials.map((m) => m.name).filter((n) => !group.includes(n));
-        const opt = (n) => `<option value="${n}">${n}</option>`;
-        sel.innerHTML = `${group.map(opt).join('')}<optgroup label="palette">${rest.map(opt).join('')}</optgroup>`;
+
+    // ---- the character panel: modular characters (models/modular-characters/: library.json + compose.mjs). A character is a
+    // selection: one module per part slot (body, head, face, hair, accessory, top, bottom, shoes) and one colour set per colour
+    // slot (skin, hair colour, outfit). Placed, it is a GROUP of INSTANCES of the library's prototypes: one object per module,
+    // grouped under the character's name, so a crowd shares a few meshes. G / R / S / G G keep them instances (fitInst) and a
+    // save writes them as prototypes. Every member carries `modular`: { spec, name } (saved too), read back by edit selected.
+    const charPanelEl = document.getElementById('charPanel');
+    const charViewEl = document.getElementById('charView');
+    const charNoteEl = document.getElementById('charNote');
+    const charControls = document.getElementById('charControls');
+    const charPresetsEl = document.getElementById('charPresets');
+    const MC_BASE = './models/modular-characters/';
+    const MC_LIB_KEY = 'spider-modular-characters';
+    const MC_GROUPS = [['figure', [['body', 'body'], ['head', 'head'], ['face', 'face']]], ['hair', [['hair', 'style'], ['hairColor', 'colour'], ['accessory', 'extra']]], ['clothes', [['top', 'top'], ['bottom', 'bottom'], ['shoes', 'shoes'], ['outfit', 'colours']]], ['skin', [['skin', 'skin']]]];
+    let mc = null; // { lib, compose } once loaded
+    let mcLoad = null;
+    let charSpec = null;
+    let charPreset = null; // the example id the selection came from (while unchanged)
+    const charView = { yaw: -0.4, pitch: 0.08, drag: null };
+    let charTarget = null; // the placed character being edited (its group name)
+    const charNote = (t) => (charNoteEl.textContent = t);
+    const mcReady = () =>
+      (mcLoad ??= Promise.all([import(MC_BASE + 'compose.mjs'), fetch(MC_BASE + 'library.json').then((r) => (r.ok ? r.json() : Promise.reject(Error(`library.json: HTTP ${r.status}`))))])
+        .then(([compose, lib]) => {
+          mc = { compose, lib };
+          charSpec ??= { ...lib.defaults };
+          return mc;
+        })
+        .catch((e) => {
+          mcLoad = null;
+          throw e;
+        }));
+    // the library's materials go into the palette when missing (a palette edit restyles every character made of them)
+    const mcMats = () => {
+      let added = false;
+      for (const m of mc.lib.palette) {
+        if (materials.some((x) => x.name === m.name)) continue;
+        materials.push({ ...m });
+        saveMaterial(materials[materials.length - 1]);
+        added = true;
       }
+      if (added) syncPalette();
     };
-    const pickSel = (key, list) => `<select data-key="${key}">${list.map((v) => `<option value="${v}">${v}</option>`).join('')}</select>`;
-    const slider = (key) => {
-      const [lo, hi] = CHARACTER_RANGES[key];
-      return `<label class="slider"><span>${CHAR_LABELS[key]}</span><input type="range" data-key="${key}" min="${lo}" max="${hi}" step="${key === 'height' ? 0.01 : 0.05}"><em data-out="${key}"></em></label>`;
+    const isRobot = (spec) => String(spec.body).startsWith('robot');
+    const mcBuild = () => {
+      const { lib } = mc;
+      charPresetsEl.replaceChildren(...lib.examples.map((ex) => Object.assign(document.createElement('button'), { type: 'button', className: 'cream', textContent: ex.name, title: Object.values(ex.spec).join(' · ') })));
+      [...charPresetsEl.children].forEach((b, k) => (b.dataset.preset = lib.examples[k].id));
+      charControls.innerHTML = MC_GROUPS.map(([title, slots]) => `<div class="cgroup"><b>${title}</b>${slots.map(([key, label]) => `<span class="lab">${label}</span><select data-key="${key}">${lib.options[key].map((o) => `<option value="${o.id}">${o.label ?? o.id}</option>`).join('')}</select>`).join('')}</div>`).join('');
     };
-    charControls.innerHTML = `
-      <div class="cgroup"><b>body</b>${pickSel('base', ['female', 'male'])}${slider('height')}${slider('build')}${slider('shoulders')}${slider('head')}</div>
-      <div class="cgroup"><b>face</b>${pickSel('shape', FACE_SHAPES)}${slider('jaw')}${slider('nose')}<span class="lab">skin</span>${matPick('skin', 'the skin material (palette)')}</div>
-      <div class="cgroup"><b>hair</b>${pickSel('hair', HAIR_STYLES)}<span class="lab">hair</span>${matPick('hairMat', 'the hair material (palette), the beard and brows too')}<label class="tick"><input type="checkbox" data-key="glasses"> glasses</label><span class="lab">beard</span>${pickSel('beard', BEARD_STYLES)}</div>
-      <div class="cgroup"><b>outfit</b>${pickSel('outfit', OUTFITS)}<span class="lab">main</span>${matPick('main', 'the coat, jacket, overall or suit (palette)')}<span class="lab">second</span>${matPick('second', 'the trousers, the shirt under an overall, a suit\'s joints and gloves (palette)')}<label class="tick"><input type="checkbox" data-key="helmet"> helmet (astronaut)</label><span class="lab">prop</span><span>${pickSel('prop', CHAR_PROPS)}</span></div>`;
-    // the spec <-> the controls
     const charToControls = () => {
-      const s = charSpec;
-      const q = (k) => charControls.querySelector(`[data-key="${k}"]`);
-      const set = (k, v) => { const el = q(k); if (el) el.value = v; const out = charControls.querySelector(`[data-out="${k}"]`); if (out) out.textContent = Number(v).toFixed(2); };
-      set('base', s.base); set('height', s.body.height); set('build', s.body.build); set('shoulders', s.body.shoulders); set('head', s.body.head);
-      set('shape', s.face.shape); set('jaw', s.face.jaw); set('nose', s.face.nose);
-      set('hair', s.hair.style); set('beard', s.beard); set('outfit', s.outfit.kind); set('prop', s.prop);
-      q('glasses').checked = s.glasses;
-      q('helmet').checked = s.outfit.helmet;
-      q('helmet').parentElement.hidden = s.outfit.kind !== 'astronaut';
-      const val = { skin: s.face.skin, hairMat: s.hair.mat, main: s.outfit.main, second: s.outfit.second };
-      for (const sel of charControls.querySelectorAll('select[data-mat]')) {
-        const v = val[sel.dataset.mat];
-        if (![...sel.options].some((o) => o.value === v)) sel.add(new Option(`${v} (not in the palette)`, v));
-        sel.value = v;
-        sel.previousElementSibling.style.background = paletteMap[v]?.color ?? '#888';
-      }
+      for (const sel of charControls.querySelectorAll('select[data-key]')) sel.value = charSpec[sel.dataset.key];
+      for (const b of charPresetsEl.children) b.classList.toggle('on', b.dataset.preset === charPreset);
     };
-    const charEdit = (k, v) => {
-      const s = structuredClone(charSpec);
-      const n = Number(v);
-      if (k === 'base') s.base = v;
-      else if (k in s.body) s.body[k] = n;
-      else if (k === 'shape') s.face.shape = v;
-      else if (k === 'jaw' || k === 'nose') s.face[k] = n;
-      else if (k === 'skin') s.face.skin = v;
-      else if (k === 'hair') s.hair.style = v;
-      else if (k === 'hairMat') s.hair.mat = v;
-      else if (k === 'glasses') s.glasses = Boolean(v);
-      else if (k === 'helmet') s.outfit.helmet = Boolean(v);
-      else if (k === 'beard') s.beard = v;
-      else if (k === 'outfit') s.outfit.kind = v;
-      else if (k === 'main' || k === 'second') s.outfit[k] = v;
-      else if (k === 'prop') s.prop = v;
-      charSpec = normalizeCharacter(s);
-      charToControls();
-      charShow();
+    // the selection as one mesh (the preview), standing at the origin
+    const mcMesh = (spec, place = {}) => {
+      const sc = mc.compose.characterScene(mc.lib, spec, place);
+      return { sc, mesh: merge(...sc.objects.map((o) => instantiate(sc.prototypes[o.proto].lods[0], placement(o)))) };
     };
-    charControls.addEventListener('input', (e) => {
-      const el = e.target;
-      if (el.dataset.key) charEdit(el.dataset.key, el.type === 'checkbox' ? el.checked : el.value);
-      else if (el.dataset.mat) charEdit(el.dataset.mat, el.value);
-    });
-    // the preview: a WebGL2 view of the figure in studio light, no edges, turned by a drag (the SVG view, unstroked, until
-    // WebGL2 is up or where there is none); the walk plays while it is chosen
-    let charAnim = 0;
     const charGl = { canvas: document.createElement('canvas'), gl: null, tried: false };
     const charGlReady = () => {
       if (!charGl.tried) {
@@ -7494,57 +7505,75 @@
       return charGl.gl;
     };
     const charShow = () => {
-      if (charPanelEl.hidden) return;
-      const c = charOf(charSpec);
-      const t = charPose === 'walk' ? ((performance.now() - charT0) / 1100) % 1 : 0.12;
-      const mesh = charLocal(charSpec, charPose, t);
-      const H = c.height;
-      const sit = charPose === 'sit';
+      if (charPanelEl.hidden || !mc || !charSpec) return;
+      let mesh;
+      try {
+        mesh = mcMesh(charSpec).mesh;
+      } catch (e) {
+        return charNote(e.message);
+      }
+      const H = mc.lib.reference.height;
       const size = Math.round(Math.max(200, Math.min(charViewEl.clientWidth || 380, charViewEl.clientHeight || 340)));
-      const charFit = { center: [0, sit ? H * 0.36 : H * 0.5, sit ? H * 0.12 : 0], radius: H * 0.5 };
+      const view = orbitView({ yaw: charView.yaw, pitch: charView.pitch });
+      const charFit = { center: [0, H * 0.5, 0], radius: H * 0.52 };
       const g = charGlReady();
       if (g) {
-        g.render(mesh, orbitView({ yaw: charView.yaw, pitch: charView.pitch }), { size, palette: paletteMap, smooth: 40, studio: true, background: [0.106, 0.11, 0.09], fit: charFit });
+        g.render(mesh, view, { size, palette: paletteMap, studio: true, background: [0.106, 0.11, 0.09], fit: charFit });
         charGl.canvas.style.width = charGl.canvas.style.height = `${size}px`;
         if (charGl.canvas.parentNode !== charViewEl) charViewEl.replaceChildren(charGl.canvas);
-      } else charViewEl.innerHTML = renderView(mesh, orbitView({ yaw: charView.yaw, pitch: charView.pitch }), { palette: paletteMap, points: false, occlude: true, stroke: 'none', background: '#1b1c17', size, fit: charFit });
-      for (const b of document.querySelectorAll('#charPoseRow button')) b.classList.toggle('on', b.dataset.pose === charPose);
-      const target = charTarget && allObjects().find((o) => o.id === charTarget && o.character);
+      } else charViewEl.innerHTML = renderView(mesh, view, { palette: paletteMap, points: false, occlude: true, stroke: 'none', background: '#1b1c17', size, fit: charFit });
+      const target = charTarget && charMembers(charTarget).length;
       document.getElementById('charApply').disabled = !target;
-      document.getElementById('charApply').textContent = target ? `apply to ${target.name}` : 'apply to selected';
-      cancelAnimationFrame(charAnim);
-      if (charPose === 'walk') charAnim = requestAnimationFrame(() => setTimeout(charShow, 60));
+      document.getElementById('charApply').textContent = target ? `apply to ${charTarget}` : 'apply to selected';
     };
+    const charChoose = (spec, preset = null) => {
+      charSpec = mc.compose.selectionOf(mc.lib, spec);
+      charPreset = preset;
+      charToControls();
+      charShow();
+    };
+    charControls.addEventListener('input', (e) => {
+      const k = e.target.dataset.key;
+      if (k && mc) charChoose({ ...charSpec, [k]: e.target.value });
+    });
+    charPresetsEl.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-preset]');
+      const ex = b && mc?.lib.examples.find((x) => x.id === b.dataset.preset);
+      if (ex) ((charNameEl.value = ex.name), charChoose(ex.spec, ex.id));
+    });
+    // random: every slot at random, humans with human parts and robots with robot parts (the library's options name them robot-…)
+    document.getElementById('charRandom').addEventListener('click', () => {
+      if (!mc) return;
+      const robot = Math.random() < 0.25;
+      const pick = (key) => {
+        const all = mc.lib.options[key].map((o) => o.id);
+        const robotish = (id) => /^robot|^(led-pair|scanner|mono-eye|antenna|aerials|shell|armour|open-frame|actuators|armoured-legs|magnetic|split-foot)$/.test(id);
+        const fit = ['skin', 'hairColor', 'accessory'].includes(key) ? all.filter((id) => !robot || key !== 'accessory' || id === 'none') : all.filter((id) => (key === 'outfit' ? id.startsWith('robot') === robot : key === 'hair' && robot ? ['bald', 'antenna', 'aerials'].includes(id) : robotish(id) === robot || (robot && id === 'bald')));
+        const list = fit.length ? fit : all;
+        return list[Math.floor(Math.random() * list.length)];
+      };
+      const spec = Object.fromEntries(Object.keys(mc.lib.defaults).map((k) => [k, pick(k)]));
+      try {
+        charChoose(spec);
+      } catch {
+        charChoose(mc.lib.defaults);
+      }
+      charNameEl.value = '';
+    });
+    document.getElementById('charDesigner').addEventListener('click', () => window.open(MC_BASE, '_blank', 'noopener'));
     charViewEl.addEventListener('pointerdown', (e) => ((charView.drag = { x: e.clientX, y: e.clientY, yaw: charView.yaw, pitch: charView.pitch }), charViewEl.setPointerCapture(e.pointerId)));
     charViewEl.addEventListener('pointermove', (e) => {
       const d = charView.drag;
       if (!d) return;
       charView.yaw = d.yaw - (e.clientX - d.x) * 0.012;
       charView.pitch = Math.max(-0.6, Math.min(1.2, d.pitch + (e.clientY - d.y) * 0.008));
-      if (charPose !== 'walk') charShow();
+      charShow();
     });
     charViewEl.addEventListener('pointerup', () => (charView.drag = null));
-    document.getElementById('charPoseRow').addEventListener('click', (e) => {
-      const b = e.target.closest('button[data-pose]');
-      if (b) ((charPose = b.dataset.pose), charShow());
-    });
-    document.getElementById('charPresets').addEventListener('click', (e) => {
-      const b = e.target.closest('button[data-preset]');
-      if (!b) return;
-      charSpec = normalizeCharacter(CHARACTER_PRESETS[b.dataset.preset]);
-      charToControls();
-      charShow();
-    });
-    document.getElementById('charVary').addEventListener('click', () => {
-      charSpec = variateCharacter(charSpec, (charSpec.seed * 31 + charVaryN++ * 7919) % 2147483647 || 1);
-      charToControls();
-      charShow();
-    });
-    const charNote = (t) => (charNoteEl.textContent = t);
-    // the library: named characters in this browser
+    // the library: named selections in this browser
     const charLib = () => {
       try {
-        return JSON.parse(localStorage.getItem(CHAR_LIB_KEY) ?? '{}') ?? {};
+        return JSON.parse(localStorage.getItem(MC_LIB_KEY) ?? '{}') ?? {};
       } catch {
         return {};
       }
@@ -7556,11 +7585,12 @@
     };
     const charNameEl = document.getElementById('charName');
     document.getElementById('charSave').addEventListener('click', () => {
-      const name = charNameEl.value.trim() || `${charSpec.role ?? charSpec.base}-${charSpec.seed}`;
+      if (!charSpec) return;
+      const name = charNameEl.value.trim() || `character-${shortId()}`;
       const lib = charLib();
-      lib[name] = { ...charRecord(charSpec, charPose, { at: [0, 0, 0], yaw: 0, scale: 1 }), name, frame: undefined };
+      lib[name] = { spec: charSpec };
       try {
-        localStorage.setItem(CHAR_LIB_KEY, JSON.stringify(lib));
+        localStorage.setItem(MC_LIB_KEY, JSON.stringify(lib));
         charNameEl.value = name;
         charNote(`saved “${name}”`);
       } catch (err) {
@@ -7569,28 +7599,49 @@
       charLibShow();
     });
     charLibEl.addEventListener('change', () => {
-      const rec = charRead(charLib()[charLibEl.value]);
-      if (!rec) return;
-      charSpec = rec.spec;
-      charPose = rec.pose;
-      charNameEl.value = charLibEl.value;
+      const rec = charLib()[charLibEl.value];
+      if (!rec?.spec || !mc) return;
+      try {
+        charChoose(rec.spec);
+        charNameEl.value = charLibEl.value;
+        charNote(`opened “${charLibEl.value}”`);
+      } catch (e) {
+        charNote(e.message);
+      }
       charLibEl.value = '';
-      charToControls();
-      charShow();
-      charNote(`opened “${charNameEl.value}”`);
     });
     document.getElementById('charForget').addEventListener('click', () => {
       const lib = charLib();
       const name = charNameEl.value.trim();
       if (!(name in lib)) return charNote('type the name of a saved character to forget it');
       delete lib[name];
-      localStorage.setItem(CHAR_LIB_KEY, JSON.stringify(lib));
+      localStorage.setItem(MC_LIB_KEY, JSON.stringify(lib));
       charLibShow();
       charNote(`forgot “${name}”`);
     });
-    // place: a new object at the cross (on the surface under it), facing the eye; one undo step
-    const placeCharacter = (spec = charSpec, pose = charPose, at = null, yaw = null) => {
-      charMats();
+    // the members of a placed character (its group); the frame (foot, yaw, size) of a placed character, from its body instance
+    const charMembers = (group) => allObjects().filter((o) => o.modular && o.group === group);
+    const charFrame = (members) => {
+      const i = members.find((o) => o.inst)?.inst;
+      if (i) return { at: [...i.at], yaw: i.rot?.[1] ?? 0, scale: i.scale };
+      return { at: baseCentre(merge(...members.map((o) => o.mesh))), yaw: 0, scale: 1 };
+    };
+    // the objects of a character: one instance per module, grouped under `group` (no undo step of its own: in asOneStep)
+    const mcCreate = (spec, group, frame) => {
+      mcMats();
+      const sc = mc.compose.characterScene(mc.lib, spec, { at: frame.at.map((v) => +v.toFixed(5)), yaw: +frame.yaw.toFixed(5), scale: frame.scale });
+      return sc.objects.map((o) => {
+        const made = create(`${group}.${o.name.split('/')[1]}`, instantiate(sc.prototypes[o.proto].lods[0], placement(o)));
+        Object.assign(live(made) ?? made, { group, modular: { spec: sc.metadata.modularCharacter.spec, name: group }, inst: { ...o, key: o.proto, proto: sc.prototypes[o.proto], level: 0 } });
+        return live(made) ?? made;
+      });
+    };
+    const charGroupName = () => {
+      const base = (charNameEl.value.trim() || mc.lib.examples.find((x) => x.id === charPreset)?.name || 'character').replace(/\s+/g, '-').toLowerCase();
+      return `${base}-${shortId()}`;
+    };
+    // place: a new character at the cross (on the surface under it), facing the eye; one undo step
+    const placeCharacter = (spec = charSpec, at = null, yaw = null, name = null) => {
       let foot = at;
       if (!foot) {
         foot = hit ? [...hit.point] : null;
@@ -7602,65 +7653,75 @@
       }
       const eye = eyeNow();
       const face = yaw ?? Math.atan2(eye[0] - foot[0], eye[2] - foot[2]);
-      const record = charRecord(spec, pose, { at: foot.map((v) => +v.toFixed(5)), yaw: +face.toFixed(5), scale: 1 });
-      const name = `${(charNameEl.value.trim() || record.spec.role || 'character').replace(/\s+/g, '-')}-${shortId()}`;
-      const made = create(name, charMesh(record));
-      (live(made) ?? made).character = record;
-      walkSkin = null;
-      rebuild();
+      const group = name ?? charGroupName();
+      const members = asOneStep(() => mcCreate(mc.compose.selectionOf(mc.lib, spec), group, { at: foot, yaw: face, scale: 1 }));
       redraw();
-      charTarget = made.id;
+      charTarget = group;
       charShow();
-      return made;
+      return { group, members };
     };
-    // place: in an empty scene it stands at the origin; otherwise it floats in place mode (as G G), a click sticks it to a
-    // surface, Enter keeps it, Esc takes it away
+    // place: in an empty scene it stands at the origin; otherwise it floats in place mode (as G G), a click stands it on a surface,
+    // Enter keeps it, Esc takes it away
     document.getElementById('charPlace').addEventListener('click', () => {
+      if (!mc || !charSpec) return;
       const empty = !allObjects().some((x) => x.pickable !== false && !x.skyLine);
-      const o = placeCharacter(charSpec, charPose, empty ? [0, 0, 0] : null);
-      const walk = charPose === 'walk' ? ' (walks to and fro; freeze stops it)' : '';
-      if (empty || !gcam) return charNote(`placed ${o.name} at 0, 0, 0${walk} · U takes it back`);
-      const foot = baseCentre(o.mesh);
-      startPlace(live(o) ?? o, { foot, n: [0, 1, 0], dist: Math.max(0.05, Math.hypot(...vsub(foot, gcam.eye))), created: true });
+      const { group, members } = placeCharacter(charSpec, empty ? [0, 0, 0] : null);
+      if (empty || !gcam) return charNote(`placed ${group} at 0, 0, 0 (${members.length} instances) · U takes it back`);
+      const g = groupObj(members);
+      const foot = baseCentre(g.mesh);
+      startPlace(g, { foot, n: [0, 1, 0], dist: Math.max(0.05, Math.hypot(...vsub(foot, gcam.eye))), created: true });
       document.activeElement?.blur?.(); // the keys (Enter, Esc, G R S) go to the view, not the place button
-      charNote(`${o.name} floats under the pointer: click a surface to stand it there, Enter keeps it, Esc takes it away${walk}`);
+      charNote(`${group} floats under the pointer: click a surface to stand it there, Enter keeps it, Esc takes it away`);
     });
-    // edit a placed one: its spec into the builder; apply: only that object changes (one undo step)
+    // edit a placed one: its selection into the panel; apply: that character is rebuilt in place (one undo step)
     const charEditPlaced = (o = pointedObject()) => {
-      if (!o?.character) return charNote('put the cross on a placed character (or target it, T), then edit');
-      charTarget = o.id;
-      charSpec = normalizeCharacter(o.character.spec);
-      charPose = o.character.pose;
-      charToControls();
-      charShow();
-      charNote(`editing ${o.name}: change it, then apply`);
+      if (!o?.modular) return charNote('put the cross on a placed character (or target it, T), then edit');
+      charTarget = o.modular.name;
+      try {
+        charChoose(o.modular.spec);
+      } catch (e) {
+        return charNote(e.message);
+      }
+      charNameEl.value = charTarget.replace(/-[a-z0-9]{4}$/, '');
+      charNote(`editing ${charTarget}: change it, then apply`);
     };
     document.getElementById('charPick').addEventListener('click', () => charEditPlaced());
-    const charApplyTo = (o, spec = charSpec, pose = charPose) => {
-      const obj = live(o);
-      if (!obj?.character) return;
-      const before = { record: obj.character, mesh: obj.mesh };
-      charSet(obj, charRecord(spec, pose, obj.character.frame));
-      history.push(() => has(obj) && charSet(obj, before.record, before.mesh));
+    const charApplyTo = (group, spec = charSpec) => {
+      const old = charMembers(group);
+      if (!old.length) return false;
+      const frame = charFrame(old);
+      asOneStep(() => {
+        for (const o of old) {
+          erase(o);
+          history.push(() => has(o) || restore(o));
+        }
+        mcCreate(mc.compose.selectionOf(mc.lib, spec), group, frame);
+      });
       redraw();
+      return true;
     };
     document.getElementById('charApply').addEventListener('click', () => {
-      const o = allObjects().find((x) => x.id === charTarget);
-      if (o) (charApplyTo(o), charNote(`${o.name} changed · U takes it back`));
+      if (charTarget && charApplyTo(charTarget)) charNote(`${charTarget} changed · U takes it back`);
     });
     const openCharacters = () => {
       openSide(charPanelEl);
-      if (charPanelEl.hidden) return void cancelAnimationFrame(charAnim);
-      const o = pointedObject();
-      if (o?.character && o.id !== charTarget) charEditPlaced(o);
-      charMats();
-      charMatOptions();
-      charToControls();
+      if (charPanelEl.hidden) return;
       charLibShow();
-      requestAnimationFrame(charShow);
+      charNote(mc ? '' : 'loading the modular character library…');
+      mcReady()
+        .then(() => {
+          if (!charPresetsEl.children.length) mcBuild();
+          mcMats();
+          const o = pointedObject();
+          if (o?.modular && o.modular.name !== charTarget) charEditPlaced(o);
+          else charNote('');
+          charToControls();
+          requestAnimationFrame(charShow);
+        })
+        .catch((e) => charNote(`no modular character library here (${e.message})`));
     };
     document.getElementById('charBtn').addEventListener('click', openCharacters);
-    document.getElementById('charClose').addEventListener('click', () => (closeSide(), cancelAnimationFrame(charAnim)));
+    document.getElementById('charClose').addEventListener('click', () => closeSide());
     charHooks.follow = charFollow;
     charHooks.tick = charTick;
     charHooks.read = charRead;
@@ -9222,17 +9283,38 @@
     const nameEl = document.getElementById('sceneName');
     // The scene file: { format: '3draft-scene', version: 1, name, palette: [the materials the faces use], objects: [{ name, mesh, wire? }] }.
     // The same shape as an example scene, so it loads through the same door: the list holds the examples and what was saved here.
-    const sceneFile = (name) => {
+    // the scene as a file. Instances that are still instances (fitInst) are written as scene format v2: the shape once in
+    // `prototypes`, one short record per object; { plain: true } writes every object as a mesh (v1, for the workshop's MCP).
+    const sceneFile = (name, { plain = false } = {}) => {
       const used = new Set(allObjects().flatMap((o) => o.mesh.faces.map((f) => f.mat)).filter(Boolean));
+      const protos = new Map(); // key -> prototype
+      const instOut = (o) => {
+        const i = o.inst;
+        if (plain || !i?.proto || typeof i.key !== 'string') return null;
+        const now = i.level === -2 ? i : fitInst(i, o.mesh);
+        if (!now) return null;
+        let key = now.key;
+        for (let n = 2; protos.has(key) && protos.get(key) !== now.proto; n++) key = `${now.key}~${n}`; // (two scenes, one key)
+        protos.set(key, now.proto);
+        const { proto: _p, key: _k, level: _l, mesh: _m, ...rest } = now;
+        return { ...rest, name: o.name, proto: key };
+      };
+      const objects = allObjects().map((o) => {
+        const extra = { ...(o.pickable === false ? { pickable: false } : {}), ...(o.group ? { group: o.group } : {}), ...(o.modular ? { modular: o.modular } : {}) };
+        const inst = instOut(o);
+        if (inst) return { ...inst, ...extra };
+        return { name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}), ...textPart(o), ...(o.skyLine ? { skyLine: o.skyLine } : {}), ...(o.character ? { character: o.character } : {}), ...extra };
+      });
       return {
         format: '3draft-scene',
-        version: 1,
+        version: protos.size ? 2 : 1,
         name,
         ...(sceneBackdrop ? { backdrop: sceneBackdrop } : {}),
         palette: materials.filter((m) => used.has(m.name)).map((m) => ({ ...m })),
         view: viewOf(),
         ...(vehicle ? { vehicle } : {}),
-        objects: allObjects().map((o) => ({ name: o.name, mesh: o.mesh, ...(o.wire?.length ? { wire: o.wire } : {}), ...textPart(o), ...(o.pickable === false ? { pickable: false } : {}), ...(o.skyLine ? { skyLine: o.skyLine } : {}), ...(o.character ? { character: o.character } : {}), ...(o.group ? { group: o.group } : {}) })),
+        ...(protos.size ? { prototypes: Object.fromEntries(protos) } : {}),
+        objects,
         ...(jointsOut().length ? { joints: jointsOut() } : {}),
         ...(skyFigures.length ? { figures: skyFigures.map(({ id, name, en, lines }) => ({ id, name, en, lines })) } : {}),
         ...(skyMine.length ? { skyLines: skyMine.map((l) => [l.a, l.b]) } : {}),
@@ -9837,15 +9919,17 @@
         select: (names) => ((picked = allObjects().filter((o) => names.includes(o.name)).map((o) => o.id)), redraw(), picked.length), // like B round those objects
         place: () => placing && { phase: placing.phase, steps: placing.steps.length, kind: xf?.kind, foot: placing.foot.map((v) => +v.toFixed(3)), n: placing.n.map((v) => +v.toFixed(3)), name: placing.name }, // like opening a scene file: its palette (screens, scene screens) comes too
         screens: () => ({ mode, gpu: Boolean(gpu), kind: activeKind, iframes: screenFrames.size, spots: [...sceneSpots].map(([addr, s]) => ({ addr, ready: s.ready, error: s.error })) }),
-        // the character builder: place(spec | preset name, pose, at, yaw), the placed ones, apply(name, spec, pose), the walk skin
+        // the character panel (modular characters): place(selection | example id, at, yaw, name) -> its group name, the placed
+        // ones, apply(group, selection), open; ready() loads the library
         chars: {
-          place: (spec, pose = 'stand', at = null, yaw = null) => placeCharacter(normalizeCharacter(typeof spec === 'string' ? CHARACTER_PRESETS[spec] : spec), pose, at, yaw).name,
-          list: () => allObjects().filter((o) => o.character).map((o) => ({ name: o.name, pose: o.character.pose, frame: o.character.frame, role: o.character.spec.role ?? null, base: o.character.spec.base, faces: o.mesh.faces.length, walking: walkHidden.has(o.id) })),
-          apply: (name, spec, pose) => { const o = allObjects().find((x) => x.name === name); if (o) charApplyTo(o, normalizeCharacter(spec ?? o.character.spec), pose ?? o.character.pose); return Boolean(o); },
+          ready: () => mcReady().then(() => mc.lib.examples.map((x) => x.id)),
+          place: async (spec, at = null, yaw = null, name = null) => { await mcReady(); const ex = typeof spec === 'string' ? mc.lib.examples.find((x) => x.id === spec) : null; return placeCharacter(ex ? ex.spec : spec ?? charSpec, at, yaw, name).group; },
+          list: () => [...new Set(allObjects().filter((o) => o.modular).map((o) => o.modular.name))].map((g) => { const m = charMembers(g); return { name: g, spec: m[0].modular.spec, frame: charFrame(m), members: m.length, instances: m.filter((o) => o.inst).length }; }),
+          apply: async (group, spec) => (await mcReady(), charApplyTo(group, spec)),
           open: () => openCharacters(),
-          // a rigid move as G / R / S make it (through change()): the frame must follow
-          move: (name, d = [0, 0, 0], yaw = 0, s = 1) => { const o = allObjects().find((x) => x.name === name); if (!o) return null; const b = baseCentre(o.mesh); change(o, { ...o.mesh, positions: o.mesh.positions.map((q) => yawTurn(vsub(q, b), yaw, s).map((c, i) => c + b[i] + d[i])) }); return o.character?.frame ?? null; },
-          state: () => ({ spec: charSpec, pose: charPose, target: charTarget, skin: walkSkin ? walkSkin.figs.length : 0 }),
+          // a rigid move of the whole character as G / R / S make it (through change()): its members stay instances
+          move: (group, d = [0, 0, 0], yaw = 0, s = 1) => { const m = charMembers(group); if (!m.length) return null; const b = baseCentre(merge(...m.map((o) => o.mesh))); asOneStep(() => m.forEach((o) => { const before = o.mesh; change(o, { ...o.mesh, positions: o.mesh.positions.map((q) => yawTurn(vsub(q, b), yaw, s).map((c, i) => c + b[i] + d[i])) }); history.push(() => has(o) && change(o, before)); })); redraw(); return { frame: charFrame(charMembers(group)), instances: charMembers(group).filter((o) => o.inst).length }; },
+          state: () => ({ spec: charSpec, preset: charPreset, target: charTarget, loaded: Boolean(mc) }),
         },
         pose: () => (posing ? { name: posing.name, anim: posing.anim, objects: posing.objs.map((o) => o.name), joints: posing.joints, skinned: skinned(), rigPx: rigPixels(posing.joints), sceneFaces: scene.faces.length } : null),
         hint: () => poseHint,

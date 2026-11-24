@@ -26,7 +26,9 @@
     "share": [
       "models/spider-build-v2.mjs",
       "models/spider-build-v2.md",
-      "models/spider-build-v2.schema.json"
+      "models/spider-build-v2.schema.json",
+      "models/modular-characters/compose.mjs",
+      "models/modular-characters/library.json"
     ]
   },
   "license": "MIT",
