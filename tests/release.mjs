@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { nextVersion, displayVersion } from '../scripts/bump.mjs';
+
+const packageURL = new URL('../package.json', import.meta.url);
+const before = readFileSync(packageURL, 'utf8');
+const pkg = JSON.parse(before);
+const expected = nextVersion(pkg.version);
+assert.match(expected, /^\d{2}\.\d{1,2}\.\d+$/);
+assert.notEqual(expected, pkg.version);
+assert.match(displayVersion(expected), /^\d{2}\.\d{2}\.\d{2}\.\d{3}$/);
+const child = (args, env) => spawnSync(process.execPath, args, { encoding: 'utf8', env: { ...process.env, ...env } });
+const preview = child(['scripts/release.mjs', '--dry-run']);
+assert.equal(preview.status, 0, preview.stderr);
+assert.ok(preview.stdout.includes(expected));
+assert.equal(readFileSync(packageURL, 'utf8'), before, 'dry-run must not change package.json');
+const rejected = child(['scripts/check-publish.mjs'], { SPIDER_PAINT_RELEASE_VERSION: '' });
+assert.notEqual(rejected.status, 0, 'direct publish must be blocked');
+const allowed = child(['scripts/check-publish.mjs'], { SPIDER_PAINT_RELEASE_VERSION: pkg.version });
+assert.equal(allowed.status, 0, allowed.stderr);
+console.log('spider-paint versioned npm release: OK');

@@ -1,0 +1,292 @@
+# spider-paint · Help
+
+Powered by **3Draft**. The `spider-paint` and `3Draft` repositories remain independent projects.
+
+
+A minimal 3D scene builder. Fly through a scene, build with solid prisms, and edit them like a woodworker: saw, move, scale, extrude. This page is `help.md`; edit that file and the panel follows.
+
+[Open the keyboard map](#keys) · [The sky guide (a new tab): flying among the stars, and making your own space scene](sky.html)
+
+
+## Stories (recorded builds and animated scenes)
+
+A **story** (a Spider Build file, `.build.json`) is a recorded build: how a model was put together step by step, with its own camera moves and narration. Load one from the **+ scene** list (the *stories* group) or with **f↑**. While a story is open the console becomes a player: the scene and system controls give way to the playback controls.
+
+Stories can also contain an animated scene, with moving objects and characters, cinematic
+cameras and a compact native environment. Their camera and captions stay independent
+of object motion. A Deep Sky black hole keeps its usual accretion and light-bending effect.
+Only audio supplied by the story plays; silent stories create no sound. For an animated
+story the step arrows jump between chapters/shots. **✕** retains the objects in their
+current animated poses for ordinary editing. A `?scene=story:name` link opens a bundled Story. A `#scene=…` or `#sky=…` link (made by the public MCP server) carries a whole scene or sky catalogue in the address, and `?target=name` flies to that object once the scene is open.
+
+Animated Stories can save darker lighting and pulsing emissive lamps. Their glow lights
+follow the animated parts and illuminate nearby surfaces. Brightness stays synchronized
+with playback, pause and seeking, and the saved scene restores its glow and studio switches.
+
+The controls are:
+
+- ⏮ the beginning, ◀ one step back, ▶ / ❚❚ play and pause, ▶ one step forward, ⏭ the finished model, and the speed (0.5–8×)
+- the **time slider**: drag to any moment; going back rebuilds exactly what was there
+- **info**: the story panel (the chapter and its text, what is being built, a chapter list, the views such as exterior / cutaway / rooms, the step's details)
+- **cam**: the recorded camera; switch it off to look round freely while it plays
+- **text**: the captions under the view, in large type so they read from a distance (and the voice, when the story has one)
+- **?** help, **✕** leave the story: the model of that moment stays in the scene as ordinary objects, and the usual controls come back
+
+Keys: ← → a step, Home / End the beginning / the end (Space stays the speed stop).
+
+## The screen
+
+- **Top:** a quiet line of readouts: yaw, pitch, speed, pick, objects, view, live. The small box at the top left says what is under the cross and whether a target is set.
+- **Middle:** the 3D view, full screen. The **cross** follows the surface under the pointer; most keys act on what is under it.
+- **Bottom (desktop):** the console. Its panels are `make`, `view`, `scene`, `sys`; in edit mode `make` and `scene` are replaced by `edit`.
+- **Side panel:** the material palette (**P**) and this help (**?**) open on the right, one at a time. **Esc** closes it.
+- **Phone:** no console; the fly pad has the keys, **Exa** opens the scene menu (also the store switch; on the phone the store takes the top part of the screen).
+
+## Console
+
+| Control | What it does |
+|---|---|
+| Cube | Place a prism at the cross, or shoot one into empty space (M) |
+| Bin | Delete the object under the cross (X) |
+| Target | Target the object under the cross (T) |
+| Store / Build | Open / close the store (7) |
+| Edges | Edges and points on or off (E). The marks (points, selection, gizmo, cross) are drawn by the GPU in these views, not by an SVG layer. In the WebGPU and WebGL2 views the edges are fine 1-pixel lines, hidden where the surface hides them |
+| View | SVG, WebGPU or WebGL2 (9) |
+| Glow | Emitting materials light their surroundings as local lights, no shadows (C). With Light off only they light the scene |
+| Smooth | Smooth shading (N): edges are rounded only on materials with soft above 0 (soft 0 keeps every edge hard; from 0.5 up the full 40° crease is smoothed) |
+| Studio | Key, fill and rim light that follow the camera (K) |
+| Freeze | Everything that moves stands still (`;`, which is `é` on a Hungarian keyboard) |
+| Light | Light on or off (L). Off: no light in the scene at all, only emitting surfaces (lamps, windows) and the edge lines show |
+| Edit | Edit mode on or off (Q); red while editing |
+| + example | Add an example scene |
+| Clear | Remove every object (U brings them back) |
+| Undo, Reset view, Zen | Take the last change back; frame the scene; hide all but the model (Z) |
+| ? | This help |
+
+## Flying and looking
+
+| Key | Action |
+|---|---|
+| W A S D R F | Fly forward, left, back, right, up, down; every press is one speed step |
+| Space | Speed zero |
+| Arrow keys | Rotate the view in steps; drag does the same |
+| T | Target the object under the cross; the camera keeps looking at it |
+| Enter | Find a target: a box opens in the middle of the screen (meanwhile the ship holds still: nothing moves until you take a target or close the box); type part of a name (case and accents do not matter) or what it is: **planet**, **moon**, **star**, **white dwarf**, **black hole**, **galaxy**, **spiral galaxy**, **exoplanet**, **hot gas giant**, **rocky**, **constellation** (with the figures on) and so on; the nearest come first, each with its kind beside the name; ↑↓ choose, Enter targets it, Esc closes |
+| Tab / Shift+Tab | Next / previous target: first the objects in view, starting with the one nearest the middle of the screen, then the rest (nearest first) |
+| Esc | Let go of the target |
+| V (star map) | **Star line**: V on a star (or the target), then V on another one: a yellow line joins their centres. V on empty space or Esc forgets the first. The sky group's **lines** switch shows or hides all of them, U / Backspace takes the last one back |
+| [ / ő, ] / ú | In a star map: **roll** the starship round its view axis while held ([ left, ] right). Steering, A/D and R/F follow the bank; the reset (double click on empty space in a model, the reset button) levels it |
+| 0 / ö | In a star map: **orbit**. With a target the ship brakes hard to a stop, the target's ticks turn green, ORBIT blinks for a second, then W/S and A/D R/F move round the target. 0 again: a swing speed is kept and the ship goes into **gravity mode** round the target (it keeps circling; slowing the speed along the orbit, e.g. the opposite A/D, slows it down, and at zero it flies on straight). Without a target: no braking, the nearest object in view becomes the centre and your speed swings you round it. Space ends it |
+| ; (é) | Freeze |
+| / | Show only the object under the cross (again: everything) |
+| O | The object under the cross (or the target, or the selection) is no longer aimed at: the pointer sees through it, so you can work inside it, like inside water. O again brings it back, Shift+O brings every object back |
+| Z | Zen: only the model |
+| 8 | VR: two eyes side by side |
+
+With a **target**, W A S D R F move the camera round and towards the target instead.
+
+## Building
+
+| Key | Action |
+|---|---|
+| M | Put a prism down at the cross (over empty space it is shot out and flies), or a copy of the model chosen in the store |
+| Shift+X | Delete the object under the cross (every mode; Delete too). In edit mode with something selected it deletes just that: a point with the faces and lines that use it, a line with the faces on it, a face alone |
+| G | Grab the target (T) or the object under the cross: it follows the pointer; X, Y or Z locks an axis, type metres, click or Enter confirms, Esc cancels |
+| Ctrl+D | Duplicate: a copy (a new model, not an instance) that is grabbed at once, so you can move it right away |
+| U, Backspace | Undo |
+| V | Spider bar: join two surface points with a thin bar |
+| B | **Select objects:** B, then drag a box round them (B twice quickly: draw a lasso). An object is taken when its middle is inside; Shift adds to the selection, Esc clears it. Selected objects get a teal box, and **G**, **G G**, **R**, **S** move, place, turn (round the vertical axis) and size them together (Shift+R / Shift+S still fly) |
+| bool button | **Boolean:** select two objects (B; the first taken is A, orange, the second B, green), press **bool** in the SYS group, then choose 1 union, 2 A−B, 3 B−A, 4 intersect, 5 cancel |
+| H | Move gizmo: world axes, its own axes, off |
+| J | Pose mode on the figure under the cross or the target (see Pose mode) |
+| P | The material palette |
+| I | Pick the material under the cross |
+| Ctrl+click (Cmd on a Mac) | Paint the face under the cross; Ctrl+double click paints the whole object |
+| Alt+Ctrl (Alt+Cmd) + move | With the palette open: no click, every face the pointer passes over takes the selected material (edit mode too). One stroke is one undo step |
+| 7 | Open / close the store (second 3D view on the left) |
+| G G | **Place mode** (G twice quickly on an object): the object **floats** in front of the eye under the pointer (the pointer sees through it), its foot being the point of its bounding box opposite the point you grabbed. A **click sticks** it to the surface under the pointer: its foot goes there, its up turns to the normal, and as you move it slides over the surfaces following them (round a ball too). **Another click unsticks** it: it floats again, choose a new target. A press on empty space (nothing there to stick to) turns the view as always. **G R S** work all along (R turns it round its foot, S sizes it from there; **X Y Z**, a number), a click takes them. **Ctrl+D** leaves it where it is and a copy floats on. **Esc** takes back the last step (the last click or G R S; with none left it goes back where it was, a new copy goes away), **Enter** keeps it (one U step). **In the store** G G picks the model: move to the build and a copy of it floats there, to be stuck down the same way |
+
+## Materials (the palette)
+
+Click a swatch to select it. The sliders change **metal**, **rough**, **alpha**, **emit** and **soft** of the selected material. Pick a colour with the square and the hue slider, or type a hex value, then **+ new** makes a new material from it. **pick** takes the material of the next surface you click.
+
+## Record and play
+
+**rec** (in the *sys* group of the console) starts a recording: the scene is cleared first (you are asked if there is something in it), then everything you do — mouse, keys, wheel, palette clicks — is written down with its time. Press **rec** again to stop: a `3draft-rec-….json` file is downloaded.
+
+**play** asks for such a file, clears the scene and does everything again by itself, in real time (long pauses are cut to 3 s). It starts from the palette and the switches (freeze, smooth, studio, glow) of the recording and fixes the random numbers, so the same names and colours come out. While it plays your own mouse and keys are ignored; press **play** again to stop. Positions are scaled to the window, so the same window size gives the same result.
+
+`?play=<url of a recording>` plays one as soon as the page is up. In code (and for Claude): `rec.start()`, `rec.stop()` returns the recording object, `rec.play(object or JSON text)`, `rec.scene()` is a short fingerprint of the scene (compare two runs).
+
+The store pane (and G G from it) is not recorded.
+
+## Groups and joints (mechanics)
+
+- **Ctrl+G** groups the objects selected with **B**: from then on **G** (and G G, R, S) on any of them takes the whole group. **Ctrl+Shift+G** ungroups the selection's groups (or the group under the cross). Groups are named group-1, group-2, …; the AI can name them over MCP. They are saved with the scene.
+- **Joints** join two objects: a *holder* and a *held part*. For now the AI makes them (the MCP `connect` tool); the viewer saves them with the scene and keeps to them. Moving the holder carries what it holds.
+  - **glue**: the two move together (G on either takes both).
+  - **hinge**: the held part turns round a line (a door round its side). **G** on it turns it round the hinge as you move the pointer round, inside its limit; a click or **Enter** keeps it (one **U** step), **Esc** takes it back.
+  - **pivot**: a ball joint: **G** turns the part round the point, round the view's axis; **X Y Z** lock a world axis; the limits hold per axis.
+  - **rail**: **G** slides the part along the rail, following the pointer, between its limits.
+  - **spring**: the held part hangs on a spring: move it (or its holder) and it swings back to the rest length, damped; a spring object (a coil) stretches between the ends. **freeze** stops the springs.
+- Try the **Mechanics** scene (+ scene list): a hinged door, a cart on a rail carrying a lamp, a lever on a pivot, a weight on a spring and a grouped table.
+
+## Games (Fifth Percent)
+
+A game brings scenes together: **Fifth Percent** (the scene list, *games*, or `?scene=game:fifth-percent`) is the starship's command bridge in the Deep Sky universe. The universe is drawn first and the bridge over it, so the stars show through the bridge's open window. **C** (or the **helm ⇄ walk** button, top right) switches between two modes:
+
+- **helm**: you stand at the helm and fly the starship as in the Deep Sky (W A S D R F, T / Tab, Enter, Space, a drag turns the ship); the bridge stays with you.
+- **walk**: you walk on the bridge, first person: **W A S D** (or the arrows) walk, **Shift** runs, a drag looks round. The desk, the chairs, the crew and the walls stop you, and you step up onto the dais. The ship keeps its course and speed meanwhile.
+
+## Characters (the char button)
+
+**char** (scene group) opens the **character builder**: quick, animatable extras for a scene. The figure at the top turns with a drag, and **stand / sit / walk** show it in that pose; every change shows at once.
+
+- **Presets**: **Scientist** (lab coat, glasses, tablet), **Mechanic** (bun, overall, wrench), **Space crew** (a Moonbase-style tunic: beige with the left sleeve in the department's colour, a black collar and belt, flared trousers, a commlock in hand), **Astronaut** (suit, helmet with a gold visor, a small pack). After a preset everything stays editable. **variate** makes another person in the same role: a new face, hair, build, skin and hair (a crew member's sleeve colour too), while the outfit and the prop stay.
+- **Body**: female or male base, height, build, shoulders, head size (the sliders stop where the poses and the clothes still fit).
+- **Face**: shape (oval, round, square, long), jaw, nose, skin.
+- **Hair**: short, long, bun or bald (flat locks over a cap, like paper-craft hair), its material, glasses, a beard (full or goatee).
+- **Outfit**: coat, overall, workwear, crew or astronaut (helmet on or off), a **main** and a **second** material (crew: the tunic and the left sleeve); one **prop** in the right hand (tablet, wrench, commlock).
+- **No colour pickers: every part is a palette material.** Skin, hair and cloth are chosen from the palette (the character's own entries, skin-1 to skin-7, hair-…, denim, lab-white, suit-white…, are added to the palette when missing; the list offers every other palette entry too). Edit a material in the palette (P) and every character made of it changes.
+- **save** keeps the settings under a name in this browser; the list next to it opens them again.
+- **place**: in an empty scene the figure stands at the origin (0, 0, 0), facing you. Otherwise it floats under the pointer in place mode (as **G G**): a click stands it on the surface under the pointer, **Enter** keeps it (one **U** step), **Esc** takes it away. Place the same preset as often as you like; every copy is its own. The preview shows the figure in studio light, without edges.
+- **edit selected** takes the character under the cross (or the target) back into the builder; **apply** changes only that one (one U step).
+
+A placed character moves with **G**, turns with **R** and sizes with **S** like any object; **G G** always holds it by where it stands (the middle of its footprint, up is up), wherever you grabbed it, and is saved in the scene. A **walking** character walks to and fro along its heading (3 m each way); **freeze** stops it, and while it walks the cross does not pick it (freeze, then edit). The figure is stylized, about six heads tall with a big round head, and a few meshes: the body (trunk and legs, one closed surface), the arms, the head, the face (eyes, brows and mouth as flat plates lying just over the skin, like a face drawn on with 5 + V), the hair (and beard), the gear (glasses, a coat's skirt, straps, a belt, a helmet) and the prop. The body and the arms bend smoothly at the joints; the clothes are the body's own surface in cloth materials, so they cannot come off in any pose. Hair and glasses follow the head, the prop the hand. Smooth shading (the SMOOTH switch) is meant for them.
+
+## Two views: build and store
+
+**7** or the **store** switch (VIEW group, second row) opens the store as a second 3D view on the left, a third of the width (the build keeps two thirds); 7 again closes it. They are two separate engines, each with its own objects, undo steps and camera. The keys go to the view the pointer is over (a teal frame marks it). The *store* holds loose objects (timber stock: lath, board, plank, beam, plywood). In the store, **target** an object (**T**) and press **M**: it becomes the model of **M** in the build. Move the pointer over the build and **M** puts a copy of that model down at the cross, every time (the brush chip names it; click the chip to go back to the plain prism). Or press **G G** on an object in the store: a copy of it floats in the build under the pointer, a click sticks it to a surface (place mode, see G G above), Enter keeps it.
+
+## Edit mode
+
+Put the cross on an object and press **Q**. That object is the active one; everything else stays visible. The grid lies under it, its **origin is the middle of its base**, the camera looks at the middle of the whole object, so all of it is in view, and distances are in **metres**. **Q** again leaves; the camera goes back. With nothing under the cross and no target, **Q** makes a new 1 m cube of the selected material.
+
+| Key | Action |
+|---|---|
+| 1 / 2 / 3 | Select points / lines / faces (the grey points show only in points mode, 1). Click selects, Shift+click adds or removes; a click on empty space clears the selection, but a drag there (orbiting) keeps it |
+| A, A A | Select everything; two quick presses clear the selection |
+| G | Grab: move the selection with the pointer; X Y Z lock an axis; type metres; click or Enter confirms, Esc cancels |
+| S | Scale about the centre; X Y Z scale along an axis; type a factor |
+| R | Rotate: about the middle of the selected points or faces; with a selected **line** the line is the axis (the other selected parts turn about it, or the whole object when the line is all that is selected). Move the pointer round the pivot, X Y Z turn about a world axis, type degrees |
+| E | Extrude and grab at once: a point becomes a line, a line becomes a face, a face is pushed out along its normal |
+| 5 | Sketch mode: V draws lines on the surface; **Enter** (or 5 again) turns the drawing into the mesh: a chain that comes back near where it began (within a third of a stroke) becomes a face, an open chain becomes lines. The new faces are selected, so E pulls them out. They take the selected material and sit a hair above the surface |
+| V | Sketch a line from point to point on the surface (in the sketch mode, 5; Enter builds it) |
+| 4, then V | **Saw**: V puts two or three points. Two on one face: a cut square to it. Three: a cut through the triangle. **Enter** cuts the object into closed solids that keep their material |
+| Alt+N | **Flip normals:** the selected faces (3) turn round, their winding is reversed, so they face the other way (a screen drawn on the back of its face, a face that came out inside out). With no faces selected, the whole object. One U step |
+| B | **Box select** in edit mode: B, then drag a box (B twice: a lasso) round points (1), lines (2) or faces (3): a point inside, a line with both ends inside, a face whose middle is inside (through the model too). Shift adds to the selection; Esc stops |
+| M | **Mirror:** M, then X, Y or Z (or M - X / Y / Z: to the minus side): the selected faces (and lines) get a mirrored copy across a plane square to that axis, starting at the edge of the selection on that side (a magenta square shows it). What reaches over the plane is cut off there first, so the two halves meet at the plane without overlapping. Move the pointer to shift the plane, or type a shift in metres. **Enter** welds what meets: points that land on points become one, faces back to back on the plane go, a face and its mirror lying flat across the plane join into one; the line under the picture says whether it closed. What does not close is left for you to edit (F fills a hole). **Esc** cancels. (M no longer shoots a prism in edit mode) |
+| F | **Fill:** the selected points (or the points of the selected lines) become one new face, wound to face away from the object, in the material of a neighbouring face. Closes a hole; a concave outline (L, V) is followed along its lines, not ordered by angle |
+| Ctrl+R | **Loop cut:** with a line selected (2), the ring of four-sided faces through it is cut across. Type a number for how many cuts (1 by default), move the pointer along the line to slide them, Enter confirms, Esc cancels. The new line stays selected |
+| Shift+W A S D R F | Fly (plain, these are edit keys) |
+| U | Undo (stops at the start of the edit session) |
+
+## Keys are data
+
+The program keeps two plain objects, `ACTIONS` (what it can do) and `KEYMAP` (which key does it), both reachable from the browser console. `bindKey('q', 'scene')` rebinds a key, `bindKey('q')` frees it.
+
+## Screen material
+
+A material with an `url` (the palette's url field; the built-in `monitor` has one) is a screen: on every four-cornered face made of it the page runs in an iframe. The iframe is a DOM layer over the picture (`#screens`), warped onto the face with a CSS `matrix3d` (a perspective map of the face's four corners, up is the world up, the face's own up when it lies flat). In the WebGPU / WebGL2 view the page sits behind the 3D picture, and the picture is see-through exactly where the screen face shows (a hole the GPU punches with the depth test), so whatever stands in front of the screen hides it, pixel for pixel; the page is still a live page (scripts, scrolling). Limits: no light on it, it does not show in a VR view (in the SVG view it lies over the picture, unhidden), faces seen from behind or behind the eye are hidden, at most 6 screens at once, the pointer goes through it until you take control of it (below), and sites that forbid framing (X-Frame-Options, CSP) stay blank. Only http(s) addresses are taken. Faces with another number of corners are plain surfaces. **Control:** double-click a screen and the page gets the pointer and the keys; the camera stays where it is. A `network` module appears after `sys` in the console: `exit`, an on / off switch (off blanks that screen, the monitor stays dark) and the page address, a link that opens it in a new tab. A press outside the page, `exit` or Esc (when the focus is not inside the page) gives the control back to the 3D view.
+
+**Scene screen.** Put the address of a 3Draft scene file (`.3draft` or `.json`, relative to the page or `https://…`) in the url field instead of a page, and the face plays that scene: the material gets `scene` instead of `url`. In the WebGPU / WebGL2 view the scene is drawn into a picture on the GPU and that picture is put on the face, so it is part of the 3D view: what stands in front hides it, and it shows in VR. The scene is lit, without edge lines, framed whole and turns slowly round its middle like A / D on a target (freeze stops it). A wide face shows the middle band of the picture. In the SVG view it falls back to an iframe screen (the viewer itself as a player, `?show=<scene file>`). Not interactive yet. spider-paint's **Station screen** example plays the WU-3463 station on a monitor.
+
+
+## Saving scenes
+
+The `scene` panel has one list for adding a scene: the examples, and under `saved here` what was saved in this browser. Choosing an entry loads it: with the `merge` switch on (the default, remembered) it is added next to what is there, with `merge` off the scene is cleared first and the loaded one stands alone (U twice brings the old one back: the load, then the clear). It holds for the examples and `f↑` too. Below the list: a name box and **save** (stores the whole scene under that name in this browser's local storage; an empty name gets a dated one), **f↓** (downloads it as `name.3draft`, the 3Draft scene file: JSON inside), **f↑** (adds a scene from a `.3draft` file, or an older `.json` one) and **✕** (forgets the saved scene whose name is in the box). A scene file is `{ format: "3draft-scene", version: 1, name, palette: [the materials its faces use], objects: [{ name, mesh, wire? }] }`, the same shape as an example scene. Materials the palette lacks come along (screens keep their url). Not saved: the camera, the point clouds and flying prisms; instanced objects (the stars) are saved as the meshes they have at that moment. Local storage is per browser and per address, and about 5 MB; for anything bigger use the file.
+
+**View in the scene file.** A scene is saved with its view: `view: { render, edges, light, glow, smooth, studio, cam }` (the view switches and the camera; `render` is the renderer, `webgpu`, `webgl2` or `svg`: a missing WebGPU falls back to WebGL2, the installed app stays on the GPU). Freeze, store, palette and edit are about the work, not the look, and are not saved. It is applied when the scene stands alone (`merge` off, or nothing was in the scene); a merged scene keeps the view you have. The edges start off.
+
+**`?ply=name`** opens the scene saved here under that name at once, alone, with its view, in zen. Without such a saved scene the page starts as usual.
+
+## Text
+In edit mode, select a face (3) and press **T**: type the words and press Enter. The text becomes a **new model**, standing out of that face in the **active material**. The face sets where the first letter starts (its lower left corner), the reading direction and the letter height; the text runs on to the right, so a long text goes past the face. The font is a minimalist blocky stroke font (A–Z, 0–9, `. , : ! ? - _ + / '` and the Hungarian accents); lower case is drawn as upper case. The stroke, and the depth the letters stand out, is 20 % of the letter height.
+
+The model keeps its words (a `text` attribute, saved in the scene file with the frame it stands in), so to fix them: edit the text model (Q on it) and press **T** again.
+
+## Selecting faces from inside
+In edit mode the pointer also finds the far side of a face, so from inside a hull (a spaceship, a room) its walls can be selected with 3 like any other face.
+
+## Editing from inside
+Pressing **Q** with the eye inside the object (inside its bounding box, e.g. flying in a hull) does not move the camera: you stay where you are, and leaving edit mode does not move it either.
+
+## VR (WebXR)
+**VR** (in the sys group at the bottom) shows the scene in a headset (on a Mac: install the Meta Immersive Web Emulator extension in Chrome, then press enter VR). The head turns the view; a controller button shows in the note beside the button. In the car the right stick drives: sideways the wheel (it comes back to the middle when you let go), up / down the gas (it stays where you leave it). exit (or ending it in the headset) gives the normal view back.
+
+**Meta Quest 3 controllers** (flying, in space and on the ground). The same controls work outside VR too, with any gamepad the browser hands over (a standard gamepad: the left / right stick and the triggers, bumpers and face buttons in the Touch places; it wakes up at its first real push); X then does nothing. XR controllers (and those an emulator extension shows outside VR) only count in VR. VR starts only when you press VR.
+
+**If the headset stays black:** open `xr-test.html` (beside the app: https://spider-paint.vercel.app/xr-test.html) on the headset: the smallest WebXR loop without 3Draft (a turning cube over a grid, the left eye on red, the right eye on blue) with a log of the session, the framebuffer, both eyes' viewports and the WebGL errors. If that works, open the viewer with `?xrtest=1` (the same cube through the viewer's own context and session) and `?xrtest=2` (the cube and the scene). After every VR session the viewer shows its XR log (click it to close); a dark red headset means the session runs but the 3Draft picture is missing (the log says why). In space the whole cockpit turns with the ship (heading, nod, roll); on the ground the horizon stays level.
+
+| control | does |
+| --- | --- |
+| left stick sideways | A / D: the side speed, a step per push (it repeats while you hold it) |
+| left stick up / down | nod: stick forward dips the nose, back raises it |
+| right stick up / down | W / S: the forward speed, a step per push (repeats while held) |
+| right stick sideways | [ / ]: roll left / right |
+| right trigger | T: target what is straight ahead (the cross) |
+| right grip | 0: orbit the target |
+| A | Space: speed zero |
+| B | Tab: the next target |
+| left trigger / left grip | R / F: up / down |
+| Y | freeze |
+| left stick press | C in a game: helm / walk |
+| **X** | **leave VR** | The stars' glow and the galaxies' point clouds (the Milky Way's stars) show in the headset too, in both eyes; the black hole's ray-traced picture does not yet.
+
+## Deep sky
+The **vehicle** select (next to the scene list) sets how the camera moves: – (the ordinary camera), starship, or car. **The car** keeps to the ground (it does not hit houses). Two fingers (a trackpad swipe or two fingers on a touch screen): sideways turn the steering wheel, which stays while you hold it and turns back to the middle when you let go; up gives gas, down brakes; let go, the gas and the brake come back to zero, and at zero the car keeps its speed. Four sliders by the gauges set how far you swipe for full lock and for full gas, and how quickly the let-go wheel and gas / brake come back. The speed shows in km/h, and the drive gauges (wheel and throttle) sit after sys at the bottom. A drag looks round, and the view turns back ahead when you let go. The star scenes start as a starship, next to the Sun. As a starship: T or Tab only turns it towards the target, it keeps the speed it had (W S A D R F still set the speed), and the target is let go once it is behind you. The target is marked with four short diagonal ticks, like the aim. A braking program slows the ship down by itself as it closes in on the target and stops it right at its surface (a star's ball; a galaxy's outer edge only when you come faster than 100 000 ly/s, and only once, so you can fly into it); this also holds when you speed up with W while you have a target; Esc lets the target go, then you fly on freely. Under the speed, v⃗ is how fast you really move in space (orbit and gravity included) and ω how fast the view turns. Esc lets go of the target and keeps the speed; Space stops. The lens stays the same all the time.
+
+Far stars, black holes and galaxies are aimed at by their middle, not by their surface: a small circle (5 px, growing as you come closer) round a star is enough, no need to hit the pixel. Close up a star or a black hole is aimed at by its surface again. A galaxy is aimed at as a whole until it fills a quarter of the screen; after that the pointer goes through it, to its black hole.
+
+The **deepsky** example is a stress test: the Milky Way, 1000 real galaxies (from the OpenNGC catalogue), 400 black holes and 3000 real stars (the nearest 1000 and 2000 notable ones farther out). Galaxies are stored as a few numbers and their stars are worked out only when you come close enough for them to matter; far away a soft glow stands for them.
+
+The **constellations** as seen from the Earth (all 88, Serpens in two parts) are drawn as thin light yellow lines between their stars' centres; the sky group's **figures** switch turns them on and off (off at the start). From the Earth they are the familiar figures; fly away and they turn into 3D shapes, since their stars are at very different distances. Enter finds them by their Latin or English name (orion, ursa major, great bear): the view turns to the figure.
+
+Stars have their **real size** now: from afar a star is only its glow, as in the real sky. Around the Sun the **Solar System** is at its true scale: the eight planets, Pluto and the Moon where they stand on 14 November 2026, with their orbits (the sky group's **orbits** switch, off by default; faint lines that stay steady up close). The planets are drawn by a shader: perfectly round, lit from the Sun (each with its own phase), with procedural surfaces (Jupiter's bands and Great Red Spot, the Earth's oceans, continents, clouds and city lights at night, the Moon's maria, Mars's polar cap), atmospheres, and Saturn's rings with their shadows; the scene starts 60 AU from the Sun, over the orbits. Inside a star system the speed keys scale down with the distance to the nearest star or planet (level 1 is 5 % of that distance per second), so you can fly among the planets and up to a surface. Fly to a planet with Enter (earth, saturn): the braking program stops you just above its surface; distances and speeds read in ly, AU or km. With a target the pace follows the target too, so you leave one planet for another at full pace and slow down only as you near the target. A drag inside a system turns the view round a point just ahead of the eye (0.1 % of the distance to the nearest surface), so looking round no longer swings you out of the system. **500 exoplanets** (the best known, then the nearest, from the Open Exoplanet Catalogue) circle their own stars at their real distances and sizes, each lit by its star, with one of 30 surfaces chosen by size (rocky, sub-Neptune, Neptune, giant) and warmth (from frozen to lava worlds with glowing cracks): try Enter with *proxima b*, *trappist-1 e*, *51 peg b* or *k2-141 b*. Their orbit planes and where they stand on them are made up (mostly unknown).
+
+The **farthest known galaxies** are there too, at their real distance of 32–34 billion light years: MoM-z14 (the record, seen 280 million years after the Big Bang), JADES-GS-z14-0, z14-1, z13-0 and GN-z11 with its black hole. Small, compact, blue, clumpy young galaxies; Enter finds them (mom, jades, gn-z11).
+
+Twelve famous **colliding galaxies** (M81 and M82, the Whirlpool, the Antennae, the Mice, Stephan's Quintet, Arp 220 and others, and the Sagittarius stream round the Milky Way) are worked out by a small gravity simulation: two galaxies pass each other, tides pull out tails and bridges, mergers become one body. Each system always shows the same moment of its collision, and each has its own.
+
+## VR and EM
+**VR** shows the scene in a headset (or the Immersive Web Emulator), one picture per eye. **EM** (temporarily) starts a three.js WebXR test scene in the headset instead: a turning cube, a golden lying egg, a floor grid and a star field, to compare three.js's VR with 3Draft's on the same headset (its log shows after the session); Shift+click EM is the old emulator mode. The old **EM** (emulator mode) uses the same headset or emulator connection (head turning, controllers), but draws one plain picture over the whole view, without stereo. Both are red while on; press again to turn off, or press the other to switch. The drive gauges at the bottom only show in car mode.
+
+## The black hole
+Sagittarius A* (in the Milky Way and the stars scenes) is drawn by a small ray tracer: the light bends round it, so the accretion disc shows above and below the black shadow, with a thin photon ring. The gas is coloured as very hot gas really looks: bluish-white; the side coming towards you is brighter and bluer, the side going away dimmer and redder (Doppler). The disc is wide and thin, of clumpy glowing gas; stars between you and the hole still show in front of it, the ones behind it are hidden by its shadow. Only the area round it is computed, at half resolution.
+
+## Zoom
+The **mouse wheel** (or a trackpad pinch) zooms in and out: the lens narrows or widens, the eye stays where it is. **=** (the **ó** key on a Hungarian keyboard) puts the zoom back. The **sideways wheel** (a trackpad swipe left or right, or a tilting wheel) turns the view round the point under the cursor, like A / D round a target but without one; the point stays under the cursor. Over empty space it turns round the middle of the view.
+
+## Loading
+While a scene is fetched and built (the list, f↑, a saved scene, the starting scene) a little star system turns over the view, with the scene's name, the step it is at (downloading, building) and a bar for the download. Galaxies are sampled in the background (web workers): a small note at the bottom says how many are still coming, and each one appears as soon as it is ready.
+
+## Leaving by accident
+Once there is anything in the scene (or anything to undo), closing the tab, reloading or typing another address makes the browser ask first. The back button, the back swipe and the phone's back key need pressing **twice within two seconds** (the first one only says "back again to leave"), and a sideways swipe on a trackpad does not page back.
+
+## Ctrl+B: bevel
+In edit mode select lines (**2**), then **Ctrl+B** (Cmd+B on a Mac): each line becomes a strip. Move the pointer away to set the width, the **wheel** or **↑ ↓** sets the number of segments (1 is a flat chamfer, more make a round edge), or type the width in metres. **Enter** or a click confirms, **Esc** cancels. Corners where several lines meet are filled. The width stops at what the faces allow.
+
+## Ctrl+E: extrude with a back face
+In edit mode **E** pulls the selected faces out (open at the start side where they were part of the model). **Ctrl+E** (Cmd+E on a Mac) does the same but leaves a face on the starting side as well, so what you pull out is a closed shell: good for building a mass inward from a wall, and for sawing or boolean afterwards.
+
+Pulled the other way (against the face's normal, e.g. building a mass inward from a wall), Ctrl+E keeps the shell's normals outward, so it stays a proper solid; the sides of an inward E stay whole four-sided faces.
+
+## Lathe (6)
+Edit mode: select a face (3), press **6**. The face's plane is the drawing board and its **bottom line is the axis** (green). **V** puts the points of a contour above the axis (near the axis counts as on it: a tip); Esc takes the last point back. **Enter** ends the contour and asks for the **number of segments** (4 or more); **Enter again** takes 7. The contour is turned round the axis into a **new model**, independent of the one being edited, in the active material, with both ends closed (a flat disc where the contour does not end on the axis).
+
+## L in edit mode: select the loop
+**L** no longer switches the light while you edit (the LIGHT button still does; outside edit mode L is the light switch as before). With a line selected (2), **L** selects all the lines of its loop: the lines a loop cut (Ctrl+R) would cross, round and round until the loop closes or ends. With a face selected (3), **L** selects the faces of its loop; one face has two loops (two ways round), **L** again takes the other, and two touching faces go the way of their shared line.
+
+## Pose mode (J)
+Put the cross on a figure (or target it with T) and press **J**. The figure must stand on two feet, look to +z and let its arms hang; its skeleton is read off its shape, so nothing has to be prepared, and what it wears (hair, a hat: objects inside its box) moves with it. The skeleton is drawn over it (smaller as the figure gets smaller on the screen, and not at all when it is small and far), and the console shows the **pose** panel:
+
+| Key | Action |
+|---|---|
+| 1 | Rest: as it was made |
+| 2 3 4 5 | T pose, wave, sit, look at a phone |
+| 6 | Walk on the spot; again: stand still in that step |
+| 7 | Run on the spot; again: stand still in that step |
+| Enter | Keep the pose: the figure becomes this shape (one U takes it back) |
+| J, Esc | Leave: the figure goes back as it was |
+
+Flying, targeting and the view switches work as usual; freeze (;) holds the walk. Keys that would change the figure (Q, G, M, O, U, Shift+X) wait until you leave. A kept pose is a new shape: posing it again reads a new skeleton off it, which works while the arms still hang and the feet are still the lowest points. If the object is not a figure, a note says what is missing. The **Betterman** example is made for this.

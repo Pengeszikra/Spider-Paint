@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-  <title>spi3der</title>
+  <title>spider-paint</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  
+  <link rel="apple-touch-icon" href="favicon.svg">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#0b0b0a">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="spi3der">
+  <meta name="apple-mobile-web-app-title" content="spider-paint">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600&family=DM+Mono:wght@400;500&display=swap">
   <style>
     /* Layout: one-screen instrument. Slim title bar, one square drawing stage, readout bar below. */
@@ -483,6 +483,8 @@
     #stExit { padding: 6px 9px; }
     #storyCaption { position: fixed; left: 0; right: 0; margin-inline: auto; width: fit-content; bottom: 128px; z-index: 5; max-width: min(1600px, calc(100vw - 32px)); display: grid; gap: 10px; justify-items: center; text-align: center; pointer-events: none; font: 500 min(39px, 6.5vw)/1.3 var(--font-mono); color: var(--cream); text-shadow: 0 1px 4px #000, 0 0 12px #000; }
     #storyCaption[hidden] { display: none; }
+    /* a story's presentation.background (build_story background): a colour behind the model, or transparent (the embedding page shows through) */
+    html:has(body.story-bg), body.story-bg, body.story-bg #stage { background: var(--story-bg) !important; }
     /* story text three times the console size, so it reads from across the room (smaller on a phone) */
     /* the chapter title under the text: the box grows upward from the bottom, so the title stays put whether the text runs to
        one, two or three lines */
@@ -581,6 +583,7 @@
       footer.console button.chip[hidden] { display: none; }
       footer.console button.ic { width: 34px; height: 30px; padding: 0; display: inline-grid; place-items: center; }
       footer.console button.ic svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+      #charBtn { font-size: 19px; }
       footer.console button.red { background: var(--red); color: #1b0803; }
       footer.console button.teal { background: var(--teal); color: #04181a; }
       footer.console button.slate { background: #3a382f; color: var(--cream); }
@@ -662,8 +665,32 @@
 </style>
 </head>
 <body>
+  <script>
+    // Before the engine loads, avoid flashing the full editor in an embedded workshop.
+    if (window.parent !== window && new URLSearchParams(location.search).has('workshop')) document.body.classList.add('zen');
+    // Embedded workshop boot diagnostics (no UI). Some hosts (Claude) sandbox the widget iframe without
+    // allow-same-origin; this frame inherits that, gets an opaque origin, and Web Storage throws a SecurityError
+    // that would stop the editor module before native_editor_ready. Report the boot, keep storage in memory
+    // for this view, and forward the first uncaught error so the agent sees why the editor did not start.
+    if (window.parent !== window && new URLSearchParams(location.search).has('workshop')) (() => {
+      const say = (phase, data = {}) => { try { window.parent.postMessage({ source: 'spider-paint-native', phase, ...data }, '*'); } catch {} };
+      let storage = 'ok';
+      try { localStorage.getItem('3draft.probe'); } catch (e) {
+        storage = 'blocked';
+        const mem = new Map();
+        const shim = { get length() { return mem.size; }, key: (i) => [...mem.keys()][i] ?? null, getItem: (k) => mem.has(String(k)) ? mem.get(String(k)) : null,
+          setItem: (k, v) => { mem.set(String(k), String(v)); }, removeItem: (k) => { mem.delete(String(k)); }, clear: () => mem.clear() };
+        try { Object.defineProperty(window, 'localStorage', { value: shim, configurable: true }); } catch { storage = 'blocked-unshimmed'; }
+      }
+      say('native_boot', { reason: `origin ${location.origin}, storage ${storage}` });
+      let told = false;
+      const fail = (msg) => { if (told) return; told = true; say('native_boot_error', { reason: String(msg).slice(0, 160) }); };
+      window.addEventListener('error', (e) => { if (e instanceof ErrorEvent) fail(e.message || 'script error'); }); // script errors only, not a font or image that did not load
+      window.addEventListener('unhandledrejection', (e) => fail((e.reason && e.reason.message) || e.reason));
+    })();
+  </script>
   <header class="bar">
-    <h1>spi3der</h1>
+    <h1>spider-paint<span>3Draft</span></h1>
     <p class="build"><span id="fps" title="Frames drawn in the last second (– while nothing moves: a still picture is not redrawn)">–</span> <span id="build" title="Build, YY.MM.DD.NNN">–</span></p>
   </header>
 
@@ -767,7 +794,7 @@
     <textarea id="gpuerr" readonly hidden rows="4" aria-label="WebGPU error text (select and copy)" style="width:100%;box-sizing:border-box;font:12px/1.4 var(--font-mono);background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:4px;padding:6px"></textarea>
     <span class="actions">
       <button id="xrBtn" type="button" class="red" title="VR: show the scene in a headset, one picture per eye (immersive-vr; on a Mac: the Meta Immersive Web Emulator). While on it glows; press again to leave (or X on the left controller)">VR</button>
-      <span class="grp rows folded" data-label="view">
+      <span class="grp rows" data-label="view">
         <span class="row">
           <button id="freeze" type="button" class="sw red" title="Freeze: everything that moves stands still (; — é on a Hungarian keyboard)"><i></i>freeze</button>
           <button id="gpuBtn" type="button" class="sw" title="The view now: SVG, WebGPU or WebGL2 (9 switches)"><i></i><span>SVG</span></button>
@@ -843,27 +870,10 @@
           <button type="button" class="slate" data-key="j" title="Leave pose mode; the figure goes back as it was (J or Esc)"><b>J</b>done</button>
         </span>
       </span>
-      <span class="grp only-build rows folded" data-label="scene">
+      <span class="grp only-build rows" data-label="scene">
         <span class="row">
           <select id="examples" aria-label="Add an example or a saved scene to the scene" title="Add an example or a saved scene to the scene">
           <option value="">+ scene</option>
-        <option value="bridge">Stone bridge</option>
-        <option value="globe">Globe</option>
-        <option value="stars">Stars (500 nearest)</option>
-        <option value="milkyway">Milky Way (30 000 super-stars)</option>
-        <option value="deepsky">Deep sky (1000 galaxies, 400 black holes, 3000 stars)</option>
-        <option value="stars-plain">Stars (300) + 100 galaxies (point glow)</option>
-        <option value="ex27">EX-27 expedition module</option>
-        <option value="human">Low poly human</option>
-        <option value="betterman">Betterman (pose him: J)</option>
-        <option value="command-bridge">Command bridge (2 crew at the desk)</option>
-        <option value="mechanics">Mechanics (hinge, rail, pivot, spring, group)</option>
-        <option value="workshop">VR workshop (carve with bare hands)</option>
-        <optgroup label="games (format 3draft-game)"><option value="game:fifth-percent">Fifth Percent: the starship bridge in the Deep Sky</option><option value="game:lark">Lark in the Deep Sky: the LARK-4 as the starship (VR: fly it with the hands)</option></optgroup>
-        <option value="tr74">TR-74 expedition module</option>
-        <option value="station-screen">Station screen (a scene on a face)</option>
-        <optgroup label="sky catalogues (format 3draft-sky: sky.md)"><option value="sky:trappist-1">TRAPPIST-1 (7 planets, 40 ly)</option></optgroup>
-        <optgroup label="stories"><option value="story:lark-4c-accident">Story: LARK–4C / LAST LIGHT</option><option value="story:lark-4">Story: LARK–4C lander build (746 steps)</option><option value="story:spider-build-example">Story: independent tracks (3 steps)</option></optgroup>
         <optgroup id="savedGroup" label="saved here" hidden></optgroup>
         <optgroup id="cloudGroup" label="online (the store: from anywhere)" hidden></optgroup></select>
           <button id="mergeSw" type="button" class="sw on" title="Loading a scene (the list, f↑): on adds it to what is there, off clears the scene first and loads it alone"><i></i>merge</button>
@@ -876,22 +886,22 @@
         </span>
         <span class="row">
           <input id="sceneName" type="text" placeholder="name" maxlength="40" spellcheck="false" autocapitalize="off" aria-label="Name of the scene to save" title="The name a scene is saved under here (empty: a dated name)">
-          <button id="sceneSave" type="button" class="cream" title="Save the scene on this computer (this browser) under that name; it then shows in the list">save</button>
+          <button id="sceneSave" type="button" class="cream ic" title="Save the scene on this computer (this browser) under that name; it then shows in the list" aria-label="Save scene"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 3h14l3 3v15H3V3h1M7 3v7h10V3M7 21v-8h10v8M9 6h6"/></svg></button>
           <button id="sceneCloud" type="button" class="teal" hidden title="Save the scene online, in the store, under that name: then every device opens it from the list (online). The first time it asks for the store's key. Shift+click: take that name out of the store">☁</button>
           <button id="sceneDown" type="button" class="cream" title="Download the scene as a .3draft file (3Draft scene JSON)">f↓</button>
           <button id="sceneOpen" type="button" class="cream" title="Add a scene from a .json file">f↑</button>
           <button id="sceneForget" type="button" class="slate" title="Forget the saved scene with the name in the box">✕</button>
           <button id="boolBtn" type="button" class="slate" title="Boolean: select two objects (B), then this; the first taken is A, the second B">bool</button>
-          <button id="charBtn" type="button" class="teal" title="Assets: the character builder. Make a figure from a few sliders, hair, clothes and a prop (presets: scientist, mechanic, space crew, astronaut; every part a palette material), then place it at the cross; edit a placed one">char</button>
+          <button id="charBtn" type="button" class="teal ic" title="Assets: the character builder. Make a figure from a few sliders, hair, clothes and a prop (presets: scientist, mechanic, space crew, astronaut; every part a palette material), then place it at the cross; edit a placed one" aria-label="Character builder">🧍</button>
           <input id="sceneFile" type="file" accept=".3draft,.json,application/json" hidden>
         </span>
       </span>
-      <span class="grp rows folded" data-label="sys">
+      <span class="grp rows" data-label="sys">
         <span class="row">
           <button id="undo" type="button" class="slate ic" title="Undo (U)" aria-label="Undo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7L4 12l5 5"/><path d="M4 12h10a6 6 0 0 1 0 12" transform="translate(0 -5)"/></svg></button>
           <button id="reset" type="button" class="slate ic" title="Reset the view" aria-label="Reset view"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/><circle cx="12" cy="12" r="2.5"/></svg></button>
           <button id="zen" type="button" class="slate ic" title="Zen: only the model (Z)" aria-label="Zen"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
-          <button id="keys" type="button" class="teal ic" title="Help: every mode and key (?)" aria-label="Help"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.1 1-1.1 1.8M12 17h.01"/></svg></button>
+          <button id="keys" type="button" class="teal ic" title="Help: every mode and key (?)" aria-label="Help"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.1 1-1.1 1.8M12 17h.01"/></svg></button><button id="tutorialKeyToggle" type="button" class="slate ic" title="Tutorial keycast: show keyboard shortcuts at the top of the scene (click-through)" aria-label="Toggle tutorial key display" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M6 9h1M10 9h1M14 9h1M18 9h1M6 12h1M10 12h1M14 12h1M18 12h1M7 15h10"/></svg></button>
         </span>
         <span class="row">
           <button id="rec" type="button" class="red" title="Record: starts from an empty scene and writes every move and key into a JSON file when you press it again">rec</button>
@@ -946,7 +956,6 @@
   </footer>
 
   <script type="module">
-    import { spiderVersion } from './spider-version.js';
     import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/8fa668821759/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
@@ -954,6 +963,44 @@
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
     const LEG = { base: 0.15 }; // the base of a placed prism
 
+    const WORKSHOP_EMBED = window.parent !== window && new URLSearchParams(location.search).has('workshop');
+    // Diagnostic-only bridge from the existing editor. No duplicate UI or command map.
+    const workshopNotice = (phase, data = {}) => {
+      if (WORKSHOP_EMBED) window.parent.postMessage({ source: 'spider-paint-native', phase, ...data }, '*');
+    };
+    const workshopSessionId = WORKSHOP_EMBED ? new URLSearchParams(location.hash.slice(1)).get('session') : null;
+    let workshopSceneReady = false;
+    let workshopDirtyTimer = 0;
+    // The native editor remains authoritative for human edits and all original key bindings.
+    const workshopChanged = () => {
+      if (!WORKSHOP_EMBED || !workshopSessionId || !workshopSceneReady) return;
+      clearTimeout(workshopDirtyTimer);
+      workshopDirtyTimer = setTimeout(() => {
+        if (workshopSceneReady) workshopNotice('native_scene_changed', { scene: sceneFile('workshop') });
+      }, 350);
+    };
+    if (WORKSHOP_EMBED) window.addEventListener('message', async (e) => {
+      const d = e.data;
+      if (e.source !== window.parent || d?.source !== 'spider-paint-workshop' || !workshopSessionId || d.session_id !== workshopSessionId) return;
+      if (d.phase !== 'apply_scene') return;
+      if (d.scene?.format !== '3draft-scene' || !Array.isArray(d.scene.objects) || d.scene.objects.length > 3000) {
+        workshopNotice('native_scene_error');
+        return;
+      }
+      workshopSceneReady = false;
+      clearTimeout(workshopDirtyTimer);
+      try {
+        await loadScene(d.scene, true);
+      } catch (_) {
+        workshopNotice('native_scene_error');
+      }
+    });
+    let workshopKeySeen = false;
+    if (WORKSHOP_EMBED) window.addEventListener('keydown', (e) => {
+      if (workshopKeySeen || e.repeat || e.target?.closest?.('input, textarea, select, [contenteditable]')) return;
+      workshopKeySeen = true;
+      workshopNotice('native_key_seen'); // never transmit actual key values
+    }, true);
     const stage = document.getElementById('stage');
     const frame = document.getElementById('frame');
     let canvas = document.getElementById('gpu');
@@ -970,8 +1017,32 @@
     const pitchEl = document.getElementById('pitch');
     const countEl = document.getElementById('count');
     const surfaceEl = document.getElementById('surface');
-    document.getElementById('build').textContent = displayVersion(spiderVersion);
-    document.getElementById('build').title = 'Spider Paint ' + displayVersion(spiderVersion) + ' · 3Draft engine ' + displayVersion(version);
+    // The header displays *spider-paint's deployed package version*, never 3Draft's engine version.
+    // /api/version is served by Cloud Run from the package.json inside this running container.
+    const buildEl = document.getElementById('build');
+    buildEl.title = 'spider-paint application version (deployed package.json)';
+    fetch('/api/version', { cache: 'no-store' })
+      .then((response) => {
+        if (!response.ok) throw new Error('Version endpoint: HTTP ' + response.status);
+        return response.json();
+      })
+      .then(({ name, version: appVersion, display, gitHash }) => {
+        if (name !== 'spider-paint' || !/^\d+\.\d+\.\d+$/.test(appVersion)) throw new Error('Invalid spider-paint version');
+        const [yy, mm, packed] = appVersion.split('.').map(Number);
+        const readable = [yy, String(mm).padStart(2, '0'),
+          String(Math.floor(packed / 1000)).padStart(2, '0'),
+          String(packed % 1000).padStart(3, '0')].join('.');
+        if (display && display !== readable) throw new Error('Inconsistent spider-paint version');
+        const hash = typeof gitHash === 'string' && /^[a-f0-9]{7,40}$/i.test(gitHash)
+          ? gitHash.toLowerCase() : null;
+        buildEl.textContent = readable + ' · ' + (hash ? hash.slice(0, 8) : 'git ?');
+        buildEl.title = 'spider-paint ' + readable + '\nGit commit: ' + (hash || 'not included in this deployment');
+      })
+      .catch((error) => {
+        buildEl.textContent = 'spider-paint ?';
+        buildEl.title = 'Unable to verify deployed spider-paint version: ' + error.message;
+        console.warn('[spider-paint] Cannot verify application version', error);
+      });
 
     const HOME = { center: [0, 0.5, 0], radius: 1.6 }; // framing of an empty scene
     const fit = { ...HOME }; // follows the scene the MCP server sends
@@ -1120,6 +1191,7 @@
     // local origin (the middle of its base) carries the grid (the plane under it) and the camera looks at that point.
     let bench = null; // { origin: [x, y, z], base: history length at the start, cam: the view to return to }
     let rebuilds = 0; // how many times the scene was merged (debug: __3draft.sky())
+    let storyBackdrop = null; // a playing story's presentation.background: null | 'transparent' | [r, g, b] (applyStoryBackground)
     let storySkin = null; // stable bind geometry; only animation matrices change during a cinematic story
     let holdRebuild = 0; // inside asOneStep the scene is merged once at the end, not after every object
     let rebuildWanted = false;
@@ -1142,6 +1214,7 @@
       sceneParts = objs.map((o) => o.mesh);
       scene = merge(nothing, ...sceneParts);
       placedVer++;
+      workshopChanged();
     };
     const shifted = (mesh, d) => ({ ...mesh, positions: mesh.positions.map((q) => [q[0] + d[0], q[1] + d[1], q[2] + d[2]]) });
     // how far a flying prism still is from where it lands, as a fraction of its flight
@@ -3092,8 +3165,8 @@
             fit: gFit,
             logDepth: sky ? 1e12 : 0,
             planets: shaderPlanets,
-            background: rgb,
-            transparent: Boolean(storySkin && story?.doc.scene.environment),
+            background: Array.isArray(storyBackdrop) ? storyBackdrop : rgb,
+            transparent: Boolean(storySkin && story?.doc.scene.environment) || storyBackdrop === 'transparent',
             glow: filmic,
             smooth: smooth ? 40 : 0,
             studio,
@@ -4713,6 +4786,12 @@
         return {};
       }
     };
+    // The scene list (the "+ scene" select and the phone's Exa menu) comes from models/index.json, so every project lists its
+    // own models: { scenes: [{ value, label, group? }], menu: [names], offline: [model files] }. Inline (srcdoc) it is packaged.
+    const MODELS_INDEX = (globalThis.__MODELS_INDEX
+      ? Promise.resolve(globalThis.__MODELS_INDEX)
+      : fetch('./models/index.json').then((r) => (r.ok ? r.json() : null)).catch(() => null)
+    ).then((x) => (x && typeof x === 'object' ? x : { scenes: [], menu: ['empty'] }));
     const sceneOf = async (name) => {
       if (name.startsWith('saved:')) {
         const data = readSaved()[name.slice(6)];
@@ -4871,6 +4950,11 @@
         if ((replace || !mergeOn) && had) clearScene();
         await addScene(data);
         if (data.view && (replace || !mergeOn || !had)) applyView(data.view);
+        workshopNotice('native_scene_loaded', { objects: allObjects().length });
+        if (WORKSHOP_EMBED && workshopSessionId) {
+          workshopSceneReady = true;
+          workshopNotice('native_scene_changed', { scene: sceneFile('workshop') });
+        }
       });
     // a sky catalogue ('3draft-sky', src/sky.ts) -> a scene; its warnings go to the scene note
     const fromSky = (sky) => {
@@ -5292,6 +5376,13 @@
         const res = await fetch('help.md');
         if (!res.ok) throw new Error(res.status);
         helpDoc.innerHTML = md(await res.text());
+        const helpBrand = document.createElement('img');
+        helpBrand.src = 'media/spider-paint-logo.svg';
+        helpBrand.alt = 'spider-paint logo — animated spider';
+        helpBrand.decoding = 'async';
+        helpBrand.style.cssText = 'display:block;width:100%;max-width:360px;aspect-ratio:1;height:auto;object-fit:contain;margin:0 auto 24px;border-radius:16px';
+        helpBrand.onerror = () => { helpBrand.src = 'favicon.svg'; };
+        helpDoc.prepend(helpBrand);
         helpLoaded = true;
       } catch (err) {
         helpDoc.textContent = `The help page could not be loaded (${err.message}).`;
@@ -8574,111 +8665,6 @@
       return true;
     };
     Object.assign(window, { ACTIONS, KEYMAP, bindKey });
-    // Tutorial keycast: video-friendly overlay, completely click-through and unselectable.
-    // Enabled by the human. Shows keyboard combinations without consuming events.
-    const tutorialStyle = document.createElement('style');
-    tutorialStyle.textContent = `
-      #tutorialKeycast {
-        position: fixed; z-index: 2147483000; left: 50%; top: clamp(48px, 7vh, 78px);
-        transform: translate(-50%, -8px); display: flex; align-items: center; justify-content: center;
-        gap: 6px; padding: 0; max-width: calc(100vw - 36px);
-        box-sizing: border-box; border: 0; border-radius: 0;
-        background: transparent; color: #fff; box-shadow: none;
-        font: 600 clamp(16px, 2.5vw, 28px)/1.25 'DM Mono', monospace;
-        letter-spacing: .02em; white-space: nowrap;
-        opacity: 0; visibility: hidden; transition: opacity .16s ease, transform .16s ease, visibility .16s;
-        pointer-events: none !important; user-select: none !important; -webkit-user-select: none !important;
-        touch-action: none;
-      }
-      #tutorialKeycast.visible { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
-      #tutorialKeycast .tutorial-key { padding: 2px 7px; border-radius: 5px; border: 1px solid #ffffff60;
-        background: #ffffff12; box-shadow: 0 2px 0 #ffffff35; }
-      #tutorialKeyToggle.on { color: #fff; background: #16756c; border-color: #49cdbb; }
-      @media (prefers-reduced-motion: reduce) {
-        #tutorialKeycast { transition: none; }
-      }
-    `;
-    document.head.append(tutorialStyle);
-    const tutorialOverlay = document.createElement('div');
-    tutorialOverlay.id = 'tutorialKeycast';
-    tutorialOverlay.setAttribute('aria-hidden', 'true');
-    document.body.append(tutorialOverlay);
-    const tutorialButton = document.createElement('button');
-    tutorialButton.id = 'tutorialKeyToggle';
-    tutorialButton.type = 'button';
-    tutorialButton.className = 'slate';
-    tutorialButton.textContent = '⌨ tutorial';
-    tutorialButton.title = 'Tutorial keycast: show pressed keyboard shortcuts at the top of screen (click-through for videos)';
-    document.getElementById('keys').parentElement.append(tutorialButton);
-    let tutorialEnabled = false;
-    let tutorialHideTimer = null;
-    const tutorialHeld = new Set();
-    const tutorialModifier = (event) => {
-      const mac = /Mac|iPhone|iPad/.test(navigator.platform || '');
-      return [
-        event.ctrlKey ? (mac ? '⌃' : 'Ctrl') : null,
-        event.altKey ? (mac ? '⌥' : 'Alt') : null,
-        event.shiftKey ? (mac ? '⇧' : 'Shift') : null,
-        event.metaKey ? (mac ? '⌘' : 'Meta') : null,
-      ].filter(Boolean);
-    };
-    const tutorialKeyName = (event) => {
-      const k = event.key;
-      if (['Control','Shift','Alt','Meta','AltGraph'].includes(k)) return null;
-      const known = {
-        ' ': 'Space', Escape: 'Esc', Backspace: '⌫', Delete: 'Del',
-        ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',
-        Enter: '↵', Tab: '⇥', PageUp: 'PgUp', PageDown: 'PgDn',
-      };
-      return known[k] || (k.length === 1 ? k.toUpperCase() : k);
-    };
-    const tutorialShow = (keys) => {
-      clearTimeout(tutorialHideTimer);
-      tutorialOverlay.replaceChildren(...keys.map(key => {
-        const cap = document.createElement('span');
-        cap.className = 'tutorial-key';
-        cap.textContent = key;
-        return cap;
-      }));
-      tutorialOverlay.classList.toggle('visible', keys.length > 0 && tutorialEnabled);
-    };
-    const tutorialOff = () => {
-      tutorialHeld.clear();
-      clearTimeout(tutorialHideTimer);
-      tutorialOverlay.classList.remove('visible');
-      tutorialHideTimer = null;
-    };
-    const setTutorial = (enabled) => {
-      tutorialEnabled = Boolean(enabled);
-      tutorialButton.classList.toggle('on', tutorialEnabled);
-      tutorialButton.setAttribute('aria-pressed', String(tutorialEnabled));
-      tutorialButton.textContent = tutorialEnabled ? '⌨ tutorial ●' : '⌨ tutorial';
-      if (!tutorialEnabled) tutorialOff();
-      try { localStorage.setItem('spider-paint.tutorial', tutorialEnabled ? '1' : '0'); } catch {}
-    };
-    tutorialButton.addEventListener('click', () => setTutorial(!tutorialEnabled));
-    try { setTutorial(localStorage.getItem('spider-paint.tutorial') === '1'); }
-    catch { setTutorial(false); }
-    window.addEventListener('keydown', (event) => {
-      if (!tutorialEnabled || event.isComposing || event.key === 'Dead' || event.key === 'Process') return;
-      // Only actual key presses, not the browser's repeated keydown while held.
-      if (event.repeat) return;
-      const key = tutorialKeyName(event);
-      if (key) tutorialHeld.add(key);
-      const keys = [...tutorialModifier(event), ...tutorialHeld];
-      if (keys.length) tutorialShow(keys);
-    }, true);
-    window.addEventListener('keyup', (event) => {
-      if (!tutorialEnabled) return;
-      const key = tutorialKeyName(event);
-      if (key) tutorialHeld.delete(key);
-      // Keep the last shortcut legible in the recording after release.
-      clearTimeout(tutorialHideTimer);
-      if (tutorialHeld.size) tutorialShow([...tutorialModifier(event), ...tutorialHeld]);
-      else tutorialHideTimer = setTimeout(() => tutorialOverlay.classList.remove('visible'), 1050);
-    }, true);
-    window.addEventListener('blur', tutorialOff);
-
     document.addEventListener('keydown', (e) => {
       if (e.target instanceof HTMLTextAreaElement) return; // the error text can be selected and copied
       if (e.target instanceof HTMLButtonElement) return; // Space and Enter belong to a focused button
@@ -8854,8 +8840,8 @@
         turn(...moves[e.key]);
       }
     });
-    // All four main console groups start folded to leave the 3D canvas uncluttered.
-    // The viewer can open any group independently during the current session.
+    // the console's groups view, fly, scene and sys fold: their label is a button; folded, only the label shows, on its side. Fly
+    // starts folded. Whether each is folded is remembered in this browser (a convenience: without storage they start as above).
     for (const g of document.querySelectorAll('footer.console .grp[data-label]')) {
       const name = g.dataset.label;
       if (!['view', 'fly', 'scene', 'sys'].includes(name)) continue;
@@ -8863,13 +8849,18 @@
       b.type = 'button';
       b.className = 'fold';
       b.textContent = name;
-      g.classList.add('folded');
+      try {
+        const kept = localStorage.getItem(`3draft.fold.${name}`);
+        if (kept !== null) g.classList.toggle('folded', kept === '1');
+      } catch {}
       const sync = () => (b.title = g.classList.contains('folded') ? `Open the ${name} panel` : `Fold the ${name} panel`);
       sync();
       b.addEventListener('click', () => {
         g.classList.toggle('folded');
         sync();
-        // No stored override: new editor sessions always start with folded groups.
+        try {
+          localStorage.setItem(`3draft.fold.${name}`, g.classList.contains('folded') ? '1' : '0');
+        } catch {}
         b.blur();
       });
       g.prepend(b);
@@ -8973,7 +8964,7 @@
         swap.textContent = document.body.classList.contains('split') ? 'close store' : 'store';
       });
       box.append(swap);
-      for (const name of ['empty', 'globe', 'stars', 'stars-plain', 'milkyway', 'deepsky', 'ex27', 'human', 'betterman', 'tr74', 'station-screen']) {
+      MODELS_INDEX.then((idx) => { for (const name of idx.menu ?? ['empty']) {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'cream';
@@ -8992,7 +8983,7 @@
           }
         });
         box.append(b);
-      }
+      } });
       exaMenu.append(box);
       document.body.append(exaMenu);
       const exaBtn = document.createElement('button');
@@ -9219,6 +9210,15 @@
     document.getElementById('clear').addEventListener('click', clearScene);
     const exampleEl = document.getElementById('examples');
     const savedGroup = document.getElementById('savedGroup');
+    MODELS_INDEX.then((idx) => {
+      const groups = new Map();
+      for (const s of idx.scenes ?? []) {
+        const o = Object.assign(document.createElement('option'), { value: s.value, textContent: s.label ?? s.value });
+        if (!s.group) { exampleEl.insertBefore(o, savedGroup); continue; }
+        if (!groups.has(s.group)) groups.set(s.group, exampleEl.insertBefore(Object.assign(document.createElement('optgroup'), { label: s.group }), savedGroup));
+        groups.get(s.group).append(o);
+      }
+    });
     const nameEl = document.getElementById('sceneName');
     // The scene file: { format: '3draft-scene', version: 1, name, palette: [the materials the faces use], objects: [{ name, mesh, wire? }] }.
     // The same shape as an example scene, so it loads through the same door: the list holds the examples and what was saved here.
@@ -9239,434 +9239,6 @@
         ...(skyPaths.length ? { paths: skyPaths } : {}),
       };
     };
-    // Explicit opt-in bridge from this running editor to the public MCP.
-    // A new 256-bit session secret is created per sharing session and never persisted.
-    // Only a person holding that secret can retrieve the scene and camera render.
-    const aiLiveButton = document.createElement('button');
-    aiLiveButton.type = 'button';
-    aiLiveButton.className = 'slate';
-    aiLiveButton.textContent = 'AI live';
-    aiLiveButton.title = 'Share this editor\'s current scene and render with an AI agent using a private MCP session code';
-    exampleEl.parentElement.append(aiLiveButton);
-    let aiLiveToken = null;
-    let aiLiveTimer = null;
-    let aiLiveSending = false;
-    let aiLivePanel = null;
-    const aiLiveEndpoint = new URL('./api/live', location.href).pathname;
-    const aiLiveStatus = (message) => {
-      if (aiLivePanel) aiLivePanel.querySelector('[data-live-status]').textContent = message;
-    };
-    const aiLiveRender = async () => {
-      if (xrState.session) return { kind: activeKind, data: null, note: 'Exit immersive XR for a desktop render' };
-      if (mode !== 'gpu') return { kind: 'svg', data: layer.querySelector('svg')?.outerHTML ?? null };
-      // Use the engine's GPU readback, not the on-screen canvas's potentially discarded backing buffer.
-      if (typeof renderGpu !== 'function') return { kind: activeKind, data: null, note: 'GPU readback not ready' };
-      try {
-        const raw = await renderGpu(true);
-        if (!raw?.data || !raw.width || !raw.height) return { kind: activeKind, data: null, note: 'GPU readback returned no pixels' };
-        const source = document.createElement('canvas');
-        source.width = raw.width; source.height = raw.height;
-        source.getContext('2d').putImageData(new ImageData(raw.data, raw.width, raw.height), 0, 0);
-        const output = document.createElement('canvas');
-        const ratio = Math.min(1, 640 / Math.max(source.width, source.height));
-        output.width = Math.max(1, Math.round(source.width * ratio));
-        output.height = Math.max(1, Math.round(source.height * ratio));
-        output.getContext('2d').drawImage(source, 0, 0, output.width, output.height);
-        return { kind: activeKind, data: output.toDataURL('image/jpeg', 0.72), width: output.width, height: output.height };
-      } catch (err) {
-        return { kind: activeKind, data: null, note: String(err?.message ?? err).slice(0, 120) };
-      }
-    };
-    const aiLivePublish = async () => {
-      if (!aiLiveToken || aiLiveSending) return;
-      aiLiveSending = true;
-      try {
-        const token = aiLiveToken;
-        const scene = sceneFile(nameEl.value.trim() || 'Live Spider Paint scene');
-        const render = await aiLiveRender();
-        if (token !== aiLiveToken) return;
-        const response = await fetch(aiLiveEndpoint, {
-          method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ token, scene, render, capabilities:workshopCapabilities() }),
-          cache: 'no-store',
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || ('HTTP ' + response.status));
-        aiLiveStatus('Live · ' + result.objects + ' objects · updated ' + new Date(result.updated).toLocaleTimeString());
-      } catch (err) {
-        aiLiveStatus('Cannot share: ' + (err?.message ?? err));
-      } finally { aiLiveSending = false; }
-    };
-    const aiLiveStop = () => {
-      const token = aiLiveToken;
-      aiLiveToken = null;
-      clearInterval(aiLiveTimer);
-      aiLiveTimer = null;
-      clearInterval(workshopPollTimer);
-      workshopPollTimer = null;
-      aiLiveEdits = false;
-      aiLiveButton.classList.remove('on');
-      aiLiveButton.textContent = 'AI live';
-      aiLivePanel?.remove();
-      aiLivePanel = null;
-      if (token) {
-        fetch('./api/workshop?token=' + token, { method:'DELETE', keepalive:true }).catch(()=>{});
-        fetch(aiLiveEndpoint + '?token=' + token, { method:'DELETE', keepalive:true }).catch(()=>{});
-      }
-    };
-    aiLiveButton.addEventListener('click', () => {
-      if (aiLiveToken) return aiLiveStop();
-      if (!crypto?.getRandomValues || !location.protocol.startsWith('https')) {
-        alert('AI live needs HTTPS and a browser with crypto.getRandomValues');
-        return;
-      }
-      aiLiveToken = [...crypto.getRandomValues(new Uint8Array(32))]
-        .map((v) => v.toString(16).padStart(2, '0')).join('');
-      aiLiveButton.classList.add('on');
-      aiLiveButton.textContent = 'AI live ●';
-      const panel = document.createElement('aside');
-      panel.setAttribute('role', 'dialog');
-      panel.setAttribute('aria-label', 'AI live session');
-      Object.assign(panel.style, {
-        position: 'fixed', right: '16px', top: '76px', zIndex: '100000',
-        background: '#1b1c17', color: '#eee', border: '1px solid #6a817b',
-        borderRadius: '8px', padding: '16px', width: 'min(380px, calc(100vw - 32px))',
-        font: '13px/1.5 monospace', boxShadow: '0 8px 30px #0009',
-      });
-      const heading = document.createElement('strong');
-      heading.textContent = 'AI live · ' + displayVersion(spiderVersion) + ' · private scene access';
-      const info = document.createElement('p');
-      info.textContent = 'Copy this secret code into the AI chat. The current scene, materials and camera image are shared approximately every 8 seconds until you stop. Anyone with the code can read the scene. AI editing is OFF unless you explicitly enable it below.';
-      const secret = document.createElement('code');
-      secret.textContent = aiLiveToken;
-      Object.assign(secret.style, { display: 'block', wordBreak: 'break-all', background: '#111', padding: '8px', marginBottom: '8px', userSelect: 'all' });
-      const copy = document.createElement('button');
-      copy.textContent = 'Copy MCP session code';
-      copy.addEventListener('click', async () => {
-        try { await navigator.clipboard.writeText(aiLiveToken ?? ''); aiLiveStatus('Code copied; send it to the agent.'); }
-        catch { aiLiveStatus('Select the code above to copy it.'); }
-      });
-      const stop = document.createElement('button');
-      stop.textContent = 'Stop sharing';
-      stop.style.marginLeft = '8px';
-      stop.addEventListener('click', aiLiveStop);
-      const editable = document.createElement('label');
-      editable.style.display = 'block';
-      editable.style.marginTop = '12px';
-      const check = document.createElement('input');
-      check.type = 'checkbox';
-      check.style.marginRight = '8px';
-      editable.append(check, document.createTextNode('Allow AI edits in this browser'));
-      check.addEventListener('change', () => {
-        aiLiveEdits = check.checked;
-        clearInterval(workshopPollTimer);
-        workshopPollTimer = null;
-        if (aiLiveEdits) {
-          aiLiveStatus('AI editing enabled; model and UI commands are now allowed.');
-          workshopPoll();
-          workshopPollTimer = setInterval(workshopPoll, 2000);
-        } else aiLiveStatus('Read only; AI edits disabled.');
-        aiLivePublish();
-      });
-      const status = document.createElement('p');
-      status.dataset.liveStatus = '';
-      status.textContent = 'Connecting…';
-      panel.append(heading, info, secret, copy, stop, editable, status);
-      document.body.append(panel);
-      aiLivePanel = panel;
-      aiLivePublish();
-      aiLiveTimer = setInterval(aiLivePublish, 8000);
-    });
-    window.addEventListener('pagehide', aiLiveStop);
-    // Human x AI workshop: direct, named access to the same UI and 3D model, never
-    // a second model engine. The owner's "Allow AI edits" switch gates execution.
-    // Every safe visible control is inventoried, including the dynamic character
-    // builder, edit-mode buttons, palettes and story selectors without HTML IDs.
-    // Buttons requiring a browser gesture, file chooser or external write stay human-only.
-    const workshopDenied = new Set([
-      'xrBtn','sceneCloud','sceneOpen','sceneForget','rec','play',
-      'playFile','sceneFile','charForget','netExit','netOff',
-    ]);
-    let workshopControlSerial=0;
-    const workshopAllControls=()=>{
-      const allowed=new Set(['BUTTON','INPUT','SELECT']);
-      return [...document.querySelectorAll('button,input,select')]
-        .filter(el=>allowed.has(el.tagName) && !workshopDenied.has(el.id) &&
-          !el.closest('#storeKeyBox,[data-workshop-secret]') &&
-          (el.tagName!=='INPUT' || !['file','password','hidden'].includes(el.type)))
-        .map(el=>{
-          if(!el.id && !el.dataset.workshopControl)
-            el.dataset.workshopControl='wc-'+(++workshopControlSerial);
-          return {el,id:el.id||el.dataset.workshopControl};
-        });
-    };
-    const workshopFindControl=(id)=>workshopAllControls().find(c=>c.id===id)?.el;
-    const workshopOps = [
-      'model.create','model.mesh','model.transform','model.paint','model.rename','model.delete',
-      'model.character','model.pose','model.extrude','model.boolean',
-      'material.upsert','material.select','scene.load','scene.replace','scene.clear','scene.undo',
-      'camera.look','camera.target','camera.reset','vehicle.set','render.set',
-      'ui.action','ui.click','ui.set','ui.key','ui.pointer','story.open'
-    ];
-    const workshopCapabilities = () => ({
-      version:displayVersion(spiderVersion), engineVersion:version,
-      editable: Boolean(aiLiveEdits), operations: workshopOps,
-      controls: workshopAllControls().map(({el,id}) => ({
-        id, type:el.tagName.toLowerCase(), title:(el.title||el.getAttribute('aria-label')||el.textContent||'').trim().slice(0,160),
-        ...(el.tagName==='SELECT' ? { options:[...el.options].map(o=>o.value).filter(Boolean).slice(0,100) } : {}),
-        ...(el.tagName==='INPUT' ? {inputType:el.type} : {}),
-      })),
-      actions: Object.keys(ACTIONS),
-      keys: Object.keys(KEYMAP),
-      scenes: [...exampleEl.options].map(x=>x.value).filter(Boolean),
-      xr: { available: Boolean(navigator.xr), active: Boolean(xrState.session),
-        note:'WebXR requires a human gesture: click Enter XR in the editor.' },
-    });
-    const workshopMesh = (raw) => {
-      if (!raw || !Array.isArray(raw.positions) || !Array.isArray(raw.faces)) throw Error('mesh.positions and mesh.faces required');
-      if (raw.positions.length > 100000 || raw.faces.length > 100000) throw Error('mesh too large');
-      for (const p of raw.positions) if (!Array.isArray(p) || p.length !== 3 || !p.every(Number.isFinite)) throw Error('invalid vertex');
-      for (const f of raw.faces) if (!Array.isArray(f.v) || f.v.length < 3 || f.v.length > 128 ||
-        !f.v.every(i=>Number.isInteger(i) && i>=0 && i<raw.positions.length)) throw Error('invalid face');
-      return { positions:raw.positions.map(p=>[...p]), faces:raw.faces.map(f=>({...f,v:[...f.v]})) };
-    };
-    const workshopObject = (name) => {
-      const found = allObjects().find(o=>o.name===name);
-      if (!found) throw Error('Object not found: '+name);
-      return found;
-    };
-    const workshopName = (s) => {
-      if (typeof s!=='string' || !s.trim() || s.length>64) throw Error('Name must have 1–64 characters');
-      return s.trim();
-    };
-    const workshopRun = async (a) => {
-      if (!a || typeof a !== 'object' || !workshopOps.includes(a.op)) throw Error('Unknown workshop operation');
-      if (a.op === 'scene.load' || a.op === 'story.open') {
-        const name=workshopName(a.name);
-        if (![...exampleEl.options].some(o=>o.value===name)) throw Error('Scene not in the picker: '+name);
-        await addExample(name);
-        return { loaded:name };
-      }
-      if (a.op === 'scene.replace') {
-        const data=a.scene;
-        if (data?.format!=='3draft-scene' || !Array.isArray(data.objects)) throw Error('Expected a 3draft-scene');
-        await loadScene(data,true);
-        return { loaded:data.objects.length };
-      }
-      if (a.op === 'scene.clear') { clearScene(); redraw(); return { cleared:true }; }
-      if (a.op === 'scene.undo') { undo(); return { undone:true }; }
-      if (a.op === 'model.create') {
-        const name=workshopName(a.name);
-        if (allObjects().some(o=>o.name===name)) throw Error('Object name already exists');
-        const made=create(name,workshopMesh(a.mesh));
-        redraw();
-        return { name:made.name };
-      }
-      if (a.op === 'model.character') {
-        const name=workshopName(a.name);
-        if (allObjects().some(o=>o.name===name)) throw Error('Object name already exists');
-        const spec=a.spec??CHARACTER_PRESETS[a.preset??'mechanic'];
-        if (!spec) throw Error('Unknown character preset');
-        if (!['stand','sit','walk'].includes(a.pose??'stand')) throw Error('pose: stand, sit or walk');
-        const at=a.at??[0,0,0],yaw=a.yaw??0,scale=a.size??1;
-        if (!Array.isArray(at)||at.length!==3||!at.every(Number.isFinite)||!Number.isFinite(yaw)||!Number.isFinite(scale)||scale<=0)throw Error('Invalid character placement');
-        const rec=charRead({spec,pose:a.pose??'stand',frame:{at,yaw:yaw*Math.PI/180,scale}});
-        const made=create(name,charMesh(rec));
-        made.character=rec;
-        redraw();
-        return {name,pose:rec.pose,parts:rec.parts.length};
-      }
-      if (a.op === 'model.pose') {
-        const o=workshopObject(a.name);
-        if(!o.character) throw Error('Object is not a character');
-        if(!['stand','sit','walk'].includes(a.pose))throw Error('pose: stand, sit or walk');
-        const previous=o.character,mesh0=o.mesh;
-        const next=charRead({...previous,pose:a.pose});
-        history.push(()=>{if(has(o)){charSet(o,previous,mesh0);redraw();}});
-        charSet(o,next); redraw();
-        return {name:o.name,pose:next.pose};
-      }
-      if (a.op === 'model.extrude') {
-        const o=workshopObject(a.name),i=a.face;
-        if(!Number.isInteger(i)||i<0||i>=o.mesh.faces.length||!Number.isFinite(a.distance))throw Error('face index and finite distance required');
-        const original=o.mesh;
-        const next=extrudeFace(original,i,{distance:a.distance}).mesh;
-        history.push(()=>{if(has(o)){change(o,original);redraw();}});
-        change(o,next); redraw();
-        return {name:o.name,faces:next.faces.length};
-      }
-      if (a.op === 'model.boolean') {
-        if(!['union','subtract','intersect'].includes(a.operation))throw Error('operation: union, subtract or intersect');
-        const left=workshopObject(a.a),right=workshopObject(a.b);
-        if(left===right)throw Error('Choose two different objects');
-        const result=boolean(left.mesh,right.mesh,a.operation,{strict:false});
-        if(!result.faces.length)throw Error('Boolean result empty');
-        const name=workshopName(a.name??(left.name+'-'+a.operation+'-'+right.name));
-        if(allObjects().some(o=>o.name===name&&o!==left&&o!==right))throw Error('Result name exists');
-        erase(left);erase(right);
-        const made=create(name,result);
-        history.pop();
-        history.push(()=>{erase(made);restore(left);restore(right);redraw();});
-        redraw();
-        return {name,faces:result.faces.length};
-      }
-      if (a.op === 'model.rename') {
-        const o=workshopObject(a.name);
-        const next=workshopName(a.to);
-        if (allObjects().some(x=>x!==o && x.name===next)) throw Error('Object name already exists');
-        const old=o.name;
-        history.push(()=>{o.name=old;change(o,o.mesh);redraw();});
-        o.name=next; change(o,o.mesh); redraw(); return {name:next};
-      }
-      if (a.op === 'model.delete') {
-        const o=workshopObject(a.name);
-        history.push(()=>{ if(!has(o)){ restore(o); redraw(); } });
-        erase(o); redraw(); return {removed:a.name};
-      }
-      if (a.op === 'model.mesh' || a.op === 'model.paint' || a.op === 'model.transform') {
-        const o=workshopObject(a.name);
-        const original=o.mesh;
-        let next;
-        if (a.op === 'model.mesh') next=workshopMesh(a.mesh);
-        else if (a.op === 'model.paint') {
-          const faces=Array.isArray(a.faces)?a.faces:original.faces.map((_,i)=>i);
-          if(!faces.every(i=>Number.isInteger(i)&&i>=0&&i<original.faces.length))throw Error('Invalid face index');
-          if(a.material && !materials.some(m=>m.name===a.material)) throw Error('Define the material first');
-          if(a.color && !/^#[0-9a-f]{6}$/i.test(a.color))throw Error('Color must be #rrggbb');
-          const set=new Set(faces);
-          next={...original,faces:original.faces.map((f,i)=>set.has(i)?{
-            ...f,...(a.material?{mat:a.material}:{}),...(a.color?{color:a.color}:{})
-          }:f)};
-        } else {
-          const move=a.move??[0,0,0], scale=a.scale??[1,1,1];
-          const rot=a.rotate??[0,0,0];
-          for(const [name,v] of [['move',move],['scale',scale],['rotate',rot]])
-            if(!Array.isArray(v)||v.length!==3||!v.every(Number.isFinite))throw Error(name+' must be three finite numbers');
-          if(scale.some(n=>n===0)) throw Error('Scale cannot contain zero');
-          const pts=original.positions;
-          const pivot=a.pivot??[0,1,2].map(i=>(Math.min(...pts.map(p=>p[i]))+Math.max(...pts.map(p=>p[i])))/2);
-          if(!Array.isArray(pivot)||pivot.length!==3||!pivot.every(Number.isFinite))throw Error('Invalid pivot');
-          const [rx,ry,rz]=rot.map(v=>v*Math.PI/180),cx=Math.cos(rx),sx=Math.sin(rx),cy=Math.cos(ry),sy=Math.sin(ry),cz=Math.cos(rz),sz=Math.sin(rz);
-          next={...original,positions:pts.map(p=>{
-            let [x,y,z]=p.map((v,i)=>(v-pivot[i])*scale[i]);
-            [y,z]=[y*cx-z*sx,y*sx+z*cx];
-            [x,z]=[x*cy+z*sy,-x*sy+z*cy];
-            [x,y]=[x*cz-y*sz,x*sz+y*cz];
-            return [x+pivot[0]+move[0],y+pivot[1]+move[1],z+pivot[2]+move[2]];
-          })};
-        }
-        history.push(()=>{if(has(o)){change(o,original);redraw();}});
-        change(o,next); redraw();
-        return {name:o.name,vertices:next.positions.length,faces:next.faces.length};
-      }
-      if (a.op === 'material.upsert') {
-        const v=a.material;
-        if(!v||typeof v!=='object')throw Error('material object required');
-        const name=workshopName(v.name);
-        if(v.color!==undefined&&!/^#[0-9a-f]{6}$/i.test(v.color)) throw Error('material.color must be #rrggbb');
-        for(const k of ['metal','rough','alpha','emit','soft'])
-          if(v[k]!==undefined&&(!Number.isFinite(v[k])||v[k]<0||v[k]>1))throw Error(k+' must be 0–1');
-        const before=materials.find(m=>m.name===name);
-        const m={...(before??{name,color:'#cccccc',metal:0,rough:0.8,alpha:1,emit:0}),...v,name};
-        if(v.url||v.image||v.scene)throw Error('External URL materials must be set manually in the UI');
-        if(before) Object.assign(before,m); else materials.push(m);
-        syncPalette(); showPalette(); saveMaterial(m); return {material:m};
-      }
-      if (a.op === 'material.select') {
-        const i=materials.findIndex(m=>m.name===a.name);
-        if(i<0)throw Error('Unknown material');
-        current=i; showPalette(); return {selected:a.name};
-      }
-      if (a.op === 'camera.look') {
-        if(!Array.isArray(a.eye)||a.eye.length!==3||!a.eye.every(Number.isFinite)||
-          !Number.isFinite(a.yaw)||!Number.isFinite(a.pitch))throw Error('eye, yaw, pitch required');
-        lookFrom(a.eye,a.yaw,a.pitch); return {eye:a.eye,yaw:a.yaw,pitch:a.pitch};
-      }
-      if (a.op === 'camera.target') { targetByName(workshopName(a.name)); return {target:a.name}; }
-      if (a.op === 'camera.reset') { reset(); return {reset:true}; }
-      if (a.op === 'vehicle.set') {
-        if(![null,'car','starship'].includes(a.vehicle??null))throw Error('vehicle: car, starship or null');
-        setVehicle(a.vehicle??null); return {vehicle:a.vehicle??null};
-      }
-      if (a.op === 'render.set') {
-        if(!['svg','gpu','gl'].includes(a.mode))throw Error('mode: svg, gpu or gl');
-        await setMode(a.mode); redraw(); return {render:viewOf().render};
-      }
-      if (a.op === 'ui.action') {
-        const act=ACTIONS[a.name];
-        if(!act)throw Error('Unknown action: '+a.name);
-        act.run({shiftKey:Boolean(a.shift),ctrlKey:false,metaKey:false,altKey:false,repeat:false,preventDefault(){}});
-        redraw(); return {action:a.name};
-      }
-      if (a.op === 'ui.click') {
-        const el=workshopFindControl(a.id);
-        if(!el||el.tagName!=='BUTTON'||el.disabled)throw Error('Button not available: '+a.id);
-        el.click(); return {clicked:a.id};
-      }
-      if (a.op === 'ui.set') {
-        const el=workshopFindControl(a.id);
-        if(!el||el.disabled||!['SELECT','INPUT'].includes(el.tagName))throw Error('Input not available: '+a.id);
-        if(el.tagName==='SELECT'&&!([...el.options].some(o=>o.value===String(a.value))))throw Error('Invalid option');
-        if(el.tagName==='INPUT' && (el.type==='checkbox'||el.type==='radio')) el.checked=Boolean(a.value);
-        else el.value=String(a.value??'');
-        el.dispatchEvent(new Event('input',{bubbles:true}));
-        el.dispatchEvent(new Event('change',{bubbles:true}));
-        return {set:a.id,value:el.tagName==='INPUT'&&(el.type==='checkbox'||el.type==='radio')?el.checked:el.value};
-      }
-      if (a.op === 'ui.pointer') {
-        if(!Number.isFinite(a.x)||!Number.isFinite(a.y))throw Error('Pointer x/y required in CSS pixels');
-        const rect=stage.getBoundingClientRect();
-        if(a.x<0||a.y<0||a.x>rect.width||a.y>rect.height)throw Error('Pointer outside editor');
-        const type=a.type??'move';
-        if(!['move','down','up','click','double','wheel'].includes(type))throw Error('type: move, down, up, click, double, wheel');
-        const props={bubbles:true,cancelable:true,clientX:rect.left+a.x,clientY:rect.top+a.y,button:a.button??0,
-          pointerId:1,pointerType:'mouse',isPrimary:true,shiftKey:Boolean(a.shift),ctrlKey:Boolean(a.ctrl),metaKey:Boolean(a.meta)};
-        if(type==='wheel')stage.dispatchEvent(new WheelEvent('wheel',{...props,deltaX:Number(a.deltaX)||0,deltaY:Number(a.deltaY)||0}));
-        else if(type==='click'||type==='double')stage.dispatchEvent(new MouseEvent(type==='double'?'dblclick':'click',props));
-        else stage.dispatchEvent(new PointerEvent('pointer'+(type==='move'?'move':type==='down'?'down':'up'),props));
-        return {pointer:type,x:a.x,y:a.y};
-      }
-      if (a.op === 'ui.key') {
-        if(typeof a.key!=='string'||a.key.length>20||!/^([a-zA-Z0-9?;/[\]öőúé]|Escape|Enter|Tab|Backspace| |Arrow(?:Up|Down|Left|Right))$/.test(a.key))
-          throw Error('Unsupported key');
-        const options={key:a.key,code:a.code||'',bubbles:true,cancelable:true,
-          shiftKey:Boolean(a.shift),ctrlKey:Boolean(a.ctrl),metaKey:Boolean(a.meta)};
-        document.dispatchEvent(new KeyboardEvent('keydown',options));
-        document.dispatchEvent(new KeyboardEvent('keyup',options));
-        return {key:a.key};
-      }
-      throw Error('Unsupported operation');
-    };
-    let aiLiveEdits = false;
-    let workshopPollTimer = null;
-    const workshopDone = new Set();
-    let workshopBusy = false;
-    const workshopPoll = async () => {
-      if(!aiLiveToken||!aiLiveEdits||workshopBusy||document.hidden)return;
-      workshopBusy=true;
-      try {
-        const token=aiLiveToken;
-        const res=await fetch('./api/workshop?token='+token,{cache:'no-store'});
-        if(!res.ok)throw Error('HTTP '+res.status);
-        const data=await res.json();
-        for(const cmd of data.commands??[]) {
-          if(!aiLiveEdits||token!==aiLiveToken)break;
-          if(workshopDone.has(cmd.id))continue;
-          workshopDone.add(cmd.id);
-          const results=[];
-          for(const action of cmd.actions??[]) {
-            if (!aiLiveEdits || token!==aiLiveToken) { results.push({op:action.op,ok:false,error:'AI editing permission revoked'}); break; }
-            try { results.push({op:action.op,ok:true,result:await workshopRun(action)}); }
-            catch(e){results.push({op:action.op,ok:false,error:String(e?.message??e)});}
-          }
-          await fetch('./api/workshop',{method:'POST',headers:{'content-type':'application/json'},
-            body:JSON.stringify({kind:'ack',token,id:cmd.id,ok:results.every(r=>r.ok),results}),cache:'no-store'});
-          aiLiveStatus('AI command '+cmd.id.slice(0,6)+' · '+results.filter(r=>r.ok).length+'/'+results.length+' actions');
-          await aiLivePublish();
-        }
-      } catch(e){ aiLiveStatus('Workshop connection: '+String(e?.message??e)); }
-      finally {workshopBusy=false;}
-    };
     const showSaved = () => {
       const names = Object.keys(readSaved()).sort();
       savedGroup.hidden = !names.length;
@@ -9677,7 +9249,7 @@
     };
     const nameOrDate = () => nameEl.value.trim() || `scene-${new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-')}`;
     // ---- The store: scenes and models kept online, so every device (the headset, a desktop, a phone) opens them, not only what is
-    // in the repository. On Spider Paint it is /api/store (a Vercel Blob store behind a function; ?store=<url> points elsewhere).
+    // in the repository. On spider-paint it is /api/store (a Vercel Blob store behind a function; ?store=<url> points elsewhere).
     // Anyone may read it; saving and taking out need the store's key (asked once, kept in this browser). The list shows it as
     // "online"; ☁ saves the scene there; the VR workshop's own save goes there too when the key is known.
     const STORE = (() => {
@@ -9934,7 +9506,7 @@
         sceneNote(`file: ${e.message}`);
       }
     });
-    // ---- Story mode: a Spider Build v2 file (.build.json, app/story.js; the spec is in Spider Paint: models/spider-build-v2.md).
+    // ---- Story mode: a Spider Build v2 file (.build.json, app/story.js; the spec is models/spider-build-v2.md).
     // A recorded build on a millisecond timeline with three independent tracks: construction (each step's resulting objects:
     // replay applies them, it does not run the tools), camera (keyframes, cut / linear / smoothstep) and narration (text and
     // audio cues; channels chapter, operation, voiceover). Loading one (the + scene list's stories, f↑ with a .build.json, MCP
@@ -10113,6 +9685,14 @@
       stShow(story.t, true);
       stPreset(v.cameraPreset);
     };
+    // presentation.background ('transparent' | '#rrggbb'): the GPU clears to it (storyBackdrop) and the page round the canvas follows it
+    const applyStoryBackground = (bg) => {
+      storyBackdrop = bg === 'transparent' ? 'transparent' : /^#[0-9a-f]{6}$/i.test(bg ?? '') ? [1, 3, 5].map((i) => parseInt(bg.slice(i, i + 2), 16) / 255) : null;
+      if (!storyBackdrop) bg = null;
+      document.body.classList.toggle('story-bg', Boolean(bg));
+      if (bg) document.documentElement.style.setProperty('--story-bg', bg === 'transparent' ? 'transparent' : bg);
+      else document.documentElement.style.removeProperty('--story-bg');
+    };
     const openStory = async (raw, base = location.href) => {
       let doc;
       try {
@@ -10126,6 +9706,7 @@
       renderOrigin = null;
       story = { doc, base, t: 0, index: -1, playing: false, last: 0, loadedKey: '', cutaway: false, focus: null, raf: 0, count: 0 };
       document.body.classList.add('story');
+      applyStoryBackground(doc.presentation?.background);
       stEl('stTitle').textContent = doc.metadata.title ?? 'Story';
       stEl('stChapter').replaceChildren(...doc.chapters.map((c) => Object.assign(document.createElement('option'), { value: c.id, textContent: c.title })));
       stEl('stChapter').hidden = !doc.chapters.length;
@@ -10151,6 +9732,7 @@
       story = null;
       storySkin = null;
       document.body.classList.remove('story');
+      applyStoryBackground(null);
       stEl('storyCaption').hidden = true;
       storyPanelEl.hidden = true;
       stEl('stInfo').classList.remove('on');
@@ -10783,8 +10365,8 @@
     // ?handsonly: in VR only the tracked hands count (controllers are ignored: no sticks, no buttons, no controller cockpit)
     // ?autovr: on a headset's browser VR starts by itself: the browser is offered the session at once (navigator.xr.offerSession,
     // its own Enter VR), and the page shows a full-screen Enter VR (a tap or a pinch: requestSession needs a gesture)
-    const XR_HANDS_ONLY = new URLSearchParams(location.search).has('handsonly');
-    const XR_AUTO = new URLSearchParams(location.search).has('autovr');
+    const XR_HANDS_ONLY = true; // (Fifth Percent: the hands only)
+    const XR_AUTO = new URLSearchParams(location.search).has('autovr'); // spider-paint: immersive VR is opt-in
     const XR_HEADSET = /OculusBrowser|Quest|Pico|Wolvic/i.test(navigator.userAgent);
     const XR_TEST = new URLSearchParams(location.search).get('xrtest'); // '1': only a test cube in VR; '2': the cube and the scene
     const xrLog = (msg, err = false) => {
@@ -13682,7 +13264,7 @@
       if (session !== xrState.session) return; // (a frame still on its way after the end)
       session.requestAnimationFrame(xrFrame);
       // A bare XR test must never depend on the heavyweight scene update.
-      // This isolates session/layer/framebuffer/eye rendering from Spider Paint entirely.
+      // This isolates session/layer/framebuffer/eye rendering from the editor entirely.
       if (XR_TEST === '1') {
         const xPressed = [...session.inputSources].some((src) => src.handedness === 'left' && Boolean(src.gamepad?.buttons?.[4]?.pressed));
         if (xPressed && !xrState.testXPressed) {
@@ -14171,7 +13753,8 @@
     // ?scene=<a value of the + scene list> starts with that one instead (deepsky, stars, sky:trappist-1, story:…; sky.md links here)
     const sceneParam = new URLSearchParams(location.search).get('scene');
     // A link from the public MCP server (mcp/http.js): the scene travels in the #fragment, packed (deflate-raw, base64url), so
-    // nothing is stored anywhere: #scene=<a 3draft-scene> (build_model) or #sky=<a 3draft-sky catalogue> (sky_scene). ?target=<name>
+    // nothing is stored anywhere: #scene=<a 3draft-scene> (build_model), #sky=<a 3draft-sky catalogue> (sky_scene) or
+    // #story=<a Spider Build v2 story> (build_story). ?target=<name>
     // (or &target in the fragment) takes that object as the target once the scene is in, as the find box (Enter) would.
     const linkHash = new URLSearchParams(location.hash.slice(1));
     const linkTarget = new URLSearchParams(location.search).get('target') ?? linkHash.get('target');
@@ -14189,7 +13772,19 @@
       else sceneNote(`no "${name}" in this scene`);
     };
     const linked = linkHash.get('scene') ?? linkHash.get('sky');
-    if (!EMBED && !SHOW && linked)
+    // #story=<a Spider Build v2 story> (MCP build_story): opens it in the Stories player
+    const linkedStory = linkHash.get('story');
+    if (!EMBED && !SHOW && linkedStory)
+      setTimeout(async () => {
+        try {
+          const data = await unpackLink(linkedStory);
+          await withLoader(data?.metadata?.title ?? 'story', async () => openStory(data));
+        } catch (e) {
+          workshopNotice('native_scene_error');
+          sceneNote(`the link's story could not be read: ${e.message}`);
+        }
+      }, 0);
+    else if (!EMBED && !SHOW && linked)
       setTimeout(async () => {
         try {
           const data = await unpackLink(linked);
@@ -14198,14 +13793,17 @@
           await withLoader(data.name ?? (sky ? 'sky catalogue' : 'model'), async () => loadScene(sky ? fromSky(data) : data, true));
           targetByName(linkTarget);
         } catch (e) {
+          workshopNotice('native_scene_error');
           sceneNote(`the link's scene could not be read: ${e.message}`);
         }
       }, 0);
     else if (!EMBED && !SHOW && sceneParam) setTimeout(() => addExample(sceneParam).then(() => targetByName(linkTarget)).catch((e) => sceneNote(`scene: ${e.message}`)), 0);
-    else if (!EMBED && !SHOW && new URLSearchParams(location.search).has('deepsky'))
-      (startScene = 'deepsky'), setTimeout(() => withLoader('deepsky', async () => loadScene(await sceneOf('deepsky'), true)).then(() => targetByName(linkTarget)).catch((e) => sceneNote(`scene: ${e.message}`)), 0); // (alone: never merged into something already there)
+
     draw();
+    // Embedded ChatGPT workshop opens in the existing Zen view; Z, Esc or the native exit button restores the editor.
+    if (WORKSHOP_EMBED) toggleZen(true);
     window.__ready = true;
+    workshopNotice('native_editor_ready');
     // works offline once opened (not in an artifact, nor from a file)
     if (!EMBED && 'serviceWorker' in navigator && location.protocol.startsWith('http') && !globalThis.claude?.use) navigator.serviceWorker.register('sw.js').catch(() => {});
     // Leaving by accident: the browser asks first (closing the tab, reloading, typing another address) once something has been made
@@ -14271,5 +13869,6 @@
     }, 20000);
     window.addEventListener('load', () => setTimeout(() => { if (window.__booted) try { sessionStorage.removeItem('engine-retry'); } catch {} }, 1000));
   </script>
+  <script defer src="./src/tutorial-keycast.js"></script>
 </body>
 </html>

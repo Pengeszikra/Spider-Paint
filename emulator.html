@@ -1,0 +1,17 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>five-percent · XR emulator demo</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  html, body { margin: 0; height: 100%; background: #101418; color: #cfd8dc; font: 14px system-ui, sans-serif; }
+  canvas { display: block; width: 100%; height: 100%; }
+  #ui { position: fixed; left: 12px; top: 12px; max-width: 360px; line-height: 1.4; }
+  button { font: inherit; padding: 6px 12px; }
+  #log { opacity: .7; white-space: pre; }
+</style>
+<canvas id="c"></canvas>
+<div id="ui">
+  <button id="enter">Enter VR (emulated)</button>
+  <div id="log">WASD walk · R/F up/down · arrows or right-drag look · click = trigger · Shift+click = left · Space = squeeze</div>
+</div>
+<script type="module" src="./src/demo.js"></script>

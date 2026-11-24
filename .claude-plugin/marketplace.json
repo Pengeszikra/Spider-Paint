@@ -1,0 +1,21 @@
+{
+  "name": "spider-paint",
+  "owner": {
+    "name": "Péter Vívó",
+    "url": "https://github.com/Pengeszikra"
+  },
+  "metadata": {
+    "description": "spider-paint: an interactive 3D workshop for AI agents, powered by 3Draft."
+  },
+  "plugins": [
+    {
+      "name": "spider-paint",
+      "source": "./plugins/spider-paint",
+      "description": "Build and explore editable 3D scenes; the real spider-paint editor opens inline in the conversation.",
+      "version": "1.0.0",
+      "category": "creativity",
+      "homepage": "https://tuskek-es-gyokerek.vercel.app",
+      "keywords": ["3d", "modeling", "mcp-apps", "3draft"]
+    }
+  ]
+}

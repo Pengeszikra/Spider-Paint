@@ -1,0 +1,15 @@
+# The deploy workflow supplies SPIDER_PAINT_GIT_SHA as a runtime environment variable.
+# Never copy short-lived GitHub OIDC credentials into a container image.
+.github
+node_modules
+tests
+scripts
+package-lock.json
+
+# Google GitHub Actions auth creates these at checkout root.
+gha-creds-*.json
+.env
+.env.*
+# Claude plugin package (not part of the Cloud Run image)
+.claude-plugin
+plugins

@@ -23,7 +23,7 @@ chapters             Named timeline ranges for navigation
 tracks.construction  Timestamped commands and authoritative resulting changes
 tracks.camera        Initial pose, keyframes and named inspection presets
 tracks.narration     Timestamped text and optional audio cues
-presentation         Optional cutaway masks and named object inspection views
+presentation         Optional cutaway masks, named object inspection views and background
 result               Optional summary of the finished model
 ```
 
@@ -32,6 +32,8 @@ or disabled without changing construction. They reference global time, never con
 step IDs or chapter IDs. Chapters contain navigation titles and ranges only; descriptive
 chapter narration belongs in `tracks.narration`. All camera coordinates, including inspection
 presets, belong in `tracks.camera`; presentation views reference presets by name.
+`presentation.background` (optional) is `"transparent"` or a `#rrggbb` colour drawn behind the
+model; a player's own background setting (e.g. `player.html?bg=`) overrides it.
 
 ## Construction
 
@@ -207,7 +209,8 @@ updating the legacy authoring journal. Changes made directly to the exported cam
 narration tracks should be saved as a separate edited recording before re-exporting: a
 fresh export intentionally regenerates all tracks from the source journal. New generic
 authoring tools should write v2 directly, capturing both command arguments and resulting
-changes at each completed operation. Camera recording must write camera keyframes only;
+changes at each completed operation. The MCP tool `build_story` (MCP.md, Stories) is such a writer: it records a model plus keyframed rigid motions either as
+`tracks.animation` channels or as stop-motion construction steps, with a camera track and narration cues. Camera recording must write camera keyframes only;
 narration editing must write narration cues only.
 
 The format can preserve the complete history that was recorded. It cannot recover modeling

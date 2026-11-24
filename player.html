@@ -67,6 +67,7 @@
         document.body.style.background = `#${hex}`;
       };
       setBackground(q.get('bg') ?? 'transparent');
+      let bgGiven = q.has('bg'); // ?bg= wins over a story's own presentation.background (and so does the background command)
 
       // ---- talking to the page round it: events out, commands in
       const origin = q.get('origin') || '*'; // (the embedding page's origin: give it to keep the events to that page only)
@@ -123,6 +124,7 @@
         S.lastCaption = '';
         if (data?.format === storyFormat.FORMAT) {
           const doc = storyFormat.normalizeBuildDocument(data);
+          if (!bgGiven && doc.presentation?.background) setBackground(doc.presentation.background);
           S.kind = 'story';
           S.doc = doc;
           S.t = 0;
@@ -231,7 +233,7 @@
         yaw: (m) => (S.yaw = num(m.value, 0) * RAD),
         pitch: (m) => (S.pitch = Math.max(-89, Math.min(89, num(m.value, 20))) * RAD),
         zoom: (m) => (S.zoom = Math.max(0.05, Math.min(50, num(m.value, 1)))),
-        background: (m) => setBackground(m.value),
+        background: (m) => (setBackground(m.value), (bgGiven = true)),
         smooth: (m) => (S.smooth = Boolean(m.value)),
         studio: (m) => (S.studio = Boolean(m.value)),
         state: () => {},
@@ -262,8 +264,18 @@
         fail(`WebGL2 is not available: ${err?.message ?? err}`);
       }
       const first = q.get('scene') ?? q.get('src');
+      // a link from the MCP server carries the story / scene itself in the #fragment (deflate-raw, base64url):
+      // #story=<a Spider Build v2 story> (build_story) or #scene=<a 3draft-scene> (build_model)
+      const packed = new URLSearchParams(location.hash.slice(1));
+      const inline = packed.get('story') ?? packed.get('scene');
+      const unpackLink = async (s) => {
+        const bin = atob(s.replace(/-/g, '+').replace(/_/g, '/'));
+        const bytes = Uint8Array.from(bin, (ch) => ch.charCodeAt(0));
+        return JSON.parse(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text());
+      };
       try {
-        if (first) await load(first);
+        if (inline && !first) await load(await unpackLink(inline));
+        else if (first) await load(first);
       } catch (err) {
         fail(err);
       }

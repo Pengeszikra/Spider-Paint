@@ -1,0 +1,61 @@
+name: spider-paint MCP App
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  mcp-widget:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package.json
+      - name: Validate JavaScript syntax
+        run: |
+          node --check api/mcp.mjs
+          node --check mcp/workshop-app.js
+          node --check mcp/raster.js
+          node --check tests/raster.mjs
+          node --check mcp/workshop-session.js
+          node --check tests/workshop-session.mjs
+          node --check mcp/workshop-widget.js
+          node --check mcp/workshop-client.js
+          node --check src/workshop-view.js
+          node --check src/tutorial-keycast.js
+          node --check tests/tutorial-ui.mjs
+          node --check tests/mcp-app.mjs
+          node --check tests/mcp-widget-bridge.mjs
+          node --check mcp/workshop-native-inline.js
+          node --check tests/mcp-widget-inline-browser.mjs
+          node --check bin/cloud-run.mjs
+          node --check tests/cloud-run.mjs
+          node --check scripts/release.mjs
+          node --check scripts/check-publish.mjs
+          node --check tests/release.mjs
+      - name: Validate deployment setup and core math
+        run: |
+          bash -n scripts/setup-cloud-run-oidc.sh
+          node tests/math.mjs
+      - name: Test ChatGPT widget MCP contract
+        run: |
+          npm run test:mcp-app
+          node tests/mcp-widget-bridge.mjs
+          node tests/workshop-session.mjs
+          node tests/raster.mjs
+          node tests/story.mjs
+          node tests/claude-plugin.mjs
+      - name: Test native tutorial controls and workshop Zen startup
+        run: node tests/tutorial-ui.mjs
+      - name: Test npm version release lifecycle
+        # versions are dated by the owner's local calendar day (Budapest), not the runner's UTC day
+        env:
+          TZ: Europe/Budapest
+        run: node tests/release.mjs
+      - name: Test embedded Git SHA with no source checkout
+        run: node tests/build-info.mjs
+      - name: Test Cloud Run static and MCP routes
+        run: node tests/cloud-run.mjs

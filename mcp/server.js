@@ -20,6 +20,7 @@ const INSTRUCTIONS = [
   'With a viewer open you can also steer it: view_example loads a bundled scene (deepsky: 1000 galaxies, 400 black holes, 3000 stars; stars, milkyway, globe, bridge...),',
   'view_target aims at an object by name, view_camera puts the eye somewhere (light years in a star map), view_vehicle switches starship / car / none, view_state reads what it shows.',
   'Name objects after what they are ("seat", "leg_fl") so you can transform, recolor and remove them later.',
+  'Repeated things (trees, rocks, posts, needle rings): model ONE, group it if it has parts, then place many copies in one call with instance { name, source, copies: [{ at, scale, rotate_y, color }] }; colour faces of one mesh instead of adding separate cap objects.',
 ].join(' ');
 
 const reply = (msg) => process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', ...msg })}\n`);
@@ -92,6 +93,6 @@ export const serve = (input = process.stdin, { live = process.env['3DRAFT_LIVE']
 };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  console.error(`Spider Paint MCP server (3Draft ${version}) ready on stdio`);
+  console.error(`spider-paint MCP server (3Draft ${version}) ready on stdio`);
   serve();
 }

@@ -222,6 +222,11 @@
           "items": {
             "$ref": "#/$defs/view"
           }
+        },
+        "background": {
+          "description": "The player's background behind the model: \"transparent\" (nothing drawn: the embedding page shows through) or a #rrggbb colour. Absent: the player's own default.",
+          "type": "string",
+          "pattern": "^(transparent|#[0-9a-fA-F]{6})$"
         }
       },
       "required": [],

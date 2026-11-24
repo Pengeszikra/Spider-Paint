@@ -1,5 +1,5 @@
-// The Spider Paint live viewer's static server (no dependencies), used by the MCP server (mcp/server.js, mcp/live.js).
-//   /            Spider Paint (index.html with ?live: it listens to the MCP scene and the view_* commands)
+// The spider-paint live viewer's static server (no dependencies), used by the MCP server (mcp/server.js, mcp/live.js).
+//   /            spider-paint (index.html with ?live: it listens to the MCP scene and the view_* commands)
 //   /3draft/...  a 3Draft checkout's viewer, when one is found: 3DRAFT_DIR, or ../3Draft / ../3draft beside this repo
 // Only on 127.0.0.1, only for a loopback Host header (no DNS rebinding), only the listed files and folders.
 // The service worker (sw.js) is not served here: it would cache the live stream.
@@ -81,7 +81,7 @@ export const createViewerServer = (extra) =>
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const port = Number(process.env.PORT) || 5173;
   createViewerServer().listen(port, '127.0.0.1', () => {
-    console.log(`Spider Paint: http://localhost:${port}/`);
+    console.log(`spider-paint: http://localhost:${port}/`);
     if (threeDraft) console.log(`3Draft (${threeDraft}): http://localhost:${port}/3draft/app/`);
   });
 }

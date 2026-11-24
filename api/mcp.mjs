@@ -1,7 +1,7 @@
-// The public MCP endpoint: https://spider-paint.vercel.app/api/mcp (Streamable HTTP, stateless, no auth).
+// spider-paint MCP endpoint: /api/mcp (Streamable HTTP, stateless for model results).
 // A Vercel Node function around mcp/http.js (synced from 3Draft). Static files it reads (sky.md, the Deep Sky
 // catalogue) are fetched from the site itself.
-import { handleHttp } from '../mcp/http.js';
+import { handleWorkshopMcp } from '../mcp/workshop-app.js';
 
 const readBody = (req) => new Promise((resolve, reject) => {
   if (typeof req.body === 'string') return resolve(req.body);
@@ -16,7 +16,7 @@ const readBody = (req) => new Promise((resolve, reject) => {
 
 export default async function handler(req, res) {
   const proto = String(req.headers['x-forwarded-proto'] ?? 'https').split(',')[0];
-  const host = String(req.headers['x-forwarded-host'] ?? req.headers.host ?? 'spider-paint.vercel.app').split(',')[0];
+  const host = String(req.headers['x-forwarded-host'] ?? req.headers.host ?? 'localhost').split(',')[0];
   const origin = `${proto}://${host}`;
   const fetchText = async (path) => {
     const r = await fetch(origin + path);
@@ -24,25 +24,37 @@ export default async function handler(req, res) {
     return r.text();
   };
   const body = req.method === 'POST' ? await readBody(req) : '';
-  // Same-origin server-side call to the private, token-gated workshop mailbox.
-  const fetchWorkshop = async (method, token, extra = {}) => {
-    const url = new URL(origin + '/api/workshop');
-    let init;
-    if (method === 'GET') {
-      url.searchParams.set('token', token);
-      if (extra.result) url.searchParams.set('result', extra.result);
-      init = { method:'GET', cache:'no-store' };
-    } else {
-      init = { method:'POST', headers:{'content-type':'application/json'},
-        body:JSON.stringify({token,...extra}), cache:'no-store' };
+  let out;
+  if(req.method==='POST'){
+    try{
+      const json=JSON.parse(body);
+      if(!Array.isArray(json)){
+        const handled=await handleWorkshopMcp(json,{origin,fetchText});
+        if(handled!==undefined)out={status:handled===null?202:200,headers:{'content-type':'application/json','access-control-allow-origin':'*','access-control-allow-headers':'content-type, accept, mcp-protocol-version','access-control-expose-headers':'mcp-protocol-version'},body:handled===null?'':JSON.stringify(handled)};
+      }
+    }catch(e){if(out===undefined && e instanceof SyntaxError) { /* hand malformed input to standard transport */ } else if(out===undefined)throw e;}
+  }
+  if(out===undefined){
+    // Legacy public tools are imported only when called; the inline workshop
+    // requires no headless modeling engine at request time.
+    const { handleHttp }=await import('../mcp/http.js');
+    out=await handleHttp({ method: req.method, body, origin, fetchText });
+  }
+  // Expose a correlation ID for successful/failed workshop tool responses.
+  // It carries no prompts, meshes or other user data.
+  try {
+    const message=typeof out.body==='string'&&out.body?JSON.parse(out.body):null;
+    const traceId=message?.result?.structuredContent?.trace_id
+      || (message?.result?.isError && JSON.parse(message.result.content?.[0]?.text||'null')?.trace_id);
+    if(traceId && /^[0-9a-f-]{36}$/.test(traceId)) {
+      res.setHeader('x-spider-paint-trace-id',traceId);
+      res.setHeader('access-control-expose-headers','mcp-protocol-version, x-spider-paint-trace-id');
     }
-    const r = await fetch(url, init);
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error || 'Workshop HTTP '+r.status);
-    return data;
-  };
-  const out = await handleHttp({ method: req.method, body, origin, fetchText, fetchWorkshop });
-  for (const [k, v] of Object.entries(out.headers ?? {})) res.setHeader(k, v);
+  } catch { /* never let observability change MCP transport behavior */ }
+  for (const [k, v] of Object.entries(out.headers ?? {})) {
+    if(k.toLowerCase()==='access-control-expose-headers' && res.hasHeader('access-control-expose-headers')) continue;
+    res.setHeader(k, v);
+  }
   res.statusCode = out.status;
   res.end(out.body ?? '');
 }

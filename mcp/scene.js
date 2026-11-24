@@ -5,7 +5,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, relative, isAbsolute, extname } from 'node:path';
-import { skyScene, SKY_TYPES, box, extrude, extrudeFace, moveVertices, faceNormal, faceCenter, merge, rotate, bounds, makeCamera, orbit, pick, ray as camRay, renderView, renderSheet, validate, boolean, VIEW_ORDER, triangulate, buildCharacter, normalizeCharacter, variateCharacter, posed, walkPose, HUMANOID_POSES, CHARACTER_PRESETS, makeJoint, jointNow, hingeTo, pivotTo, railTo, carried, moveMesh, springMesh } from './engine/index.js';
+import { skyScene, SKY_TYPES, box, extrude, extrudeFace, moveVertices, faceNormal, faceCenter, merge, rotate, bounds, makeCamera, orbit, pick, ray as camRay, renderView, renderSheet, validate, boolean, VIEW_ORDER, triangulate, buildCharacter, normalizeCharacter, variateCharacter, posed, walkPose, HUMANOID_POSES, CHARACTER_PRESETS, makeJoint, jointNow, hingeTo, pivotTo, railTo, carried, moveMesh, springMesh, instantiate } from './engine/index.js';
 
 export class ToolError extends Error {}
 const fail = (message) => {
@@ -171,6 +171,32 @@ const viewProps = {
   size: { type: 'number', description: 'Panel size in pixels, default 320.' },
 };
 
+// ---- Instances (scene format v2: `prototypes` + objects `{ name, proto, at, scale, rot, color }`, as the viewer's stars).
+// A prototype is stored once (`lods[0]`, its foot at the origin); an instance is the prototype placed by `instantiate`:
+// a uniform size, a tilt about x then a turn about y (`rot`, radians), moved to `at`, all faces optionally one `color`.
+const sameMesh = (a, b) =>
+  a.positions.length === b.positions.length &&
+  a.faces.length === b.faces.length &&
+  a.positions.every((p, i) => p.every((v, k) => Math.abs(v - b.positions[i][k]) <= 1e-9 * (1 + Math.abs(v)))) &&
+  a.faces.every((f, i) => f.color === b.faces[i].color && f.mat === b.faces[i].mat && f.v.length === b.faces[i].v.length && f.v.every((k, j) => k === b.faces[i].v[j]));
+const placed = (proto, p) => {
+  const m = instantiate(proto, { at: p.at, scale: p.scale, ...(p.rot ? { rot: p.rot } : {}), ...(p.color ? { color: p.color } : {}) });
+  return { positions: m.positions.map((q) => [...q]), faces: m.faces.map((f) => ({ ...f, v: [...f.v] })) };
+};
+/** A v2 scene (with `prototypes` and instance objects) made plain: every instance object gets its own `mesh` (v1 readers). */
+export const expandInstances = (scene) => {
+  if (!scene?.prototypes || !Array.isArray(scene.objects)) return scene;
+  const objects = scene.objects.map((o) => {
+    if (!o?.proto) return o;
+    const proto = scene.prototypes[o.proto]?.lods?.[0];
+    if (!proto) throw new ToolError(`object "${o.name}": no prototype "${o.proto}"`);
+    const { proto: _p, at, scale, rot, color: c, mats: _m, ...rest } = o;
+    return { ...rest, mesh: placed(proto, { at, scale, rot, color: c }) };
+  });
+  const { prototypes: _x, ...rest } = scene;
+  return { ...rest, version: 1, objects };
+};
+
 export const createScene = () => {
   const objects = new Map();
   const listeners = new Set();
@@ -180,7 +206,24 @@ export const createScene = () => {
   const groups = new Map(); // object name -> group name (objects of one group move as one)
   let joints = []; // the joints (src/joints.ts): glue, pivot, hinge, rail, spring
   const screens = new Map(); // material name -> { name, color, url | scene | image }: the screens (set_screen), the scene's palette
-  const data = () => ({ format: '3draft-scene', version: 1, rev, objects: [...objects].map(([n, mesh]) => ({ name: n, mesh, ...(groups.has(n) ? { group: groups.get(n) } : {}) })), ...(joints.length ? { joints } : {}), ...(screens.size ? { palette: [...screens.values()] } : {}) });
+  const protos = new Map(); // prototype key -> mesh with its foot at the origin (instance)
+  const instances = new Map(); // object name -> { proto, at, scale, rot?, color? }: made by instance, still exactly that placement
+  // compact: instance objects whose mesh is still exactly their placement are written as { proto, at, scale, rot, color }
+  // (scene format v2, as the viewer's stars) and their shape once in `prototypes`; anything edited since is written plainly
+  const data = ({ compact = false } = {}) => {
+    const used = {};
+    const out = [...objects].map(([n, mesh]) => {
+      const g = groups.has(n) ? { group: groups.get(n) } : {};
+      const i = compact && instances.get(n);
+      if (i && protos.has(i.proto) && sameMesh(mesh, placed(protos.get(i.proto), i))) {
+        used[i.proto] = { halo: false, lods: [protos.get(i.proto)] };
+        return { name: n, proto: i.proto, at: i.at, scale: i.scale, ...(i.rot ? { rot: i.rot } : {}), ...(i.color ? { color: i.color } : {}), ...g };
+      }
+      return { name: n, mesh, ...g };
+    });
+    const v2 = Object.keys(used).length > 0;
+    return { format: '3draft-scene', version: v2 ? 2 : 1, rev, ...(v2 ? { prototypes: used } : {}), objects: out, ...(joints.length ? { joints } : {}), ...(screens.size ? { palette: [...screens.values()] } : {}) };
+  };
   const linked = () => [...objects.keys()].map((n) => ({ name: n, group: groups.get(n) }));
   // the objects that move with `n` (its group, what is glued to it, what it holds), all moved by f(mesh) -> mesh
   const moveWith = (n, f) => {
@@ -202,6 +245,7 @@ export const createScene = () => {
   };
   const dropLinks = (n) => {
     groups.delete(n);
+    instances.delete(n);
     joints = joints.filter((j) => j.a !== n && j.b !== n);
   };
 
@@ -364,6 +408,84 @@ export const createScene = () => {
         objects.set(a.name, mesh);
         stretchSprings();
         return { ...summary(a.name, mesh), ...(along.length ? { moved_along: along } : {}) };
+      },
+    },
+    {
+      name: 'instance',
+      description: 'Place copies of an object or of a group (the prototype `source`): model one pine tree, one needle ring or one rock, then scatter it. Each copy is its own object (a group source: one object per member, named <copy>.<member>, grouped as <copy>, so it moves as one), placed by its FOOT (the middle of the bottom of the source\'s bounding box) at `at`, scaled (`scale`: a number, or [sx, sy, sz]) and turned about its foot (rotate_x, then rotate_z, then rotate_y, degrees, as transform), with `color` (every face one color) or `colors` ({ "#old": "#new" }: a slightly different material per copy). One copy: `name` + the placement. Many in one step: `copies` [{ name?, at, scale, rotate_x, rotate_y, rotate_z, color, colors }], each taking the top-level values as defaults; unnamed copies are called <name>-1, <name>-2... The prototype is the source as it is now (later edits of the source do not change the copies). Copies with a uniform scale, no rotate_z and no `colors` are stored compactly: the scene keeps the shape once (format v2 prototypes, like the viewer\'s stars) and one short record per copy, so links stay small. A copy can be edited like any object afterwards (it is then stored as a plain mesh).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          name: { ...nameSchema, description: 'the copy\'s name, or the name prefix of unnamed `copies`' },
+          source: { type: 'string', description: 'the object or group to copy (the prototype)' },
+          at: { ...vec3Schema, description: 'where the copy\'s foot goes (default: the source\'s own foot)' },
+          scale: { description: 'positive number, or [sx, sy, sz] (default 1)', oneOf: [{ type: 'number' }, vec3Schema] },
+          rotate_x: { type: 'number' }, rotate_z: { type: 'number' }, rotate_y: { type: 'number', description: 'degrees, counter-clockwise seen from above' },
+          color: colorSchema,
+          colors: { type: 'object', additionalProperties: { type: 'string' }, description: '{ "#old": "#new" }: recolor the faces of one color' },
+          copies: { type: 'array', maxItems: 2000, items: { type: 'object' }, description: 'many copies: [{ name?, at, scale, rotate_x, rotate_y, rotate_z, color, colors }]' },
+          replace: replaceSchema,
+        },
+        required: ['name', 'source'],
+      },
+      run: (a) => {
+        // the source: one object, or a group (every member is copied, the copies of one placement make a new group)
+        const members = objects.has(a.source) ? [a.source] : groupList()[a.source] ?? fail(`no object or group named "${a.source}". Use list to see the objects.`);
+        const foot = footOf(merge(...members.map((m) => objects.get(m))));
+        // the prototypes: the members as they are now, relative to the common foot (a new key when a member changed since)
+        const parts = members.map((m) => {
+          const src = objects.get(m);
+          const proto = { positions: src.positions.map((p) => [p[0] - foot[0], p[1] - foot[1], p[2] - foot[2]]), faces: src.faces.map((f) => ({ ...f, v: [...f.v] })) };
+          let key = m, k = 1;
+          while (protos.has(key) && !sameMesh(protos.get(key), proto)) key = `${m}#${++k}`;
+          return { member: m, key, proto };
+        });
+        const list = a.copies === undefined ? [{ name: a.name }] : Array.isArray(a.copies) && a.copies.length ? a.copies : fail('copies must be a non-empty list');
+        const opt = (c, key2) => (c[key2] !== undefined ? c[key2] : a[key2]);
+        const made = [];
+        let compact = 0;
+        list.forEach((c, idx) => {
+          if (!c || typeof c !== 'object' || Array.isArray(c)) fail(`copies[${idx}] must be an object`);
+          const n = name(c.name ?? (a.copies === undefined ? a.name : `${name(a.name)}-${idx + 1}`));
+          const at = vec3(opt(c, 'at'), 'at', foot);
+          const sc = opt(c, 'scale') ?? 1;
+          const s3 = isNum(sc) ? [sc, sc, sc] : vec3(sc, 'scale');
+          if (!s3.every((v) => v > 0)) fail('scale must be positive');
+          const deg = (key2) => (opt(c, key2) === undefined ? 0 : (number(opt(c, key2), key2) * Math.PI) / 180);
+          const rx = deg('rotate_x'), rz = deg('rotate_z'), ry = deg('rotate_y');
+          const col = opt(c, 'color') === undefined ? undefined : color(opt(c, 'color'));
+          const map = opt(c, 'colors');
+          if (map !== undefined && (typeof map !== 'object' || Array.isArray(map) || map === null)) fail('colors must be { "#old": "#new" }');
+          const remap = map ? Object.fromEntries(Object.entries(map).map(([o, nw]) => [color(o).toLowerCase(), color(nw)])) : null;
+          const simple = s3[0] === s3[1] && s3[1] === s3[2] && !rz && !remap;
+          for (const { member, key, proto } of parts) {
+            const pn = parts.length === 1 ? n : name(`${n}.${member}`);
+            if (members.includes(pn)) fail(`a copy cannot replace its own source ("${pn}")`);
+            if (objects.has(pn) && !a.replace) fail(`"${pn}" already exists; pass replace: true to overwrite it, or pick another name.`);
+            if (objects.has(pn)) dropLinks(pn);
+            let mesh;
+            if (simple) {
+              const p = { proto: key, at: [...at], scale: s3[0], ...(rx || ry ? { rot: [rx, ry] } : {}), ...(col ? { color: col } : {}) };
+              mesh = placed(proto, p);
+              instances.set(pn, p);
+              compact++;
+            } else {
+              const o = [0, 0, 0];
+              mesh = { positions: proto.positions.map((p) => p.map((v, i) => v * s3[i])), faces: proto.faces.map((f) => ({ ...f, v: [...f.v] })) };
+              mesh = turnAbout(mesh, [1, 0, 0], rx, o);
+              mesh = turnAbout(mesh, [0, 0, 1], rz, o);
+              mesh = turnAbout(mesh, [0, 1, 0], ry, o);
+              mesh = { positions: mesh.positions.map((p) => p.map((v, i) => v + at[i])), faces: mesh.faces.map((f) => ({ ...f, color: col ?? remap?.[String(f.color).toLowerCase()] ?? f.color })) };
+            }
+            objects.set(pn, mesh);
+            if (parts.length > 1) groups.set(pn, n);
+            made.push(pn);
+          }
+        });
+        for (const { key, proto } of parts) protos.set(key, proto);
+        if (made.length === 1) return { ...summary(made[0], objects.get(made[0])), source: a.source, compact: compact === 1 };
+        const copiesMade = list.length;
+        return { source: a.source, copies: copiesMade, objects: made.length, compact, names: made.length <= 20 ? made : [...made.slice(0, 10), '…', ...made.slice(-5)] };
       },
     },
     {
@@ -817,6 +939,8 @@ export const createScene = () => {
       objects.clear();
       groups.clear();
       screens.clear();
+      instances.clear();
+      protos.clear();
       joints = [];
       return { removed: n };
     } },
@@ -866,12 +990,12 @@ export const createScene = () => {
     },
     {
       name: 'export',
-      description: 'Return the scene as JSON, or write it to `path` (relative, inside the server working directory, ending in .3draft (the 3Draft scene file) or .json).',
-      inputSchema: { type: 'object', properties: { path: { type: 'string' } } },
+      description: 'Return the scene as JSON, or write it to `path` (relative, inside the server working directory, ending in .3draft (the 3Draft scene file) or .json). With compact: true, unedited instance copies are written as scene format v2 (`prototypes` + short instance records).',
+      inputSchema: { type: 'object', properties: { path: { type: 'string' }, compact: { type: 'boolean' } } },
       annotations: { readOnlyHint: true },
       run: (a) => {
-        if (a.path === undefined) return { text: JSON.stringify(data()) };
-        writeFileSync(safePath(a.path), JSON.stringify(data()));
+        if (a.path === undefined) return { text: JSON.stringify(data({ compact: a.compact === true })) };
+        writeFileSync(safePath(a.path), JSON.stringify(data({ compact: a.compact === true })));
         return { written: a.path, objects: objects.size };
       },
     },
@@ -889,12 +1013,24 @@ export const createScene = () => {
         }
         if (parsed?.format !== '3draft-scene' || !Array.isArray(parsed.objects)) fail('not a 3draft scene (format, objects)');
         const next = new Map();
+        const nextProtos = new Map(), nextInst = new Map();
         for (const o of parsed.objects) {
           name(o?.name);
-          next.set(o.name, parseMesh(o.mesh?.positions, o.mesh?.faces));
+          if (o.proto !== undefined) {
+            // an instance (v2): its prototype from `prototypes`, placed as the viewer places it
+            const pm = parsed.prototypes?.[o.proto]?.lods?.[0] ?? fail(`object "${o.name}": no prototype "${o.proto}"`);
+            if (!nextProtos.has(o.proto)) nextProtos.set(o.proto, parseMesh(pm.positions, pm.faces));
+            const p = { proto: o.proto, at: vec3(o.at, 'at'), scale: number(o.scale, 'scale', { min: 1e-12 }), ...(Array.isArray(o.rot) ? { rot: [number(o.rot[0], 'rot'), number(o.rot[1], 'rot')] } : {}), ...(o.color !== undefined ? { color: color(o.color) } : {}) };
+            next.set(o.name, placed(nextProtos.get(o.proto), p));
+            nextInst.set(o.name, p);
+          } else next.set(o.name, parseMesh(o.mesh?.positions, o.mesh?.faces));
         }
         objects.clear();
         groups.clear();
+        protos.clear();
+        instances.clear();
+        for (const [k, v] of nextProtos) protos.set(k, v);
+        for (const [k, v] of nextInst) instances.set(k, v);
         for (const [k, v] of next) objects.set(k, v);
         for (const o of parsed.objects) if (typeof o.group === 'string' && o.group) groups.set(o.name, o.group);
         joints = Array.isArray(parsed.joints) ? parsed.joints.filter((j) => j && objects.has(j.a) && objects.has(j.b)) : [];
@@ -934,7 +1070,7 @@ export const createScene = () => {
     },
     {
       name: 'view_example',
-      description: 'Load one of the viewer\'s bundled scenes into the open viewer (beside the MCP objects, or instead of everything with replace: true). The names are the viewer\'s scene list, e.g. deepsky (1000 galaxies, 400 black holes, 3000 stars), stars, milkyway, stars-plain, sky:trappist-1 (a sky catalogue), globe, bridge, ex27, betterman (Spider Paint also: human, tr74, station-screen). It is shown in the browser only: render and inspect do not see it.',
+      description: 'Load one of the viewer\'s bundled scenes into the open viewer (beside the MCP objects, or instead of everything with replace: true). The names are the viewer\'s scene list, e.g. deepsky (1000 galaxies, 400 black holes, 3000 stars), stars, milkyway, stars-plain, sky:trappist-1 (a sky catalogue), globe, bridge, ex27, betterman. It is shown in the browser only: render and inspect do not see it.',
       inputSchema: { type: 'object', properties: { name: { type: 'string' }, replace: { type: 'boolean', description: 'clear the viewer first (default false)' } }, required: ['name'] },
       live: true,
       run: (a) => sendView({ cmd: 'example', name: String(a.name ?? fail('name is required')), replace: Boolean(a.replace) }),

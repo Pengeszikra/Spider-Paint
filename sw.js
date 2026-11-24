@@ -1,11 +1,13 @@
-// Spider Paint service worker: the app works offline once it has been opened.
+// spider-paint service worker: the app works offline once it has been opened.
 // The page, models and icons come from the cache first and are refreshed in the background;
 // the engine (pinned to one commit on jsDelivr, so it never changes) and the fonts are kept after the first visit.
-const CACHE = 'spi3der-v285';
-const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'favicon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png', 'help.md', 'sky.html', 'sky.md', 'models/trappist-1.sky.json', 'models/bridge.scene.json', 'models/globe.scene.json', 'models/human.scene.json', 'models/betterman.scene.json', 'models/station-screen.scene.json', 'models/WU-3463-Wyoming-UP-3463.json', 'models/spider-build-v2.mjs'];
+const CACHE = 'spider-paint-v6';
+const SHELL = ['./', 'index.html', 'src/tutorial-keycast.js', 'manifest.webmanifest', 'favicon.svg', 'media/spider-paint-logo.svg', 'help.md', 'sky.html', 'sky.md', 'models/index.json', 'models/spider-build-v2.mjs'];
+// the models kept offline are the project's own: the "offline" list of models/index.json
+const offlineModels = () => fetch('models/index.json').then((r) => r.json()).then((idx) => (idx.offline ?? []).map((f) => `models/${f}`)).catch(() => []);
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then(async (c) => c.addAll([...SHELL, ...(await offlineModels())])).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {

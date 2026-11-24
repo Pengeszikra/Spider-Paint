@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "spider-paint": {
+      "type": "http",
+      "url": "https://spider-paint.vercel.app/api/mcp"
+    }
+  }
+}

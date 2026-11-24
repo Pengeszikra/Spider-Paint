@@ -1,7 +1,7 @@
 // (copied from 3Draft app/story.js by scripts/sync.mjs: change it there)
 /** Spider Build v2 (story files, .build.json): dependency-free, shared by the browser and Node authoring tools.
- * The viewer imports it (story mode); Spider Paint's sync copies it to models/spider-build-v2.mjs there. Its spec, schema
- * and authoring tools live in Spider Paint (models/spider-build-v2.md). */
+ * The viewer imports it (story mode). Its spec, schema
+ * and authoring notes: models/spider-build-v2.md. */
 export const FORMAT = 'spider-build-tutorial';
 export const VERSION = 2;
 const copy = value => structuredClone(value);
@@ -271,7 +271,8 @@ export function validateBuildDocument(doc) {
     if (c.startMs < chapterEnd || c.endMs <= c.startMs) fail(c.id, 'overlapping or empty chapter'); chapterEnd = c.endMs;
   }
   if (doc.presentation) {
-    keys(doc.presentation, ['cutaway','views'], 'presentation');
+    keys(doc.presentation, ['cutaway','views','background'], 'presentation');
+    if (doc.presentation.background !== undefined && !(doc.presentation.background === 'transparent' || /^#[0-9a-f]{6}$/i.test(doc.presentation.background))) fail('presentation.background', 'expected "transparent" or a #rrggbb colour');
     const preset = v => {if (!Object.hasOwn(cam.presets, v)) fail('presentation', `unknown camera preset ${v}`);};
     const prefixes = (v, path) => {array(v,path); v.forEach(x => string(x,path));};
     if (doc.presentation.cutaway) {const v=doc.presentation.cutaway; keys(v,['excludePrefixes','cameraPreset'],'presentation.cutaway'); preset(v.cameraPreset); prefixes(v.excludePrefixes,'cutaway.excludePrefixes');}

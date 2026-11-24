@@ -1,2 +1,9 @@
-zipo/
-ref/
+# Generated Google GitHub Actions OIDC credentials: never commit these.
+gha-creds-*.json
+
+# Local development and configuration
+.env
+.env.*
+node_modules/
+.DS_Store
+npm-debug.log*

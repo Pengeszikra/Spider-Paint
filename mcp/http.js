@@ -1,6 +1,6 @@
 // (copied from 3Draft 8fa6688 by scripts/sync.mjs: change it there)
 // The public, stateless MCP server: JSON-RPC 2.0 over Streamable HTTP (a POST with one message, a JSON answer; no server-sent
-// stream, no session). Deployed as a serverless function (Spider Paint: api/mcp.mjs -> https://spider-paint.vercel.app/api/mcp),
+// stream, no session). Deployed as a serverless function (spider-paint: api/mcp.mjs -> https://spider-paint.vercel.app/api/mcp),
 // so it keeps nothing between calls and cannot steer anyone's browser. Instead every tool that makes something returns an
 // `open_url`: the viewer with the scene packed into the URL's #fragment (deflate-raw, base64url), so the link opens exactly what
 // was made, and nothing is stored anywhere. build_model continues from such a link (`from`).
@@ -17,9 +17,10 @@ export const PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 const MAX_URL = 200000; // characters: longer links are refused (browsers and chat apps cut them)
 
 const INSTRUCTIONS = [
-  'Spider Paint is a no-install 3D viewer in the browser (3Draft engine): a modeller, and a first-person universe browser with real-scale stars, planets, exoplanets, black holes and galaxies.',
-  'This MCP is stateless. build_model returns a scene URL. For reading the human-edited browser, ask the user to enable AI live inside Spider Paint and share its private code, then call get_scene and get_render with session. Never invent a session code.',
-  'Models: build_model takes a list of steps (add_box, add_extrusion, add_mesh, transform, extrude_face, move_vertices, boolean, recolor, remove...) and runs them in order, returns a render (SVG text) and the link; continue with from: <the last open_url>. Y is up, the ground is y = 0, faces counter-clockwise seen from outside.',
+  'spider-paint is a no-install 3D viewer in the browser (3Draft engine): a modeller, and a first-person universe browser with real-scale stars, planets, exoplanets, black holes and galaxies.',
+  'This server keeps no state and cannot reach the user\'s browser: every tool that makes something returns open_url, a link that opens the viewer with exactly that scene. Give the user the link.',
+  'Models: build_model takes a list of steps (add_box, add_extrusion, add_mesh, transform, instance, extrude_face, move_vertices, boolean, recolor, remove...) and runs them in order, returns a render (SVG text) and the link; continue with from: <the last open_url>. Y is up, the ground is y = 0, faces counter-clockwise seen from outside.',
+  'Repeated things (trees, rocks, posts, needle rings): model ONE, group it if it has parts, then place many copies in one step with instance { name, source, copies: [{ at, scale, rotate_y, color }] } instead of sending the same mesh again; copies with a uniform scale and no rotate_z are stored once as a prototype, so the link stays small. Per-face colors replace separate cap objects (colour the top faces of a mountain white).',
   'Space: sky_scene makes a scene from a sky catalogue (format 3draft-sky: stars, planets, moons, exoplanets, black holes, galaxies in astronomers\' units; read sky_guide first). find searches the bundled deep sky (the Solar System, 3000 stars, 500 exoplanets, 400 black holes, 1000 galaxies) and links straight to an object. examples lists the bundled scenes.',
 ].join(' ');
 
@@ -42,7 +43,7 @@ const fail = (m) => {
 };
 
 // the modelling tools build_model may run (the ones that read or write files and steer a live viewer are left out)
-const MODEL_TOOLS = ['add_box', 'add_extrusion', 'add_mesh', 'add_character', 'transform', 'place_on', 'sense', 'sensing', 'group', 'ungroup', 'connect', 'disconnect', 'joints', 'move_joint', 'get_mesh', 'extrude_face', 'move_vertices', 'boolean', 'recolor', 'remove', 'clear', 'list', 'inspect', 'pick'];
+const MODEL_TOOLS = ['add_box', 'add_extrusion', 'add_mesh', 'add_character', 'transform', 'instance', 'place_on', 'sense', 'sensing', 'group', 'ungroup', 'connect', 'disconnect', 'joints', 'move_joint', 'get_mesh', 'extrude_face', 'move_vertices', 'boolean', 'recolor', 'remove', 'clear', 'list', 'inspect', 'pick'];
 const VIEWS = ['sheet', 'front', 'back', 'left', 'right', 'top', 'bottom', 'persp', 'none'];
 
 // the find box's kinds (the viewer's categoryOf)
@@ -85,7 +86,7 @@ export const EXAMPLES = [
 export const publicTools = () => [
   {
     name: 'build_model',
-    description: `Build a 3D model: runs the steps in order in a fresh scene (or continuing the scene of a previous open_url, given as from) and returns each step's result, a render (SVG text: a 2x2 sheet of front, side, top and perspective by default) and open_url, a link that opens the model in the Spider Paint viewer. Steps: { tool, args }, tool one of ${MODEL_TOOLS.join(', ')}. add_box { name, size: [x, y, z], at: [x, y, z] (the box's middle), color }, add_extrusion { name, polygon: [[x, z]...] (a convex floor outline), height, y (its bottom), color }, add_mesh { name, positions, faces: [{ v: [i...], color }] }, add_character { name, preset: scientist | mechanic | crew | astronaut, seed, spec, pose: stand | sit | walk, at: [x, y, z] (its feet), yaw (degrees, 0 faces +z), onto } (a figure from the character builder, about 1.7 m tall), transform { name, scale, rotate_x, rotate_z, rotate_y (degrees), pivot, move: [dx, dy, dz] }, place_on { name, onto, at: [x, z] | point (+ normal) | from + dir, align: up | normal, turn, gap } (like the viewer's G G: puts the object's foot, the middle of its bottom, onto the surface found straight down at [x, z], or along the ray; align normal turns its up to the surface), extrude_face { name, face, distance }, move_vertices { name, vertices, by }, boolean { op: union | subtract | intersect, a, b, name }, recolor { name, color, faces }, remove { name }, list (bounds of every object), pick { x, y, view } (what is at a pixel of the render: object, point, normal, distance), sense { x, y, view | from, dir, exclude, include } (the cursor's feel along a ray from the camera: the first surface and every hit behind it, with distances and whether the ray enters or leaves), sensing { ignore, sense, only, reset } (which objects sense, pick and place_on feel: ignore a wall to place behind it, a box to place into it). place_on also takes a pixel { x, y, view } and exclude / include. group { name, objects, rename } / ungroup { name } (objects that move as one), connect { type: glue | pivot | hinge | rail | spring, a (holds), b (held), at, at_b, contact, edge: [i, j] of b | axis, path, slider, limit, limits: { x, y, z }, rest_length, stiffness, damping, ends, spring_object } (the basic mechanics: a carries b; b moves only as the joint allows), disconnect { name }, joints (their state: angle, position, length), move_joint { name, angle | angles | position } (turn a hinge or pivot, slide a rail, inside the limits). Y is up, the ground is y = 0, faces counter-clockwise seen from outside. A step that fails is reported and the rest still run. Look at the render, then fix with another call (from: the last open_url).`,
+    description: `Build a 3D model: runs the steps in order in a fresh scene (or continuing the scene of a previous open_url, given as from) and returns each step's result, a render (SVG text: a 2x2 sheet of front, side, top and perspective by default) and open_url, a link that opens the model in the spider-paint viewer. Steps: { tool, args }, tool one of ${MODEL_TOOLS.join(', ')}. add_box { name, size: [x, y, z], at: [x, y, z] (the box's middle), color }, add_extrusion { name, polygon: [[x, z]...] (a convex floor outline), height, y (its bottom), color }, add_mesh { name, positions, faces: [{ v: [i...], color }] }, add_character { name, preset: scientist | mechanic | crew | astronaut, seed, spec, pose: stand | sit | walk, at: [x, y, z] (its feet), yaw (degrees, 0 faces +z), onto } (a figure from the character builder, about 1.7 m tall), transform { name, scale, rotate_x, rotate_z, rotate_y (degrees), pivot, move: [dx, dy, dz] }, instance { name, source, at (the copy's foot), scale, rotate_x, rotate_y, rotate_z, color, colors: { "#old": "#new" }, copies: [{ name?, at, scale, rotate_y, color... }] } (model one tree / needle ring / rock, then place many copies in one step; unedited copies are stored once as a prototype, so the link stays small), place_on { name, onto, at: [x, z] | point (+ normal) | from + dir, align: up | normal, turn, gap } (like the viewer's G G: puts the object's foot, the middle of its bottom, onto the surface found straight down at [x, z], or along the ray; align normal turns its up to the surface), extrude_face { name, face, distance }, move_vertices { name, vertices, by }, boolean { op: union | subtract | intersect, a, b, name }, recolor { name, color, faces }, remove { name }, list (bounds of every object), pick { x, y, view } (what is at a pixel of the render: object, point, normal, distance), sense { x, y, view | from, dir, exclude, include } (the cursor's feel along a ray from the camera: the first surface and every hit behind it, with distances and whether the ray enters or leaves), sensing { ignore, sense, only, reset } (which objects sense, pick and place_on feel: ignore a wall to place behind it, a box to place into it). place_on also takes a pixel { x, y, view } and exclude / include. group { name, objects, rename } / ungroup { name } (objects that move as one), connect { type: glue | pivot | hinge | rail | spring, a (holds), b (held), at, at_b, contact, edge: [i, j] of b | axis, path, slider, limit, limits: { x, y, z }, rest_length, stiffness, damping, ends, spring_object } (the basic mechanics: a carries b; b moves only as the joint allows), disconnect { name }, joints (their state: angle, position, length), move_joint { name, angle | angles | position } (turn a hinge or pivot, slide a rail, inside the limits). Y is up, the ground is y = 0, faces counter-clockwise seen from outside. A step that fails is reported and the rest still run. Look at the render, then fix with another call (from: the last open_url).`,
     inputSchema: {
       type: 'object',
       properties: {
@@ -125,7 +126,7 @@ export const publicTools = () => [
         }
         return r.isError ? { step: i, tool, error: r.text } : { step: i, tool, result: out };
       });
-      const exported = JSON.parse(scene.call('export', {}).text);
+      const exported = JSON.parse(scene.call('export', { compact: true }).text);
       const link = `${ctx.origin}/#scene=${pack(exported)}`;
       const view = a.render ?? 'sheet';
       const svg = view === 'none' || !exported.objects.length ? null : scene.call('render', { view, size: a.size ?? 280, points: false }).text;
@@ -208,94 +209,6 @@ export const publicTools = () => [
     run: (a, ctx) => ({ examples: EXAMPLES.map(([name, about]) => ({ name, about, open_url: `${ctx.origin}/?scene=${encodeURIComponent(name)}` })), viewer: `${ctx.origin}/`, guide: `${ctx.origin}/sky.html` }),
   },
   {
-    name: 'get_scene',
-    description: 'Read the actual scene in a Spider Paint browser that its owner explicitly shared with AI live. Requires the private 64-character session code shown by the viewer (no other open tab is accessible). Returns scene materials, camera/view, and the current object geometry; full=true includes all meshes.',
-    inputSchema: { type: 'object', properties: {
-      session: { type: 'string', description: 'The 64-character AI live session code copied by the user from Spider Paint.' },
-      full: { type: 'boolean', description: 'Return the full 3draft-scene including mesh vertex/face arrays (default false, for concise summary).' },
-    }, required: ['session'] },
-    annotations: { readOnlyHint: true, openWorldHint: false },
-    run: async (a,ctx) => {
-      const snap=await liveSnapshot(a,ctx);
-      const scene=snap.scene;
-      const objects=scene.objects.map(o=>({name:o.name,vertices:o.mesh?.positions?.length??0,faces:o.mesh?.faces?.length??0,materials:[...new Set((o.mesh?.faces??[]).map(f=>f.mat).filter(Boolean))]}));
-      return {version:snap.capabilities?.version??null,serverVersion:version,updated:new Date(snap.updated).toISOString(),age_s:Math.round((Date.now()-snap.updated)/1000),
-        object_count:objects.length,objects,palette:scene.palette,view:scene.view,vehicle:scene.vehicle,
-        ...(a.full?{scene}:{note:'Pass full: true to retrieve all geometry.'})};
-    }
-  },
-  {
-    name: 'get_render',
-    description: 'Look at the current SVG or WebGL2/WebGPU screenshot produced by a Spider Paint browser shared using AI live. Unlike build_model render, this is captured from the human-edited browser scene and its actual camera. Requires the session code from the viewer.',
-    inputSchema: {type:'object',properties:{session:{type:'string',description:'The 64-character AI live session code copied by the user from Spider Paint.'}},required:['session']},
-    annotations: { readOnlyHint:true, openWorldHint:false },
-    run: async (a,ctx) => {
-      const snap=await liveSnapshot(a,ctx);
-      const r=snap.render;
-      if(!r.data)fail('The viewer did not capture a render. Leave immersive XR and try SVG mode (9) or desktop GPU view.');
-      if(r.kind==='svg')return {kind:'svg',updated:new Date(snap.updated).toISOString(),render:r.data};
-      const m=/^data:(image\/(?:jpeg|png));base64,([A-Za-z0-9+/=]+)$/.exec(r.data);
-      if(!m)fail('The saved GPU render is not a supported image');
-      return {kind:r.kind,updated:new Date(snap.updated).toISOString(),imageData:m[2],mimeType:m[1]};
-    }
-  },
-  {
-    name: 'workshop_controls',
-    description: 'Discover all currently available editor operations, UI buttons, inputs, selectors, keyboard actions, scenes and XR capabilities from a user-shared Spider Paint browser. AI live code required.',
-    inputSchema: {type:'object',properties:{session:{type:'string',description:'Private AI live code from the user'}},required:['session']},
-    annotations:{readOnlyHint:true,openWorldHint:false},
-    run:async(a,ctx)=>{
-      const snap=await liveSnapshot(a,ctx);
-      return {updated:new Date(snap.updated).toISOString(),serverVersion:version,clientVersion:snap.capabilities?.version??null,versionMatch:(!snap.capabilities?.engineVersion||snap.capabilities.engineVersion===version),capabilities:snap.capabilities??{note:'Refresh the browser to publish its workshop control list'}};
-    }
-  },
-  {
-    name: 'workshop_apply',
-    description: 'Queue one or more named model, mesh, material, scene, camera, story or UI operations for the human-edited Spider Paint browser. The owner must additionally turn on "Allow AI edits". It is asynchronous: call workshop_result using the returned id to inspect success/errors. Never assume an action was applied until workshop_result confirms it. Supports model.create/mesh/transform/paint/rename/delete/character/pose/extrude/boolean; material.upsert/select; scene.load/replace/clear/undo; camera.look/target/reset; vehicle.set; render.set; ui.action/click/set/key/pointer; story.open. Call workshop_controls first for available IDs.',
-    inputSchema:{type:'object',properties:{
-      session:{type:'string',description:'Private AI live code explicitly shared by the user'},
-      actions:{type:'array',minItems:1,maxItems:30,items:{type:'object',properties:{
-        op:{type:'string',enum:['model.create','model.mesh','model.transform','model.paint','model.rename','model.delete','model.character','model.pose','model.extrude','model.boolean','material.upsert','material.select','scene.load','scene.replace','scene.clear','scene.undo','camera.look','camera.target','camera.reset','vehicle.set','render.set','ui.action','ui.click','ui.set','ui.key','ui.pointer','story.open']},
-        name:{type:'string'},id:{type:'string'},value:{},to:{type:'string'},mesh:{type:'object'},material:{type:'object'},scene:{type:'object'},
-        spec:{type:'object'},preset:{type:'string'},pose:{type:'string'},at:{type:'array',items:{type:'number'}},size:{type:'number'},x:{type:'number'},y:{type:'number'},type:{type:'string'},button:{type:'integer'},deltaX:{type:'number'},deltaY:{type:'number'},ctrl:{type:'boolean'},meta:{type:'boolean'},face:{type:'integer'},distance:{type:'number'},operation:{type:'string'},a:{type:'string'},b:{type:'string'},
-        faces:{type:'array',items:{type:'integer'}},color:{type:'string'},move:{type:'array',items:{type:'number'}},scale:{type:'array',items:{type:'number'}},rotate:{type:'array',items:{type:'number'}},pivot:{type:'array',items:{type:'number'}},
-        eye:{type:'array',items:{type:'number'}},yaw:{type:'number'},pitch:{type:'number'},vehicle:{type:['string','null']},mode:{type:'string'},key:{type:'string'},shift:{type:'boolean'}
-      },required:['op']}}
-    },required:['session','actions']},
-    annotations:{readOnlyHint:false,destructiveHint:true,openWorldHint:false},
-    run:async(a,ctx)=>{
-      const snap=await liveSnapshot(a,ctx);
-      if(!snap.capabilities?.editable)fail('The owner must switch on "Allow AI edits" in the Spider Paint AI live panel.');
-      if(!Array.isArray(a.actions)||!a.actions.length||a.actions.length>30)fail('Supply 1–30 actions');
-      const allowed=new Set(['model.create','model.mesh','model.transform','model.paint','model.rename','model.delete','model.character','model.pose','model.extrude','model.boolean','material.upsert','material.select','scene.load','scene.replace','scene.clear','scene.undo','camera.look','camera.target','camera.reset','vehicle.set','render.set','ui.action','ui.click','ui.set','ui.key','ui.pointer','story.open']);
-      if(!a.actions.every(x=>allowed.has(x?.op)))fail('One or more actions are not supported');
-      const response=await ctx.callWorkshop('POST',a.session,{kind:'enqueue',actions:a.actions});
-      if(response.error)fail(response.error);
-      return {...response,note:'Queued, not completed. Call workshop_result with the id to confirm browser execution.'};
-    }
-  },
-  {
-    name: 'workshop_result',
-    description: 'Check whether an earlier workshop_apply command has actually been executed by the human browser. Returns per-action results, errors, or pending.',
-    inputSchema:{type:'object',properties:{session:{type:'string'},id:{type:'string'}},required:['session','id']},
-    annotations:{readOnlyHint:true,openWorldHint:false},
-    run:async(a,ctx)=>{
-      await liveSnapshot(a,ctx);
-      if(!/^[0-9a-f]{24}$/.test(String(a.id??'')))fail('Invalid command id');
-      const r=await ctx.callWorkshop('GET',a.session,{result:a.id});
-      if(r.error)fail(r.error);
-      return r;
-    }
-  },
-  {
-    name: 'open_workshop',
-    description: 'Open the interactive Spider Paint / 3Draft WebGL2/SVG editor as an MCP App inside ChatGPT. Both the human and the AI can work on the same scene after AI live sharing and explicit edit permission are enabled in the editor. The host decides inline, side-panel or fullscreen layout.',
-    inputSchema:{type:'object',properties:{}},
-    annotations:{readOnlyHint:true,openWorldHint:true},
-    uiMeta:{ui:{resourceUri:'ui://spider-paint/workshop.html'},'openai/outputTemplate':'ui://spider-paint/workshop.html'},
-    run:(a,ctx)=>({open_url:ctx.origin+'/',note:'The workshop is an interactive MCP App. In its AI live panel enable sharing, then separately enable AI edits; give the private session code to the agent.'})
-  },
-  {
     name: 'sky_guide',
     description: 'The sky guide (Markdown): how the viewer shows stars, planets, black holes and galaxies, the whole 3draft-sky catalogue format with examples, where to find real data, and what is real and what is made up. Read it before writing a catalogue for sky_scene.',
     inputSchema: { type: 'object', properties: {} },
@@ -303,13 +216,6 @@ export const publicTools = () => [
     run: async (a, ctx) => ({ text: await ctx.fetchText('/sky.md') }),
   },
 ];
-
-const liveSnapshot=async (a,ctx)=>{
-  if(!/^[0-9a-f]{64}$/.test(String(a.session??''))) fail('Open Spider Paint, switch on AI live, and paste the 64-character session code here.');
-  const snap=await ctx.fetchLive(a.session);
-  if(snap?.format!=='spider-paint-live'||!Array.isArray(snap.scene?.objects))fail('Live viewer returned an invalid scene');
-  return snap;
-};
 
 // the deep sky catalogue, read once per warm instance
 let deepSkyCache = null;
@@ -332,31 +238,22 @@ export const handleMcp = async (msg, ctx) => {
       return answer(id, {
         protocolVersion: PROTOCOLS.includes(params?.protocolVersion) ? params.protocolVersion : PROTOCOLS[0],
         capabilities: { tools: {} },
-        serverInfo: { name: 'spider-paint', title: 'Spider Paint', version },
+        serverInfo: { name: 'spider-paint', title: 'spider-paint', version },
         instructions: INSTRUCTIONS,
       });
     case 'ping':
       return answer(id, {});
     case 'tools/list':
-      return answer(id, { tools: tools.map(({ name, description, inputSchema, annotations, uiMeta }) => ({ name, description, inputSchema, annotations, ...(uiMeta ? { _meta:uiMeta } : {}) })) });
-    case 'resources/list':
-      return answer(id,{resources:[{uri:'ui://spider-paint/workshop.html',name:'Spider Paint Workshop',description:'Interactive 3Draft / WebGL2 3D editor',mimeType:'text/html;profile=mcp-app',_meta:{ui:{}}}]});
-    case 'resources/read': {
-      if(params?.uri!=='ui://spider-paint/workshop.html')return errorOf(id,-32602,'Unknown UI resource');
-      const origin=String(ctx.origin).replace(/\/$/,'');
-      const html='<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;height:100%;background:#10110e;color:#eee;font:13px system-ui}header{display:flex;gap:12px;align-items:center;padding:8px 12px}iframe{border:0;width:100%;height:calc(100% - 42px)}a{color:#83d7e0}</style></head><body><header><strong>Spider Paint · AI workshop</strong><span>3Draft '+version+' · Enable AI live inside the editor, then share your session code in chat.</span><a target="_blank" rel="noopener" href="'+origin+'/">Full screen</a></header><iframe title="Spider Paint interactive 3D editor" allow="fullscreen; xr-spatial-tracking" src="'+origin+'/" loading="eager"></iframe></body></html>';
-      return answer(id,{contents:[{uri:'ui://spider-paint/workshop.html',mimeType:'text/html;profile=mcp-app',text:html,_meta:{ui:{prefersBorder:false,csp:{frameDomains:[origin],connectDomains:[origin],resourceDomains:[origin]}}}}]});
-    }
+      return answer(id, { tools: tools.map(({ name, description, inputSchema, annotations }) => ({ name, description, inputSchema, annotations })) });
     case 'tools/call': {
       const tool = tools.find((t) => t.name === params?.name);
       if (!tool) return errorOf(id, -32602, `unknown tool: ${params?.name}`);
       try {
         const out = await tool.run(params.arguments ?? {}, ctx);
         // the render is SVG text: it goes in a content block of its own, so the rest stays plain JSON
-        const { render, text, imageData, mimeType, ...rest } = out ?? {};
+        const { render, text, ...rest } = out ?? {};
         const content = [{ type: 'text', text: text ?? JSON.stringify(rest) }];
         if (render) content.push({ type: 'text', text: render });
-        if (imageData && mimeType) content.push({ type: 'image', data: imageData, mimeType });
         return answer(id, { content });
       } catch (e) {
         if (e instanceof ToolFail) return answer(id, { content: [{ type: 'text', text: e.message }], isError: true });
@@ -373,10 +270,10 @@ export const handleMcp = async (msg, ctx) => {
  * POST: one JSON-RPC message (a batch is answered message by message); a notification or a response gets 202. GET (the
  * server-sent stream) and DELETE (ending a session) are not offered: 405. OPTIONS: CORS.
  */
-export const handleHttp = async ({ method, body, origin, fetchText, fetchWorkshop }) => {
+export const handleHttp = async ({ method, body, origin, fetchText }) => {
   const cors = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'POST, GET, OPTIONS', 'access-control-allow-headers': 'content-type, accept, mcp-protocol-version, mcp-session-id, authorization', 'access-control-expose-headers': 'mcp-protocol-version' };
   if (method === 'OPTIONS') return { status: 204, headers: cors, body: '' };
-  if (method === 'GET') return { status: 405, headers: { ...cors, allow: 'POST', 'content-type': 'application/json' }, body: JSON.stringify({ error: 'This is the Spider Paint MCP endpoint (Streamable HTTP): POST JSON-RPC messages here.', server: 'spider-paint', viewer: `${origin}/` }) };
+  if (method === 'GET') return { status: 405, headers: { ...cors, allow: 'POST', 'content-type': 'application/json' }, body: JSON.stringify({ error: 'This is the spider-paint MCP endpoint (Streamable HTTP): POST JSON-RPC messages here.', server: 'spider-paint', viewer: `${origin}/` }) };
   if (method !== 'POST') return { status: 405, headers: { ...cors, allow: 'POST' }, body: '' };
   let msg;
   try {
@@ -384,20 +281,7 @@ export const handleHttp = async ({ method, body, origin, fetchText, fetchWorksho
   } catch {
     return { status: 400, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify(errorOf(null, -32700, 'parse error')) };
   }
-  const ctx = { origin, fetchText,
-    callWorkshop:async(method,session,extra={})=>{
-      if(!/^[0-9a-f]{64}$/.test(String(session??'')))fail('Invalid workshop session code');
-      if(typeof fetchWorkshop!=='function')fail('Workshop API is not configured');
-      return fetchWorkshop(method,session,extra);
-    },
-    fetchLive: async (session) => {
-    let data;
-    try { data=await fetchText('/api/live?token='+encodeURIComponent(session)); }
-    catch { fail('Live snapshot unavailable. Enable AI live in the browser, check the Vercel Blob deployment and session code.'); }
-    const parsed=JSON.parse(data);
-    if(parsed.error)fail(parsed.error);
-    return parsed;
-  } };
+  const ctx = { origin, fetchText };
   const json = { ...cors, 'content-type': 'application/json' };
   if (Array.isArray(msg)) {
     const outs = (await Promise.all(msg.map((m) => handleMcp(m, ctx)))).filter(Boolean);

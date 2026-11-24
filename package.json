@@ -27,7 +27,59 @@
       "models/spider-build-v2.schema.json"
     ]
   },
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "spider-paint": "./bin/spider-paint.mjs",
+    "spider-paint-workshop-mcp": "./bin/workshop-mcp.mjs"
+  },
+  "scripts": {
+    "start": "node bin/spider-paint.mjs",
+    "test": "node tests/math.mjs && node tests/smoke.mjs && node tests/instance.mjs",
+    "bump": "node scripts/bump.mjs",
+    "workshop": "node bin/workshop.mjs",
+    "test:workshop": "node tests/workshop.mjs",
+    "mcp:workshop": "node bin/workshop-mcp.mjs",
+    "test:mcp-app": "node tests/mcp-app.mjs",
+    "release": "node scripts/release.mjs",
+    "prepublishOnly": "node scripts/check-publish.mjs",
+    "transfer": "node scripts/transfer.mjs",
+    "brand": "node scripts/transfer.mjs --brand"
+  },
+  "files": [
+    "api/",
+    "mcp/",
+    "bin/",
+    "engine/",
+    "icons/",
+    "media/",
+    "models/",
+    "src/",
+    "index.html",
+    "player.html",
+    "emulator.html",
+    "sky.html",
+    "xr-test.html",
+    "xr-compare.html",
+    "sky.md",
+    "help.md",
+    "PLAYER.md",
+    "APP.md",
+    "MCP.md",
+    "favicon.svg",
+    "manifest.webmanifest",
+    "sw.js",
+    "Dockerfile",
+    "nginx.conf",
+    "README.md",
+    "workshop.html",
+    "LICENSE",
+    "TRANSFER.md"
+  ],
   "dependencies": {
     "@vercel/blob": "^2.3.0"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

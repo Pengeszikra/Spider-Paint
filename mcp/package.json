@@ -2,7 +2,7 @@
   "name": "spider-paint-mcp",
   "private": true,
   "type": "module",
-  "description": "The Spider Paint / 3Draft MCP server: node mcp/server.js",
+  "description": "The spider-paint / 3Draft MCP server: node mcp/server.js",
   "3draft": {
     "version": "26.11.18029",
     "commit": "8fa668821759563fb012042571bf3913c3563824"

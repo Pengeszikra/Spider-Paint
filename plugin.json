@@ -1,0 +1,49 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "spider-paint",
+  "version": "1.0.0",
+  "description": "An interactive browser-native 3D workshop powered by 3Draft. Model, inspect, transform, and explore editable scenes through MCP tools and the original spider-paint editor embedded in ChatGPT.",
+  "author": {
+    "name": "Péter Vívó",
+    "url": "https://tuskek-es-gyokerek.vercel.app"
+  },
+  "homepage": "https://tuskek-es-gyokerek.vercel.app",
+  "repository": "https://github.com/Pengeszikra/spider-paint",
+  "license": "MIT",
+  "keywords": [
+    "3d",
+    "modeling",
+    "creative-tools",
+    "mcp",
+    "chatgpt",
+    "3draft",
+    "webxr"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "spider-paint",
+        "shortDescription": "Build and explore 3D scenes",
+        "longDescription": "Build and explore editable 3D scenes with an AI agent using real 3Draft geometry tools. Create meshes and primitives, transform objects, inspect shapes, and open the results in the native spider-paint editor inside ChatGPT. The workshop is experimental: persistent shared sessions and fully verified two-way editing are still under development.",
+        "developerName": "Péter Vívó",
+        "category": "Creativity",
+        "capabilities": [
+          "Build editable 3D models",
+          "Inspect and transform scene geometry",
+          "Open interactive 3D workshop views"
+        ],
+        "websiteURL": "https://tuskek-es-gyokerek.vercel.app",
+        "supportURL": "https://github.com/Pengeszikra/spider-paint/issues",
+        "defaultPrompt": [
+          "Open spider-paint and create a cube on a workbench.",
+          "Model an eight-legged mechanical spider in spider-paint.",
+          "Build a small house with a pitched roof in spider-paint."
+        ],
+        "brandColor": "#102E30",
+        "brandColorDark": "#68D6B0",
+        "composerIcon": "./icons/icon-192.png",
+        "logo": "./icons/icon-512.png"
+      }
+    }
+  }
+}

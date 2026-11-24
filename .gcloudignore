@@ -1,0 +1,15 @@
+# Cloud Run source upload: never ship GitHub's ephemeral OIDC credential file.
+# The Docker build gets its authoritative SHA from SPIDER_PAINT_GIT_SHA at runtime.
+.git
+.github
+.gitignore
+.gcloudignore
+node_modules
+npm-debug.log*
+gha-creds-*.json
+.env
+.env.*
+.DS_Store
+# Claude plugin package (not part of the Cloud Run image)
+.claude-plugin
+plugins
