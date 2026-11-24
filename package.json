@@ -19,7 +19,9 @@
       "scripts/build-wyoming-massing.mjs",
       "scripts/spider-build.mjs",
       "scripts/spider-build.test.mjs",
-      "scripts/spider-build.browser-test.py"
+      "scripts/spider-build.browser-test.py",
+      "scripts/build-modular-characters.mjs",
+      "scripts/modular-characters.test.mjs"
     ],
     "share": [
       "models/spider-build-v2.mjs",

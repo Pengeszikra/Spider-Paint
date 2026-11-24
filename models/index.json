@@ -2,28 +2,148 @@
   "format": "models-index",
   "version": 1,
   "scenes": [
-    { "value": "bridge", "label": "Stone bridge" },
-    { "value": "globe", "label": "Globe" },
-    { "value": "stars", "label": "Stars (500 nearest)" },
-    { "value": "milkyway", "label": "Milky Way (30 000 super-stars)" },
-    { "value": "deepsky", "label": "Deep sky (1000 galaxies, 400 black holes, 3000 stars)" },
-    { "value": "stars-plain", "label": "Stars (300) + 100 galaxies (point glow)" },
-    { "value": "ex27", "label": "EX-27 expedition module" },
-    { "value": "human", "label": "Low poly human" },
-    { "value": "betterman", "label": "Betterman (pose him: J)" },
-    { "value": "command-bridge", "label": "Command bridge (2 crew at the desk)" },
-    { "value": "mechanics", "label": "Mechanics (hinge, rail, pivot, spring, group)" },
-    { "value": "workshop", "label": "VR workshop (carve with bare hands)" },
-    { "value": "tr74", "label": "TR-74 expedition module" },
-    { "value": "station-screen", "label": "Station screen (a scene on a face)" },
-    { "value": "game:fifth-percent", "label": "Fifth Percent: the starship bridge in the Deep Sky", "group": "games (format 3draft-game)" },
-    { "value": "game:lark", "label": "Lark in the Deep Sky: the LARK-4 as the starship (VR: fly it with the hands)", "group": "games (format 3draft-game)" },
-    { "value": "sky:trappist-1", "label": "TRAPPIST-1 (7 planets, 40 ly)", "group": "sky catalogues (format 3draft-sky: sky.md)" },
-    { "value": "story:lark-4c-accident", "label": "Story: LARK–4C / LAST LIGHT", "group": "stories" },
-    { "value": "story:lark-4", "label": "Story: LARK–4C lander build (746 steps)", "group": "stories" },
-    { "value": "story:spider-build-example", "label": "Story: independent tracks (3 steps)", "group": "stories" },
-    { "value": "story:spider-sculpt", "label": "Story: working with solids", "group": "stories" }
+    {
+      "value": "bridge",
+      "label": "Stone bridge"
+    },
+    {
+      "value": "globe",
+      "label": "Globe"
+    },
+    {
+      "value": "stars",
+      "label": "Stars (500 nearest)"
+    },
+    {
+      "value": "milkyway",
+      "label": "Milky Way (30 000 super-stars)"
+    },
+    {
+      "value": "deepsky",
+      "label": "Deep sky (1000 galaxies, 400 black holes, 3000 stars)"
+    },
+    {
+      "value": "stars-plain",
+      "label": "Stars (300) + 100 galaxies (point glow)"
+    },
+    {
+      "value": "ex27",
+      "label": "EX-27 expedition module"
+    },
+    {
+      "value": "human",
+      "label": "Low poly human"
+    },
+    {
+      "value": "betterman",
+      "label": "Betterman (pose him: J)"
+    },
+    {
+      "value": "command-bridge",
+      "label": "Command bridge (2 crew at the desk)"
+    },
+    {
+      "value": "mechanics",
+      "label": "Mechanics (hinge, rail, pivot, spring, group)"
+    },
+    {
+      "value": "workshop",
+      "label": "VR workshop (carve with bare hands)"
+    },
+    {
+      "value": "tr74",
+      "label": "TR-74 expedition module"
+    },
+    {
+      "value": "station-screen",
+      "label": "Station screen (a scene on a face)"
+    },
+    {
+      "value": "game:fifth-percent",
+      "label": "Fifth Percent: the starship bridge in the Deep Sky",
+      "group": "games (format 3draft-game)"
+    },
+    {
+      "value": "game:lark",
+      "label": "Lark in the Deep Sky: the LARK-4 as the starship (VR: fly it with the hands)",
+      "group": "games (format 3draft-game)"
+    },
+    {
+      "value": "sky:trappist-1",
+      "label": "TRAPPIST-1 (7 planets, 40 ly)",
+      "group": "sky catalogues (format 3draft-sky: sky.md)"
+    },
+    {
+      "value": "story:lark-4c-accident",
+      "label": "Story: LARK–4C / LAST LIGHT",
+      "group": "stories"
+    },
+    {
+      "value": "story:lark-4",
+      "label": "Story: LARK–4C lander build (746 steps)",
+      "group": "stories"
+    },
+    {
+      "value": "story:spider-build-example",
+      "label": "Story: independent tracks (3 steps)",
+      "group": "stories"
+    },
+    {
+      "value": "story:spider-sculpt",
+      "label": "Story: working with solids",
+      "group": "stories"
+    },
+    {
+      "value": "modular-characters/lineup",
+      "label": "Line-up: 22 modular characters",
+      "group": "modular characters (models/modular-characters/)"
+    },
+    {
+      "value": "modular-characters/women",
+      "label": "Modular women (4)",
+      "group": "modular characters (models/modular-characters/)"
+    },
+    {
+      "value": "modular-characters/robots",
+      "label": "Modular robots / droids (4)",
+      "group": "modular characters (models/modular-characters/)"
+    },
+    {
+      "value": "modular-characters/bodies",
+      "label": "Modules: bodies",
+      "group": "modular characters (models/modular-characters/)"
+    },
+    {
+      "value": "modular-characters/heads",
+      "label": "Modules: heads, faces, hair",
+      "group": "modular characters (models/modular-characters/)"
+    },
+    {
+      "value": "modular-characters/parts",
+      "label": "Modules: tops, bottoms, shoes, accessories",
+      "group": "modular characters (models/modular-characters/)"
+    }
   ],
-  "menu": ["empty", "globe", "stars", "stars-plain", "milkyway", "deepsky", "ex27", "human", "betterman", "tr74", "station-screen"],
-  "offline": ["trappist-1.sky.json", "bridge.scene.json", "globe.scene.json", "human.scene.json", "betterman.scene.json", "station-screen.scene.json", "WU-3463-Wyoming-UP-3463.json"]
+  "menu": [
+    "empty",
+    "globe",
+    "stars",
+    "stars-plain",
+    "milkyway",
+    "deepsky",
+    "ex27",
+    "human",
+    "betterman",
+    "tr74",
+    "station-screen"
+  ],
+  "offline": [
+    "trappist-1.sky.json",
+    "bridge.scene.json",
+    "globe.scene.json",
+    "human.scene.json",
+    "betterman.scene.json",
+    "station-screen.scene.json",
+    "WU-3463-Wyoming-UP-3463.json"
+  ]
 }

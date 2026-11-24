@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#17262b">
+<title>Modular / Low-poly character studies</title>
+<link rel="icon" href="../../favicon.svg">
+<style>
+:root{color-scheme:dark;font:15px/1.6 system-ui,sans-serif;background:#152329;color:#e9e4d8}
+*{box-sizing:border-box}body{margin:0}main{max-width:1280px;margin:auto;padding:30px 22px 65px}
+a{color:#b4d6ca}button,select{font:inherit}button{cursor:pointer}
+.eyebrow{font-size:11px;letter-spacing:.2em;color:#d9af72;text-transform:uppercase}
+h1{font-size:clamp(35px,6vw,65px);line-height:1.05;margin:12px 0 20px;letter-spacing:-.03em}
+h2{line-height:1.2}p{color:#b5c4c0;max-width:890px}.links{display:flex;gap:12px;flex-wrap:wrap;margin:20px 0}
+.button,button{padding:9px 14px;border:1px solid #6d8b88;border-radius:4px;background:#304b50;color:#eee6d4;text-decoration:none}
+.primary{background:#d8b37c;color:#17262b;border-color:#d8b37c;font-weight:700}
+.hero{display:block;width:100%;height:360px;object-fit:cover;border-radius:5px;background:#e9e4d8}
+.builder{display:grid;grid-template-columns:310px minmax(0,1fr);gap:20px;margin-top:30px}
+.controls,.preview{border:1px solid #466166;border-radius:5px;background:#1b3036}
+.controls{padding:18px}fieldset{border:0;padding:0;margin:0}legend{font-weight:700;margin-bottom:12px}
+label{display:block;font-size:12px;color:#b5c4c0;margin-top:8px}select{width:100%;padding:7px 9px;border:1px solid #607c7b;border-radius:3px;background:#263f45;color:#eee6d4}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}.views{display:flex;gap:8px;flex-wrap:wrap;padding:12px}
+.views button[aria-pressed=true]{background:#d8b37c;color:#17262b}
+.preview{display:flex;flex-direction:column;min-width:0}.stage{position:relative;min-height:580px;flex:1;background:#e9e4d8}
+.stage iframe{position:absolute;width:100%;height:100%;border:0}.stage img{position:absolute;z-index:1;width:100%;height:100%;object-fit:contain;pointer-events:none}
+[hidden]{display:none!important}.status{padding:10px 14px;margin:0;font-size:12px;max-width:none;min-height:40px}
+.error{color:#ffb5a2}.metrics{font-family:ui-monospace,monospace;font-size:12px;color:#d9af72}
+.designs{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:25px 0 40px}
+article{background:#1b3036;border:1px solid #466166;border-radius:4px;overflow:hidden}
+article img{display:block;width:100%;aspect-ratio:1/1.24;object-fit:cover;background:#e9e4d8}
+article .caption{padding:15px}article h3{margin:0 0 7px;font-size:17px}article p{font-size:12px;margin:0 0 13px}
+article .links{margin:10px 0 0;font-size:12px;gap:10px}
+.notes{border-top:1px solid #466166;padding-top:20px}.notes p{font-size:13px}
+@media(max-width:900px){.designs{grid-template-columns:repeat(2,1fr)}.builder{grid-template-columns:260px minmax(0,1fr)}.stage{min-height:530px}}
+@media(max-width:650px){main{padding:22px 13px 50px}.builder{grid-template-columns:1fr}.stage{min-height:520px}.hero{height:240px}.designs{gap:10px}article .caption{padding:10px}}
+</style>
+</head>
+<body>
+<main>
+<header>
+<div class="eyebrow">Spider Paint / Original design studies / Metres / Flat shading</div>
+<h1>MODULAR CHARACTERS<br>LESS MESH. MORE CHARACTER.</h1>
+<p>Women, men and robots built from the same modular system. Thin and fat bodies change torso width, depth and limb proportions, not just overall scale. Human faces use simple planes; robot faces use LED eyes, scanners and optics. Swap geometry independently from skin, hair, clothes and shell colours.</p>
+<div class="links"><a class="button primary" href="../../?scene=modular-characters/robots">Open robot series</a><a class="button" href="../../?scene=modular-characters/bodies">Compare thin &amp; fat builds</a><a class="button" href="../../?scene=modular-characters/women">Women's designs</a><a class="button" href="../../?scene=modular-characters/lineup">All twenty designs</a><a class="button" href="../../?scene=modular-characters/heads">Heads &amp; faces</a><a class="button" href="../../?scene=modular-characters/parts">Separate modules</a></div>
+<img class="hero" src="robots.svg" alt="Scout, dock loader, service and repair robots with Betterman at the left as a scale reference">
+</header>
+<section class="builder" aria-label="Modular character composer">
+<div class="controls">
+<fieldset id="choices" disabled><legend>Build a variation</legend>
+<label for="preset">Starting design</label><select id="preset"></select>
+<label for="body">Body / mechanical frame</label><select id="body"></select>
+<div class="pair"><div><label for="head">Head / jaw</label><select id="head"></select></div><div><label for="face">Face planes</label><select id="face"></select></div></div>
+<label for="hair">Hair / antenna geometry</label><select id="hair"></select>
+<label for="top">Top / chassis</label><select id="top"></select>
+<div class="pair"><div><label for="bottom">Bottom / legs</label><select id="bottom"></select></div><div><label for="shoes">Shoes / feet</label><select id="shoes"></select></div></div>
+<label for="accessory">Accessory</label><select id="accessory"></select>
+<div class="pair"><div><label for="skin">Human skin colour</label><select id="skin"></select></div><div><label for="hairColor">Hair colour</label><select id="hairColor"></select></div></div>
+<label for="outfit">Outfit / robot shell palette</label><select id="outfit"></select>
+</fieldset>
+<p id="metrics" class="metrics"></p>
+<a id="download" class="button primary" download="modular-character.scene.json" hidden>Download editable scene</a>
+<p style="font-size:12px">The download keeps the modules separate. Open it with <strong>f↑</strong> in Spider Paint. Changes here do not modify the Wyoming cast or the existing character builder.</p>
+</div>
+<div class="preview">
+<div class="views" aria-label="Inspection view">
+<button type="button" data-view="three-quarter" aria-pressed="true">3/4</button>
+<button type="button" data-view="front" aria-pressed="false">Front</button>
+<button type="button" data-view="face" aria-pressed="false">Face close-up</button>
+<button type="button" data-view="parts" aria-pressed="false">Separate parts</button>
+<label style="margin:7px 0 0"><input type="checkbox" id="edges"> Edges</label>
+</div>
+<div class="stage"><img id="fallback" src="robot-loader.svg" alt="Starting dock loader robot design"><iframe id="viewer" title="Native Spider Paint modular character preview" src="../../?empty&amp;debug"></iframe></div>
+<p id="status" class="status" role="status">Loading module library and native viewer...</p>
+</div>
+</section>
+<section aria-labelledby="designs-title"><h2 id="designs-title">Twenty starting points, not twenty fixed models</h2><p>Seven human silhouettes include thin, fat, shaped-waist and wider-hip builds, with matching garments, limbs and feet. Three mechanical frames combine with interchangeable casings, grippers, actuator legs, magnetic feet, antennae and sensor faces. The four robot presets cover scouting, dock work, service and maintenance.</p><p>No body, hairstyle or garment is gender-locked. Human and mechanical sections can also be mixed for cyborg designs. The thin/fat comparison pairs deliberately keep the same head, outfit and height, so the actual body geometry is easy to compare.</p><p>This is the visual library for the eventual 64-person Wyoming cast. These are reusable design presets, not yet an assignment of all 64 named roles; the Wyoming scenes remain unchanged.</p><div id="designs" class="designs"></div></section>
+<section class="notes">
+<h2>Design rules</h2>
+<p><strong>Head:</strong> a four- or six-corner front silhouette extruded into a box, with small block ears. No dense spherical head mesh. <strong>Face:</strong> flat, front-facing polygons 2–3 mm above the head surface; no eye sockets or sculpted lips. <strong>Hair:</strong> coarse caps, separate flat fringes, side panels and simple angular volumes.</p>
+<p><strong>Robots:</strong> mechanical necks and two-prong grippers, separate joint blocks, open or armoured chassis and solid casing heads with front sensor panels. Robot shell palettes independently colour structural metal and illuminated indicators; human skin colours do not recolour mechanical parts.</p>
+<p><strong>Modules:</strong> body skin / head / face / hair / top / bottom / shoes / accessory. Skin and hair colours are independent of clothes. Matching body-specific garments prevent mismatched shoulder widths. Materials are face palette slots, not texture maps. These are static, modular geometry studies; a new animation rig or character-builder integration is not included.</p>
+<p><strong>Scale:</strong> Betterman is 1.912 m tall and appears at the left of the lineup. <strong>References reviewed:</strong> all four images in the supplied <code>human/</code> folder, plus <a href="https://jxnblk.com/blog/modular-characters-part-one/">Jxnblk: Modular Characters Part I</a>. The modular workflow and broad visual principles are references; these meshes are newly constructed, not copied character assets.</p>
+</section>
+</main>
+<script type="module" src="designer.mjs"></script>
+</body>
+</html>
