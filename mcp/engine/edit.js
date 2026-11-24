@@ -9,11 +9,11 @@ import { faceNormal, faceCenter } from './mesh.js';
  *   distance > 0, scale < 1    a taper (roof, spire, frustum)
  *   distance 0,   scale < 1    an inset (a panel, a window frame)
  *   distance < 0               a dent into the solid (a niche, a door recess)
- * The new quads are appended after the existing faces; `color` recolors the cap and
- * the quads, otherwise they keep the face color.
+ * The new quads are appended after the existing faces. Their surface (and the cap's): `mat`, a palette material;
+ * else `color`, a plain colour (no material); else the face's own material and colour.
  * Returns { mesh, cap, sides } with the index of the cap face and the new quad indices.
  */
-export const extrudeFace = (mesh, index, { distance = 0, scale = 1, color } = {}) => {
+export const extrudeFace = (mesh, index, { distance = 0, scale = 1, color, mat } = {}) => {
     const face = mesh.faces[index];
     if (!face)
         throw new Error(`no face ${index}: this mesh has ${mesh.faces.length} faces`);
@@ -27,12 +27,17 @@ export const extrudeFace = (mesh, index, { distance = 0, scale = 1, color } = {}
     const moved = pts.map((p) => add(add(c, mul(sub(p, c), scale)), mul(n, distance)));
     const base = mesh.positions.length;
     const m = pts.length;
-    const tint = color ?? face.color;
-    const faces = mesh.faces.map((f, i) => (i === index ? { ...f, v: moved.map((_, j) => base + j), color: tint } : f));
+    // the surface of the cap and the new sides: `mat` (a palette material), else a plain `color` (no material), else the
+    // pushed face's own: its material and its colour, so an extruded wooden plank stays wood all round
+    const surface = mat !== undefined ? { color: color ?? face.color, mat }
+        : color !== undefined ? { color }
+            : { color: face.color, ...(face.mat !== undefined ? { mat: face.mat } : {}) };
+    const clean = (s) => Object.fromEntries(Object.entries(s).filter(([, x]) => x !== undefined));
+    const faces = mesh.faces.map((f, i) => (i === index ? { v: moved.map((_, j) => base + j), ...clean(surface) } : f));
     const sides = [];
     for (let i = 0; i < m; i++) {
         sides.push(faces.length);
-        faces.push({ v: [face.v[i], face.v[(i + 1) % m], base + ((i + 1) % m), base + i], color: tint });
+        faces.push({ v: [face.v[i], face.v[(i + 1) % m], base + ((i + 1) % m), base + i], ...clean(surface) });
     }
     return { mesh: { positions: [...mesh.positions, ...moved], faces }, cap: index, sides };
 };

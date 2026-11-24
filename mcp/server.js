@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// (copied from 3Draft 8fa6688 by scripts/sync.mjs: change it there)
+// (from 3Draft 8fa6688; spider-paint's own since: the engine itself comes from 3Draft, in mcp/engine)
 // 3Draft MCP server: JSON-RPC 2.0 over stdio, one JSON message per line.
 // No dependencies. stdout carries the protocol only; logs go to stderr.
 

@@ -2,7 +2,7 @@
 // Faces are CCW when seen from outside. No normals, UVs or textures yet.
 import { add, len, scale, sub } from './vec.js';
 /** Box: 8 points, 12 edges, 6 quad faces. Axis-aligned unless `axes` turns it. */
-export const box = ({ size = [1, 1, 1], at = [0, 0, 0], color = '#c8c8c8', axes } = {}) => {
+export const box = ({ size = [1, 1, 1], at = [0, 0, 0], color = '#c8c8c8', mat, axes } = {}) => {
     const [hx, hy, hz] = size.map((s) => s / 2);
     // `axes` = [ex, ey, ez], an orthonormal right-handed frame (default: x, y, z)
     const [ex, ey, ez] = axes ?? [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
@@ -24,7 +24,7 @@ export const box = ({ size = [1, 1, 1], at = [0, 0, 0], color = '#c8c8c8', axes 
         [0, 4, 7, 3], // -x
         [3, 7, 6, 2], // +y
         [0, 1, 5, 4], // -y
-    ].map((v) => ({ v, color }));
+    ].map((v) => ({ v, color, ...(mat !== undefined ? { mat } : {}) }));
     return { positions, faces };
 };
 /** Concatenate meshes into one, re-indexing the faces. */
@@ -101,7 +101,7 @@ export const faceCenter = (pts) => {
  * winding), it is extruded up from `y` by `height`. Faces: top, bottom, then one
  * quad per footprint edge, all CCW from outside.
  */
-export const extrude = ({ polygon, height = 1, y = 0, color = '#c8c8c8' }) => {
+export const extrude = ({ polygon, height = 1, y = 0, color = '#c8c8c8', mat }) => {
     if (!Array.isArray(polygon) || polygon.length < 3)
         throw new Error('polygon needs at least 3 [x, z] points');
     if (!(height > 0))
@@ -122,10 +122,11 @@ export const extrude = ({ polygon, height = 1, y = 0, color = '#c8c8c8' }) => {
     }
     const positions = [...pts.map(([x, z]) => [x, y, z]), ...pts.map(([x, z]) => [x, y + height, z])];
     const ring = [...Array(n).keys()];
+    const surface = { color, ...(mat !== undefined ? { mat } : {}) }; // (a palette material, the colour its fallback)
     const faces = [
-        { v: ring.map((i) => n + i), color },
-        { v: [...ring].reverse(), color },
-        ...ring.map((i) => ({ v: [i, (i + 1) % n, n + ((i + 1) % n), n + i], color })),
+        { v: ring.map((i) => n + i), ...surface },
+        { v: [...ring].reverse(), ...surface },
+        ...ring.map((i) => ({ v: [i, (i + 1) % n, n + ((i + 1) % n), n + i], ...surface })),
     ];
     return { positions, faces };
 };

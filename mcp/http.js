@@ -1,4 +1,4 @@
-// (copied from 3Draft 8fa6688 by scripts/sync.mjs: change it there)
+// (from 3Draft 8fa6688; spider-paint's own since: the engine itself comes from 3Draft, in mcp/engine)
 // The public, stateless MCP server: JSON-RPC 2.0 over Streamable HTTP (a POST with one message, a JSON answer; no server-sent
 // stream, no session). Deployed as a serverless function (spider-paint: api/mcp.mjs -> https://spider-paint.vercel.app/api/mcp),
 // so it keeps nothing between calls and cannot steer anyone's browser. Instead every tool that makes something returns an

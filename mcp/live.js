@@ -1,4 +1,4 @@
-// (copied from 3Draft 8fa6688 by scripts/sync.mjs: change it there)
+// (from 3Draft 8fa6688; spider-paint's own since: the engine itself comes from 3Draft, in mcp/engine)
 // The live link: the MCP process also serves the viewer and pushes the scene to it.
 //   GET /app/      the viewer (same files as `npm run app`)
 //   GET /scene     the scene as JSON
