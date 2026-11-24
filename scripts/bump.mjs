@@ -1,7 +1,8 @@
 // Date-based npm SemVer, matching 3Draft: YY.M.DNNN
 // display example: 26.11.20001 -> 26.11.20.001
 import { readFileSync, writeFileSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { syncVersion } from './version-files.mjs';
 
 export const displayVersion = (version) => {
   const [yy, mm, packed] = version.split('.').map(Number);
@@ -33,5 +34,7 @@ const run = () => {
   if (process.argv.includes('--dry')) return;
   pkg.version = version;
   writeFileSync(pkgUrl, JSON.stringify(pkg, null, 2) + '\n');
+  const synced = syncVersion(fileURLToPath(new URL('..', import.meta.url)), pkg.name, version);
+  if (synced.length) console.log('  also in ' + synced.join(', '));
 };
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) run();

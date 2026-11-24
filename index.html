@@ -1018,7 +1018,7 @@
     const countEl = document.getElementById('count');
     const surfaceEl = document.getElementById('surface');
     // The header displays *spider-paint's deployed package version*, never 3Draft's engine version.
-    // /api/version is served by Cloud Run from the package.json inside this running container.
+    // /api/version answers from the deployed package.json: Cloud Run (bin/cloud-run.mjs), the local server (bin/) or Vercel (api/version.mjs).
     const buildEl = document.getElementById('build');
     buildEl.title = 'spider-paint application version (deployed package.json)';
     fetch('/api/version', { cache: 'no-store' })

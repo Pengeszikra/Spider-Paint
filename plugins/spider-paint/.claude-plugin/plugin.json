@@ -1,6 +1,6 @@
 {
   "name": "spider-paint",
-  "version": "1.0.0",
+  "version": "26.11.24002",
   "description": "Build and explore editable 3D scenes with Claude: the real spider-paint editor (3Draft engine) opens inline in the conversation, and Claude models, inspects and edits the same scene you see.",
   "author": {
     "name": "Péter Vívó",

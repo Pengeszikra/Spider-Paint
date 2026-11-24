@@ -24,6 +24,7 @@ catch { /* Local installs need no embedded build metadata. */ }
 let gitHash = validHash(process.env.SPIDER_PAINT_GIT_SHA)
   || validHash(process.env.COMMIT_SHA)
   || validHash(process.env.GITHUB_SHA)
+  || validHash(process.env.VERCEL_GIT_COMMIT_SHA)
   || embeddedHash;
 if (!gitHash) {
   try {

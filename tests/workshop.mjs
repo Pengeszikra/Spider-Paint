@@ -38,7 +38,7 @@ try {
   await json('/api/presence',{id:'participant-B',label:'AI'});
   const people=await json('/api/participants');
   assert.equal(people.participants.length,2);
-  const version=await json('/api/version');assert.match(version.display,/^\\d{2}\\.\\d{2}\\.\\d{2}\\.\\d{3}$/);
+  const version=await json('/api/version');assert.match(version.display,/^\d{2}\.\d{2}\.\d{2}\.\d{3}$/);
   const page=await fetch(base+'/workshop.html');assert.ok(page.ok);assert.match(await page.text(),/WORKSHOP 002/);
   const code=await fetch(base+'/src/workshop-view.js');assert.ok(code.ok);assert.match(await code.text(),/class WorkshopView/);
   const denied=await fetch(base+'/AGENTS.md');assert.equal(denied.status,404);

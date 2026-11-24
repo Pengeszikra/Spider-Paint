@@ -6,6 +6,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, resolve, dirname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createScene } from '../mcp/scene.js';
+import { buildInfo } from '../mcp/build-info.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const scene = createScene();
@@ -53,7 +54,7 @@ const toolCall = (name, args) => callWorkshop(name, args);
 const mcp = (req) => {
   const { id, method, params = {} } = req;
   const wrap = (result) => ({ jsonrpc: '2.0', id, result });
-  if (method === 'initialize') return wrap({ protocolVersion:protocol, capabilities:{ tools:{} }, serverInfo:{name:'spider-paint-workshop',version:'26.11.20003'}, instructions:'Local shared Workshop: MCP and browser edit one scene. Visit /workshop.html.' });
+  if (method === 'initialize') return wrap({ protocolVersion:protocol, capabilities:{ tools:{} }, serverInfo:{name:'spider-paint-workshop',version:buildInfo.version}, instructions:'Local shared Workshop: MCP and browser edit one scene. Visit /workshop.html.' });
   if (method === 'ping') return wrap({});
   if (method === 'tools/list') return wrap({ tools:[...scene.list(),...taskTools] });
   if (method === 'tools/call') {

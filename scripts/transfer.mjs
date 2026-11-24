@@ -15,13 +15,14 @@ import { execFileSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import { versionFiles, withVersion } from './version-files.mjs';
 
 const here = resolve(new URL('..', import.meta.url).pathname);
 const args = process.argv.slice(2);
 const flag = (f) => args.includes(f);
 const readPkg = (dir) => JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
 
-/** The brand tokens of a package.json, by role. Every one of them is renamed in transfer. */
+/** The brand tokens of a package.json, by role. Every one of them is renamed in transfer (the version is each project's own: package.json and the plugin manifests). */
 export const brandOf = (pkg) => {
   const b = pkg.brand ?? {};
   const name = pkg.name;
@@ -113,7 +114,8 @@ for (const path of filesOf(here).filter(shared)) {
   });
   const renamed = fwd(text);
   if (back(renamed) !== text) problems.push(`${path}: the rename is not lossless (it would not come back the same)`);
-  out.set(to, { data: renamed, mode });
+  // the plugin manifests carry the target's own version (package.json's, see scripts/version-files.mjs)
+  out.set(to, { data: versionFiles(them.name).includes(to) ? withVersion(renamed, readPkg(there).version) : renamed, mode });
 }
 
 const srcPkg = readPkg(here);
