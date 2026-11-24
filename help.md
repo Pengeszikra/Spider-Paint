@@ -151,6 +151,8 @@ A game brings scenes together: **Fifth Percent** (the scene list, *games*, or `?
 - **edit selected** takes the character under the cross (or the target) back into the panel; **apply** rebuilds only that one, where it stands (one U step).
 - **designer ↗** opens the designer page: every module side by side, the line-up, the face and exploded views.
 
+A placed character can be **posed** like any figure: put the cross on it (or target it, T) and press **J**; **1–5** the ready poses (rest, T, wave, sit, phone), **6** walk, **7** run, **Enter** keeps the pose, **J** or **Esc** leaves it. Its skeleton comes from the library (every body has its own, robots too) and each module follows its bone, so the boxes bend at the joints; a turned character bends the same way. A kept pose makes the moved parts ordinary objects; **apply** in the panel stands it up again.
+
 A placed character is a **group of instances**: one object per module (body, head, face, hair, top, bottom, shoes, extra), grouped under the character's name, each an instance of the library's prototype. So a crowd shares a few meshes. It moves with **G**, turns with **R** and sizes with **S** as one, and stays made of instances (a save writes the prototypes once and a short record per module); an edit of its mesh, or a tilt off upright, makes that part an ordinary object.
 
 ## Two views: build and store

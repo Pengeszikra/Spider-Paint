@@ -7177,9 +7177,10 @@
     const showPose = (pose) => {
       const p = posing;
       p.pose = pose;
-      p.lift = poseLift(p.bind, p.rig, pose); // the feet stay on the floor the figure stands on
-      p.bones = boneMatrices(p.rig, pose, { move: [0, p.lift, 0] });
-      p.joints = posedJoints(p.rig, pose, { move: [0, p.lift, 0] });
+      const bent = (p.bent = p.turn ? mc.compose.turnedPose(pose, p.turn) : pose); // (a turned modular character: the pose seen from it)
+      p.lift = poseLift(p.bind, p.rig, bent); // the feet stay on the floor the figure stands on
+      p.bones = boneMatrices(p.rig, bent, { move: [0, p.lift, 0] });
+      p.joints = posedJoints(p.rig, bent, { move: [0, p.lift, 0] });
       p.objs = p.objs.map((o) => live(o) ?? o); // a db snapshot hands out new instances
       if (skinned()) {
         // the GPU bends the figure: the objects keep their bind meshes, nothing is rebuilt
@@ -7196,7 +7197,7 @@
     // the CPU's bent meshes (the SVG view, and what Enter keeps)
     const posedMesh = (i) => {
       const p = posing;
-      if (p.cpu?.pose !== p.pose) p.cpu = { pose: p.pose, meshes: posed(p.bind, p.rig, p.pose, { move: [0, p.lift, 0] }) };
+      if (p.cpu?.pose !== p.bent) p.cpu = { pose: p.bent, meshes: posed(p.bind, p.rig, p.bent, { move: [0, p.lift, 0] }) };
       return p.cpu.meshes[i];
     };
     const poseTick = (now) => {
@@ -7215,15 +7216,34 @@
       if (editing || xf) return hintPose('J poses a figure: leave edit mode (Q) first');
       const body = pointedObject();
       if (!body) return hintPose('J poses a figure: put the cross on it, or target it (T), first');
-      if (body.character) return hintPose('a character: stand, sit or walk are set in the character builder (char, then apply)');
-      const objs = figureOf(body);
-      let rig;
-      try {
-        rig = humanoidRig(objs.map((o) => o.mesh));
-      } catch (err) {
-        return hintPose(`J: ${String(err?.message ?? err)}`);
+      if (body.character) return hintPose('a character of the old builder: it stands, sits or walks as it was made');
+      let objs, rig, turn = 0;
+      if (body.modular) {
+        // a modular character (the character panel): the library's skeleton for its body, its members as the meshes
+        if (!mc) {
+          hintPose('J: loading the modular character library…');
+          return void mcReady().then(() => enterPose()).catch((e) => hintPose(`J: ${e.message}`));
+        }
+        const members = charMembers(body.modular.name);
+        if (!members.every((o) => o.inst)) return hintPose('J: this character was posed or edited since it was made: apply it in the character panel (char) first, then J');
+        try {
+          const fr = charFrame(members);
+          const sc = mc.compose.characterScene(mc.lib, body.modular.spec, { at: fr.at, yaw: fr.yaw, scale: fr.scale });
+          objs = sc.objects.map((o) => members.find((m) => m.inst.key === o.proto));
+          if (objs.some((o) => !o) || objs.length !== members.length) throw new Error('its parts do not match its selection');
+          ({ turn, ...rig } = mc.compose.characterRig(mc.lib, sc));
+        } catch (err) {
+          return hintPose(`J: ${String(err?.message ?? err)}`);
+        }
+      } else {
+        objs = figureOf(body);
+        try {
+          rig = humanoidRig(objs.map((o) => o.mesh));
+        } catch (err) {
+          return hintPose(`J: ${String(err?.message ?? err)}`);
+        }
       }
-      posing = { objs, ids: new Set(objs.map((o) => o.id)), bind: objs.map((o) => o.mesh), rig, name: 'bind', pose: HUMANOID_POSES.bind ?? {}, lift: 0, bones: null, cpu: null, skinScene: -1, anim: null, phase: 0, last: 0, joints: rig.joints.map((j) => j.at) };
+      posing = { turn, objs, ids: new Set(objs.map((o) => o.id)), bind: objs.map((o) => o.mesh), rig, name: 'bind', pose: HUMANOID_POSES.bind ?? {}, lift: 0, bones: null, cpu: null, skinScene: -1, anim: null, phase: 0, last: 0, joints: rig.joints.map((j) => j.at) };
       document.body.classList.add('posing');
       showPose(posing.pose);
       hintPose('');
@@ -9929,6 +9949,7 @@
           open: () => openCharacters(),
           // a rigid move of the whole character as G / R / S make it (through change()): its members stay instances
           move: (group, d = [0, 0, 0], yaw = 0, s = 1) => { const m = charMembers(group); if (!m.length) return null; const b = baseCentre(merge(...m.map((o) => o.mesh))); asOneStep(() => m.forEach((o) => { const before = o.mesh; change(o, { ...o.mesh, positions: o.mesh.positions.map((q) => yawTurn(vsub(q, b), yaw, s).map((c, i) => c + b[i] + d[i])) }); history.push(() => has(o) && change(o, before)); })); redraw(); return { frame: charFrame(charMembers(group)), instances: charMembers(group).filter((o) => o.inst).length }; },
+          target: (group) => { const o = charMembers(group).find((m) => m.inst?.key?.startsWith('body/')) ?? charMembers(group)[0]; locked = o?.id ?? null; redraw(); return o?.name ?? null; }, // as T on it
           state: () => ({ spec: charSpec, preset: charPreset, target: charTarget, loaded: Boolean(mc) }),
         },
         pose: () => (posing ? { name: posing.name, anim: posing.anim, objects: posing.objs.map((o) => o.name), joints: posing.joints, skinned: skinned(), rigPx: rigPixels(posing.joints), sceneFaces: scene.faces.length } : null),

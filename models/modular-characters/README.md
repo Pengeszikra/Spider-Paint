@@ -24,6 +24,10 @@ Faces, hair and accessories are fitted per head; tops, bottoms and shoes per bod
 - `compose.mjs`: the API. `characterScene(library, selection, { at, yaw, scale })` gives a `3draft-scene` of one character.
   `selectionOf(library, selection)` checks a selection. `inspectionScene(library, scene, mode)` gives the face and
   exploded views.
+- `characterRig(library, scene)` (compose.mjs): the skeleton and joint weights of a character, in the engine's rig form
+  (`posed()`, `boneMatrices()`, the viewer's pose mode J). The skeleton of each body is in `library.json` (`rigs`), made by
+  the generator from the same numbers as the body; every vertex follows one bone (upper arm, forearm, hand, thigh, shin,
+  foot, root, spine, head). `turnedPose(pose, yaw)` turns a pose made for a figure looking to +z to a turned character.
 - `index.html` + `designer.mjs`: the designer page (`/models/modular-characters/`). It picks the parts and shows the
   character, and opens it in the app.
 - `<id>.scene.json`: the 22 ready-made characters. `lineup`, `women`, `robots`: groups of them. `bodies`, `heads`,

@@ -429,6 +429,27 @@ export function buildLibrary() {
     palette:colors.palette,outfits:colors.outfits,prototypes,modules,
     sockets:{neck:[0,1.535,0],head:[0,1.58,0],waist:[0,1.04,0],
       ankles:Object.fromEntries(Object.entries(bodyShapes).map(([id,m])=>[id,[[-m.leg,.14,0],[m.leg,.14,0]]]))},
+    // the skeleton of every body, from the numbers the body is built of (humanoid joint names, as the engine's poses use them;
+    // L is +x, the figure looks to +z), and the heights where the limbs part into bones (compose.mjs: characterRig)
+    rigs:Object.fromEntries(Object.entries(bodyShapes).map(([id,m])=>{
+      const limb=m.limb??1,wrist=m.shoulder+.095*limb,r=(v)=>+v.toFixed(4);
+      const J=(name,parent,at)=>({name,parent,at:at.map(r)});
+      return [id,{
+        joints:[
+          J('root',null,[0,1.0,0]),J('spine','root',[0,1.23,0]),J('head','spine',[0,1.535,0]),
+          ...[['L',1],['R',-1]].flatMap(([n,side])=>[
+            J(`shoulder${n}`,'spine',[side*(m.shoulder+.025*limb),1.44,0]),
+            J(`elbow${n}`,`shoulder${n}`,[side*(m.shoulder+.075*limb),1.2,0]),
+            J(`wrist${n}`,`elbow${n}`,[side*wrist,.965,0]),
+            J(`hip${n}`,'root',[side*m.leg,.94,0]),
+            J(`knee${n}`,`hip${n}`,[side*m.leg,.535,0]),
+            J(`ankle${n}`,`knee${n}`,[side*m.leg,.14,0]),
+          ]),
+        ],
+        arm:r(.85*m.shoulder),
+        levels:{neck:1.53,spine:1.12,hips:.95,knee:.535,ankle:.14,elbow:1.2,wrist:.965,armLow:.75},
+      }];
+    })),
     views:{
       'three-quarter':{cam:{center:[0,.98,0],radius:1.1,dist:4.5,yaw:-.27,pitch:.06}},
       front:{cam:{center:[0,.98,0],radius:1.1,dist:4.5,yaw:0,pitch:0}},

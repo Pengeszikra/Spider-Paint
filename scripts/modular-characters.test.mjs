@@ -215,3 +215,30 @@ test('face and exploded inspections keep the chosen geometry and apply placement
   assert(Math.abs(moved.at[1]-original.at[1]-.8)<1e-10);
   assert.throws(()=>inspectionScene(library,base,'unknown'),/Unknown inspection view/);
 });
+
+test('every example is riggable: the library skeleton, every bone used, a turned character bends as a straight one', async () => {
+  const { characterRig, turnedPose } = await import('../models/modular-characters/compose.mjs');
+  const { posed, walkPose, HUMANOID_POSES } = await import('../mcp/engine/index.js');
+  const lib = JSON.parse(readFileSync(new URL('../models/modular-characters/library.json', import.meta.url)));
+  for (const ex of lib.examples) {
+    const sc = characterScene(lib, ex.spec);
+    const rig = characterRig(lib, sc);
+    assert.equal(rig.joints.length, 15, ex.id);
+    assert.equal(rig.skin.length, sc.objects.length, ex.id);
+    const used = new Set(rig.skin.flat().map((w) => w[0][0]));
+    assert.equal(used.size, 15, `${ex.id}: every bone moves something`);
+    const meshes = sc.objects.map((o) => instantiate(sc.prototypes[o.proto].lods[0], o));
+    rig.skin.forEach((w, k) => assert.equal(w.length, meshes[k].positions.length, ex.id));
+    assert.equal(posed(meshes, rig, HUMANOID_POSES.sit).length, meshes.length);
+  }
+  const spec = lib.examples[0].spec, yaw = 1.1, at = [2, 0, -1], pose = walkPose(0.3);
+  const a = characterScene(lib, spec), b = characterScene(lib, spec, { at, yaw });
+  const pa = posed(a.objects.map((o) => instantiate(a.prototypes[o.proto].lods[0], o)), characterRig(lib, a), pose);
+  const rb = characterRig(lib, b);
+  const pb = posed(b.objects.map((o) => instantiate(b.prototypes[o.proto].lods[0], o)), rb, turnedPose(pose, rb.turn));
+  const turn = ([x, y, z]) => [at[0] + Math.cos(yaw) * x + Math.sin(yaw) * z, at[1] + y, at[2] - Math.sin(yaw) * x + Math.cos(yaw) * z];
+  pa.forEach((m, k) => m.positions.forEach((q, i) => {
+    const t = turn(q), r = pb[k].positions[i];
+    assert.ok(Math.hypot(t[0] - r[0], t[1] - r[1], t[2] - r[2]) < 1e-9);
+  }));
+});
