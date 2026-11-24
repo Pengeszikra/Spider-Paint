@@ -1,7 +1,31 @@
 {
   "name": "spider-paint",
-  "private": true,
-  "description": "Spider Paint: a static site with two Vercel functions (api/mcp.mjs, api/store.mjs)",
+  "version": "26.11.24001",
+  "description": "Spider Paint: the test and community workshop of the 3Draft engine (custom MCP test program)",
+  "brand": {
+    "repo": "Pengeszikra/spider-paint",
+    "branch": "master",
+    "site": "https://spider-paint.vercel.app",
+    "mcp": "https://spider-paint.vercel.app/api/mcp",
+    "own": [
+      "models/",
+      "paint-docs/",
+      ".github/",
+      "vercel.json",
+      "scripts/lark-4/",
+      "scripts/lark-4c-accident/",
+      "scripts/models/",
+      "scripts/build-wyoming-massing.mjs",
+      "scripts/spider-build.mjs",
+      "scripts/spider-build.test.mjs",
+      "scripts/spider-build.browser-test.py"
+    ],
+    "share": [
+      "models/spider-build-v2.mjs",
+      "models/spider-build-v2.md",
+      "models/spider-build-v2.schema.json"
+    ]
+  },
   "dependencies": {
     "@vercel/blob": "^2.3.0"
   }
