@@ -1,6 +1,6 @@
 # Spider Paint
 
-![Spider Paint 0.026 as it starts: the key help in the corner, the FPS meter, random objects in space](media/spider-paint-2015.png)
+![Spider Paint 0.026 as it starts: the key help in the corner, the FPS meter, random objects in space](../media/spider-paint-2015.png)
 
 ![digital spider web: objects scattered in space, cones on their surfaces, lines between them](media/spider-web.png)
 
