@@ -16,7 +16,7 @@ const ENGINE={
   pick:'pick.js',renderView:'svg.js',renderSheet:'svg.js',
   validate:'check.js',boolean:'csg.js',triangulate:'triangulate.js',
   buildCharacter:'character.js',normalizeCharacter:'character.js',
-  variateCharacter:'character.js',CHARACTER_PRESETS:'character.js',
+  variateCharacter:'character.js',CHARACTER_PRESETS:'character.js',characterPalette:'character.js',
   posed:'rig.js',walkPose:'rig.js',HUMANOID_POSES:'rig.js',
   makeJoint:'joints.js',jointNow:'joints.js',hingeTo:'joints.js',
   pivotTo:'joints.js',railTo:'joints.js',carried:'joints.js',

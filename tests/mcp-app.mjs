@@ -23,7 +23,7 @@ assert.equal(tool?._meta?.ui?.resourceUri,RESOURCE_URI);
 assert.ok(tool.description.includes('browser builds the scene'));
 assert.ok(!tool.inputSchema.required?.includes('steps'),'open_workshop steps must be optional for scene-only reopening');
 assert.ok(WORKSHOP_TOOLS.includes('add_box'));
-assert.equal(WORKSHOP_TOOLS.length,25,'browser and build_model must advertise the same 25 modeling operations');
+assert.equal(WORKSHOP_TOOLS.length,26,'browser and build_model must advertise the same 26 modeling operations');
 for(const t of WORKSHOP_TOOLS)assert.ok(listed.result.tools.find(x=>x.name==='build_model').description.includes(t),'build_model advertises '+t);
 for(const advanced of ['add_character','place_on','sense','sensing','boolean','connect','disconnect','joints','move_joint','pick'])assert.ok(WORKSHOP_TOOLS.includes(advanced),advanced);
 const resource=await call(3,'resources/read',{uri:RESOURCE_URI});

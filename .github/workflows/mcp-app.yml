@@ -40,6 +40,7 @@ jobs:
         run: |
           bash -n scripts/setup-cloud-run-oidc.sh
           node tests/math.mjs
+          node tests/materials.mjs
       - name: Test ChatGPT widget MCP contract
         run: |
           npm run test:mcp-app

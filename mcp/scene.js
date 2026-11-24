@@ -4,8 +4,9 @@
 // under the working directory. The MCP transport is in server.js.
 
 import { readFileSync, writeFileSync } from 'node:fs';
+import { BUILTIN_MATERIALS, MATERIAL_KEYS } from './materials.js';
 import { resolve, relative, isAbsolute, extname } from 'node:path';
-import { skyScene, SKY_TYPES, box, extrude, extrudeFace, moveVertices, faceNormal, faceCenter, merge, rotate, bounds, makeCamera, orbit, pick, ray as camRay, renderView, renderSheet, validate, boolean, VIEW_ORDER, triangulate, buildCharacter, normalizeCharacter, variateCharacter, posed, walkPose, HUMANOID_POSES, CHARACTER_PRESETS, makeJoint, jointNow, hingeTo, pivotTo, railTo, carried, moveMesh, springMesh, instantiate } from './engine/index.js';
+import { skyScene, SKY_TYPES, box, extrude, extrudeFace, moveVertices, faceNormal, faceCenter, merge, rotate, bounds, makeCamera, orbit, pick, ray as camRay, renderView, renderSheet, validate, boolean, VIEW_ORDER, triangulate, buildCharacter, normalizeCharacter, variateCharacter, characterPalette, posed, walkPose, HUMANOID_POSES, CHARACTER_PRESETS, makeJoint, jointNow, hingeTo, pivotTo, railTo, carried, moveMesh, springMesh, instantiate } from './engine/index.js';
 
 export class ToolError extends Error {}
 const fail = (message) => {
@@ -29,6 +30,11 @@ const color = (v, fallback = '#c8c8c8') => {
   if (v === undefined) return fallback;
   if (typeof v !== 'string' || !/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v)) fail('color must be #rgb or #rrggbb');
   return v;
+};
+// a palette material from a scene file or a material step: { name, color, metal, rough, alpha, emit, soft }, in range
+const materialOf = (m) => {
+  const n = (v, lo, hi, d) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d);
+  return { name: m.name, color: color(m.color), metal: n(m.metal, 0, 1, 0), rough: n(m.rough, 0, 1, 0.7), alpha: n(m.alpha, 0, 1, 1), emit: n(m.emit, 0, 5, 0), ...(typeof m.soft === 'number' ? { soft: n(m.soft, 0, 1, 0) } : {}) };
 };
 const number = (v, what, { min = -Infinity, max = Infinity, fallback } = {}) => {
   if (v === undefined) return fallback ?? fail(`${what} is required`);
@@ -158,7 +164,9 @@ const safePath = (p) => {
 
 const vec3Schema = { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 };
 const nameSchema = { type: 'string', description: 'Object name, unique in the scene.' };
-const colorSchema = { type: 'string', description: 'Face color, #rgb or #rrggbb.' };
+const colorSchema = { type: 'string', description: 'Face color, #rgb or #rrggbb (a plain colour: no metal, glass or glow; see mat).' };
+const MAT_NAMES = BUILTIN_MATERIALS.map((m) => m.name).join(', ');
+const matSchema = { type: 'string', description: `A palette material by name: its colour and its surface (metal, rough, alpha: glass, emit: glow, soft: skin). Built in: ${MAT_NAMES}; make more with the material step. Wins over color.` };
 const replaceSchema = { type: 'boolean', description: 'Overwrite an existing object with this name.' };
 const viewProps = {
   view: {
@@ -206,6 +214,29 @@ export const createScene = () => {
   const groups = new Map(); // object name -> group name (objects of one group move as one)
   let joints = []; // the joints (src/joints.ts): glue, pivot, hinge, rail, spring
   const screens = new Map(); // material name -> { name, color, url | scene | image }: the screens (set_screen), the scene's palette
+  // the palette: the built-in materials (the viewer's starting ones) and the ones made with the material step; a face names one
+  // (`mat`) and keeps its colour as the fallback; the scene file carries the materials its faces use
+  const materials = new Map(BUILTIN_MATERIALS.map((m) => [m.name, { ...m }]));
+  const matNamed = (v, what = 'mat') => {
+    if (typeof v !== 'string' || !materials.has(v)) fail(`${what}: no material "${v}" in the palette (${[...materials.keys()].join(', ')}); make it with the material step`);
+    return materials.get(v);
+  };
+  // every face of a mesh in one material (or one plain colour when no material is given)
+  const surfaced = (mesh, mat, col) => {
+    if (mat === undefined) return col === undefined ? mesh : { ...mesh, faces: mesh.faces.map((f) => ({ ...f, color: color(col) })) };
+    const m = matNamed(mat);
+    return { ...mesh, faces: mesh.faces.map((f) => ({ ...f, mat: m.name, color: m.color })) };
+  };
+  const paletteUsed = () => {
+    const used = new Set();
+    for (const mesh of objects.values()) for (const f of mesh.faces) if (f.mat) used.add(f.mat);
+    for (const proto of protos.values()) for (const f of proto.faces) if (f.mat) used.add(f.mat);
+    const out = new Map();
+    for (const n of used) if (materials.has(n)) out.set(n, { ...materials.get(n) });
+    for (const [n, sc] of screens) out.set(n, sc);
+    return [...out.values()];
+  };
+  const paletteMap = () => Object.fromEntries(paletteUsed().map(({ name: n, ...m }) => [n, m]));
   const protos = new Map(); // prototype key -> mesh with its foot at the origin (instance)
   const instances = new Map(); // object name -> { proto, at, scale, rot?, color? }: made by instance, still exactly that placement
   // compact: instance objects whose mesh is still exactly their placement are written as { proto, at, scale, rot, color }
@@ -222,7 +253,7 @@ export const createScene = () => {
       return { name: n, mesh, ...g };
     });
     const v2 = Object.keys(used).length > 0;
-    return { format: '3draft-scene', version: v2 ? 2 : 1, rev, ...(v2 ? { prototypes: used } : {}), objects: out, ...(joints.length ? { joints } : {}), ...(screens.size ? { palette: [...screens.values()] } : {}) };
+    return { format: '3draft-scene', version: v2 ? 2 : 1, rev, ...(v2 ? { prototypes: used } : {}), objects: out, ...(joints.length ? { joints } : {}), ...(((pal) => (pal.length ? { palette: pal } : {}))(paletteUsed())) };
   };
   const linked = () => [...objects.keys()].map((n) => ({ name: n, group: groups.get(n) }));
   // the objects that move with `n` (its group, what is glued to it, what it holds), all moved by f(mesh) -> mesh
@@ -329,17 +360,17 @@ export const createScene = () => {
       description: 'Add an axis-aligned box. `at` is the CENTER, so its bottom is at at[1] - size[1] / 2. Y is up, the ground is y = 0. Units are arbitrary but keep them consistent.',
       inputSchema: {
         type: 'object',
-        properties: { name: nameSchema, size: { ...vec3Schema, description: '[width x, height y, depth z], default [1,1,1].' }, at: { ...vec3Schema, description: 'center, default [0,0,0].' }, color: colorSchema, replace: replaceSchema },
+        properties: { name: nameSchema, size: { ...vec3Schema, description: '[width x, height y, depth z], default [1,1,1].' }, at: { ...vec3Schema, description: 'center, default [0,0,0].' }, mat: matSchema, color: colorSchema, replace: replaceSchema },
         required: ['name'],
       },
-      run: (a) => put(name(a.name), box({ size: vec3(a.size, 'size', [1, 1, 1]), at: vec3(a.at, 'at', [0, 0, 0]), color: color(a.color) }), a.replace),
+      run: (a) => put(name(a.name), surfaced(box({ size: vec3(a.size, 'size', [1, 1, 1]), at: vec3(a.at, 'at', [0, 0, 0]), color: color(a.color) }), a.mat), a.replace),
     },
     {
       name: 'add_extrusion',
       description: 'Add a prism: a CONVEX footprint polygon on the ground plane, given as [[x, z], ...] in any winding, extruded up by `height` from `y`. Use it for triangles, hexagons, wedges, roofs, columns. Concave shapes must be split into several convex extrusions.',
       inputSchema: {
         type: 'object',
-        properties: { name: nameSchema, polygon: { type: 'array', items: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2 }, minItems: 3, description: '[[x, z], ...]' }, height: { type: 'number' }, y: { type: 'number', description: 'bottom, default 0' }, color: colorSchema, replace: replaceSchema },
+        properties: { name: nameSchema, polygon: { type: 'array', items: { type: 'array', items: { type: 'number' }, minItems: 2, maxItems: 2 }, minItems: 3, description: '[[x, z], ...]' }, height: { type: 'number' }, y: { type: 'number', description: 'bottom, default 0' }, mat: matSchema, color: colorSchema, replace: replaceSchema },
         required: ['name', 'polygon', 'height'],
       },
       run: (a) => {
@@ -350,7 +381,7 @@ export const createScene = () => {
         } catch (e) {
           fail(e.message);
         }
-        return put(name(a.name), mesh, a.replace);
+        return put(name(a.name), surfaced(mesh, a.mat), a.replace);
       },
     },
     {
@@ -361,13 +392,18 @@ export const createScene = () => {
         properties: {
           name: nameSchema,
           positions: { type: 'array', items: vec3Schema },
-          faces: { type: 'array', items: { type: 'object', properties: { v: { type: 'array', items: { type: 'integer' }, minItems: 3 }, color: colorSchema }, required: ['v'] } },
+          faces: { type: 'array', items: { type: 'object', properties: { v: { type: 'array', items: { type: 'integer' }, minItems: 3 }, mat: matSchema, color: colorSchema }, required: ['v'] } },
+          mat: { ...matSchema, description: 'Default material for faces without a mat or a color of their own.' },
           color: { ...colorSchema, description: 'Default color for faces without one.' },
           replace: replaceSchema,
         },
         required: ['name', 'positions', 'faces'],
       },
-      run: (a) => put(name(a.name), parseMesh(a.positions, a.faces, color(a.color)), a.replace),
+      run: (a) => {
+        const mesh = parseMesh(a.positions, a.faces, color(a.color));
+        const own = (i) => a.faces[i]?.mat ?? (a.faces[i]?.color === undefined ? a.mat : undefined);
+        return put(name(a.name), { ...mesh, faces: mesh.faces.map((f, i) => (own(i) === undefined ? (({ mat: _m, ...rest }) => rest)(f) : ((m) => ({ ...f, mat: m.name, color: m.color }))(matNamed(own(i), `faces[${i}].mat`)))) }, a.replace);
+      },
     },
     {
       name: 'transform',
@@ -421,9 +457,11 @@ export const createScene = () => {
           at: { ...vec3Schema, description: 'where the copy\'s foot goes (default: the source\'s own foot)' },
           scale: { description: 'positive number, or [sx, sy, sz] (default 1)', oneOf: [{ type: 'number' }, vec3Schema] },
           rotate_x: { type: 'number' }, rotate_z: { type: 'number' }, rotate_y: { type: 'number', description: 'degrees, counter-clockwise seen from above' },
+          mat: { ...matSchema, description: 'every face of the copy in this palette material' },
+          mats: { type: 'object', additionalProperties: { type: 'string' }, description: '{ "old material": "new material" }: the faces of one material in another (a red-glass lamp, a gold one)' },
           color: colorSchema,
           colors: { type: 'object', additionalProperties: { type: 'string' }, description: '{ "#old": "#new" }: recolor the faces of one color' },
-          copies: { type: 'array', maxItems: 2000, items: { type: 'object' }, description: 'many copies: [{ name?, at, scale, rotate_x, rotate_y, rotate_z, color, colors }]' },
+          copies: { type: 'array', maxItems: 2000, items: { type: 'object' }, description: 'many copies: [{ name?, at, scale, rotate_x, rotate_y, rotate_z, mat, mats, color, colors }]' },
           replace: replaceSchema,
         },
         required: ['name', 'source'],
@@ -444,6 +482,7 @@ export const createScene = () => {
         const opt = (c, key2) => (c[key2] !== undefined ? c[key2] : a[key2]);
         const made = [];
         let compact = 0;
+        const anyMat = parts.some((p) => p.proto.faces.some((f) => f.mat)); // (a plain color over materials: not a compact copy)
         list.forEach((c, idx) => {
           if (!c || typeof c !== 'object' || Array.isArray(c)) fail(`copies[${idx}] must be an object`);
           const n = name(c.name ?? (a.copies === undefined ? a.name : `${name(a.name)}-${idx + 1}`));
@@ -457,7 +496,12 @@ export const createScene = () => {
           const map = opt(c, 'colors');
           if (map !== undefined && (typeof map !== 'object' || Array.isArray(map) || map === null)) fail('colors must be { "#old": "#new" }');
           const remap = map ? Object.fromEntries(Object.entries(map).map(([o, nw]) => [color(o).toLowerCase(), color(nw)])) : null;
-          const simple = s3[0] === s3[1] && s3[1] === s3[2] && !rz && !remap;
+          const whole = opt(c, 'mat') === undefined ? null : matNamed(opt(c, 'mat'));
+          const mmap = opt(c, 'mats');
+          if (mmap !== undefined && (typeof mmap !== 'object' || Array.isArray(mmap) || mmap === null)) fail('mats must be { "old material": "new material" }');
+          const matRemap = mmap ? Object.fromEntries(Object.entries(mmap).map(([o, nw]) => [o, matNamed(nw, `mats.${o}`)])) : null;
+          const surface = (f) => (whole ? { mat: whole.name, color: whole.color } : f.mat && matRemap?.[f.mat] ? { mat: matRemap[f.mat].name, color: matRemap[f.mat].color } : col ? { color: col, ...(f.mat ? { mat: undefined } : {}) } : { color: remap?.[String(f.color).toLowerCase()] ?? f.color });
+          const simple = s3[0] === s3[1] && s3[1] === s3[2] && !rz && !remap && !whole && !matRemap && !(col && anyMat);
           for (const { member, key, proto } of parts) {
             const pn = parts.length === 1 ? n : name(`${n}.${member}`);
             if (members.includes(pn)) fail(`a copy cannot replace its own source ("${pn}")`);
@@ -475,7 +519,7 @@ export const createScene = () => {
               mesh = turnAbout(mesh, [1, 0, 0], rx, o);
               mesh = turnAbout(mesh, [0, 0, 1], rz, o);
               mesh = turnAbout(mesh, [0, 1, 0], ry, o);
-              mesh = { positions: mesh.positions.map((p) => p.map((v, i) => v + at[i])), faces: mesh.faces.map((f) => ({ ...f, color: col ?? remap?.[String(f.color).toLowerCase()] ?? f.color })) };
+              mesh = { positions: mesh.positions.map((p) => p.map((v, i) => v + at[i])), faces: mesh.faces.map((f) => { const g = { ...f, ...surface(f) }; if (g.mat === undefined) delete g.mat; return g; }) };
             }
             objects.set(pn, mesh);
             if (parts.length > 1) groups.set(pn, n);
@@ -608,6 +652,7 @@ export const createScene = () => {
           const d = [0, surface.point[1] - at[1], 0];
           mesh = { ...mesh, positions: mesh.positions.map((p) => p.map((v, i) => v + d[i])) };
         }
+        for (const m of characterPalette()) if (!materials.has(m.name)) materials.set(m.name, materialOf(m)); // (its skin, hair and cloth go with the scene's palette)
         objects.set(a.name, mesh);
         return { ...summary(a.name, mesh), preset, pose, base: spec.base, height: r6(spec.body.height), ...(surface ? { surface: { object: surface.object, point: rv(surface.point) } } : {}) };
       },
@@ -796,7 +841,7 @@ export const createScene = () => {
             const pts = f.v.map((k) => mesh.positions[k]);
             const n = faceNormal(pts);
             const l = Math.hypot(...n) || 1;
-            return { i, v: f.v, color: f.color, center: rv(faceCenter(pts)), normal: rv(n.map((c) => c / l)) };
+            return { i, v: f.v, ...(f.mat ? { mat: f.mat } : {}), color: f.color, center: rv(faceCenter(pts)), normal: rv(n.map((c) => c / l)) };
           }),
         };
       },
@@ -806,7 +851,7 @@ export const createScene = () => {
       description: 'Shape an object by pushing one of its faces out, like a modeller. The face is replaced (same index) by a copy moved `distance` along its outward normal and scaled by `scale` about its center, joined to the old edges by new side faces. distance > 0 and scale 1: a prism grows out (a wing, a chimney, a step). distance > 0 and scale < 1: a taper (roof, tower top, frustum). distance 0 and scale < 1: an inset (a panel or window frame; extrude it again, negative, for a recess). distance < 0: a dent into the solid (a niche, a door recess). The result is a closed solid again; chain calls on the returned `cap` face.',
       inputSchema: {
         type: 'object',
-        properties: { name: nameSchema, face: { type: 'integer', description: 'face index inside the object (see get_mesh)' }, distance: { type: 'number', description: 'along the outward normal, default 0' }, scale: { type: 'number', description: 'about the face center, > 0, default 1' }, color: { ...colorSchema, description: 'color for the new faces (default: the face color)' } },
+        properties: { name: nameSchema, face: { type: 'integer', description: 'face index inside the object (see get_mesh)' }, distance: { type: 'number', description: 'along the outward normal, default 0' }, scale: { type: 'number', description: 'about the face center, > 0, default 1' }, mat: { ...matSchema, description: 'the material of the cap and the new side faces (default: the pushed face\'s own)' }, color: { ...colorSchema, description: 'a plain color for the new faces instead (default: the face\'s material or color)' } },
         required: ['name', 'face'],
       },
       run: (a) => {
@@ -818,6 +863,10 @@ export const createScene = () => {
         } catch (e) {
           fail(e.message);
         }
+        // the cap and the new sides: the given material, else the pushed face's own material (a plain color drops it)
+        const m = a.mat !== undefined ? matNamed(a.mat) : a.color === undefined && mesh.faces[a.face]?.mat ? materials.get(mesh.faces[a.face].mat) ?? null : null;
+        const fresh = new Set([out.cap, ...out.sides]);
+        out.mesh = { ...out.mesh, faces: out.mesh.faces.map((f, i) => (!fresh.has(i) ? f : m ? { ...f, mat: m.name, color: m.color } : a.color !== undefined ? (({ mat: _m, ...rest }) => rest)(f) : f)) };
         objects.set(a.name, out.mesh);
         const c = validate(out.mesh);
         return { ...summary(a.name, out.mesh), cap_face: out.cap, side_faces: out.sides, ok: c.ok, notes: c.notes };
@@ -872,14 +921,36 @@ export const createScene = () => {
     },
     {
       name: 'recolor',
-      description: 'Change the color of a whole object, or of one face when `face` is given.',
-      inputSchema: { type: 'object', properties: { name: nameSchema, color: colorSchema, face: { type: 'integer', description: 'face index inside the object' } }, required: ['name', 'color'] },
+      description: 'Change the material (mat: a palette material, with its surface) or the plain color of a whole object, or of one face when `face` is given. Give mat or color.',
+      inputSchema: { type: 'object', properties: { name: nameSchema, mat: matSchema, color: colorSchema, face: { type: 'integer', description: 'face index inside the object' } }, required: ['name'] },
       run: (a) => {
         const mesh = need(a.name);
-        const c = color(a.color);
+        if ((a.mat === undefined) === (a.color === undefined)) fail('give mat (a palette material) or color');
+        const m = a.mat === undefined ? null : matNamed(a.mat);
+        const c = m ? m.color : color(a.color);
         if (a.face !== undefined && (!Number.isInteger(a.face) || a.face < 0 || a.face >= mesh.faces.length)) fail(`face must be 0..${mesh.faces.length - 1}`);
-        objects.set(a.name, { ...mesh, faces: mesh.faces.map((f, i) => (a.face === undefined || a.face === i ? { ...f, color: c } : f)) });
+        const paint = (f) => (m ? { ...f, mat: m.name, color: c } : (({ mat: _m, ...rest }) => ({ ...rest, color: c }))(f));
+        objects.set(a.name, { ...mesh, faces: mesh.faces.map((f, i) => (a.face === undefined || a.face === i ? paint(f) : f)) });
         return summary(a.name, objects.get(a.name));
+      },
+    },
+    {
+      name: 'material',
+      description: `Make or change a palette material: name, color, metal (0-1), rough (0-1), alpha (0-1: below 1 it is see-through, glass), emit (0-5: it glows), soft (0-1: soft, skin-like light). Changing one changes every face made of it. Built in: ${MAT_NAMES}. like: start from another material (a "tinted-glass" like glass with another color). With only a name it returns that material. Then use it as mat in add_box, add_extrusion, add_mesh, instance or recolor.`,
+      inputSchema: { type: 'object', properties: { name: nameSchema, like: { type: 'string', description: 'start from this material' }, color: colorSchema, metal: { type: 'number' }, rough: { type: 'number' }, alpha: { type: 'number' }, emit: { type: 'number' }, soft: { type: 'number' } }, required: ['name'] },
+      run: (a) => {
+        name(a.name);
+        const keys = MATERIAL_KEYS.filter((k) => a[k] !== undefined);
+        const faces = () => [...objects.values()].reduce((n, m) => n + m.faces.filter((f) => f.mat === a.name).length, 0);
+        if (!keys.length && a.like === undefined) return { ...matNamed(a.name, 'name'), faces: faces() };
+        if (a.color !== undefined) color(a.color);
+        for (const k of keys.filter((k) => k !== 'color')) number(a[k], k, { min: 0, max: k === 'emit' ? 5 : 1 });
+        const base = a.like !== undefined ? matNamed(a.like, 'like') : materials.get(a.name) ?? { color: '#c8c8c8', metal: 0, rough: 0.7, alpha: 1, emit: 0 };
+        const m = materialOf({ ...base, ...Object.fromEntries(keys.map((k) => [k, a[k]])), name: a.name });
+        materials.set(a.name, m);
+        // the faces made of it keep its colour as their fallback (a viewer without the palette, the SVG)
+        for (const [n, mesh] of objects) if (mesh.faces.some((f) => f.mat === a.name)) objects.set(n, { ...mesh, faces: mesh.faces.map((f) => (f.mat === a.name ? { ...f, color: m.color } : f)) });
+        return { ...m, faces: faces() };
       },
     },
     {
@@ -969,7 +1040,7 @@ export const createScene = () => {
       run: (a) => {
         const { mesh } = combined();
         const view = viewOf(a, 'sheet');
-        const opts = { size: number(a.size, 'size', { min: 64, max: 2000, fallback: 320 }), points: a.points ?? true };
+        const opts = { size: number(a.size, 'size', { min: 64, max: 2000, fallback: 320 }), points: a.points ?? true, palette: paletteMap() };
         return { text: view === 'sheet' ? renderSheet(mesh, opts) : renderView(mesh, view, opts) };
       },
     },
@@ -1039,6 +1110,7 @@ export const createScene = () => {
         for (const m of Array.isArray(parsed.palette) ? parsed.palette : []) {
           const k = ['image', 'scene', 'url'].find((x) => typeof m?.[x] === 'string');
           if (k && typeof m.name === 'string') screens.set(m.name, { name: m.name, color: color(m.color, '#202020'), [k]: m[k] });
+          else if (typeof m?.name === 'string' && m.name) materials.set(m.name, materialOf(m)); // (the scene's own materials)
         }
         return { objects: objects.size, groups: new Set(groups.values()).size, joints: joints.length, screens: screens.size };
       },
