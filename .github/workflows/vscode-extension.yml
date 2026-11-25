@@ -1,0 +1,32 @@
+name: VS Code extension (.vsix)
+
+# Builds the extension with the app of this commit inside (vscode/app) and keeps the .vsix as a build artifact:
+# Actions -> this run -> Artifacts -> spider-paint-vsix, then `code --install-extension spider-paint-*.vsix`.
+# Publishing (Marketplace: a publisher + Trusted Publishing / OIDC; Open VSX: OVSX_PAT) is a later step.
+on:
+  push:
+    branches: [master]
+    paths: ['vscode/**', 'index.html', 'src/**', 'engine/**', 'models/**', 'scripts/vscode-app.mjs', '.github/workflows/vscode-extension.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vsix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test the extension
+        run: node vscode/test.mjs
+      - name: Package
+        working-directory: vscode
+        run: npm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spider-paint-vsix
+          path: vscode/*.vsix
+          retention-days: 30

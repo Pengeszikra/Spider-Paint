@@ -74,6 +74,14 @@ terminal text). Ctrl+C quits. On WSL: install a Chrome or Chromium inside Ubuntu
 A scene **file** (`.json`, `.3draft`, a sky catalogue, a story) is packed into the page's address, as an MCP link is, and
 **loaded again whenever the file is saved** — edit the JSON in one window, watch it in the other.
 
+### In VS Code
+
+`vscode/` is a VS Code extension: the app itself in a webview tab (sharp, every key). Commands: **Spider Paint: Open**,
+**Open a scene from the list…**, **Show this scene file in 3D** (the editor's `.json` / `.3draft` beside it, reloaded on
+every save; also a button in the editor's title bar). Try it from the checkout: open the `vscode` folder in VS Code and
+press F5 (it uses the checkout's app), or build a `.vsix` (`cd vscode && npm run package`, then
+`code --install-extension spider-paint-*.vsix`); the *VS Code extension (.vsix)* workflow builds one on every push.
+
 ### In Vim / Neovim
 
 The checkout is a Vim plugin too (`vim/plugin/spider-paint.vim`):

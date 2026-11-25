@@ -1,0 +1,73 @@
+{
+  "name": "spider-paint",
+  "displayName": "Spider Paint",
+  "description": "The spider-paint 3D workshop (3Draft) inside VS Code: fly, model, paint, every key of the app; a scene file you edit is shown live and reloaded on save.",
+  "version": "0.1.0",
+  "publisher": "pengeszikra",
+  "license": "MIT",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Pengeszikra/Spider-Paint"
+  },
+  "homepage": "https://github.com/Pengeszikra/Spider-Paint#in-vs-code",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "3d",
+    "modeling",
+    "webgpu",
+    "scene",
+    "3draft",
+    "spider-paint"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onWebviewPanel:spiderPaint"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "spiderPaint.open",
+        "title": "Open",
+        "category": "Spider Paint"
+      },
+      {
+        "command": "spiderPaint.openScene",
+        "title": "Open a scene from the list…",
+        "category": "Spider Paint"
+      },
+      {
+        "command": "spiderPaint.showFile",
+        "title": "Show this scene file in 3D",
+        "category": "Spider Paint",
+        "icon": "$(symbol-structure)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "spiderPaint.showFile",
+          "when": "resourceExtname == .json || resourceExtname == .3draft",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "spiderPaint.showFile",
+          "when": "resourceExtname == .json || resourceExtname == .3draft",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "app": "node ../scripts/vscode-app.mjs",
+    "package": "node ../scripts/vscode-app.mjs && npx -y @vscode/vsce package --no-dependencies"
+  }
+}

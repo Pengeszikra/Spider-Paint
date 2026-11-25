@@ -7,3 +7,7 @@ gha-creds-*.json
 node_modules/
 .DS_Store
 npm-debug.log*
+
+vscode/app/
+vscode/*.vsix
+vscode/LICENSE
