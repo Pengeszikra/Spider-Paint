@@ -59,3 +59,27 @@ console.log('svg export: picture, turntable and story part (viewer composer, MCP
   const html = (await import('node:fs')).readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.match(html, /\.side\[hidden\] \{ display: none !important; \}/, 'hidden side panels stay hidden');
 }
+
+// lit colours: every polygon takes the average of its own pixels; see-through and pixel-less polygons keep theirs
+{
+  const { litSvg, cropSvg } = await import('../src/svg-lit.js');
+  const W = 10, H = 10, data = new Uint8ClampedArray(W * H * 4);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) data.set(x < 5 ? [200, 100, 50, 255] : [10, 20, 30, 255], (y * W + x) * 4);
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" width="10" height="10">\n'
+    + '<polygon data-face="0" points="0,0 5,0 5,10 0,10" fill="#ffffff" stroke="none"/>\n'
+    + '<polygon data-face="1" points="5,0 10,0 10,10 5,10" fill="#ffffff" stroke="none"/>\n'
+    + '<polygon data-face="2" points="0,0 10,0 10,10" fill="#ffffff" fill-opacity="0.3" stroke="none"/>\n'
+    + '<polygon data-face="3" points="20,20 30,20 30,30" fill="#ffffff" stroke="none"/>\n</svg>';
+  const r = litSvg(svg, { width: W, height: H, data });
+  assert.match(r.svg, /data-face="0"[^>]*fill="#c86432"/, 'left face: the left pixels');
+  assert.match(r.svg, /data-face="1"[^>]*fill="#0a141e"/, 'right face: the right pixels');
+  assert.match(r.svg, /data-face="2"[^>]*fill="#ffffff"/, 'glass keeps its colour');
+  assert.match(r.svg, /data-face="3"[^>]*fill="#ffffff"/, 'off-frame keeps its colour');
+  assert.equal(r.lit, 2);
+  // a later polygon covers an earlier one (painter's order)
+  const over = litSvg('<polygon points="0,0 10,0 10,10 0,10" fill="#000000"/><polygon points="5,0 10,0 10,10 5,10" fill="#000000"/>', { width: W, height: H, data });
+  assert.match(over.svg, /^<polygon[^>]*fill="#c86432"/, 'the covered part does not count');
+  const cut = cropSvg(svg, [0, 2.5, 10, 5]);
+  assert.match(cut, /viewBox="0 2.5 10 5" width="10" height="5"/);
+  console.log('svg lit colours and crop: OK');
+}
