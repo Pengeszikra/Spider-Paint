@@ -12,7 +12,7 @@
       "name": "spider-paint",
       "source": "./plugins/spider-paint",
       "description": "Build and explore editable 3D scenes; the real spider-paint editor opens inline in the conversation.",
-      "version": "26.11.25001",
+      "version": "26.11.25002",
       "category": "creativity",
       "homepage": "https://tuskek-es-gyokerek.vercel.app",
       "keywords": ["3d", "modeling", "mcp-apps", "3draft"]
