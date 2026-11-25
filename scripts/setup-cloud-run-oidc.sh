@@ -88,6 +88,11 @@ BUILDER_SA="$PROJECT_NUMBER-compute@developer.gserviceaccount.com"
 gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --member "serviceAccount:$BUILDER_SA" --role roles/run.builder \
   --condition=None --quiet >/dev/null
+# The deployer starts that build, so it must be able to act as the builder too (when the service runs as another account,
+# the runtime binding above does not cover it).
+gcloud iam service-accounts add-iam-policy-binding "$BUILDER_SA" --project "$PROJECT_ID" \
+  --member "serviceAccount:$DEPLOY_SA" --role roles/iam.serviceAccountUser \
+  --quiet >/dev/null
 
 PROVIDER_RESOURCE="$(gcloud iam workload-identity-pools providers describe "$PROVIDER" \
   --project "$PROJECT_ID" --location global --workload-identity-pool "$POOL" \
