@@ -201,6 +201,19 @@ The `scene` panel has one list for adding a scene: the examples, and under `save
 
 **`?ply=name`** opens the scene saved here under that name at once, alone, with its view, in zen. Without such a saved scene the page starts as usual.
 
+## SVG export (the svg button)
+
+**svg** (scene group; in a story, the **svg** button of the story bar) opens the SVG export: the view drawn as vectors, flat-coloured faces in the palette's colours (glass see-through), far to near, as the SVG view draws them.
+
+- **picture**: the size in pixels, the background (dark, light, or none: transparent) and the edges (lines or none). **save svg** saves the view as it is now: one `.svg` file.
+- **animated**: **save animated svg** saves the frames as one SVG that plays by itself (SMIL: in any browser, without script). Frames that came out the same are stored once, so a pause costs nothing.
+  - **turntable**: round the view's middle; **from / to** are degrees (0 to 360 is a whole turn, -45 to 45 a swing).
+  - **the story's timeline** (a story is loaded): **from / to** are seconds of the story, so any part of it can be saved; **from ← now** and **to ← now** take the Stories slider's time, **whole** the whole story in its own time. The story's own camera is used while the Stories panel's camera is on (otherwise the view as it is).
+  - **frames** (2 to 240), **seconds** (the length of one pass), **repeat**: loop, or once (it stops on the last frame).
+- Many frames of a big scene make a big file: the note shows its size; past 60 MB it stops and says so.
+
+The MCP has the same as **export_svg**.
+
 ## Text
 In edit mode, select a face (3) and press **T**: type the words and press Enter. The text becomes a **new model**, standing out of that face in the **active material**. The face sets where the first letter starts (its lower left corner), the reading direction and the letter height; the text runs on to the right, so a long text goes past the face. The font is a minimalist blocky stroke font (A–Z, 0–9, `. , : ! ? - _ + / '` and the Hungarian accents); lower case is drawn as upper case. The stroke, and the depth the letters stand out, is 20 % of the letter height.
 

@@ -106,6 +106,39 @@ async function buildModelPng(id,args,ctx){
   content.unshift({type:'text',text:JSON.stringify(out)});
   return answer(id,{content});
 }
+// a story by its token / open_url, or "story:<name>" bundled with spider-paint (models/<name>.build.json)
+function storyDocOf(story){
+  const bundled=typeof story==='string'?/^story:([a-z0-9][a-z0-9-]{0,63})$/.exec(story)?.[1]:null;
+  let token;
+  if(bundled){
+    let text;
+    try{text=readFileSync(new URL(`../models/${bundled}.build.json`,import.meta.url),'utf8');}catch{throw Error('unknown_bundled_story');}
+    return JSON.parse(text);
+  }
+  token=typeof story==='string'?(/#story=([A-Za-z0-9_-]+)/.exec(story)?.[1]||(/^[A-Za-z0-9_-]+$/.test(story)?story:null)):null;
+  if(!token)throw Error('invalid_story_token');
+  try{return unpackScene(token);}catch{throw Error('invalid_story_token');}
+}
+async function exportSvgCall(id,args){
+  const { exportSvg, SvgFail }=await import('./svg-export.js');
+  const { expandInstances }=await import('./scene.js');
+  try{
+    const r=await exportSvg(args,{
+      loadStory:(s)=>storyDocOf(s),
+      loadScene:(from)=>{
+        const m=typeof from==='string'&&/#scene=([A-Za-z0-9_-]+)/.exec(from);
+        if(!m)throw new SvgFail('from must be an open_url of build_model (a #scene= link)');
+        return expandInstances(unpackScene(m[1]));
+      },
+      readSession:(sid)=>{
+        const st=readWorkshopSession(sid,true);
+        if(!st.scene)throw new SvgFail('the workshop session has no scene yet (the widget has not published one)');
+        return expandInstances(st.scene);
+      },
+    });
+    return answer(id,{content:[{type:'text',text:JSON.stringify(r.summary)},{type:'text',text:r.svg}],structuredContent:r.summary});
+  }catch(e){return answer(id,{isError:true,content:[{type:'text',text:e instanceof SvgFail?e.message:'error: '+String(e?.message||e).slice(0,300)}]});}
+}
 async function buildStoryCall(id,args,ctx){
   const { buildStory, storyMoments, StoryFail }=await import('./story.js');
   let made;
@@ -162,7 +195,8 @@ export async function handleWorkshopMcp(request,{origin,fetchText}) {
   if(method==='tools/list'){
     // Legacy tools remain available, but are only imported for discovery/use.
     const { publicTools }=await import('./http.js');
-    return answer(id,{tools:[...publicTools().map(withPngRender).map(({name,description,inputSchema,annotations})=>({name,description,inputSchema,annotations})),displayTool,storyTool,debugTool,widgetEventTool,...sharedTools]});
+    const { exportSvgTool }=await import('./svg-export.js');
+    return answer(id,{tools:[...publicTools().map(withPngRender).map(({name,description,inputSchema,annotations})=>({name,description,inputSchema,annotations})),displayTool,storyTool,exportSvgTool,debugTool,widgetEventTool,...sharedTools]});
   }
   if(method==='resources/list')return answer(id,{resources:[RESOURCE_URI,...LEGACY_RESOURCE_URIS].map(uri=>({uri,name:'spider-paint 3D Workshop',mimeType:'text/html;profile=mcp-app',description:'Native spider-paint editor and original keyboard controls embedded in the conversation'}))});
   if(method==='resources/read'){
@@ -195,6 +229,7 @@ export async function handleWorkshopMcp(request,{origin,fetchText}) {
     }catch(e){return sharedError(id,e);}
   }
   if(method==='tools/call'&&params.name==='build_story')return buildStoryCall(id,params.arguments||{},{origin,fetchText});
+  if(method==='tools/call'&&params.name==='export_svg')return exportSvgCall(id,params.arguments||{});
   if(method==='tools/call'&&params.name==='build_model'&&(params.arguments?.format??'png')==='png'){
     return buildModelPng(id,params.arguments||{},{origin,fetchText});
   }

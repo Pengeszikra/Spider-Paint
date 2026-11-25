@@ -204,6 +204,14 @@
     #charControls .cgroup { display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center; padding: 8px; border: 1px solid #ffffff14; border-radius: 10px; }
     #charControls .cgroup > b { grid-column: 1 / -1; color: var(--cream); font: 600 11px/1 var(--font-display); letter-spacing: 0.14em; text-transform: uppercase; }
     #charControls .cgroup > select { grid-column: 1 / -1; }
+    /* the svg export: label and control on one row per setting */
+    #svgPanel { display: flex; flex-direction: column; gap: 10px; }
+    #svgPanel .cgroup { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; padding: 8px; border: 1px solid #ffffff14; border-radius: 10px; }
+    #svgPanel .cgroup > b { grid-column: 1 / -1; color: var(--cream); font: 600 11px/1 var(--font-display); letter-spacing: 0.14em; text-transform: uppercase; }
+    #svgPanel .cgroup > input, #svgPanel .cgroup > select { width: 100%; box-sizing: border-box; min-width: 0; }
+    #svgPanel .crow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    #svgPanel .crow[hidden] { display: none; }
+    #svgPanel .crow button { padding: 6px 10px; border-radius: 8px; }
     #charControls .slider { grid-column: 1 / -1; display: grid; grid-template-columns: 84px 1fr 36px; gap: 6px; align-items: center; }
     #charControls .slider em { font-style: normal; text-align: right; color: var(--cream); }
     #charControls .lab { color: var(--muted); }
@@ -742,6 +750,27 @@
     <div class="crow"><button id="charPlace" type="button" class="red" title="Put the character down at the cross, facing you (one undo step): a group of instances of the library's modules">place</button><button id="charPick" type="button" class="slate" title="Take the placed character under the cross (or the target) back into the panel">edit selected</button><button id="charApply" type="button" class="cream" disabled>apply to selected</button></div>
     <p id="charNote" class="note"></p>
   </aside>
+  <aside id="svgPanel" class="side" hidden aria-label="SVG export">
+    <div class="sidehead"><b>svg export</b><button id="svgClose" type="button" class="slate" aria-label="Close">✕</button></div>
+    <p class="note">The view as you see it, drawn as vectors: flat-coloured faces in the palette's colours, far to near.</p>
+    <div class="cgroup"><b>picture</b>
+      <span class="lab">size (px)</span><input id="svgSize" type="number" min="128" max="2400" step="16" value="800">
+      <span class="lab">background</span><select id="svgBg"><option value="dark">dark</option><option value="light">light</option><option value="none">none (transparent)</option></select>
+      <span class="lab">edges</span><select id="svgEdges"><option value="on">lines</option><option value="off">no lines</option></select>
+    </div>
+    <div class="crow"><button id="svgSave" type="button" class="red" title="Save the view as one SVG picture">save svg</button></div>
+    <div class="cgroup"><b>animated</b>
+      <span class="lab">motion</span><select id="svgKind"><option value="turntable">turntable: round the middle</option><option value="story">the story's timeline</option></select>
+      <span class="lab" id="svgFromLab">from (°)</span><input id="svgFrom" type="number" step="any" value="0">
+      <span class="lab" id="svgToLab">to (°)</span><input id="svgTo" type="number" step="any" value="360">
+      <span class="lab">frames</span><input id="svgFrames" type="number" min="2" max="240" step="1" value="36">
+      <span class="lab">seconds</span><input id="svgSeconds" type="number" min="0.1" max="600" step="0.1" value="4">
+      <span class="lab">repeat</span><select id="svgLoop"><option value="1">loop</option><option value="0">once, stop at the end</option></select>
+    </div>
+    <div class="crow" id="svgStoryRow" hidden><button id="svgFromNow" type="button" class="slate" title="from = the story's time now (the Stories slider)">from ← now</button><button id="svgToNow" type="button" class="slate" title="to = the story's time now (the Stories slider)">to ← now</button><button id="svgWhole" type="button" class="slate" title="The whole story, in its own time">whole</button></div>
+    <div class="crow"><button id="svgAnim" type="button" class="red" title="Save the frames as one animated SVG (SMIL: it plays in any browser, without script)">save animated svg</button></div>
+    <p id="svgNote" class="note"></p>
+  </aside>
   <aside id="palette" class="side" hidden aria-label="Material palette">
     <div class="sidehead"><b>materials</b><button id="palClose" type="button" class="slate" aria-label="Close">✕</button></div>
     <span id="palHint">ctrl+click (cmd on a Mac): paint a face · ctrl+double click: the whole object · i: pick the material under the cross</span>
@@ -891,6 +920,7 @@
           <button id="sceneCloud" type="button" class="teal" hidden title="Save the scene online, in the store, under that name: then every device opens it from the list (online). The first time it asks for the store's key. Shift+click: take that name out of the store">☁</button>
           <button id="sceneDown" type="button" class="cream" title="Download the scene as a .3draft file (3Draft scene JSON)">f↓</button>
           <button id="sceneOpen" type="button" class="cream" title="Add a scene from a .json file">f↑</button>
+          <button id="svgBtn" type="button" class="cream" title="SVG export: the view as an SVG picture, or an animated SVG (a turntable, or a part of the story's timeline)">svg</button>
           <button id="sceneForget" type="button" class="slate" title="Forget the saved scene with the name in the box">✕</button>
           <button id="boolBtn" type="button" class="slate" title="Boolean: select two objects (B), then this; the first taken is A, the second B">bool</button>
           <button id="charBtn" type="button" class="teal ic" title="Characters: modular low-poly humans and robots (models/modular-characters/): 20 ready ones, or every part and colour chosen; placed as a group of instances of the library's modules" aria-label="Character builder">🧍</button>
@@ -936,6 +966,7 @@
           <button id="stEnd" type="button" class="slate ic" title="Story: the end, the finished model (End)" aria-label="To the end"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 5v14M6 6l8 6-8 6z"/></svg></button>
           <select id="stSpeed" aria-label="Playback speed" title="Playback speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option></select>
           <button id="stHelp" type="button" class="teal ic" title="Help: every mode and key (?)" aria-label="Help"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.1 1-1.1 1.8M12 17h.01"/></svg></button>
+          <button id="stSvg" type="button" class="cream" title="SVG export of the story: a picture of this moment, or an animated SVG of a part of its timeline">svg</button>
           <button id="stExit" type="button" class="slate" title="Leave the story: the scene and the system controls come back (the scene is cleared)">✕</button>
         </span>
         <span class="row story-only">
@@ -959,6 +990,7 @@
   <script type="module">
     import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/45789c908f86/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
+    import { animatedSvg, spread, storyView, svgBackground, titledSvg } from './src/svg-anim.js'; // the svg export (also the MCP's export_svg)
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
@@ -1183,6 +1215,7 @@
     let joints = []; // the joints of the scene (src/joints.ts; a / b are object ids here, names in a scene file), see Mechanics
     let game = null; // a running game (3draft-game: a universe scene and a ship drawn over it), see loadGame
     let gcam = null; // the camera of every frame (cam only exists while the pointer is over the view)
+    let svgCam = null; // the view of the last frame: { yaw, pitch, fit } (the svg export draws it)
     let drawing = { left: 0, top: 0 }; // where the square drawing starts, in client pixels
     let solo = null; // `/` isolates one object: its id, null shows everything
     const benchRadius = () => Math.max(editing && has(editing) ? bounds(editing.mesh).radius * 1.4 : 0, 1e-3);
@@ -2895,6 +2928,7 @@
       const shown_fit = backoff !== 1 ? { ...fit, ...inside, dist: dist * backoff } : { ...fit, ...inside };
 
       gcam = makeCamera(view, nothing, size, shown_fit);
+      svgCam = { yaw, pitch, fit: shown_fit }; // (the svg export draws this view)
       applyLod(); // finer or coarser meshes for the instances, by their size on screen (before anything reads `scene`)
       const now = performance.now();
       land(now);
@@ -5345,7 +5379,7 @@
     const helpEl = document.getElementById('helpPanel');
     const helpDoc = document.getElementById('helpDoc');
     const storyPanelEl = document.getElementById('storyPanel');
-    const sidePanels = [paletteEl, helpEl, storyPanelEl, document.getElementById('charPanel')];
+    const sidePanels = [paletteEl, helpEl, storyPanelEl, document.getElementById('charPanel'), document.getElementById('svgPanel')];
     const syncScrim = () => (scrim.hidden = keyPanel.hidden);
     const closeModals = () => toggleKeys(false);
     const closeSide = () => {
@@ -9591,6 +9625,158 @@
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     });
+    // ---- svg export (the svg button): the view as one SVG picture, or an animated SVG: a turntable round the middle (from / to
+    // in degrees), or a part of the loaded story's timeline (from / to in seconds). Every frame is drawn by renderView, as
+    // the SVG view mode draws; src/svg-anim.js joins the frames (SMIL: it plays in a browser without script). The MCP has
+    // the same as the export_svg tool.
+    const svgPanelEl = document.getElementById('svgPanel');
+    const svgEl = (id) => document.getElementById(id);
+    const SVG_MAX_BYTES = 60e6; // an animated SVG stops growing here (a browser still opens it)
+    const svgNote = (t) => (svgEl('svgNote').textContent = t);
+    const svgNum = (id, lo, hi, d) => {
+      const v = Number(svgEl(id).value);
+      return Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d;
+    };
+    const svgLook = () => ({
+      size: Math.round(svgNum('svgSize', 128, 2400, 800)),
+      background: svgBackground(svgEl('svgBg').value),
+      ...(svgEl('svgEdges').value === 'off' ? { stroke: 'none' } : {}),
+    });
+    const svgDraw = (mesh, view, fitArg, look, palette = paletteMap) =>
+      renderView(mesh, { ...view, name: '' }, { size: look.size, fit: fitArg, occlude: true, points: false, palette, background: look.background, ...(look.stroke ? { stroke: look.stroke } : {}) });
+    const svgName = () => (nameEl.value.trim() || story?.doc.metadata?.title || 'spider-paint').replace(/[^\w.-]+/g, '-');
+    const svgDownload = (text, file) => {
+      const url = URL.createObjectURL(new Blob([text], { type: 'image/svg+xml' }));
+      const a = Object.assign(document.createElement('a'), { href: url, download: file });
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
+    const svgKB = (n) => (n > 2e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+    // the motion's from / to: degrees for a turntable, seconds of the story
+    const svgKindShow = (reset = false) => {
+      const st = svgEl('svgKind').value === 'story';
+      svgEl('svgFromLab').textContent = st ? 'from (s)' : 'from (°)';
+      svgEl('svgToLab').textContent = st ? 'to (s)' : 'to (°)';
+      svgEl('svgStoryRow').hidden = !st;
+      if (!reset) return;
+      if (st && story) {
+        const d = story.doc.timeline.durationMs / 1000;
+        svgEl('svgFrom').value = '0';
+        svgEl('svgTo').value = String(+d.toFixed(2));
+        svgEl('svgSeconds').value = String(+Math.max(0.1, d).toFixed(2));
+        svgEl('svgFrames').value = String(Math.max(2, Math.min(240, Math.round(d * 10))));
+        svgEl('svgLoop').value = '0';
+      } else if (!st) {
+        svgEl('svgFrom').value = '0';
+        svgEl('svgTo').value = '360';
+        svgEl('svgFrames').value = '36';
+        svgEl('svgSeconds').value = '4';
+        svgEl('svgLoop').value = '1';
+      }
+    };
+    svgEl('svgKind').addEventListener('change', () => {
+      if (svgEl('svgKind').value === 'story' && !story) svgNote('no story is loaded: open one in the Stories panel (or the + scene list), then come back');
+      svgKindShow(true);
+    });
+    svgEl('svgFromNow').addEventListener('click', () => story && (svgEl('svgFrom').value = String(+(story.t / 1000).toFixed(3))));
+    svgEl('svgToNow').addEventListener('click', () => story && (svgEl('svgTo').value = String(+(story.t / 1000).toFixed(3))));
+    svgEl('svgWhole').addEventListener('click', () => svgKindShow(true));
+    svgEl('svgBtn').addEventListener('click', () => {
+      openSide(svgPanelEl);
+      if (svgPanelEl.hidden) return;
+      if (svgEl('svgKind').value === 'story' && !story) svgEl('svgKind').value = 'turntable';
+      svgKindShow(false);
+      svgNote(story ? `story loaded: ${story.doc.metadata?.title ?? 'untitled'} (${(story.doc.timeline.durationMs / 1000).toFixed(1)} s)` : '');
+    });
+    svgEl('svgClose').addEventListener('click', () => closeSide());
+    svgEl('stSvg').addEventListener('click', () => {
+      // from the story bar: the panel on the story's timeline (the whole story to begin with)
+      const was = svgEl('svgKind').value;
+      svgEl('svgKind').value = 'story';
+      if (svgPanelEl.hidden) svgEl('svgBtn').click();
+      else closeSide();
+      if (was !== 'story') svgKindShow(true);
+    });
+    // one picture: the view now
+    const svgPicture = (look = svgLook()) => {
+      if (!svgCam || !scene.positions.length) throw new Error('nothing to draw: the view is empty');
+      return titledSvg(svgDraw(scene, orbit_({ yaw: svgCam.yaw, pitch: svgCam.pitch }), svgCam.fit, look), svgName());
+    };
+    svgEl('svgSave').addEventListener('click', () => {
+      try {
+        const text = svgPicture();
+        svgDownload(text, `${svgName()}.svg`);
+        svgNote(`saved ${svgName()}.svg (${svgKB(text.length)})`);
+      } catch (e) {
+        svgNote(e.message);
+      }
+    });
+    // the frames of a motion: a turntable round the view's middle, or the story's moments (its own camera when the Stories
+    // panel's camera is on, as the player shows it)
+    const svgFrames = async ({ kind, from, to, frames, look, loop, progress = () => {} }) => {
+      const out = [];
+      let bytes = 0;
+      const push = (svg) => {
+        out.push(svg);
+        bytes += svg.length;
+        if (bytes > SVG_MAX_BYTES) throw new Error(`more than ${svgKB(SVG_MAX_BYTES)} after ${out.length} frames: fewer frames, a smaller size, or a shorter part`);
+      };
+      if (kind === 'story') {
+        if (!story) throw new Error('no story is loaded (Stories panel)');
+        const doc = story.doc;
+        const d = doc.timeline.durationMs;
+        const pal = { ...Object.fromEntries((doc.scene.palette ?? []).map(({ name, ...m }) => [name, m])), ...paletteMap };
+        const ownCam = stOn('stCam') && !story.cutaway && !story.focus;
+        const v = doc.presentation?.views?.find((x) => x.id === story.focus);
+        for (const [k, t] of spread(Math.max(0, Math.min(d, from * 1000)), Math.max(0, Math.min(d, to * 1000)), frames).entries()) {
+          let objects = storyFormat.sceneAt(doc, t);
+          if (story.cutaway) objects = objects.filter((o) => !stMatch(o.name, doc.presentation?.cutaway?.excludePrefixes));
+          if (v) objects = objects.filter((o) => stMatch(o.name, v.includePrefixes) && !stMatch(o.name, v.excludePrefixes));
+          const cam = ownCam ? storyView(storyFormat.cameraAt(doc, t), { orbit: orbitView, makeCamera }) : { view: orbit_({ yaw: svgCam.yaw, pitch: svgCam.pitch }), fit: svgCam.fit };
+          push(svgDraw(objects.length ? merge(...objects.map((o) => o.mesh)) : { positions: [], faces: [] }, cam.view, cam.fit, look, pal));
+          progress(k + 1);
+          await new Promise((r) => setTimeout(r, 0)); // (the page stays alive between frames)
+        }
+        return out;
+      }
+      if (!svgCam || !scene.positions.length) throw new Error('nothing to draw: the view is empty');
+      const full = loop && Math.abs(to - from) % 360 < 1e-9 && to !== from; // a whole turn: the last frame would be the first again
+      for (const [k, deg] of spread(from, to, frames, full).entries()) {
+        push(svgDraw(scene, orbit_({ yaw: svgCam.yaw + (deg * Math.PI) / 180, pitch: svgCam.pitch }), svgCam.fit, look));
+        progress(k + 1);
+        await new Promise((r) => setTimeout(r, 0));
+      }
+      return out;
+    };
+    let svgBusy = false;
+    svgEl('svgAnim').addEventListener('click', async () => {
+      if (svgBusy) return;
+      const kind = svgEl('svgKind').value;
+      const opts = {
+        kind,
+        from: svgNum('svgFrom', -1e6, 1e6, 0),
+        to: svgNum('svgTo', -1e6, 1e6, kind === 'story' ? 0 : 360),
+        frames: Math.round(svgNum('svgFrames', 2, 240, 36)),
+        loop: svgEl('svgLoop').value === '1',
+        look: svgLook(),
+      };
+      svgBusy = true;
+      svgEl('svgAnim').disabled = true;
+      try {
+        const frames = await svgFrames({ ...opts, progress: (k) => svgNote(`drawing frame ${k} / ${opts.frames}…`) });
+        const text = animatedSvg(frames, { size: opts.look.size, seconds: svgNum('svgSeconds', 0.1, 600, 4), loop: opts.loop, title: svgName() });
+        const file = `${svgName()}-${kind}.svg`;
+        svgDownload(text, file);
+        svgNote(`saved ${file}: ${frames.length} frames, ${svgKB(text.length)}`);
+      } catch (e) {
+        svgNote(e.message);
+      } finally {
+        svgBusy = false;
+        svgEl('svgAnim').disabled = false;
+      }
+    });
     const sceneFileEl = document.getElementById('sceneFile');
     document.getElementById('sceneOpen').addEventListener('click', () => sceneFileEl.click());
     sceneFileEl.addEventListener('change', async () => {
@@ -9941,6 +10127,7 @@
         screens: () => ({ mode, gpu: Boolean(gpu), kind: activeKind, iframes: screenFrames.size, spots: [...sceneSpots].map(([addr, s]) => ({ addr, ready: s.ready, error: s.error })) }),
         // the character panel (modular characters): place(selection | example id, at, yaw, name) -> its group name, the placed
         // ones, apply(group, selection), open; ready() loads the library
+        svg: { picture: (look) => svgPicture({ ...svgLook(), ...look }), cam: () => svgCam && { ...svgCam, gcam: gcam && { eye: gcam.eye, f: gcam.f, k: gcam.k, size: gcam.size } } },
         chars: {
           ready: () => mcReady().then(() => mc.lib.examples.map((x) => x.id)),
           place: async (spec, at = null, yaw = null, name = null) => { await mcReady(); const ex = typeof spec === 'string' ? mc.lib.examples.find((x) => x.id === spec) : null; return placeCharacter(ex ? ex.spec : spec ?? charSpec, at, yaw, name).group; },
