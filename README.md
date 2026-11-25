@@ -55,12 +55,23 @@ Open http://localhost:5173. No application build system is needed.
 ### In a terminal
 
 ```sh
-npm run term -- globe          # a models/ name or a .json / .3draft path (default: bridge)
-npx spider-paint-term human --spin
+npm run term -- bridge         # a scene name (default: the app's start scene)
+npx spider-paint-term deepsky
+node bin/spider-term.mjs globe --native     # the terminal's own renderer (no Chrome needed)
 node bin/spider-term.mjs lark-4 --once --cols 100 --rows 30 > frame.ans
 ```
 
-The scene is drawn with 24-bit colour half blocks (two pixels a character cell), a depth buffer and one shaded colour a
+**The app way (the default when a Chrome / Chromium / Edge is found; `CHROME_PATH` names one):** the real spider-paint runs
+in a headless Chrome from this checkout (`bin/term-app.mjs`, the DevTools protocol over node's own WebSocket, node 22+), so
+**every key and mode works** as in the browser: flying (W A S D R F, Space), T, Tab, M, X, G, B, P, Q and the edit keys,
+J, E, L, N, K, C, 9, Z… The picture is the app's own view in half blocks (rough, that is fine). Under it: **an info line**
+with the HUD's important bits (EDIT, speed, the target, the object under the cross, fps; a command's answer for a moment)
+and **the Enter line**, lighter while the Enter box is open (focused): what you type goes into the app's box, its list (the
+targets, `/l` scenes, `/mat`, `/help`…) covers the bottom of the view, ↑↓ / Tab / Enter / Esc and a click on a row work
+as in the app. The mouse is the app's (the cross follows it, drag turns, the wheel zooms; Shift / Option + drag selects
+terminal text). Ctrl+C quits. On WSL: install a Chrome or Chromium inside Ubuntu, or the native viewer starts.
+
+**The native viewer (`--native`, or when there is no Chrome):** The scene is drawn with 24-bit colour half blocks (two pixels a character cell), a depth buffer and one shaded colour a
 face (`src/term-render.js`, pure: no node, no DOM), with dark outlines at the silhouettes, folds and depth jumps in place of
 the GPU's light play (`/outline` or `--flat` turns them off). The model fills the window. It is zen: only the picture. The mouse belongs to the program (the
 terminal does not select the picture; Shift / Option + drag still selects): **drag** turns, the **wheel** zooms, the object

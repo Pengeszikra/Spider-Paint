@@ -28,3 +28,37 @@ assert.equal(sky.stdout.trimEnd().split('\n').length, 20);
 assert.ok(Date.now() - t0 < 15000, 'the sky loads in seconds');
 assert.ok((sky.stdout.match(/38;2;/g) ?? []).length > 50, 'stars are drawn');
 console.log('terminal view: OK');
+
+// the app way: terminal bytes -> DOM keys, Chrome's PNG screenshots decoded
+{
+  const { keysOf, keyEvents, decodePng } = await import('../bin/term-app.mjs');
+  const { deflateSync } = await import('node:zlib');
+  assert.deepEqual(keysOf('w').map((k) => k.key), ['w']);
+  assert.deepEqual(keysOf('\x1b[A\r\x1b').map((k) => k.key), ['ArrowUp', 'Enter', 'Escape']);
+  assert.equal(keysOf('W')[0].shift, true, 'a capital is Shift');
+  assert.deepEqual(keysOf('\x04')[0], { key: 'd', ctrl: true }, 'Ctrl+D');
+  assert.equal(keysOf('\x1bn')[0].alt, true, 'Alt+N');
+  assert.equal(keysOf('\x1b[Z')[0].shift, true, 'Shift+Tab');
+  const [down, up] = keyEvents({ key: 'm' });
+  assert.equal(down.type, 'keyDown');
+  assert.equal(down.code, 'KeyM');
+  assert.equal(down.text, 'm');
+  assert.equal(up.type, 'keyUp');
+  assert.equal(keyEvents({ key: 'ArrowLeft' })[0].type, 'rawKeyDown');
+  assert.equal(keyEvents({ key: 'd', ctrl: true })[0].modifiers, 2);
+  // a 2 × 2 RGBA PNG with the Sub and Up filters
+  const raw = Buffer.from([1, 255, 0, 0, 255, 1, 1, 1, 0, 2, 0, 255, 0, 0, 0, 0, 0, 0]);
+  const chunk = (name, data) => {
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(data.length);
+    return Buffer.concat([len, Buffer.from(name, 'latin1'), data, Buffer.alloc(4)]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(2, 0), ihdr.writeUInt32BE(2, 4), (ihdr[8] = 8), (ihdr[9] = 6);
+  const png = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+  const img = decodePng(png);
+  assert.deepEqual([img.width, img.height], [2, 2]);
+  assert.deepEqual([...img.rgb.slice(0, 6)], [255, 0, 0, 0, 1, 1], 'Sub filter');
+  assert.deepEqual([...img.rgb.slice(6, 12)], [255, 255, 0, 0, 1, 1], 'Up filter');
+  console.log('terminal app keys and png: OK');
+}

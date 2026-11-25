@@ -22,9 +22,21 @@ const opt = (name, d) => {
   const i = argv.indexOf(`--${name}`);
   return i >= 0 && argv[i + 1] !== undefined ? Number(argv[i + 1]) : d;
 };
-const VALUED = ['--cols', '--rows', '--yaw', '--pitch'];
+const VALUED = ['--cols', '--rows', '--yaw', '--pitch', '--url'];
 const named = argv.find((a, i) => !a.startsWith('--') && !VALUED.includes(argv[i - 1])) ?? 'bridge';
 
+// The app way (the default when a Chrome is found): the real spider-paint in a headless Chrome, every key works
+// (bin/term-app.mjs). --native: this file's own renderer (a viewer: the mouse turns and picks, Enter a few commands).
+if (!flag('native') && !flag('once') && process.stdout.isTTY && process.stdin.isTTY) {
+  const { findChrome, runApp } = await import('./term-app.mjs');
+  const chrome = findChrome();
+  if (chrome && typeof WebSocket === 'function') {
+    await runApp({ root, scene: argv.find((a, i) => !a.startsWith('--') && !VALUED.includes(argv[i - 1])) ?? '', chrome, url: argv.includes('--url') ? argv[argv.indexOf('--url') + 1] : undefined });
+    await new Promise(() => {}); // (runApp runs until Ctrl+C)
+  }
+  console.error(chrome ? 'spider-term: node 22+ is needed for the app view (WebSocket); the native viewer starts' : 'spider-term: no Chrome found (CHROME_PATH); the native viewer starts');
+  await new Promise((r) => setTimeout(r, 1200));
+}
 const MODELS = join(root, 'models');
 const modelNames = () => readdirSync(MODELS).filter((f) => f.endsWith('.scene.json')).map((f) => f.replace(/\.scene\.json$/, '')).sort();
 const fileOf = (n) => {
