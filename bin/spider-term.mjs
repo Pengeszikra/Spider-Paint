@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // spider-paint in a terminal: a scene file drawn with 24-bit colour half blocks (two pixels a character cell).
-//   spider-term [scene] [--once] [--spin] [--cols N --rows N] [--yaw deg --pitch deg]
+//   spider-term [scene] [--once] [--spin] [--flat] [--cols N --rows N] [--yaw deg --pitch deg]
 // scene: a path (.json / .3draft) or a name of models/ (bridge, globe, human…); default: bridge.
 //
 // Zen: only the picture, no text on it. The mouse is the program's (the terminal does not select the picture):
@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { merge, bounds } from '../engine/45789c908f86/mesh.js';
 import { instantiate } from '../engine/45789c908f86/instances.js';
 import { BUILTIN_MATERIALS } from '../mcp/materials.js';
-import { rasterize, ansiLines } from '../src/term-render.js';
+import { rasterize, ansiLines, fitZoom } from '../src/term-render.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -55,19 +55,25 @@ let scene = load(fileOf(named));
 const D = Math.PI / 180;
 const view = { yaw: opt('yaw', -34) * D, pitch: opt('pitch', 26) * D, zoom: 1, fit: bounds(scene.mesh) };
 let spin = flag('spin');
+let outline = !flag('flat'); // the dark edge lines (the terminal's stand-in for the GPU's light)
 
 const once = flag('once') || !process.stdout.isTTY || !process.stdin.isTTY;
 const size = () => ({ cols: opt('cols', process.stdout.columns || 80), rows: Math.max(4, opt('rows', (process.stdout.rows || 24) - (once ? 0 : 1))) });
 let img = null;
 let hover = -1; // the object under the pointer
+function fitStart() {
+  const { cols, rows } = size();
+  view.zoom = fitZoom(scene.mesh, { width: cols, height: rows * 2, ...view });
+}
 const objectOf = (fi) => (fi < 0 ? -1 : scene.objects.findIndex((o) => fi >= o.from && fi < o.to));
 const picture = () => {
   const { cols, rows } = size();
   const o = scene.objects[hover];
-  img = rasterize(scene.mesh, { width: cols, height: rows * 2, palette: scene.palette, ...view, lit: o ? (fi) => fi >= o.from && fi < o.to : undefined });
+  img = rasterize(scene.mesh, { width: cols, height: rows * 2, palette: scene.palette, ...view, outline, lit: o ? (fi) => fi >= o.from && fi < o.to : undefined });
   return ansiLines(img);
 };
 
+fitStart();
 if (once) {
   process.stdout.write(`${picture().join('\n')}\n`);
   process.exit(0);
@@ -86,12 +92,25 @@ const quit = (code = 0) => {
   out.write(RESTORE);
   process.exit(code);
 };
+for (const sig of ['SIGTERM', 'SIGHUP']) process.on(sig, () => quit(0)); // (killed from outside: the terminal is given back too)
 process.on('uncaughtException', (e) => {
   out.write(RESTORE);
   console.error(e);
   process.exit(1);
 });
+// The mouse sends a report for every cell it crosses: drawing each would pile them up (a big scene then seems frozen).
+// So a change only asks for a frame; one frame is drawn at a time, at most every 33 ms, from the newest state.
+let pending = false, lastPaint = 0;
 const draw = () => {
+  if (pending) return;
+  pending = true;
+  setTimeout(() => {
+    pending = false;
+    lastPaint = performance.now();
+    paint();
+  }, Math.max(0, 33 - (performance.now() - lastPaint)));
+};
+const paint = () => {
   const lines = picture();
   const { rows, cols } = size();
   let buf = '\x1b[?2026h'; // synchronised output: the terminal shows the frame whole (where it is understood)
@@ -111,7 +130,8 @@ const note = (text) => ((line = { mode: 'note', text, until: performance.now() +
 const VIEWS = { front: [0, 0], back: [180, 0], right: [90, 0], left: [-90, 0], side: [90, 0], top: [0, 89.9], bottom: [0, -89.9], iso: [-45, 35.26] };
 const aim = (o) => {
   view.fit = o ? bounds(o.mesh) : bounds(scene.mesh);
-  view.zoom = 1;
+  const { cols, rows } = size();
+  view.zoom = fitZoom(o ? o.mesh : scene.mesh, { width: cols, height: rows * 2, ...view });
 };
 const run = (text) => {
   const [cmd, ...rest] = text.trim().split(/\s+/);
@@ -150,6 +170,10 @@ const run = (text) => {
     case 'reset':
       aim(null);
       return draw();
+    case 'outline':
+    case 'edges':
+      outline = arg === 'off' ? false : arg === 'on' ? true : !outline;
+      return note(`outline: ${outline ? 'on' : 'off'}`);
     case 'zoom':
       view.zoom = Math.max(0.05, Number(arg) || 1);
       return draw();
@@ -161,7 +185,7 @@ const run = (text) => {
       return quit();
     case 'help':
     case 'h':
-      return note('/l scene · /view front|top|iso… · /spin · /fit · /zoom n · /ls · /q · a name: turn round that object');
+      return note('/l scene · /view front|top|iso… · /spin · /outline · /fit · /zoom n · /ls · /q · a name: turn round that object');
     default:
       return note(`no command ${cmd} (/help)`);
   }

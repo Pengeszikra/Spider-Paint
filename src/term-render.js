@@ -30,7 +30,7 @@ const newell = (pts) => {
  * view: { yaw, pitch, zoom (1: the whole mesh fits), fit: { center, radius } }; palette: { name: material };
  * lit(faceIndex): a face drawn brighter (the one under the mouse). `ids` holds the face seen at each pixel (-1: none).
  */
-export const rasterize = (mesh, { width, height, yaw = -0.6, pitch = 0.45, zoom = 1, palette = {}, fit, lit } = {}) => {
+export const rasterize = (mesh, { width, height, yaw = -0.6, pitch = 0.45, zoom = 1, palette = {}, fit, lit, outline = false } = {}) => {
   const size = Math.min(width, height); // (the whole mesh fits the shorter side)
   const box = fit ?? bounds(mesh);
   const cam = makeCamera(orbit({ yaw, pitch }), mesh, size, { center: box.center, radius: (box.radius || 1) / zoom });
@@ -44,11 +44,13 @@ export const rasterize = (mesh, { width, height, yaw = -0.6, pitch = 0.45, zoom 
   // the light, in the camera's frame: from above, a little left and towards the eye
   const toEye = cam.f.map((c) => -c);
   const light = unit([toEye[0] * 0.55 - cam.r[0] * 0.35 + cam.u[0] * 0.75, toEye[1] * 0.55 - cam.r[1] * 0.35 + cam.u[1] * 0.75, toEye[2] * 0.55 - cam.r[2] * 0.35 + cam.u[2] * 0.75]);
+  const normals = new Array(mesh.faces.length);
   for (let fi = 0; fi < mesh.faces.length; fi++) {
     const f = mesh.faces[fi];
     if (f.v.length < 3) continue;
     const world = f.v.map((i) => mesh.positions[i]);
     const n = newell(world);
+    normals[fi] = n;
     const mid = world.reduce((m, q) => [m[0] + q[0] / world.length, m[1] + q[1] / world.length, m[2] + q[2] / world.length], [0, 0, 0]);
     const facing = dot(n, unit(sub(cam.eye, mid))); // > 0: seen from its front
     const nn = facing < 0 ? n.map((c) => -c) : n; // (an open shell is seen from both sides)
@@ -81,6 +83,27 @@ export const rasterize = (mesh, { width, height, yaw = -0.6, pitch = 0.45, zoom 
         }
     }
   }
+  // outline (instead of the GPU's light play): a pixel at the edge of the shape, of a fold (the faces turn more than ~35°)
+  // or in front of a depth jump is drawn dark; the line stays on the nearer side
+  if (outline) {
+    const jump = 0.04 * (box.radius || 1) / zoom;
+    const edge = new Uint8Array(width * height);
+    for (let y = 0; y < height; y++)
+      for (let x = 0; x < width; x++) {
+        const k = y * width + x, id = ids[k];
+        if (id < 0) continue;
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+          const j = ny * width + nx, jd = ids[j];
+          if (jd < 0) { edge[k] = 1; break; } // (the silhouette)
+          if (jd === id) continue;
+          if (depth[j] < depth[k] - jump) continue; // (the nearer pixel draws the line)
+          if (depth[j] > depth[k] + jump || dot(normals[id], normals[jd]) < 0.6) { edge[k] = 1; break; }
+        }
+      }
+    for (let k = 0; k < edge.length; k++) if (edge[k]) for (let c = 0; c < 3; c++) out[k * 3 + c] = Math.round(out[k * 3 + c] * 0.5);
+  }
   return { width, height, rgb: out, set, ids };
 };
 
@@ -109,3 +132,21 @@ export const ansiLines = (img) => {
 export const toAnsi = (img) => ansiLines(img).join('\n');
 
 export const renderTerm = (mesh, { cols = 80, rows = 24, ...view } = {}) => toAnsi(rasterize(mesh, { width: cols, height: rows * 2, ...view }));
+
+/** The zoom that makes `mesh` (or `fit`) fill about `fill` of a width × height grid as seen from yaw / pitch now. */
+export const fitZoom = (mesh, { width, height, yaw = -0.6, pitch = 0.45, fit, fill = 0.9 } = {}) => {
+  const size = Math.min(width, height);
+  const box = fit ?? bounds(mesh);
+  const cam = makeCamera(orbit({ yaw, pitch }), mesh, size, { center: box.center, radius: box.radius || 1 });
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  const r = box.radius || 1;
+  for (const p of mesh.positions) {
+    if (Math.hypot(p[0] - box.center[0], p[1] - box.center[1], p[2] - box.center[2]) > r * 1.0001) continue; // (only what the fit holds)
+    const q = project(cam, p);
+    x0 = Math.min(x0, q.x - size / 2), x1 = Math.max(x1, q.x - size / 2), y0 = Math.min(y0, q.y - size / 2), y1 = Math.max(y1, q.y - size / 2);
+  }
+  if (!(x1 > x0) || !(y1 > y0)) return 1;
+  // the picture is centred on the fit's middle: the farther side decides
+  const half = (a, b) => Math.max(Math.abs(a), Math.abs(b));
+  return Math.max(0.05, Math.min((fill * width) / 2 / half(x0, x1), (fill * height) / 2 / half(y0, y1)));
+};
