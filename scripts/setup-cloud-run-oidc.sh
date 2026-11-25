@@ -2,8 +2,8 @@
 # One-time, keyless GitHub Actions -> Google Cloud Run authorization for spider-paint.
 # Run as a GCP project IAM admin with gcloud and an authenticated gh CLI.
 set -euo pipefail
+cd "$(dirname "$0")/.." # package.json names the repository and the branch
 
-REPO="Pengeszikra/spider-paint"
 SERVICE="spider-paint"
 REGION="europe-west1"
 POOL="spider-paint-github"
@@ -13,6 +13,10 @@ DEPLOY_ACCOUNT="spider-paint-deploy"
 command -v gcloud >/dev/null || { echo "Install and log in to the Google Cloud CLI first." >&2; exit 1; }
 command -v gh >/dev/null || { echo "Install and log in to the GitHub CLI (gh) first." >&2; exit 1; }
 gh auth status >/dev/null
+# The repository and branch come from package.json "brand"; GitHub's own spelling of the name is what the OIDC token carries
+# (a renamed repo answers to the old name, but its tokens say the new one, case included).
+REPO="$(gh repo view "$(node -p "require('./package.json').brand.repo")" --json nameWithOwner --jq .nameWithOwner)"
+BRANCH="$(node -p "require('./package.json').brand.branch || 'main'")"
 if [[ $# -gt 0 ]]; then
   PROJECT_ID="$1"
 else
@@ -44,13 +48,13 @@ if ! gcloud iam workload-identity-pools describe "$POOL" --project "$PROJECT_ID"
     --display-name "spider-paint GitHub Actions"
 fi
 
-# Only tokens issued to this repository's main branch may authenticate.
-CONDITION="assertion.repository == 'Pengeszikra/spider-paint' && assertion.ref == 'refs/heads/main'"
+# Only tokens issued to this repository's release branch may authenticate.
+CONDITION="assertion.repository == '$REPO' && assertion.ref == 'refs/heads/$BRANCH'"
 if ! gcloud iam workload-identity-pools providers describe "$PROVIDER" --project "$PROJECT_ID" \
   --location global --workload-identity-pool "$POOL" >/dev/null 2>&1; then
   gcloud iam workload-identity-pools providers create-oidc "$PROVIDER" \
     --project "$PROJECT_ID" --location global --workload-identity-pool "$POOL" \
-    --display-name "spider-paint main branch" \
+    --display-name "spider-paint $BRANCH branch" \
     --issuer-uri "https://token.actions.githubusercontent.com" \
     --attribute-mapping "google.subject=assertion.sub,attribute.repository=assertion.repository" \
     --attribute-condition "$CONDITION"
@@ -100,5 +104,5 @@ echo "  project: $PROJECT_ID"
 echo "  provider: $PROVIDER_RESOURCE"
 echo "  service account: $DEPLOY_SA"
 echo "  runtime service account: $RUNTIME_SA"
-echo "GitHub Actions -> Deploy spider-paint to Cloud Run will deploy after successful main CI."
+echo "GitHub Actions -> Deploy spider-paint to Cloud Run will deploy after successful $BRANCH CI."
 echo "Trigger a manual workflow run once to verify live /api/version, or push another commit."

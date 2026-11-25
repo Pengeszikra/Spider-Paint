@@ -1,0 +1,117 @@
+name: Deploy spider-paint to Cloud Run
+
+# Deploy only after the existing MCP App CI succeeds on master.
+# One-time Google WIF setup: README.md (Cloud Run).
+on:
+  workflow_run:
+    workflows: ["spider-paint MCP App"]
+    types: [completed]
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: spider-paint-cloud-run-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'master' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+      GCP_DEPLOY_SA: ${{ vars.GCP_DEPLOY_SA }}
+    steps:
+      - name: Check out the exact tested commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          persist-credentials: true
+
+      - name: Skip an outdated commit
+        id: current
+        shell: bash
+        run: |
+          set -euo pipefail
+          master_sha="$(git ls-remote origin refs/heads/master | awk '{print $1}')"
+          if [[ "$master_sha" == "$SOURCE_SHA" ]]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping obsolete commit $SOURCE_SHA; master is now $master_sha." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Check one-time Google Cloud configuration
+        if: steps.current.outputs.deploy == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for key in GCP_PROJECT_ID GCP_WIF_PROVIDER GCP_DEPLOY_SA; do
+            if [[ -z "${!key}" ]]; then
+              echo "::error::Missing GitHub Actions variable $key. Run scripts/setup-cloud-run-oidc.sh once; see README.md (Cloud Run)"
+              exit 1
+            fi
+          done
+
+      - name: Authenticate to Google Cloud (keyless OIDC)
+        if: steps.current.outputs.deploy == 'true'
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ env.GCP_WIF_PROVIDER }}
+          service_account: ${{ env.GCP_DEPLOY_SA }}
+
+      - name: Deploy Dockerfile source to Cloud Run
+        if: steps.current.outputs.deploy == 'true'
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v3
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          region: europe-west1
+          service: spider-paint
+          source: .
+          # Workshop sessions remain process-local.
+          flags: --max-instances=1
+          # Do not remove unrelated live environment variables.
+          env_vars_update_strategy: merge
+          env_vars: |
+            SPIDER_PAINT_GIT_SHA=${{ env.SOURCE_SHA }}
+
+      - name: Verify live build is exactly the tested source
+        if: steps.current.outputs.deploy == 'true'
+        shell: bash
+        env:
+          DEPLOY_URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          set -euo pipefail
+          [[ -n "$DEPLOY_URL" ]] || { echo "::error::Cloud Run returned no URL"; exit 1; }
+          for attempt in {1..8}; do
+            if curl --fail --silent --show-error --max-time 20 "$DEPLOY_URL/api/version" > version.json; then
+              if jq -e --arg sha "$SOURCE_SHA" '.gitHash == $sha and (.version | type == "string")' version.json > /dev/null; then
+                echo "Deployed: $(jq -r '.label' version.json)"
+                {
+                  echo "### Cloud Run deployment verified"
+                  echo "- Service: spider-paint (europe-west1)"
+                  echo "- URL: $DEPLOY_URL"
+                  echo "- Source SHA: $SOURCE_SHA"
+                  echo "- Live label: $(jq -r '.label' version.json)"
+                } >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+              fi
+            fi
+            sleep 5
+          done
+          echo "::error::Cloud Run /api/version does not match tested commit $SOURCE_SHA"
+          [[ ! -f version.json ]] || cat version.json
+          exit 1

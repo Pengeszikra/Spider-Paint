@@ -61,7 +61,7 @@ The product name is always lowercase **spider-paint**. The app header can retain
 
 ## Cloud Run (browser app + MCP)
 
-**Cloud Run deployment is automated in GitHub Actions** (once keyless Google Cloud IAM/WIF setup is completed). Push to `main` → `spider-paint MCP App` CI must succeed → `Deploy spider-paint to Cloud Run` builds and deploys that tested SHA. The deployment checks the service's `/api/version` response against the expected commit. See [the setup and verification guide](docs/cloud-run-ci.md), or run `bash scripts/setup-cloud-run-oidc.sh PROJECT_ID` once with authorized `gcloud` and `gh` credentials. **Without that setup, the workflow is present but cannot deploy.** Agents must follow the deployment rules in [AGENTS.md](AGENTS.md).
+**Cloud Run deployment is automated in GitHub Actions** (once keyless Google Cloud IAM/WIF setup is completed). Push to the release branch (`brand.branch` in package.json) → `spider-paint MCP App` CI must succeed → `Deploy spider-paint to Cloud Run` builds and deploys that tested SHA. The deployment checks the service's `/api/version` response against the expected commit. See [the setup and verification guide](docs/cloud-run-ci.md), or run `bash scripts/setup-cloud-run-oidc.sh PROJECT_ID` once with authorized `gcloud` and `gh` credentials. **Without that setup, the workflow is present but cannot deploy.** Agents must follow the deployment rules in [AGENTS.md](AGENTS.md).
 
 
 The Dockerfile now starts `bin/cloud-run.mjs` with Node.js on the Cloud Run `PORT`.
