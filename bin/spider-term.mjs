@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { merge, bounds } from '../engine/45789c908f86/mesh.js';
 import { instantiate } from '../engine/45789c908f86/instances.js';
 import { BUILTIN_MATERIALS } from '../mcp/materials.js';
-import { rasterize, ansiLines, fitZoom } from '../src/term-render.js';
+import { rasterize, rasterSky, lookAtAngles, ansiLines, fitZoom } from '../src/term-render.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -33,9 +33,39 @@ const fileOf = (n) => {
   if (near.length) return join(MODELS, `${near[0]}.scene.json`);
   throw new Error(`no scene "${n}" (a .json / .3draft path, or a models/ name)`);
 };
+const hexRgb = (h) => {
+  const f = String(h ?? '#c8c8c8').replace('#', '').padEnd(6, '0');
+  return [0, 2, 4].map((i) => parseInt(f.slice(i, i + 2), 16) || 0);
+};
+// A sky (a starship scene: deepsky, stars, the sky catalogues): thousands of instances light years apart are not meshes
+// here but points seen from the scene's start eye; brightness: how big they look, spread per kind (5%…95% -> dim…full).
+const loadSky = (s, file) => {
+  const pal = Object.fromEntries((s.palette ?? []).map((m) => [m.name, m]));
+  const eye = s.start?.eye ?? [0, 0, 0];
+  const pts = [];
+  for (const o of s.objects ?? []) {
+    if (!Array.isArray(o.at)) continue;
+    const d = Math.hypot(o.at[0] - eye[0], o.at[1] - eye[1], o.at[2] - eye[2]) || 1e-12;
+    const core = o.mats?.core;
+    pts.push({ name: String(o.name ?? ''), kind: o.category ?? o.proto ?? '', at: o.at, rgb: hexRgb(o.glowColor ?? pal[core]?.color ?? o.color), L: Math.log10((o.glow ?? o.scale ?? 1) / d), galaxy: o.proto === 'ghost' || Boolean(o.galaxy) });
+  }
+  for (const kind of new Set(pts.map((p) => p.kind))) {
+    const g = pts.filter((p) => p.kind === kind), L = g.map((p) => p.L).sort((a, b) => a - b);
+    const lo = L[Math.floor(L.length * 0.05)], hi = L[Math.floor((L.length - 1) * 0.95)];
+    for (const p of g) p.b = Math.max(0.28, Math.min(1, 0.3 + (0.7 * (p.L - lo)) / Math.max(1e-9, hi - lo)));
+    for (const p of g) p.big = p.galaxy && p.b > 0.85 ? 1 : 0; // (only the biggest-looking galaxies as a little smudge)
+  }
+  // the dust cloud (the Milky Way's band): faint points under everything
+  const c = s.cloud;
+  if (c?.p?.length) for (let i = 0; i + 2 < c.p.length; i += 3) pts.unshift({ name: '', kind: 'cloud', at: [c.p[i] * (c.unit ?? 1), c.p[i + 1] * (c.unit ?? 1), c.p[i + 2] * (c.unit ?? 1)], rgb: [150, 160, 200], b: 0.22 });
+  const D0 = Math.PI / 180;
+  const start = { yaw: (s.start?.yaw ?? 0) * D0, pitch: (s.start?.pitch ?? 0) * D0 };
+  return { sky: { points: pts, eye, start }, objects: [], name: s.name ?? file.split('/').pop() };
+};
 // a scene file -> one mesh, its palette and its objects (name + the range of their faces in the mesh)
 const load = (file) => {
   const s = JSON.parse(readFileSync(file, 'utf8'));
+  if (s.vehicle === 'starship' || s.start?.eye || (s.prototypes && (s.objects?.length ?? 0) > 1500)) return loadSky(s, file);
   const meshes = [], objects = [];
   let face = 0;
   for (const o of s.objects ?? []) {
@@ -53,7 +83,12 @@ const load = (file) => {
 
 let scene = load(fileOf(named));
 const D = Math.PI / 180;
-const view = { yaw: opt('yaw', -34) * D, pitch: opt('pitch', 26) * D, zoom: 1, fit: bounds(scene.mesh) };
+const view = { yaw: opt('yaw', -34) * D, pitch: opt('pitch', 26) * D, zoom: 1, fit: scene.sky ? null : bounds(scene.mesh), fov: 60 * D };
+const skyStart = () => {
+  if (!scene.sky) return;
+  Object.assign(view, scene.sky.start, { fov: 60 * D });
+};
+skyStart();
 let spin = flag('spin');
 let outline = !flag('flat'); // the dark edge lines (the terminal's stand-in for the GPU's light)
 
@@ -62,12 +97,17 @@ const size = () => ({ cols: opt('cols', process.stdout.columns || 80), rows: Mat
 let img = null;
 let hover = -1; // the object under the pointer
 function fitStart() {
+  if (scene.sky) return;
   const { cols, rows } = size();
   view.zoom = fitZoom(scene.mesh, { width: cols, height: rows * 2, ...view });
 }
-const objectOf = (fi) => (fi < 0 ? -1 : scene.objects.findIndex((o) => fi >= o.from && fi < o.to));
+const objectOf = (fi) => (fi < 0 ? -1 : scene.sky ? (scene.sky.points[fi]?.name ? fi : -1) : scene.objects.findIndex((o) => fi >= o.from && fi < o.to));
 const picture = () => {
   const { cols, rows } = size();
+  if (scene.sky) {
+    img = rasterSky(scene.sky.points, { width: cols, height: rows * 2, eye: scene.sky.eye, yaw: view.yaw, pitch: view.pitch, fov: view.fov });
+    return ansiLines(img);
+  }
   const o = scene.objects[hover];
   img = rasterize(scene.mesh, { width: cols, height: rows * 2, palette: scene.palette, ...view, outline, lit: o ? (fi) => fi >= o.from && fi < o.to : undefined });
   return ansiLines(img);
@@ -119,7 +159,8 @@ const paint = () => {
   });
   shown = lines;
   if (line.mode === 'note' && performance.now() > line.until) line = { mode: 'none', text: '', until: 0 };
-  const under = line.mode === 'prompt' ? `\x1b[0m› ${line.text}` : line.mode === 'note' ? `\x1b[0;2m${line.text.slice(0, cols - 1)}\x1b[0m` : '\x1b[0m';
+  const hovered = scene.sky && hover >= 0 ? scene.sky.points[hover] : null;
+  const under = line.mode === 'prompt' ? `\x1b[0m› ${line.text}` : line.mode === 'note' ? `\x1b[0;2m${line.text.slice(0, cols - 1)}\x1b[0m` : hovered ? `\x1b[0;2m${`${hovered.name}${hovered.kind ? ` · ${hovered.kind}` : ''}`.slice(0, cols - 1)}\x1b[0m` : '\x1b[0m';
   buf += `\x1b[${rows + 1};1H${under}\x1b[K`;
   buf += line.mode === 'prompt' ? `\x1b[${rows + 1};${Math.min(cols, 3 + line.text.length)}H\x1b[?25h` : '\x1b[?25l';
   out.write(`${buf}\x1b[?2026l`);
@@ -129,6 +170,10 @@ const note = (text) => ((line = { mode: 'note', text, until: performance.now() +
 // ---- commands (the browser's Enter box, the ones that make sense here)
 const VIEWS = { front: [0, 0], back: [180, 0], right: [90, 0], left: [-90, 0], side: [90, 0], top: [0, 89.9], bottom: [0, -89.9], iso: [-45, 35.26] };
 const aim = (o) => {
+  if (scene.sky) {
+    if (!o) return skyStart();
+    return Object.assign(view, lookAtAngles(scene.sky.eye, o.at));
+  }
   view.fit = o ? bounds(o.mesh) : bounds(scene.mesh);
   const { cols, rows } = size();
   view.zoom = fitZoom(o ? o.mesh : scene.mesh, { width: cols, height: rows * 2, ...view });
@@ -139,10 +184,16 @@ const run = (text) => {
   if (!cmd) return;
   if (!cmd.startsWith('/')) {
     const q = text.trim().toLowerCase();
-    const o = scene.objects.find((x) => x.name.toLowerCase() === q) ?? scene.objects.find((x) => x.name.toLowerCase().startsWith(q)) ?? scene.objects.find((x) => x.name.toLowerCase().includes(q));
-    if (!o) return note(`no object "${text.trim()}"`);
-    aim(o);
-    return note(o.name);
+    const pool = scene.sky ? scene.sky.points.filter((p) => p.name) : scene.objects;
+    const o = pool.find((x) => x.name.toLowerCase() === q) ?? pool.find((x) => x.name.toLowerCase().startsWith(q)) ?? pool.find((x) => x.name.toLowerCase().includes(q));
+    if (o && scene.sky) {
+      aim(o);
+      return note(`${o.name}${o.kind ? ` · ${o.kind}` : ''}`);
+    }
+    const o2 = scene.objects.find((x) => x.name.toLowerCase() === q) ?? scene.objects.find((x) => x.name.toLowerCase().startsWith(q)) ?? scene.objects.find((x) => x.name.toLowerCase().includes(q));
+    if (!o2) return note(`no object "${text.trim()}"`);
+    aim(o2);
+    return note(o2.name);
   }
   switch (cmd.slice(1)) {
     case 'l':
@@ -153,7 +204,9 @@ const run = (text) => {
         hover = -1;
         aim(null);
         shown = [];
-        return note(`${scene.name}: ${scene.objects.length} objects, ${scene.mesh.faces.length} faces`);
+        skyStart();
+        fitStart();
+        return note(scene.sky ? `${scene.name}: ${scene.sky.points.filter((p) => p.name).length} sky objects (seen from the start)` : `${scene.name}: ${scene.objects.length} objects, ${scene.mesh.faces.length} faces`);
       } catch (e) {
         return note(e.message);
       }
@@ -175,11 +228,12 @@ const run = (text) => {
       outline = arg === 'off' ? false : arg === 'on' ? true : !outline;
       return note(`outline: ${outline ? 'on' : 'off'}`);
     case 'zoom':
-      view.zoom = Math.max(0.05, Number(arg) || 1);
+      if (scene.sky) view.fov = Math.max(0.5 * D, Math.min(150 * D, (60 * D) / (Number(arg) || 1)));
+      else view.zoom = Math.max(0.05, Number(arg) || 1);
       return draw();
     case 'ls':
     case 'objects':
-      return note(scene.objects.map((o) => o.name).join(' · '));
+      return note((scene.sky ? scene.sky.points.filter((p) => p.name && p.b > 0.8) : scene.objects).map((o) => o.name).join(' · '));
     case 'q':
     case 'quit':
       return quit();
@@ -197,20 +251,33 @@ const cellFace = (x, y) => {
   if (!img) return -1;
   const px = x - 1, py = (y - 1) * 2;
   if (px < 0 || px >= img.width || py < 0 || py >= img.height) return -1;
+  if (scene.sky) {
+    // a star is one pixel: the brightest named one within a cell round the pointer
+    let best = -1, bb = 0;
+    for (let y = py - 2; y <= py + 3; y++)
+      for (let x2 = px - 1; x2 <= px + 1; x2++) {
+        if (x2 < 0 || y < 0 || x2 >= img.width || y >= img.height) continue;
+        const id = img.ids[y * img.width + x2], p = scene.sky.points[id];
+        if (id >= 0 && p.name && p.b > bb) (best = id), (bb = p.b);
+      }
+    return best;
+  }
   const top = img.ids[py * img.width + px];
   return top >= 0 ? top : py + 1 < img.height ? img.ids[(py + 1) * img.width + px] : -1;
 };
 const mouse = (b, x, y, release) => {
   const motion = b & 32, button = b & 3, wheel = b & 64;
   if (wheel) {
-    view.zoom *= button === 0 ? 1.12 : 1 / 1.12;
+    if (scene.sky) view.fov = Math.max(0.5 * D, Math.min(150 * D, view.fov * (button === 0 ? 1 / 1.12 : 1.12)));
+    else view.zoom *= button === 0 ? 1.12 : 1 / 1.12;
     return draw();
   }
   if (motion && drag && button === 0) {
     const dx = x - drag.x, dy = y - drag.y;
     if (dx || dy) {
-      view.yaw += dx * 4 * D;
-      view.pitch = Math.max(-89.9 * D, Math.min(89.9 * D, view.pitch + dy * 8 * D)); // (a cell is twice as tall as wide)
+      const k = scene.sky ? -view.fov / 60 : 1; // (the sky follows the pointer, finer when zoomed in)
+      view.yaw += dx * 4 * D * k;
+      view.pitch = Math.max(-89.9 * D, Math.min(89.9 * D, view.pitch + dy * 8 * D * (scene.sky ? -view.fov / 60 : 1))); // (a cell is twice as tall as wide)
       drag = { x, y, moved: true };
       return draw();
     }
@@ -226,7 +293,12 @@ const mouse = (b, x, y, release) => {
     const clicked = !drag.moved;
     drag = null;
     if (clicked) {
-      aim(scene.objects[objectOf(cellFace(x, y))] ?? null);
+      const hit = objectOf(cellFace(x, y));
+      if (scene.sky) {
+        if (hit >= 0) (aim(scene.sky.points[hit]), note(`${scene.sky.points[hit].name}${scene.sky.points[hit].kind ? ` · ${scene.sky.points[hit].kind}` : ''}`));
+        return;
+      }
+      aim(scene.objects[hit] ?? null);
       draw();
     }
   }
@@ -261,7 +333,7 @@ process.stdin.on('data', (b) => {
   draw();
 });
 setInterval(() => {
-  if (spin && !drag) (view.yaw += 0.04), draw();
+  if (spin && !drag) (view.yaw += scene.sky ? 0.004 : 0.04), draw();
   else if (line.mode === 'note' && performance.now() > line.until) draw();
 }, 50);
 process.stdout.on('resize', () => ((shown = []), out.write('\x1b[2J'), draw()));

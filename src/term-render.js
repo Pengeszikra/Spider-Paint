@@ -150,3 +150,41 @@ export const fitZoom = (mesh, { width, height, yaw = -0.6, pitch = 0.45, fit, fi
   const half = (a, b) => Math.max(Math.abs(a), Math.abs(b));
   return Math.max(0.05, Math.min((fill * width) / 2 / half(x0, x1), (fill * height) / 2 / half(y0, y1)));
 };
+
+/**
+ * A sky: points seen from one eye (a first-person camera: yaw / pitch as the viewer's lookFrom, pitch > 0 looks down, `fov`
+ * in radians). points: [{ at, rgb: [r, g, b], b (0..1 brightness), big (pixels, optional) }]; the brighter one wins a pixel.
+ * `ids` holds the index of the point at each pixel (-1: none).
+ */
+export const rasterSky = (points, { width, height, eye, yaw = 0, pitch = 0, fov = Math.PI / 3 } = {}) => {
+  const size = Math.max(width, height); // (the wider side sees the whole field of view)
+  const look = makeCamera(orbit({ yaw, pitch }), null, 100, { center: [0, 0, 0], radius: 1, dist: 1 });
+  const cam = makeCamera(orbit({ yaw, pitch }), null, size, { center: eye.map((c, i) => c + look.f[i] * 1e-6), radius: 1, dist: 1e-6, fov });
+  const ox = (size - width) / 2, oy = (size - height) / 2;
+  const out = new Uint8Array(width * height * 3), set = new Uint8Array(width * height), ids = new Int32Array(width * height).fill(-1);
+  const best = new Float32Array(width * height);
+  points.forEach((p, i) => {
+    const q = project(cam, p.at);
+    if (!(q.depth > 0)) return;
+    const x = Math.floor(q.x - ox), y = Math.floor(q.y - oy), r = p.big ?? 0;
+    for (let dy = -r; dy <= r; dy++)
+      for (let dx = -r; dx <= r; dx++) {
+        const X = x + dx, Y = y + dy;
+        if (X < 0 || Y < 0 || X >= width || Y >= height || dx * dx + dy * dy > r * r + r) continue;
+        const k = Y * width + X, b = p.b * (dx || dy ? 0.55 : 1);
+        if (b <= best[k]) continue;
+        best[k] = b;
+        set[k] = 1;
+        ids[k] = i;
+        for (let c = 0; c < 3; c++) out[k * 3 + c] = Math.round(p.rgb[c] * b);
+      }
+  });
+  return { width, height, rgb: out, set, ids, cam };
+};
+
+/** The yaw / pitch (lookFrom's) that look from `eye` at `at`. */
+export const lookAtAngles = (eye, at) => {
+  const d = [at[0] - eye[0], at[1] - eye[1], at[2] - eye[2]];
+  const l = Math.hypot(...d) || 1;
+  return { yaw: Math.atan2(d[0], -d[2]), pitch: -Math.asin(d[1] / l) };
+};

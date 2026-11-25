@@ -20,4 +20,11 @@ assert.ok(toAnsi({ width: 2, height: 2, rgb: new Uint8Array(12), set: new Uint8A
 const cli = spawnSync(process.execPath, ['bin/spider-term.mjs', 'bridge', '--once', '--cols', '60', '--rows', '16'], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });
 assert.equal(cli.status, 0, cli.stderr);
 assert.equal(cli.stdout.trimEnd().split('\n').length, 16);
+// a sky (deepsky: 5000 instances light years apart) is drawn as points from the start eye, quickly and without meshes
+const t0 = Date.now();
+const sky = spawnSync(process.execPath, ['bin/spider-term.mjs', 'deepsky', '--once', '--cols', '80', '--rows', '20'], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });
+assert.equal(sky.status, 0, sky.stderr);
+assert.equal(sky.stdout.trimEnd().split('\n').length, 20);
+assert.ok(Date.now() - t0 < 15000, 'the sky loads in seconds');
+assert.ok((sky.stdout.match(/38;2;/g) ?? []).length > 50, 'stars are drawn');
 console.log('terminal view: OK');

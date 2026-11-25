@@ -68,7 +68,11 @@ under the pointer lights up, a **click** turns the view round it (empty space: t
 line under the picture: `/l scene`, `/view front|top|iso…`, `/spin`, `/outline`, `/fit`, `/zoom n`, `/ls`, `/q`, `/help`, or a name to
 turn round that object; Esc closes it. Ctrl+C quits. Only the changed lines are written, inside synchronised output
 (less flicker where the terminal knows it); mouse reports are gathered into at most one frame every 33 ms, so a big
-scene does not fall behind the pointer. If a killed run leaves the terminal odd, `reset` brings it back. `--once` (or a pipe) prints one frame. The terminal needs 24-bit colour and
+scene does not fall behind the pointer. If a killed run leaves the terminal odd, `reset` brings it back.
+A sky scene (deepsky, stars, a sky catalogue: a starship scene) is not meshes here but points seen from the scene's start:
+stars, planets, black holes, galaxies (the biggest-looking as a small smudge) and the dust band, brightness by how big they
+look. Drag turns the view, the wheel zooms (the field of view), the name of the star under the pointer shows under the
+picture, a click or a typed name (`sirius`) turns the view to it. `--once` (or a pipe) prints one frame. The terminal needs 24-bit colour and
 mouse reporting (iTerm2, WezTerm, kitty, Ghostty, Windows Terminal, VS Code; not macOS Terminal.app).
 
 ## Project boundaries and deployments
