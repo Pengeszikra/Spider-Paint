@@ -71,6 +71,24 @@ targets, `/l` scenes, `/mat`, `/help`…) covers the bottom of the view, ↑↓ 
 as in the app. The mouse is the app's (the cross follows it, drag turns, the wheel zooms; Shift / Option + drag selects
 terminal text). Ctrl+C quits. On WSL: install a Chrome or Chromium inside Ubuntu, or the native viewer starts.
 
+A scene **file** (`.json`, `.3draft`, a sky catalogue, a story) is packed into the page's address, as an MCP link is, and
+**loaded again whenever the file is saved** — edit the JSON in one window, watch it in the other.
+
+### In Vim / Neovim
+
+The checkout is a Vim plugin too (`vim/plugin/spider-paint.vim`):
+
+```vim
+" vim-plug (lazy.nvim: { 'Pengeszikra/Spider-Paint', config = function(p) vim.opt.rtp:append(p.dir .. '/vim') end })
+Plug 'Pengeszikra/Spider-Paint', { 'rtp': 'vim', 'do': 'npm install --omit=dev' }
+set termguicolors mouse=a
+```
+
+`:SpiderPaint` opens spider-paint in a vertical terminal split: the buffer's scene file if it is one (saving it reloads the
+view), else the start scene; `:SpiderPaint bridge` a scene of the + scene list; `:SpiderPaint path.json` a file.
+`g:spider_paint_split` = `'vertical'` | `'horizontal'` | `'tab'`. In the split every key belongs to spider-paint; Ctrl+W
+(Vim) or Ctrl+\ Ctrl+N (Neovim) gets back to the editor, Ctrl+C quits spider-paint. Vim 8.1+ or Neovim, node 22+.
+
 **The native viewer (`--native`, or when there is no Chrome):** The scene is drawn with 24-bit colour half blocks (two pixels a character cell), a depth buffer and one shaded colour a
 face (`src/term-render.js`, pure: no node, no DOM), with dark outlines at the silhouettes, folds and depth jumps in place of
 the GPU's light play (`/outline` or `--flat` turns them off). The model fills the window. It is zen: only the picture. The mouse belongs to the program (the

@@ -6,10 +6,10 @@
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { readFile, mkdtemp, rm } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, watch } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep, extname } from 'node:path';
-import { inflateSync } from 'node:zlib';
+import { inflateSync, deflateRawSync } from 'node:zlib';
 import { ansiLines } from '../src/term-render.js';
 
 // ---- Chrome: CHROME_PATH, or the usual places
@@ -182,7 +182,7 @@ export const runApp = async ({ root, scene, chrome, url }) => {
   const server = url ? null : await serve(root);
   const base = url ?? `http://127.0.0.1:${server.address().port}`;
   const profile = await mkdtemp(join(tmpdir(), 'spider-term-'));
-  const proc = spawn(chrome, ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', '--hide-scrollbars', '--mute-audio', '--enable-unsafe-webgpu', '--ignore-gpu-blocklist', 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
+  const proc = spawn(chrome, ['--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--hide-scrollbars', '--mute-audio', '--enable-unsafe-webgpu', '--ignore-gpu-blocklist', 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
   const wsUrl = await new Promise((ok, no) => {
     let err = '';
     const timer = setTimeout(() => no(new Error(`Chrome did not start (${chrome})`)), 20000);
@@ -212,8 +212,28 @@ export const runApp = async ({ root, scene, chrome, url }) => {
     await page('Emulation.setDeviceMetricsOverride', { width: L.cols * CW, height: L.rows * CH, deviceScaleFactor: 1, mobile: false });
   };
   await resize();
-  const q = scene ? `?scene=${encodeURIComponent(scene)}` : '';
-  await page('Page.navigate', { url: `${base}/${q}` });
+  // a scene file (from vim: the buffer's file) travels in the #fragment, packed, as an MCP link does (#scene= / #sky=);
+  // when the file is written again the page loads it again
+  const isFile = scene && /\.(json|3draft)$/i.test(scene) && existsSync(scene);
+  const urlOf = () => {
+    if (!isFile) return `${base}/${scene ? `?scene=${encodeURIComponent(scene)}` : ''}`;
+    const text = readFileSync(scene, 'utf8');
+    const kind = /"format"\s*:\s*"3draft-sky"/.test(text.slice(0, 2000)) ? 'sky' : /"format"\s*:\s*"spider-build/.test(text.slice(0, 2000)) ? 'story' : 'scene';
+    const packed = deflateRawSync(Buffer.from(JSON.stringify(JSON.parse(text)))).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    return `${base}/?empty#${kind}=${packed}`;
+  };
+  await page('Page.navigate', { url: urlOf() });
+  if (isFile) {
+    let again = 0;
+    watch(scene, () => {
+      clearTimeout(again);
+      again = setTimeout(() => {
+        try {
+          page('Page.navigate', { url: urlOf() }).catch(() => {});
+        } catch {} // (a half-written file: the next save brings it)
+      }, 300);
+    });
+  }
   await page('Runtime.enable');
 
   const MOUSE_ON = '\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h', MOUSE_OFF = '\x1b[?1006l\x1b[?1003l\x1b[?1002l\x1b[?1000l';
