@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "spider-paint",
-  "version": "26.11.24002",
+  "version": "26.11.25001",
   "description": "An interactive browser-native 3D workshop powered by 3Draft. Model, inspect, transform, and explore editable scenes through MCP tools and the original spider-paint editor embedded in ChatGPT.",
   "author": {
     "name": "Péter Vívó",
