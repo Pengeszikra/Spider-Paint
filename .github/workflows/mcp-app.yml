@@ -43,6 +43,7 @@ jobs:
           node tests/materials.mjs
           node tests/svg-export.mjs
           node tests/state.mjs
+          node tests/term.mjs
       - name: Test ChatGPT widget MCP contract
         run: |
           npm run test:mcp-app

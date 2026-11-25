@@ -52,6 +52,18 @@ npx spider-paint
 
 Open http://localhost:5173. No application build system is needed.
 
+### In a terminal
+
+```sh
+npm run term -- globe          # a models/ name or a .json / .3draft path (default: bridge)
+npx spider-paint-term human --spin
+node bin/spider-term.mjs lark-4 --once --cols 100 --rows 30 > frame.ans
+```
+
+The scene is drawn with 24-bit colour half blocks (two pixels a character cell), a depth buffer and one shaded colour a
+face (`src/term-render.js`, pure: no node, no DOM). ← → ↑ ↓ (h l k j, a d w s) turn, + - zoom, space spins, r resets,
+q quits. `--once` (or a pipe) prints one frame. The terminal needs 24-bit colour (most do; macOS Terminal.app does not).
+
 ## Project boundaries and deployments
 
 - **spider-paint** (`Pengeszikra/spider-paint`) is deployed to Cloud Run only, at `spider-paint.run.app`, and has the `spider-paint` npm package. There is no spider-paint Vercel deployment.

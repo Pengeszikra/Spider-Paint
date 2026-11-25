@@ -35,11 +35,13 @@
   "type": "module",
   "bin": {
     "spider-paint": "./bin/spider-paint.mjs",
-    "spider-paint-workshop-mcp": "./bin/workshop-mcp.mjs"
+    "spider-paint-workshop-mcp": "./bin/workshop-mcp.mjs",
+    "spider-paint-term": "./bin/spider-term.mjs"
   },
   "scripts": {
     "start": "node bin/spider-paint.mjs",
-    "test": "node tests/math.mjs && node tests/smoke.mjs && node tests/instance.mjs && node tests/materials.mjs && node tests/svg-export.mjs && node tests/state.mjs",
+    "term": "node bin/spider-term.mjs",
+    "test": "node tests/math.mjs && node tests/smoke.mjs && node tests/instance.mjs && node tests/materials.mjs && node tests/svg-export.mjs && node tests/state.mjs && node tests/term.mjs",
     "test:all": "node scripts/test-all.mjs",
     "bump": "node scripts/bump.mjs",
     "workshop": "node bin/workshop.mjs",
