@@ -29,7 +29,7 @@ try {
   assert.equal(versionResponse.status, 200);
   assert.match(versionResponse.headers.get('cache-control') || '', /no-store/);
   const liveVersion = await versionResponse.json();
-  const expectedVersion = (await import('../package.json', { with: { type: 'json' } })).default.version;
+  const expectedVersion = JSON.parse(await (await import('node:fs/promises')).readFile(new URL('../package.json', import.meta.url), 'utf8')).version; // (read, not imported: a JSON import needs Node 22's syntax)
   assert.equal(liveVersion.name, 'spider-paint');
   assert.equal(liveVersion.version, expectedVersion);
   assert.equal(liveVersion.gitHash, testCommit);
