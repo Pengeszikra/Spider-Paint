@@ -1,7 +1,7 @@
 // Publish through the project's date-based versioner, not a manually entered npm version.
 // npm computes the package version before prepublishOnly, so bumping there is too late.
 //
-//   npm run release              bump, publish to npm, then commit the new version and push it to brand.branch
+//   npm run release              test (npm run test:all), bump, publish to npm, then commit the new version and push it to brand.branch
 //   npm run release -- --dry-run only show the next version
 //
 // The repository is the source of truth, so a release starts from a clean, up-to-date checkout and ends with the
@@ -54,6 +54,8 @@ if (dry) {
   cleanTree();
   if (out('git', ['rev-parse', '--abbrev-ref', 'HEAD']) !== branch) stop(`release from ${branch} (package.json brand.branch)`);
   run('git', ['pull', '--ff-only', 'origin', branch]); // the version continues from what the repository has
+  // the whole test suite first: a failing test stops the release before anything is bumped or published
+  if (spawnSync(process.execPath, ['scripts/test-all.mjs'], { cwd: root, stdio: 'inherit' }).status !== 0) stop('the tests failed: nothing was bumped or published');
   const original = pkg().version;
   run(process.execPath, ['scripts/bump.mjs']);
   const target = pkg().version;
