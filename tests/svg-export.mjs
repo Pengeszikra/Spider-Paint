@@ -53,3 +53,9 @@ const inline = nativeInlineHTML();
 assert.ok(!/from '\.\/src\//.test(inline), 'the inline editor has the svg module bundled');
 assert.match(inline, /const \{animatedSvg:animatedSvg/);
 console.log('svg export: picture, turntable and story part (viewer composer, MCP export_svg, inline bundle): OK');
+
+// the svg panel's own layout (#svgPanel: flex) must not keep it on screen when it is hidden
+{
+  const html = (await import('node:fs')).readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /\.side\[hidden\] \{ display: none !important; \}/, 'hidden side panels stay hidden');
+}
