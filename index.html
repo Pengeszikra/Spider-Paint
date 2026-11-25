@@ -196,8 +196,6 @@
     #charView canvas { display: block; margin: 0 auto; }
     #charPanel .crow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
     #charPanel .crow button { padding: 6px 10px; border-radius: 8px; }
-    #charPanel #charPresets button { padding: 4px 8px; font-size: 12px; }
-    #charPanel #charPresets button.on { background: var(--teal); color: #04181a; }
     #charPanel #charName { flex: 1; min-width: 90px; }
     #charPanel #charLib { max-width: 140px; }
     #charControls { display: grid; gap: 8px; }
@@ -742,12 +740,12 @@
 
   <aside id="charPanel" class="side wide" hidden aria-label="Characters">
     <div class="sidehead"><b>characters</b><button id="charClose" type="button" class="slate" aria-label="Close">✕</button></div>
+    <!-- the actions first: place, take back, apply (the preview and the choices follow) -->
+    <div class="crow"><button id="charPlace" type="button" class="red" title="Put the character down at the cross, facing you (one undo step): a group of instances of the library's modules">place</button><button id="charPick" type="button" class="slate" title="Take the placed character under the cross (or the target) back into the panel">edit selected</button><button id="charApply" type="button" class="cream" disabled>apply to selected</button></div>
     <div id="charView" title="Drag: turn the figure round"></div>
-    <div class="crow" id="charPresets"></div>
     <div class="crow"><button type="button" id="charRandom" class="teal" title="Another character: every part and colour chosen at random (humans stay human, robots robot)">random</button><button type="button" id="charDesigner" class="slate" title="The modular character designer page (models/modular-characters/): every module, the line-up, the face and exploded views">designer ↗</button></div>
     <div id="charControls"></div>
     <div class="crow"><input id="charName" type="text" placeholder="name" maxlength="40" spellcheck="false" autocapitalize="off" aria-label="Character name"><button id="charSave" type="button" class="cream" title="Save this selection under the name (this browser)">save</button><select id="charLib" aria-label="Saved characters"></select><button id="charForget" type="button" class="slate" title="Forget the saved character of this name">forget</button></div>
-    <div class="crow"><button id="charPlace" type="button" class="red" title="Put the character down at the cross, facing you (one undo step): a group of instances of the library's modules">place</button><button id="charPick" type="button" class="slate" title="Take the placed character under the cross (or the target) back into the panel">edit selected</button><button id="charApply" type="button" class="cream" disabled>apply to selected</button></div>
     <p id="charNote" class="note"></p>
   </aside>
   <aside id="svgPanel" class="side" hidden aria-label="SVG export">
@@ -7503,14 +7501,12 @@
     const charViewEl = document.getElementById('charView');
     const charNoteEl = document.getElementById('charNote');
     const charControls = document.getElementById('charControls');
-    const charPresetsEl = document.getElementById('charPresets');
     const MC_BASE = './models/modular-characters/';
     const MC_LIB_KEY = 'spider-modular-characters';
     const MC_GROUPS = [['figure', [['body', 'body'], ['head', 'head'], ['face', 'face']]], ['hair', [['hair', 'style'], ['hairColor', 'colour'], ['accessory', 'extra']]], ['clothes', [['top', 'top'], ['bottom', 'bottom'], ['shoes', 'shoes'], ['outfit', 'colours']]], ['skin', [['skin', 'skin']]]];
     let mc = null; // { lib, compose } once loaded
     let mcLoad = null;
     let charSpec = null;
-    let charPreset = null; // the example id the selection came from (while unchanged)
     const charView = { yaw: -0.4, pitch: 0.08, drag: null };
     let charTarget = null; // the placed character being edited (its group name)
     const charNote = (t) => (charNoteEl.textContent = t);
@@ -7539,13 +7535,10 @@
     const isRobot = (spec) => String(spec.body).startsWith('robot');
     const mcBuild = () => {
       const { lib } = mc;
-      charPresetsEl.replaceChildren(...lib.examples.map((ex) => Object.assign(document.createElement('button'), { type: 'button', className: 'cream', textContent: ex.name, title: Object.values(ex.spec).join(' · ') })));
-      [...charPresetsEl.children].forEach((b, k) => (b.dataset.preset = lib.examples[k].id));
       charControls.innerHTML = MC_GROUPS.map(([title, slots]) => `<div class="cgroup"><b>${title}</b>${slots.map(([key, label]) => `<span class="lab">${label}</span><select data-key="${key}">${lib.options[key].map((o) => `<option value="${o.id}">${o.label ?? o.id}</option>`).join('')}</select>`).join('')}</div>`).join('');
     };
     const charToControls = () => {
       for (const sel of charControls.querySelectorAll('select[data-key]')) sel.value = charSpec[sel.dataset.key];
-      for (const b of charPresetsEl.children) b.classList.toggle('on', b.dataset.preset === charPreset);
     };
     // the selection as one mesh (the preview), standing at the origin
     const mcMesh = (spec, place = {}) => {
@@ -7582,20 +7575,14 @@
       document.getElementById('charApply').disabled = !target;
       document.getElementById('charApply').textContent = target ? `apply to ${charTarget}` : 'apply to selected';
     };
-    const charChoose = (spec, preset = null) => {
+    const charChoose = (spec) => {
       charSpec = mc.compose.selectionOf(mc.lib, spec);
-      charPreset = preset;
       charToControls();
       charShow();
     };
     charControls.addEventListener('input', (e) => {
       const k = e.target.dataset.key;
       if (k && mc) charChoose({ ...charSpec, [k]: e.target.value });
-    });
-    charPresetsEl.addEventListener('click', (e) => {
-      const b = e.target.closest('button[data-preset]');
-      const ex = b && mc?.lib.examples.find((x) => x.id === b.dataset.preset);
-      if (ex) ((charNameEl.value = ex.name), charChoose(ex.spec, ex.id));
     });
     // random: every slot at random, humans with human parts and robots with robot parts (the library's options name them robot-…)
     document.getElementById('charRandom').addEventListener('click', () => {
@@ -7693,7 +7680,7 @@
       });
     };
     const charGroupName = () => {
-      const base = (charNameEl.value.trim() || mc.lib.examples.find((x) => x.id === charPreset)?.name || 'character').replace(/\s+/g, '-').toLowerCase();
+      const base = (charNameEl.value.trim() || 'character').replace(/\s+/g, '-').toLowerCase();
       return `${base}-${shortId()}`;
     };
     // place: a new character at the cross (on the surface under it), facing the eye; one undo step
@@ -7766,7 +7753,7 @@
       charNote(mc ? '' : 'loading the modular character library…');
       mcReady()
         .then(() => {
-          if (!charPresetsEl.children.length) mcBuild();
+          if (!charControls.children.length) mcBuild();
           mcMats();
           const o = pointedObject();
           if (o?.modular && o.modular.name !== charTarget) charEditPlaced(o);
@@ -10135,7 +10122,7 @@
           // a rigid move of the whole character as G / R / S make it (through change()): its members stay instances
           move: (group, d = [0, 0, 0], yaw = 0, s = 1) => { const m = charMembers(group); if (!m.length) return null; const b = baseCentre(merge(...m.map((o) => o.mesh))); asOneStep(() => m.forEach((o) => { const before = o.mesh; change(o, { ...o.mesh, positions: o.mesh.positions.map((q) => yawTurn(vsub(q, b), yaw, s).map((c, i) => c + b[i] + d[i])) }); history.push(() => has(o) && change(o, before)); })); redraw(); return { frame: charFrame(charMembers(group)), instances: charMembers(group).filter((o) => o.inst).length }; },
           target: (group) => { const o = charMembers(group).find((m) => m.inst?.key?.startsWith('body/')) ?? charMembers(group)[0]; locked = o?.id ?? null; redraw(); return o?.name ?? null; }, // as T on it
-          state: () => ({ spec: charSpec, preset: charPreset, target: charTarget, loaded: Boolean(mc) }),
+          state: () => ({ spec: charSpec, target: charTarget, loaded: Boolean(mc) }),
         },
         pose: () => (posing ? { name: posing.name, anim: posing.anim, objects: posing.objs.map((o) => o.name), joints: posing.joints, skinned: skinned(), rigPx: rigPixels(posing.joints), sceneFaces: scene.faces.length } : null),
         hint: () => poseHint,

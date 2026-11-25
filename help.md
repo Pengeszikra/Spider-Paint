@@ -140,9 +140,8 @@ A game brings scenes together: **Fifth Percent** (the scene list, *games*, or `?
 
 ## Characters (the char button)
 
-**char** (scene group) opens the **character panel**: modular low-poly humans and robots, built from interchangeable modules (models/modular-characters/). The figure at the top turns with a drag; every change shows at once.
+**char** (scene group) opens the **character panel**: modular low-poly humans and robots, built from interchangeable modules (models/modular-characters/). At the top are the actions (**place**, **edit selected**, **apply to selected**), under them the figure, which turns with a drag; every change shows at once.
 
-- **The ready ones**: 20 characters (dockhand, navigator, researcher, medic, commander, thin and fat builds… and four robots: scout, dock loader, service unit, repair unit). A click puts one in the panel.
 - **random**: every part and colour at random (a human stays human, a robot robot).
 - **figure**: body (straight, tapered, sturdy, slender, curved, thin, fat, three robot frames), head, face. **hair**: style, colour, an extra (glasses, headset, beard, visor). **clothes**: top, bottom, shoes and the outfit's colours. **skin**.
 - Faces, hair and extras are fitted to every head, clothes to every body, so any combination fits. The materials (mc-…) come into the palette; edit one there and every character made of it changes.
