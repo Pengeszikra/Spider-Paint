@@ -34,8 +34,10 @@ if (!flag('native') && !flag('once') && process.stdout.isTTY && process.stdin.is
     await runApp({ root, scene: argv.find((a, i) => !a.startsWith('--') && !VALUED.includes(argv[i - 1])) ?? '', chrome, url: argv.includes('--url') ? argv[argv.indexOf('--url') + 1] : undefined });
     await new Promise(() => {}); // (runApp runs until Ctrl+C)
   }
-  console.error(chrome ? 'spider-term: node 22+ is needed for the app view (WebSocket); the native viewer starts' : 'spider-term: no Chrome found (CHROME_PATH); the native viewer starts');
-  await new Promise((r) => setTimeout(r, 1200));
+  globalThis.whyNative = chrome ? `the app view needs node 22 or newer (WebSocket); this is node ${process.versions.node}` : 'no Chrome / Chromium / Edge found (set CHROME_PATH to one)';
+  if (flag('app')) (console.error(`spider-term --app: ${globalThis.whyNative}`), process.exit(1));
+  console.error(`spider-term: ${globalThis.whyNative}; the native viewer starts`);
+  await new Promise((r) => setTimeout(r, 1500));
 }
 const MODELS = join(root, 'models');
 const modelNames = () => readdirSync(MODELS).filter((f) => f.endsWith('.scene.json')).map((f) => f.replace(/\.scene\.json$/, '')).sort();
@@ -142,6 +144,7 @@ let shown = []; // the lines on the screen now (only the changed ones are writte
 let line = { mode: 'none', text: '', until: 0 }; // none | prompt | note
 const quit = (code = 0) => {
   out.write(RESTORE);
+  if (globalThis.whyNative) console.error(`spider-term ran the native viewer: ${globalThis.whyNative}`); // (said again: the start message was under the picture)
   process.exit(code);
 };
 for (const sig of ['SIGTERM', 'SIGHUP']) process.on(sig, () => quit(0)); // (killed from outside: the terminal is given back too)
