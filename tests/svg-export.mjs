@@ -83,3 +83,57 @@ console.log('svg export: picture, turntable and story part (viewer composer, MCP
   assert.match(cut, /viewBox="0 2.5 10 5" width="10" height="5"/);
   console.log('svg lit colours and crop: OK');
 }
+
+// animated GIF: one palette, index 0 see-through, cut to the visible box; a small decoder reads it back
+{
+  const { encodeGif, visibleBox } = await import('../src/gif.js');
+  const W = 64, H = 48, frames = [];
+  for (let t = 0; t < 3; t++) {
+    const data = new Uint8ClampedArray(W * H * 4);
+    for (let y = 10; y < 30; y++) for (let x = 10 + t * 4; x < 40 + t * 4; x++) data.set([(x * 9) & 255, (y * 13) & 255, (x * y) & 255, 255], (y * W + x) * 4);
+    frames.push({ width: W, height: H, data });
+  }
+  const box = visibleBox(frames, 2);
+  assert.deepEqual(box, { x: 8, y: 8, w: 42, h: 24 });
+  const gif = encodeGif(frames, { box, delay: 0.1 });
+  assert.equal(String.fromCharCode(...gif.slice(0, 6)), 'GIF89a');
+  assert.equal(gif[gif.length - 1], 0x3b);
+  // decode: global table, then per frame the graphic control, the image descriptor and the LZW data
+  const pal = gif.slice(13, 13 + 768);
+  let p = 13 + 768 + 19; // (the NETSCAPE loop block)
+  const decoded = [];
+  while (gif[p] === 0x21) {
+    p += 8; // graphic control
+    const w = gif[p + 5] | (gif[p + 6] << 8), h = gif[p + 7] | (gif[p + 8] << 8);
+    p += 10;
+    const min = gif[p++];
+    const bytes = [];
+    while (gif[p]) (bytes.push(...gif.slice(p + 1, p + 1 + gif[p])), (p += gif[p] + 1));
+    p++;
+    const clear = 1 << min, out = [];
+    let size = min + 1, dict = [], prev = null, bit = 0;
+    const read = () => { let v = 0; for (let i = 0; i < size; i++, bit++) v |= ((bytes[bit >> 3] >> (bit & 7)) & 1) << i; return v; };
+    const reset = () => { dict = Array.from({ length: clear + 2 }, (_, i) => [i]); size = min + 1; prev = null; };
+    reset();
+    for (;;) {
+      const c = read();
+      if (c === clear) { reset(); continue; }
+      if (c === clear + 1) break;
+      const e = c < dict.length ? dict[c] : [...prev, prev[0]];
+      out.push(...e);
+      if (prev) dict.push([...prev, e[0]]);
+      prev = e;
+      if (dict.length === 1 << size && size < 12) size++;
+    }
+    assert.equal(out.length, w * h);
+    decoded.push(out);
+  }
+  assert.equal(decoded.length, 3);
+  const at = (f, x, y) => decoded[f][(y - box.y) * box.w + (x - box.x)];
+  assert.equal(at(0, 8, 8), 0, 'outside the model: see-through');
+  const k = at(2, 30, 20);
+  assert.ok(k > 0);
+  const [r, g, b] = pal.slice(k * 3, k * 3 + 3);
+  assert.ok(Math.abs(r - 14) + Math.abs(g - 4) + Math.abs(b - 88) < 60, 'close to the source colour');
+  console.log('animated gif: OK');
+}

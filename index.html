@@ -767,7 +767,7 @@
       <span class="lab">repeat</span><select id="svgLoop"><option value="1">loop</option><option value="0">once, stop at the end</option></select>
     </div>
     <div class="crow" id="svgStoryRow" hidden><button id="svgFromNow" type="button" class="slate" title="from = the story's time now (the Stories slider)">from ← now</button><button id="svgToNow" type="button" class="slate" title="to = the story's time now (the Stories slider)">to ← now</button><button id="svgWhole" type="button" class="slate" title="The whole story, in its own time">whole</button></div>
-    <div class="crow"><button id="svgAnim" type="button" class="red" title="Save the frames as one animated SVG (SMIL: it plays in any browser, without script)">save animated svg</button></div>
+    <div class="crow"><button id="svgAnim" type="button" class="red" title="Save the frames as one animated SVG (SMIL: it plays in any browser, without script)">save animated svg</button><button id="svgGif" type="button" class="cream" title="The same motion as an animated GIF: GPU frames, a see-through background, cut to the model with a little room">save gif</button></div>
     <p id="svgNote" class="note"></p>
   </aside>
   <aside id="palette" class="side" hidden aria-label="Material palette">
@@ -990,7 +990,8 @@
     import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/45789c908f86/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     import { animatedSvg, spread, storyView, svgBackground, titledSvg } from './src/svg-anim.js';
-    import { cropSvg, litSvg } from './src/svg-lit.js'; // the svg export (also the MCP's export_svg)
+    import { cropSvg, litSvg } from './src/svg-lit.js';
+    import { encodeGif, visibleBox } from './src/gif.js'; // the svg export (also the MCP's export_svg)
     import { zignal, batch, plain } from './src/state.js'; // the UI state: zignal (from flogon-galaxy), seen in batches
 
     // ---- the UI state: one object for what the switches say. Every write to it is seen (zignal), and the page follows it once
@@ -9749,14 +9750,7 @@
     });
     // the frames of a motion: a turntable round the view's middle, or the story's moments (its own camera when the Stories
     // panel's camera is on, as the player shows it)
-    const svgFrames = async ({ kind, from, to, frames, look, loop, progress = () => {} }) => {
-      const out = [];
-      let bytes = 0;
-      const push = (svg) => {
-        out.push(svg);
-        bytes += svg.length;
-        if (bytes > SVG_MAX_BYTES) throw new Error(`more than ${svgKB(SVG_MAX_BYTES)} after ${out.length} frames: fewer frames, a smaller size, or a shorter part`);
-      };
+    const svgShots = async ({ kind, from, to, frames, loop }, shoot, progress = () => {}) => {
       if (kind === 'story') {
         if (!story) throw new Error('no story is loaded (Stories panel)');
         const doc = story.doc;
@@ -9769,20 +9763,52 @@
           if (story.cutaway) objects = objects.filter((o) => !stMatch(o.name, doc.presentation?.cutaway?.excludePrefixes));
           if (v) objects = objects.filter((o) => stMatch(o.name, v.includePrefixes) && !stMatch(o.name, v.excludePrefixes));
           const cam = ownCam ? storyView(storyFormat.cameraAt(doc, t), { orbit: orbitView, makeCamera }) : { view: orbit_({ yaw: svgCam.yaw, pitch: svgCam.pitch }), fit: svgCam.fit };
-          push(await svgDraw(objects.length ? merge(...objects.map((o) => o.mesh)) : { positions: [], faces: [] }, cam.view, cam.fit, look, pal));
+          await shoot(objects.length ? merge(...objects.map((o) => o.mesh)) : { positions: [], faces: [] }, cam.view, cam.fit, pal);
           progress(k + 1);
           await new Promise((r) => setTimeout(r, 0)); // (the page stays alive between frames)
         }
-        return out;
+        return;
       }
       if (!svgCam || !scene.positions.length) throw new Error('nothing to draw: the view is empty');
       const full = loop && Math.abs(to - from) % 360 < 1e-9 && to !== from; // a whole turn: the last frame would be the first again
       for (const [k, deg] of spread(from, to, frames, full).entries()) {
-        push(await svgDraw(scene, orbit_({ yaw: svgCam.yaw + (deg * Math.PI) / 180, pitch: svgCam.pitch }), svgCam.fit, look));
+        await shoot(scene, orbit_({ yaw: svgCam.yaw + (deg * Math.PI) / 180, pitch: svgCam.pitch }), svgCam.fit, paletteMap);
         progress(k + 1);
         await new Promise((r) => setTimeout(r, 0));
       }
+    };
+    const svgFrames = async ({ look, progress, ...motion }) => {
+      const out = [];
+      let bytes = 0;
+      await svgShots(motion, async (mesh, view, fitArg, pal) => {
+        const svg = await svgDraw(mesh, view, fitArg, look, pal);
+        out.push(svg);
+        bytes += svg.length;
+        if (bytes > SVG_MAX_BYTES) throw new Error(`more than ${svgKB(SVG_MAX_BYTES)} after ${out.length} frames: fewer frames, a smaller size, or a shorter part`);
+      }, progress);
       return out;
+    };
+    // the same motion as an animated GIF: GPU frames on a see-through background, cut to where the model is (all frames
+    // together) plus a little room; the width is about the picture's (the drawing square is the svg's)
+    const GIF_MAX_PIXELS = 1.2e8;
+    const gifOf = async ({ look, progress, seconds, ...motion }) => {
+      const g = await svgGpuReady();
+      if (!g) throw new Error('no GPU here (WebGL2): a GIF needs one');
+      const a = lightAngle;
+      const shots = [];
+      await svgShots(motion, async (mesh, view, fitArg, pal) => {
+        if (shots.length && shots.length * look.size * look.size > GIF_MAX_PIXELS) throw new Error('too many pixels: fewer frames or a smaller size');
+        const img = await g.pixels(mesh, view, {
+          size: look.size, dpr: 1, fit: fitArg, palette: pal, transparent: true, background: [0, 0, 0],
+          smooth: ui.view.smooth ? 40 : 0, studio: ui.view.studio, unlit: !ui.view.light, glow: false, edges: look.stroke !== 'none',
+          material: sceneMaterial, light: { direction: [Math.sin(a) * 0.6, 0.8, Math.cos(a) * 0.6] },
+        });
+        shots.push(img);
+      }, progress);
+      const box0 = visibleBox(shots, 0);
+      if (!box0) throw new Error('nothing visible in the frames');
+      const box = visibleBox(shots, Math.max(6, Math.round(Math.max(box0.w, box0.h) * 0.06)));
+      return encodeGif(shots, { box, delay: seconds / shots.length, loop: motion.loop, premultiplied: true });
     };
     let svgBusy = false;
     svgEl('svgAnim').addEventListener('click', async () => {
@@ -9810,6 +9836,38 @@
       } finally {
         svgBusy = false;
         svgEl('svgAnim').disabled = false;
+      }
+    });
+    svgEl('svgGif').addEventListener('click', async () => {
+      if (svgBusy) return;
+      const kind = svgEl('svgKind').value;
+      const opts = {
+        kind,
+        from: svgNum('svgFrom', -1e6, 1e6, 0),
+        to: svgNum('svgTo', -1e6, 1e6, kind === 'story' ? 0 : 360),
+        frames: Math.round(svgNum('svgFrames', 2, 240, 36)),
+        loop: svgEl('svgLoop').value === '1',
+        seconds: svgNum('svgSeconds', 0.1, 600, 4),
+        look: svgLook(),
+      };
+      svgBusy = true;
+      svgEl('svgAnim').disabled = svgEl('svgGif').disabled = true;
+      try {
+        const bytes = await gifOf({ ...opts, progress: (k) => svgNote(`drawing frame ${k} / ${opts.frames}…`) });
+        const file = `${svgName()}-${kind}.gif`;
+        const url = URL.createObjectURL(new Blob([bytes], { type: 'image/gif' }));
+        const el = Object.assign(document.createElement('a'), { href: url, download: file });
+        document.body.append(el);
+        el.click();
+        el.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        const w = bytes[6] | (bytes[7] << 8), h = bytes[8] | (bytes[9] << 8);
+        svgNote(`saved ${file}: ${opts.frames} frames, ${w}×${h}, ${svgKB(bytes.length)}`);
+      } catch (e) {
+        svgNote(e.message);
+      } finally {
+        svgBusy = false;
+        svgEl('svgAnim').disabled = svgEl('svgGif').disabled = false;
       }
     });
     const sceneFileEl = document.getElementById('sceneFile');
@@ -10156,7 +10214,7 @@
         // the character panel (modular characters): place(selection | example id, at, yaw, name) -> its group name, the placed
         // ones, apply(group, selection), open; ready() loads the library
         ui: () => plain(ui), // the UI state (src/state.js)
-        svg: { picture: (look) => svgPicture({ ...svgLook(), ...look }), lit: () => ({ ...svgLitCount }), cam: () => svgCam && { ...svgCam, gcam: gcam && { eye: gcam.eye, f: gcam.f, k: gcam.k, size: gcam.size } } },
+        svg: { picture: (look) => svgPicture({ ...svgLook(), ...look }), gif: (o = {}) => gifOf({ kind: 'turntable', from: 0, to: 360, frames: 12, loop: true, seconds: 2, look: svgLook(), ...o }), lit: () => ({ ...svgLitCount }), cam: () => svgCam && { ...svgCam, gcam: gcam && { eye: gcam.eye, f: gcam.f, k: gcam.k, size: gcam.size } } },
         chars: {
           ready: () => mcReady().then(() => mc.lib.examples.map((x) => x.id)),
           place: async (spec, at = null, yaw = null, name = null) => { await mcReady(); const ex = typeof spec === 'string' ? mc.lib.examples.find((x) => x.id === spec) : null; return placeCharacter(ex ? ex.spec : spec ?? charSpec, at, yaw, name).group; },
