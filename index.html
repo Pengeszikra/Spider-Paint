@@ -703,7 +703,7 @@
 
   <main id="stage" tabindex="0" role="img" aria-label="Empty space for prisms. 9 switches between the SVG and the WebGPU view, L turns the light, C switches the filmic look, N smooth shading, K the studio light. Drag, or use the arrow keys, to rotate the view. The cross follows the surface under the pointer. M puts a prism down there, or shoots one into empty space; Space stops the movement. B drags a box round objects to select them (B twice: a lasso), then G, R, S move, turn and size them together; the bool button asks for a boolean operation on two selected objects (union, A minus B, B minus A, intersect). V joins two surface points with a thin bar (P over empty space forgets a pending first point), X deletes the object under the cross, W A S D R F fly, / shows only the model under the cross (/ again: the whole scene), P shows the material palette (Ctrl+click (Cmd on a Mac) paints a face, Ctrl+double click the whole model), T flies the camera to the object under the cross, H puts the move gizmo (helper) on the object under the cross with the world axes, the next H switches to the object's own axes, the third takes it off; drag an arrow to move the object; E toggles edges and points, U or Backspace takes the last one back."><div id="frame"><canvas id="gpu" hidden></canvas><canvas id="bridge" hidden></canvas><div id="layer"></div><div id="screens"></div><svg id="selArea" aria-hidden="true"></svg></div><div id="hud" aria-hidden="true"></div><button id="gameBtn" type="button" class="teal" hidden title="Switch between flying the ship (at the helm) and walking on the bridge (C)">helm ⇄ walk · C</button><div id="loader" hidden role="status"><div class="orb" aria-hidden="true"><i></i><b></b><b></b><b></b></div><span>loading…</span><em id="loaderStep"></em><s id="loaderBar"><u></u></s></div><div id="workNote" hidden aria-live="polite"></div></main>
 
-  <div id="findBox" hidden><input id="findInput" type="text" placeholder="find a target (↑↓ choose, Enter: target, Esc: close)" maxlength="60" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Find a target by name"><div id="findList"></div></div>
+  <div id="findBox" hidden><input id="findInput" type="text" placeholder="find a target · / commands (/l: open a scene) · Esc: close" maxlength="60" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Find a target by name"><div id="findList"></div></div>
   <input id="textBox" type="text" placeholder="text (Enter: make it, Esc: cancel)" maxlength="80" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="The words to put on the face" hidden>
   <div id="editbar" hidden><b id="editText"></b><button id="editHelp" type="button" title="Show / hide the edit help" aria-pressed="false" hidden>?</button><span id="editHelpText" hidden>V: sketch lines (nothing happens yet) · 6: the lathe (select a face first; V draws a contour on it above its bottom line, the axis; Enter, then the number of segments, Enter again = 7) · 1 / 2 / 3: select points / lines / faces (click; Shift+click adds or takes away; A selects all, A A clears) · G: grab the selection (X / Y / Z lock the axis, type metres, click or Enter confirms, Esc cancels) · S: scale (same keys) · E: extrude the selected faces · 4: the saw: V puts 2 points on one face = a cut square to the face, or 3 points = a cut through the triangle; Enter cuts · Shift+W A S D R F fly · Ctrl/Cmd+click paints · Shift+X deletes the object under the cross · U undo · Esc back, then leave · Q leave</span></div>
 
@@ -2210,7 +2210,65 @@
       const s = (gcam?.eye ? [...gcam.eye] : eyeNow());
       return Math.hypot(...vsub(o.figure ? o.figure.centre : ballOf(o).center, s));
     };
+    // Commands in the same box (the UI-less way): a text starting with / is a command, its rest is searched in the command's own
+    // list. "/" alone lists the commands. /l or /load: the scenes of the + scene list (examples, stories, saved here, online),
+    // Enter opens the chosen one as the list does (merge on: added to the scene, off: alone).
+    let findRows = null; // the rows of a command (null: the objects of the scene)
+    const sceneRows = (q) => {
+      const rows = [...exampleEl.querySelectorAll('option')].filter((o) => o.value).map((o, k) => {
+        const group = o.parentElement?.tagName === 'OPTGROUP' ? o.parentElement.label.replace(/\s*\(.*\)$/, '') : '';
+        return { k, label: o.textContent.trim(), cat: group, value: o.value };
+      });
+      const ranked = rows.map((r) => {
+        if (!q) return [0, r];
+        const a = findRank(fold(r.label), q), b = findRank(fold(r.value.replace(/^[a-z]+:/, '')), q), c = findRank(fold(r.cat), q);
+        const all = [a, b, c >= 0 && c <= 1 ? 2 : -1].filter((x) => x >= 0 && x <= 3); // (no loose letters-in-order hits: a list of scenes is short)
+        return [all.length ? Math.min(...all) : -1, r];
+      });
+      return ranked.filter(([x]) => x >= 0).sort((p, q2) => p[0] - q2[0] || p[1].k - q2[1].k).map(([, r]) => ({
+        ...r,
+        right: ui.view.merge ? 'add' : 'open alone',
+        take: () => {
+          exampleEl.value = r.value;
+          exampleEl.dispatchEvent(new Event('change'));
+        },
+      }));
+    };
+    const FIND_CMDS = [{ names: ['load', 'l'], hint: 'open a scene (the + scene list)', rows: sceneRows }];
+    const commandRows = (text) => {
+      const m = /^\/(\S*)(\s+(.*))?$/.exec(text);
+      const word = fold(m[1]);
+      const cmd = FIND_CMDS.find((c) => c.names.includes(word));
+      if (cmd) return cmd.rows(fold((m[3] ?? '').trim()));
+      return FIND_CMDS.filter((c) => c.names.some((n) => n.startsWith(word))).map((c) => ({
+        label: `/${c.names[0]}`,
+        cat: `${c.hint} · /${c.names.slice(1).join(' /')}`,
+        right: '',
+        keep: true,
+        take: () => {
+          findInput.value = `/${c.names[0]} `;
+          foundAt = 0;
+          findShow();
+        },
+      }));
+    };
     const findShow = () => {
+      const text = findInput.value.trimStart();
+      if (text.startsWith('/')) {
+        findRows = commandRows(text);
+        foundAt = Math.min(foundAt, Math.max(0, findRows.length - 1));
+        const q = fold((/^\/\S*\s+(.*)$/.exec(text)?.[1] ?? '').trim());
+        const mark = (name) => {
+          const at = q ? fold(name).indexOf(q) : -1;
+          return at < 0 ? hudText(name) : `${hudText(name.slice(0, at))}<b>${hudText(name.slice(at, at + q.length))}</b>${hudText(name.slice(at + q.length))}`;
+        };
+        const first = Math.max(0, Math.min(foundAt - FIND_SHOW + 2, findRows.length - FIND_SHOW - 4)); // (a longer list scrolls with the choice)
+        findList.innerHTML = findRows.length
+          ? findRows.slice(first, first + FIND_SHOW + 4).map((r, j) => `<div class="${first + j === foundAt ? 'sel' : ''}" data-i="${first + j}"><span>${mark(r.label)}${r.cat ? ` <i>${hudText(r.cat)}</i>` : ''}</span><span>${hudText(r.right)}</span></div>`).join('')
+          : '<div><span>no such command or scene</span><span></span></div>';
+        return;
+      }
+      findRows = null;
       const q = fold(findInput.value.trim());
       found = [];
       if (q) {
@@ -2272,6 +2330,13 @@
       lookAt(o);
     };
     const findTake = (i = foundAt) => {
+      if (findRows) {
+        const r = findRows[i];
+        if (!r) return;
+        if (r.keep) return r.take(); // (a command name: the box stays, its list opens)
+        closeFind();
+        return r.take();
+      }
       const f = found[i];
       closeFind();
       if (f) takeFound(f.o);
@@ -2281,8 +2346,9 @@
       e.stopPropagation(); // typing is not a command
       if (e.key === 'Escape') return void (e.preventDefault(), closeFind());
       if (e.key === 'Enter') return void (e.preventDefault(), findTake());
-      if (e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) return void (e.preventDefault(), (foundAt = (foundAt + 1) % Math.max(1, found.length)), findShow());
-      if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) return void (e.preventDefault(), (foundAt = (foundAt - 1 + found.length) % Math.max(1, found.length)), findShow());
+      const count = () => Math.max(1, (findRows ?? found).length);
+      if (e.key === 'ArrowDown' || (e.key === 'Tab' && !e.shiftKey)) return void (e.preventDefault(), (foundAt = (foundAt + 1) % count()), findShow());
+      if (e.key === 'ArrowUp' || (e.key === 'Tab' && e.shiftKey)) return void (e.preventDefault(), (foundAt = (foundAt - 1 + count()) % count()), findShow());
     });
     findInput.addEventListener('keyup', (e) => e.stopPropagation());
     findInput.addEventListener('blur', () => setTimeout(() => document.activeElement !== findInput && !findBox.hidden && closeFind(), 150));
@@ -9183,7 +9249,7 @@
       ';': { cap: ';', sub: 'freeze', title: '; (é on a Hungarian keyboard)', cat: 'teal', text: 'Freeze: everything that moves stands still (flying, orbiting, dragging the view), so the cursor can work. The speed is kept; the key again carries on with it.' },
       k: { cap: 'K', sub: 'studio', cat: 'teal', text: 'Studio light: key, fill and rim light that follow the camera.' },
       l: { cap: 'L', sub: 'light', cat: 'teal', text: 'Light on / off. Off: no light in the scene at all, only emitting surfaces and the edge lines show.', edit: 'Loop: a selected line (2) takes the lines of its loop, a selected face (3) the faces of its loop (L again: the other way round). The light switch stays on its button.' },
-      enter: { cap: 'Enter', sub: 'find', cat: 'teal', w: 2.2, title: 'Enter', text: 'Find: a box in the middle of the screen, type a name, Enter targets it.', edit: 'Saw: cuts along the marked plane.' },
+      enter: { cap: 'Enter', sub: 'find', cat: 'teal', w: 2.2, title: 'Enter', text: 'Find: a box in the middle of the screen, type a name, Enter targets it. / starts a command: /l (load) searches the scene list.', edit: 'Saw: cuts along the marked plane.' },
       shift: { cap: 'Shift', sub: 'paint', cat: 'slate', w: 2.4, title: 'Shift', text: 'Shift+Tab: previous target. Painting is Ctrl+click (Cmd on a Mac).', edit: 'Shift+click adds to the selection or takes from it. Shift+W A S D R F fly (plain, they are edit keys).', run: false },
       z: { cap: 'Z', sub: 'zen', cat: 'slate', text: 'Zen: hide everything but the model. Z or Esc brings the panels back.' },
       x: { cap: 'X', sub: 'del', cat: 'red', text: 'Shift+X deletes the object under the cross, in every mode (U brings it back). Alone, during G / S / R, X locks the axis to x.', edit: 'Shift+X deletes the selected points, lines or faces (a point takes its faces, a line the faces on it); with nothing selected, the object under the cross. During G / S: locks the axis to x.' },
