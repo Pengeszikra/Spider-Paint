@@ -61,8 +61,13 @@ node bin/spider-term.mjs lark-4 --once --cols 100 --rows 30 > frame.ans
 ```
 
 The scene is drawn with 24-bit colour half blocks (two pixels a character cell), a depth buffer and one shaded colour a
-face (`src/term-render.js`, pure: no node, no DOM). ← → ↑ ↓ (h l k j, a d w s) turn, + - zoom, space spins, r resets,
-q quits. `--once` (or a pipe) prints one frame. The terminal needs 24-bit colour (most do; macOS Terminal.app does not).
+face (`src/term-render.js`, pure: no node, no DOM). It is zen: only the picture. The mouse belongs to the program (the
+terminal does not select the picture; Shift / Option + drag still selects): **drag** turns, the **wheel** zooms, the object
+under the pointer lights up, a **click** turns the view round it (empty space: the whole scene). **Enter** opens a command
+line under the picture: `/l scene`, `/view front|top|iso…`, `/spin`, `/fit`, `/zoom n`, `/ls`, `/q`, `/help`, or a name to
+turn round that object; Esc closes it. Ctrl+C quits. Only the changed lines are written, inside synchronised output
+(less flicker where the terminal knows it). `--once` (or a pipe) prints one frame. The terminal needs 24-bit colour and
+mouse reporting (iTerm2, WezTerm, kitty, Ghostty, Windows Terminal, VS Code; not macOS Terminal.app).
 
 ## Project boundaries and deployments
 

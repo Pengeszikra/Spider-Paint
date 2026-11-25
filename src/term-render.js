@@ -27,9 +27,10 @@ const newell = (pts) => {
 
 /**
  * Draw `mesh` into a { width, height, rgb: Uint8Array, set: Uint8Array } pixel grid (height = 2 × rows).
- * view: { yaw, pitch, zoom (1: the whole mesh fits), center? }; palette: { name: material }.
+ * view: { yaw, pitch, zoom (1: the whole mesh fits), fit: { center, radius } }; palette: { name: material };
+ * lit(faceIndex): a face drawn brighter (the one under the mouse). `ids` holds the face seen at each pixel (-1: none).
  */
-export const rasterize = (mesh, { width, height, yaw = -0.6, pitch = 0.45, zoom = 1, palette = {}, fit } = {}) => {
+export const rasterize = (mesh, { width, height, yaw = -0.6, pitch = 0.45, zoom = 1, palette = {}, fit, lit } = {}) => {
   const size = Math.min(width, height); // (the whole mesh fits the shorter side)
   const box = fit ?? bounds(mesh);
   const cam = makeCamera(orbit({ yaw, pitch }), mesh, size, { center: box.center, radius: (box.radius || 1) / zoom });
@@ -39,11 +40,12 @@ export const rasterize = (mesh, { width, height, yaw = -0.6, pitch = 0.45, zoom 
     return [q.x - ox, q.y - oy, q.depth];
   });
   const depth = new Float32Array(width * height).fill(Infinity);
-  const out = new Uint8Array(width * height * 3), set = new Uint8Array(width * height);
+  const out = new Uint8Array(width * height * 3), set = new Uint8Array(width * height), ids = new Int32Array(width * height).fill(-1);
   // the light, in the camera's frame: from above, a little left and towards the eye
   const toEye = cam.f.map((c) => -c);
   const light = unit([toEye[0] * 0.55 - cam.r[0] * 0.35 + cam.u[0] * 0.75, toEye[1] * 0.55 - cam.r[1] * 0.35 + cam.u[1] * 0.75, toEye[2] * 0.55 - cam.r[2] * 0.35 + cam.u[2] * 0.75]);
-  for (const f of mesh.faces) {
+  for (let fi = 0; fi < mesh.faces.length; fi++) {
+    const f = mesh.faces[fi];
     if (f.v.length < 3) continue;
     const world = f.v.map((i) => mesh.positions[i]);
     const n = newell(world);
@@ -52,7 +54,8 @@ export const rasterize = (mesh, { width, height, yaw = -0.6, pitch = 0.45, zoom 
     const nn = facing < 0 ? n.map((c) => -c) : n; // (an open shell is seen from both sides)
     const s = surfaceOf(f, palette);
     const shade = Math.min(1.25, 0.32 + 0.85 * Math.max(0, dot(nn, light)) + s.emit * 0.4);
-    const c = rgb(s.color).map((v) => Math.max(0, Math.min(255, Math.round(v * shade))));
+    const on = lit?.(fi);
+    const c = rgb(s.color).map((v) => Math.max(0, Math.min(255, Math.round(on ? v * shade * 0.75 + 70 : v * shade)))); // (lit: lighter, towards white)
     const pts = f.v.map((i) => P[i]);
     if (pts.some((p) => p[2] <= 1e-6)) continue; // (behind the eye)
     for (let t = 1; t + 1 < pts.length; t++) {
@@ -73,15 +76,16 @@ export const rasterize = (mesh, { width, height, yaw = -0.6, pitch = 0.45, zoom 
           if (z >= depth[k]) continue;
           depth[k] = z;
           set[k] = 1;
+          ids[k] = fi;
           out.set(c, k * 3);
         }
     }
   }
-  return { width, height, rgb: out, set };
+  return { width, height, rgb: out, set, ids };
 };
 
 /** The pixel grid as terminal text: one line a row of cells, ▀ = the upper pixel (foreground) over the lower (background). */
-export const toAnsi = (img) => {
+export const ansiLines = (img) => {
   const { width: W, height: H, rgb: c, set } = img;
   const lines = [];
   for (let y = 0; y < H; y += 2) {
@@ -100,7 +104,8 @@ export const toAnsi = (img) => {
     }
     lines.push(`${line}\x1b[0m`);
   }
-  return lines.join('\n');
+  return lines;
 };
+export const toAnsi = (img) => ansiLines(img).join('\n');
 
 export const renderTerm = (mesh, { cols = 80, rows = 24, ...view } = {}) => toAnsi(rasterize(mesh, { width: cols, height: rows * 2, ...view }));
