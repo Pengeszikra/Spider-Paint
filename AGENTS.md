@@ -62,7 +62,8 @@ Use the exact same date-based npm-compatible scheme as 3Draft (see `Pengeszikra/
 The editor's UI state is moving into one object, `ui` in `index.html`, made with `zignal` from `src/state.js` (from flogon-galaxy, no DOM, shared with node). Rules for what moves there:
 - A switch, mode or selection is a value in `ui`; code that changes it only writes the value. The page follows in `uiRender`, once per task (`batch`), never in the handler.
 - Only small values: meshes, the scene, GPU objects and the render loop stay outside (the loop may read `ui`, it must not write it each frame).
-- Move one group at a time and keep the app working; `ui.view` (freeze, smooth, studio, glow, light) is the first.
+- Move one group at a time and keep the app working. In `ui` now: `view` (freeze, smooth, studio, glow, light, edges, merge), `render` (svg/gpu, webgpu/webgl2, the label's note), `edit` (the edit mode, the gizmo's axes), `paint` (the chosen material). `uiRender` looks at the first key of each changed path and only refreshes that part of the page (view: the switches and the stage classes; render: the canvas, the label and the GPU switch; edit: the edit bar; paint: the palette when it is open).
+- Reads of `ui` are synchronous (the value is written at once); only the page update waits for the end of the task.
 
 1. Inspect the relevant source, tests, `APP.md`, `MCP.md`, and `README.md` before changes; legacy project documents can be stale.
 2. Prefer small, independently testable changes; run `npm test` when dependencies/environment permit.

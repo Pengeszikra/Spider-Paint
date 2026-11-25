@@ -995,8 +995,13 @@
 
     // ---- the UI state: one object for what the switches say. Every write to it is seen (zignal), and the page follows it once
     // per task (batch -> uiRender). Only small values live here; meshes, the scene and the render loop stay outside it.
+    // view: the look switches; render: which renderer draws (mode 'svg' | 'gpu', kind 'webgpu' | 'webgl2', note and why: what
+    // the label says when the asked one is missing); edit: the edit mode (1-5, L) and the gizmo's axes; paint: the chosen material.
     const ui = zignal(batch((root, changes) => uiRender(root, changes)))({
-      view: { frozen: false, smooth: true, studio: true, glow: false, light: true },
+      view: { frozen: false, smooth: true, studio: true, glow: false, light: true, edges: false, merge: true },
+      render: { mode: 'svg', kind: 'webgpu', note: '', why: '' },
+      edit: { mode: 'draw', gizmoLocal: false },
+      paint: { current: 0 },
     });
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
@@ -1044,7 +1049,6 @@
     const stage = document.getElementById('stage');
     const frame = document.getElementById('frame');
     let canvas = document.getElementById('gpu');
-    let activeKind = 'webgpu';
     const layer = document.getElementById('layer');
     const modeEl = document.getElementById('mode');
     const hudEl = document.getElementById('hud');
@@ -1247,7 +1251,7 @@
       if (solo && !objs.some((o) => o.id === solo)) solo = null;
       if (solo) objs = objs.filter((o) => o.id === solo);
       if (skinned()) objs = objs.filter((o) => !posing.ids.has(o.id)); // the posed figure is drawn as a GPU skin, not from the scene
-      if (storySkin && mode === 'gpu' && gpu) objs = objs.filter((o) => !storySkin.names.has(o.name) && !isHole(o.inst));
+      if (storySkin && ui.render.mode === 'gpu' && gpu) objs = objs.filter((o) => !storySkin.names.has(o.name) && !isHole(o.inst));
       if (walkHidden.size) objs = objs.filter((o) => !walkHidden.has(o.id)); // so are the walking characters
       if (!skyShow.mine || !skyShow.iau) objs = objs.filter((o) => !o.skyLine || skyShow[o.skyLine]); // the sky switches
       let n = 0;
@@ -1926,9 +1930,9 @@
     const toggleVr = async (on = !vr) => {
       if (on === vr) return;
       if (on) {
-        vrBack = { mode, kind: activeKind };
+        vrBack = { ...ui.render };
         await setMode('gl');
-        if (mode !== 'gpu' || activeKind !== 'webgl2') return; // no WebGL2: no VR
+        if (ui.render.mode !== 'gpu' || ui.render.kind !== 'webgl2') return; // no WebGL2: no VR
         try {
           if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') await DeviceOrientationEvent.requestPermission();
         } catch {}
@@ -2597,7 +2601,7 @@
       try {
         const u = new URL(location.pathname, location.href);
         u.searchParams.set('show', new URL(file, location.href).href);
-        if (mode === 'gl') u.searchParams.set('gl', '');
+        if (ui.render.mode === 'gpu' && ui.render.kind === 'webgl2') u.searchParams.set('gl', ''); // (the same backend)
         return u.href;
       } catch {
         return undefined;
@@ -2684,7 +2688,7 @@
     };
     let screenClock = performance.now();
     const sceneScreens = () => {
-      if (SHOW || !(mode === 'gpu' && gpu) || !gcam) return undefined;
+      if (SHOW || !(ui.render.mode === 'gpu' && gpu) || !gcam) return undefined;
       const now = performance.now();
       const dt = Math.min(0.1, (now - screenClock) / 1000);
       screenClock = now;
@@ -2780,7 +2784,7 @@
         scene.faces.forEach((face, fi) => {
           const mat = face.mat !== undefined ? pal[face.mat] : undefined;
           // a scene screen is drawn by the GPU (sceneScreens); in the SVG view it falls back to this viewer as a player in the iframe
-          const gpuOn = !SHOW && mode === 'gpu' && gpu;
+          const gpuOn = !SHOW && ui.render.mode === 'gpu' && gpu;
           const url = mat?.url ?? (mat?.image && (!gpuOn || imageFailed(mat.image)) ? mat.image : undefined) ?? (mat?.scene && !gpuOn ? showUrl(mat.scene) : undefined);
           if (!url || face.v.length !== 4 || used >= 6) return;
           const o = owner(fi);
@@ -2978,8 +2982,8 @@
       snapE = null;
       snapF = -1;
       if (editing && !xf) {
-        if (emode === 'draw' || emode === 'vertex' || emode === 'saw') snapV = findSnap();
-        else if (emode === 'edge') snapE = findEdge();
+        if (ui.edit.mode === 'draw' || ui.edit.mode === 'vertex' || ui.edit.mode === 'saw') snapV = findSnap();
+        else if (ui.edit.mode === 'edge') snapE = findEdge();
         else if (hit && owner(hit.face) === editing) snapF = hit.face - owners.find((o) => o.obj === editing).start;
       }
       const handles = gizmoHandles();
@@ -3083,11 +3087,11 @@
         const dot = (q) => [[q, q]]; // a zero-length line with round caps is a point
         const cross = (q, k = 1) => [[[q[0] - e * k, q[1], q[2]], [q[0] + e * k, q[1], q[2]]], [[q[0], q[1] - e * k, q[2]], [q[0], q[1] + e * k, q[2]]], [[q[0], q[1], q[2] - e * k], [q[0], q[1], q[2] + e * k]]];
         const wire = (editing.wire ?? []).filter(([a, b]) => a < P.length && b < P.length);
-        if (emode === 'vertex' && P.length <= 600) marks.push({ name: 'verts', color: '#aeb4bb', width: 2, lines: P.map(dot).flat() });
+        if (ui.edit.mode === 'vertex' && P.length <= 600) marks.push({ name: 'verts', color: '#aeb4bb', width: 2, lines: P.map(dot).flat() });
         if (wire.length) marks.push({ name: 'wire', color: '#ff4d3d', width: 2, lines: wire.map(([a, b]) => [P[a], P[b]]) });
         const ends = [...new Set(wire.flat())];
         if (ends.length) marks.push({ name: 'wire-ends', color: '#ff4d3d', width: 5, lines: ends.flatMap((i) => dot(P[i])) });
-        if (emode === 'lathe' && lathePlan) {
+        if (ui.edit.mode === 'lathe' && lathePlan) {
           const { frame, axisLen, pts } = lathePlan;
           const at = (u, r) => lathePoint([u, r]);
           marks.push({ name: 'lathe-axis', color: '#2f9e44', width: 3, lines: [[at(0, 0), at(axisLen, 0)]] });
@@ -3104,7 +3108,7 @@
           marks.push({ name: 'sketch-start', color: '#2f9e44', width: 6, lines: dot(sketchFrom) });
           if (to) marks.push({ name: 'sketch-rubber', color: '#ff4d3d', width: 1.5, lines: [[sketchFrom, to]] });
         }
-        if (emode === 'saw' && sawPts.length) {
+        if (ui.edit.mode === 'saw' && sawPts.length) {
           const pts = sawPts.map((q) => q.p);
           marks.push({ name: 'saw-pts', color: '#ff4d3d', width: 6, lines: pts.flatMap((q) => dot(q)) });
           const lines = pts.slice(1).map((q, k) => [pts[k], q]);
@@ -3175,8 +3179,8 @@
       }
 
       frame.style.width = frame.style.height = `${size}px`;
-      frame.classList.toggle('story-sky', Boolean(storySkin && story?.doc.scene.environment && mode === 'gpu' && gpu));
-      if (mode === 'gpu' && gpu) {
+      frame.classList.toggle('story-sky', Boolean(storySkin && story?.doc.scene.environment && ui.render.mode === 'gpu' && gpu));
+      if (ui.render.mode === 'gpu' && gpu) {
         canvas.style.width = canvas.style.height = `${size}px`;
         const bg = getComputedStyle(document.documentElement).getPropertyValue('--panel').trim();
         const rgb = /^#[0-9a-f]{6}$/i.test(bg) ? [1, 3, 5].map((i) => parseInt(bg.slice(i, i + 2), 16) / 255) : undefined;
@@ -3207,7 +3211,7 @@
             glow: ui.view.glow,
             smooth: ui.view.smooth ? 40 : 0,
             studio: ui.view.studio,
-            edges: !stage.classList.contains('clean'),
+            edges: ui.view.edges,
             unlit: !ui.view.light,
             marks: gpuMarks,
             skin: skinNow(),
@@ -3321,7 +3325,6 @@
         : 'surface <b>–</b>';
     };
     // WebGPU is the starting view (set up right after the first frame); it falls back to SVG if it is unavailable or lost.
-    let mode = 'svg';
     let gpu = null;
     let lightAngle = 0.8;
     // ui.view.smooth (N): smooth shading on the WebGPU view (faces within 40 degrees share normals)
@@ -3375,11 +3378,8 @@
         g.device.lost.then((info) => {
           if (gpu !== g) return;
           gpu = null;
-          mode = 'svg';
           cv.hidden = true;
-          stage.classList.remove('gpu');
-          modeEl.textContent = `svg (${kind} lost)`;
-          modeEl.title = String(info.message ?? info.reason);
+          Object.assign(ui.render, { mode: 'svg', note: `${kind} lost`, why: String(info.message ?? info.reason) });
           backends[kind] = null;
           if (posing) showPose(posing.pose);
           if (story?.doc.tracks.animation) stShow(story.t, true);
@@ -3404,27 +3404,13 @@
           entry = await ensure('webgl2');
           if (entry) ((kind = 'webgl2'), (note = first));
         }
-        if (!entry) {
-          modeEl.textContent = `svg (${kind} unavailable)`;
-          modeEl.title = why;
-          return;
-        }
+        if (!entry) return void Object.assign(ui.render, { note: `${kind} unavailable`, why });
         gpu = entry.g;
         canvas = entry.canvas;
-        modeEl.title = note;
         for (const e of Object.values(backends)) if (e && e !== entry) e.canvas.hidden = true;
-        activeKind = kind;
-      }
-      mode = next === 'svg' ? 'svg' : 'gpu';
-      canvas.hidden = mode !== 'gpu';
-      stage.classList.toggle('gpu', mode === 'gpu');
-      modeEl.textContent = mode !== 'gpu' ? 'svg' : activeKind === 'webgl2' ? (modeEl.title ? 'webgl2 (no webgpu)' : 'webgl2') : 'webgpu';
-      if (mode !== 'gpu') modeEl.title = '';
-      const btn = document.getElementById('gpuBtn');
-      if (btn) {
-        btn.querySelector('span').textContent = mode !== 'gpu' ? 'SVG' : activeKind === 'webgpu' ? 'WebGPU' : 'WebGL2'; // the switch names the view that is on
-        btn.classList.toggle('on', mode === 'gpu');
-      }
+        Object.assign(ui.render, { mode: 'gpu', kind, note: note ? 'no webgpu' : '', why: note });
+      } else Object.assign(ui.render, { mode: 'svg', note: '', why: '' });
+      // (the canvas, the label and the switch follow ui.render in uiRender)
       if (posing) showPose(posing.pose); // the figure moves over to a GPU skin, or back to CPU-bent meshes
       if (story?.doc.tracks.animation) stShow(story.t, true);
       redraw();
@@ -3432,8 +3418,8 @@
     // G / the button: svg -> webgpu -> webgl2 -> svg (without WebGPU: svg -> webgl2 -> svg)
     const toggleMode = () => {
       if (document.body.classList.contains('pwa')) return; // the installed app stays in the GPU view
-      if (mode !== 'gpu') return setMode('gpu');
-      setMode(activeKind === 'webgpu' ? 'gl' : 'svg');
+      if (ui.render.mode !== 'gpu') return setMode('gpu');
+      setMode(ui.render.kind === 'webgpu' ? 'gl' : 'svg');
     };
     // the view switches only write the state; uiRender shows it
     const toggleFilmic = () => (ui.view.glow = !ui.view.glow);
@@ -3442,11 +3428,33 @@
     const turnLight = () => (ui.view.light = !ui.view.light);
     // what the UI state says, on the page: the switches lit, the frozen stage, a new picture. Called once per task, after the
     // writes of that task (batch), so three switches turned at once draw once.
-    const uiRender = (root) => {
-      const v = root.view;
-      for (const id of ['padFreeze', 'freeze']) document.getElementById(id)?.classList.toggle('on', v.frozen);
-      stage.classList.toggle('frozen', v.frozen);
-      for (const [id, on] of [['filmic', v.glow], ['smooth', v.smooth], ['studio', v.studio], ['light', v.light]]) document.getElementById(id)?.classList.toggle('on', on);
+    // Each part of the page follows only its own part of the state (the first time, everything: changes is null then).
+    const uiRender = (root, changes = null) => {
+      const touched = new Set(changes ? changes.map((c) => c.path[0]) : ['view', 'render', 'edit', 'paint']);
+      if (touched.has('view')) {
+        const v = root.view;
+        for (const id of ['padFreeze', 'freeze']) document.getElementById(id)?.classList.toggle('on', v.frozen);
+        stage.classList.toggle('frozen', v.frozen);
+        stage.classList.toggle('clean', !v.edges);
+        for (const [id, on] of [['filmic', v.glow], ['smooth', v.smooth], ['studio', v.studio], ['light', v.light], ['lines', v.edges], ['mergeSw', v.merge]]) document.getElementById(id)?.classList.toggle('on', on);
+        try {
+          localStorage.setItem('3draft.merge', v.merge ? '1' : '0');
+        } catch {}
+      }
+      if (touched.has('render')) {
+        const r = root.render, on = r.mode === 'gpu';
+        canvas.hidden = !on;
+        stage.classList.toggle('gpu', on);
+        modeEl.textContent = !on ? (r.note ? `svg (${r.note})` : 'svg') : r.kind === 'webgl2' ? (r.note ? `webgl2 (${r.note})` : 'webgl2') : 'webgpu';
+        modeEl.title = r.why;
+        const btn = document.getElementById('gpuBtn');
+        if (btn) {
+          btn.querySelector('span').textContent = !on ? 'SVG' : r.kind === 'webgpu' ? 'WebGPU' : 'WebGL2'; // the switch names the view that is on
+          btn.classList.toggle('on', on);
+        }
+      }
+      if (touched.has('edit')) showBar();
+      if (touched.has('paint') && !paletteEl.hidden) showPalette();
       redraw();
     };
     // Glow without a mesh: stars whose instance has a `glow` radius (world units) get a soft additive sprite on a 2D canvas over the
@@ -4499,7 +4507,7 @@
       const ex = cam.u.map((c, i) => c - dir[i] * along);
       const exLen = Math.hypot(...ex) || 1;
       const axes = [ex.map((c) => c / exLen), dir, cross(ex.map((c) => c / exLen), dir)];
-      const m = materials[current];
+      const m = materials[ui.paint.current];
       let mesh = box({ size: [LEG.base, L, LEG.base], at: end, axes, color: m.color });
       mesh = { ...mesh, faces: mesh.faces.map((f) => ({ ...f, mat: m.name })) };
       const back = Math.hypot(...end.map((c, i) => c - origin[i])); // it starts at the camera point
@@ -4572,7 +4580,7 @@
       const ex = [ey[1] * ez[2] - ey[2] * ez[1], ey[2] * ez[0] - ey[0] * ez[2], ey[0] * ez[1] - ey[1] * ez[0]];
       const base = LEG.base / 4;
       const at = a.map((c, i) => c + d[i] / 2);
-      const m = materials[current];
+      const m = materials[ui.paint.current];
       const solid = box({ size: [base, length, base], at, axes: [ex, ey, ez], color: m.color });
       const mesh = { ...solid, faces: solid.faces.map((f) => ({ ...f, mat: m.name })) };
       // the shared prototype is base x 3*base x base: scaled axes turn it into this bar
@@ -4929,16 +4937,15 @@
       }
     };
     // merge on: a loaded scene is added to what is there; off: the scene is cleared first (one U brings it back) and the loaded one stands alone
-    let mergeOn = true;
     try {
-      mergeOn = localStorage.getItem('3draft.merge') !== '0';
+      ui.view.merge = localStorage.getItem('3draft.merge') !== '0';
     } catch {}
     // a saved scene also keeps the view: the switches (the view's renderer, edges, light, glow, smooth, studio; not freeze, store,
     // palette and edit, which are about the work, not the look) and the camera. They come back when the scene
     // stands alone (merge off, or nothing was there); a merged scene keeps the view you have.
     const viewOf = () => ({
-      render: mode === 'gpu' ? activeKind : 'svg', // 'webgpu' | 'webgl2' | 'svg'
-      edges: !stage.classList.contains('clean'),
+      render: ui.render.mode === 'gpu' ? ui.render.kind : 'svg', // 'webgpu' | 'webgl2' | 'svg'
+      edges: ui.view.edges,
       light: ui.view.light,
       glow: ui.view.glow,
       smooth: ui.view.smooth,
@@ -4951,9 +4958,9 @@
       for (const k of ['ambient', 'diffuse', 'specular', 'shininess']) if (Number.isFinite(v.material?.[k]) && v.material[k] >= 0) sceneMaterial[k] = v.material[k];
       // the renderer: a GPU view falls back to WebGL2 (or SVG) where the asked one is missing; the installed app stays on the GPU
       const want = { svg: 'svg', webgl2: 'gl', webgpu: 'gpu' }[v.render];
-      const now = mode === 'gpu' ? (activeKind === 'webgl2' ? 'gl' : 'gpu') : 'svg';
+      const now = ui.render.mode === 'gpu' ? (ui.render.kind === 'webgl2' ? 'gl' : 'gpu') : 'svg';
       if (want && want !== now && !(want === 'svg' && document.body.classList.contains('pwa')) && !SHOW) setMode(want);
-      if (typeof v.edges === 'boolean' && v.edges === stage.classList.contains('clean')) (stage.classList.toggle('clean'), syncLines());
+      if (typeof v.edges === 'boolean') ui.view.edges = v.edges;
       if (typeof v.light === 'boolean' && v.light !== ui.view.light) turnLight();
       if (typeof v.glow === 'boolean' && v.glow !== ui.view.glow) toggleFilmic();
       if (typeof v.smooth === 'boolean' && v.smooth !== ui.view.smooth) toggleSmooth();
@@ -5006,9 +5013,9 @@
     const loadScene = async (data, replace = false) =>
       withLoader(data?.name ?? 'scene', async () => {
         const had = allObjects().length > 0;
-        if ((replace || !mergeOn) && had) clearScene();
+        if ((replace || !ui.view.merge) && had) clearScene();
         await addScene(data);
-        if (data.view && (replace || !mergeOn || !had)) applyView(data.view);
+        if (data.view && (replace || !ui.view.merge || !had)) applyView(data.view);
         workshopNotice('native_scene_loaded', { objects: allObjects().length });
         if (WORKSHOP_EMBED && workshopSessionId) {
           workshopSceneReady = true;
@@ -5236,7 +5243,7 @@
       rebuild();
       redraw();
     };
-    let current = 0;
+    // ui.paint.current: the index of the chosen material in `materials`
     let paletteCol = null; // db collection "palette"
     const paletteEl = document.getElementById('palette');
     let pickerSet = null; // set by the colour picker below
@@ -5250,15 +5257,15 @@
       materials.forEach((m, i) => {
         const b = document.createElement('button');
         b.type = 'button';
-        b.className = `sw${i === current ? ' on' : ''}`;
+        b.className = `sw${i === ui.paint.current ? ' on' : ''}`;
         // a see-through material shows its color over a checker
         b.style.background = m.alpha < 1 ? `linear-gradient(${m.color}${Math.round(m.alpha * 255).toString(16).padStart(2, '0')}, ${m.color}${Math.round(m.alpha * 255).toString(16).padStart(2, '0')}), repeating-conic-gradient(#888 0 25%, #ccc 0 50%) 0 0 / 8px 8px` : m.color;
         if (m.metal > 0.5) b.style.boxShadow = 'inset 0 0 0 2px #ffffff55, inset 0 -6px 8px #00000044';
         b.title = `${m.name}: metal ${m.metal} rough ${m.rough} alpha ${m.alpha} emit ${m.emit}${m.soft ? ` soft ${m.soft}` : ''}`;
-        b.addEventListener('click', () => ((current = i), showPalette()));
+        b.addEventListener('click', () => (ui.paint.current = i)); // (the palette follows in uiRender)
         swatchesEl.append(b);
       });
-      const m = materials[current];
+      const m = materials[ui.paint.current];
       currentEl.textContent = m.name;
       document.getElementById('custom').value = m.color;
       if (pickerSet) pickerSet(m.color);
@@ -5270,12 +5277,12 @@
     };
     for (const k of PROPS) {
       document.getElementById(`p-${k}`).addEventListener('input', (e) => {
-        const m = materials[current];
+        const m = materials[ui.paint.current];
         m[k] = Number(e.target.value);
         document.getElementById(`v-${k}`).textContent = m[k].toFixed(2);
         syncPalette();
       });
-      document.getElementById(`p-${k}`).addEventListener('change', () => saveMaterial(materials[current]));
+      document.getElementById(`p-${k}`).addEventListener('change', () => saveMaterial(materials[ui.paint.current]));
     }
     const urlEl = document.getElementById('p-url');
     const cleanUrl = (v) => {
@@ -5296,7 +5303,7 @@
       return /^[a-z][a-z0-9+.-]*:/i.test(t) && !/^https?:\/\//i.test(t) ? '' : t;
     };
     urlEl.addEventListener('input', () => {
-      const m = materials[current];
+      const m = materials[ui.paint.current];
       const sc = sceneAddr(urlEl.value);
       const im = sc ? '' : imageAddr(urlEl.value);
       const u = sc || im ? '' : cleanUrl(urlEl.value);
@@ -5308,15 +5315,15 @@
       else delete m.image;
       syncPalette();
     });
-    urlEl.addEventListener('change', () => saveMaterial(materials[current]));
+    urlEl.addEventListener('change', () => saveMaterial(materials[ui.paint.current]));
     urlEl.addEventListener('keydown', (e) => e.stopPropagation()); // typing an address is not a command
     document.getElementById('custom').addEventListener('input', (e) => {
       if (!/^#[0-9a-f]{6}$/i.test(e.target.value)) return; // a half-typed colour waits
-      materials[current].color = e.target.value;
+      materials[ui.paint.current].color = e.target.value;
       showPalette();
       syncPalette();
     });
-    document.getElementById('custom').addEventListener('change', () => saveMaterial(materials[current]));
+    document.getElementById('custom').addEventListener('change', () => saveMaterial(materials[ui.paint.current]));
     // the colour picker: HSV <-> hex, writing into the hex field and telling the palette through its own events
     const hexEl = document.getElementById('custom');
     const svEl = document.getElementById('pickSV');
@@ -5470,9 +5477,9 @@
       // a new material starts as a copy of the selected one
       let n = materials.length;
       while (materials.some((m) => m.name === `m${n}`)) n++;
-      const m = { ...materials[current], name: `m${n}`, color: document.getElementById('custom').value };
+      const m = { ...materials[ui.paint.current], name: `m${n}`, color: document.getElementById('custom').value };
       materials.push(m);
-      current = materials.length - 1;
+      ui.paint.current = materials.length - 1;
       saveMaterial(m);
       showPalette();
       syncPalette();
@@ -5649,20 +5656,20 @@
       if (i < 0) {
         let n = materials.length;
         while (materials.some((m) => m.name === `m${n}`)) n++;
-        const m = { ...materials[current], name: `m${n}`, color: face.color ?? '#c8c8c8' };
+        const m = { ...materials[ui.paint.current], name: `m${n}`, color: face.color ?? '#c8c8c8' };
         materials.push(m);
         saveMaterial(m);
         i = materials.length - 1;
         syncPalette();
       }
-      current = i;
+      ui.paint.current = i;
       if (paletteEl.hidden) paletteEl.hidden = false;
       showPalette();
       return true;
     };
     pickBtn.addEventListener('click', () => armPick(!picking));
     const paintFaces = (obj, faces) => {
-      const m = materials[current];
+      const m = materials[ui.paint.current];
       const base = owners.find((o) => o.obj === obj).start;
       const before = obj.mesh;
       history.push(() => has(obj) && change(obj, before));
@@ -5707,7 +5714,7 @@
       if (!obj || base === undefined) return;
       const i = hit.face - base;
       const f = obj.mesh.faces[i];
-      const m = materials[current];
+      const m = materials[ui.paint.current];
       if (!f || (f.color === m.color && f.mat === m.name)) return;
       if (!stroke.has(obj.id)) stroke.set(obj.id, { obj, before: obj.mesh });
       change(obj, { ...obj.mesh, faces: obj.mesh.faces.map((g, k) => (k === i ? { ...g, color: m.color, mat: m.name } : g)) });
@@ -5734,7 +5741,7 @@
     // object's own axes, the third takes it off; there is only one.
     // Drag one of its three arrows to slide the object along that axis.
     let gizmo = null; // the object that carries it
-    let gLocal = false; // false: the world axes, true: the object's own axes
+    // ui.edit.gizmoLocal: false: the world axes, true: the object's own axes
     let gTurn = { mesh: null, angle: 0 }; // cached: the object's own turn around y
     let gHover = null; // the axis under the pointer
     let gdrag = null; // { obj, axis, from, mesh0, dir, unit, d }
@@ -5749,7 +5756,7 @@
       const c = lo.map((v, i) => (v + hi[i]) / 2);
       const L = Math.max(...hi.map((v, i) => v - lo[i]), fit.radius * 0.1) * 0.6;
       let axes = AXES;
-      if (gLocal) {
+      if (ui.edit.gizmoLocal) {
         // objects carry no transform, so "own" axes are found from the shape: y stays up, x and z follow the turn
         // around y that gives the smallest footprint box
         if (gTurn.mesh !== gizmo.mesh) {
@@ -5814,9 +5821,9 @@
     };
     const toggleGizmo = () => {
       // H cycles: world axes -> the object's own axes -> off
-      if (gizmo && !gLocal) gLocal = true;
+      if (gizmo && !ui.edit.gizmoLocal) ui.edit.gizmoLocal = true;
       else if (gizmo) gizmo = null;
-      else if (hitObj()) ((gizmo = hitObj()), (gLocal = false));
+      else if (hitObj()) ((gizmo = hitObj()), (ui.edit.gizmoLocal = false));
       gHover = null;
       redraw();
     };
@@ -5850,7 +5857,7 @@
         let sawPts = []; // saw mode: up to 3 points { p, n } (n: the face normal where it was put, when known)
     // What the mouse does in edit mode, as in Blender: V draws lines (nothing can be moved while drawing); 1 moves points,
     // 2 moves lines (edges), 3 moves faces.
-    let emode = 'draw'; // 'draw' (the default: sketch lines, they do nothing yet) | 'vertex' | 'edge' | 'face' | 'saw' (4)
+    // ui.edit.mode: 'draw' (the default: sketch lines, they do nothing yet) | 'vertex' | 'edge' | 'face' | 'saw' (4) | 'lathe'
     let sketchFrom = null; // draw mode: the point the next V continues from
     let snapV = -1; // the vertex the pointer snaps to (drawing, moving points)
     let snapE = null; // the edge under the pointer (moving lines)
@@ -5874,10 +5881,10 @@
       else sel = { kind, items: [...(same ? sel.items : []), item] };
     };
     const selectAll = () => {
-      if (!['vertex', 'edge', 'face'].includes(emode)) return noteEdit('select with 1 (points), 2 (lines) or 3 (faces) first');
+      if (!['vertex', 'edge', 'face'].includes(ui.edit.mode)) return noteEdit('select with 1 (points), 2 (lines) or 3 (faces) first');
       const m = editing.mesh;
-      if (emode === 'vertex') sel = { kind: 'vertex', items: m.positions.map((_, i) => i) };
-      else if (emode === 'face') sel = { kind: 'face', items: m.faces.map(faceKey) };
+      if (ui.edit.mode === 'vertex') sel = { kind: 'vertex', items: m.positions.map((_, i) => i) };
+      else if (ui.edit.mode === 'face') sel = { kind: 'face', items: m.faces.map(faceKey) };
       else {
         const seen = new Set();
         const items = [];
@@ -5909,7 +5916,7 @@
       const dist = gcam.ortho ? 1 : Math.max(1e-6, vdot(vsub(c, gcam.eye), gcam.f));
       return ((hi - lo) * gcam.k) / dist;
     };
-    const skinned = () => Boolean(posing && mode === 'gpu' && gpu);
+    const skinned = () => Boolean(posing && ui.render.mode === 'gpu' && gpu);
     const skinNow = () => storySkin ?? (skinned() ? { meshes: posing.bind, weights: posing.rig.skin, bones: posing.bones } : walkSkin && walkHidden.size ? { meshes: walkSkin.meshes, weights: walkSkin.weights, bones: walkSkin.bones } : undefined);
     let poseHint = ''; // a note of pose mode, or why J did nothing
     let objNote = ''; // a line for the object selection (outside edit mode)
@@ -6019,7 +6026,7 @@
       if (!o) {
         // nothing under the cross and no target: a new 1 x 1 x 1 m cube of the selected material, standing on the bench
         wasEmpty = !scene.positions.length;
-        const m = materials[current];
+        const m = materials[ui.paint.current];
         const c = fit.center; // in front of the eye (or the middle of the view); the cube stands with its base middle there
         const mesh = box({ size: [1, 1, 1], at: [c[0], c[1] + 0.5, c[2]], color: m.color });
         mesh.faces.forEach((f) => (f.mat = m.name));
@@ -6044,7 +6051,7 @@
       sawPts = [];
       sketchFrom = null;
       xf = null;
-      emode = 'draw';
+      ui.edit.mode = 'draw';
       barNote = '';
       if (!bench.stay) goTo({ center: benchLook(), radius: benchRadius(), yaw, pitch });
       showBar();
@@ -6057,7 +6064,7 @@
       sketchFrom = null;
       sel = emptySel();
       xf = null;
-      emode = 'draw';
+      ui.edit.mode = 'draw';
       bench = null;
       if (b?.fresh) focused = false;
       if (b && !b.stay) goTo(b.fresh ? { ...overview(), yaw: b.cam.yaw, pitch: b.cam.pitch } : { ...b.cam });
@@ -6110,7 +6117,7 @@
       const f = editing.mesh.faces[faceAt(sel.items[0])];
       const axisLen = Math.max(...f.v.map((i) => vdot(vsub(P[i], fr.origin), fr.right)));
       lathePlan = { frame: fr, axisLen: Math.max(axisLen, fr.height), pts: [] };
-      emode = 'lathe';
+      ui.edit.mode = 'lathe';
       sel = emptySel();
       sawPts = [];
       sketchFrom = null;
@@ -6131,7 +6138,7 @@
     };
     const buildLathe = (n) => {
       const plan = lathePlan;
-      const m = materials[current];
+      const m = materials[ui.paint.current];
       let mesh;
       try {
         mesh = lathe(plan.pts, plan.frame, n, { mat: m.name, color: m.color });
@@ -6140,7 +6147,7 @@
       }
       const made = create(`lathe-${shortId()}`, mesh);
       lathePlan = null;
-      emode = 'draw';
+      ui.edit.mode = 'draw';
       showBar();
       noteEdit(`lathe: ${n} segments, ${mesh.faces.length} faces`);
       redraw();
@@ -6209,7 +6216,7 @@
       if (!plane) return noteEdit('saw: put two or three points first (V)');
       const obj = editing;
       // the new faces get the material of the face that was sawn (the one the points were put on)
-      const m = materials[current];
+      const m = materials[ui.paint.current];
       const src = obj.mesh.faces[plane.face];
       let cut;
       try {
@@ -6425,7 +6432,7 @@
       else selecting = { kind: 'box', pts: [], add: false };
       lastB = t;
       stage.classList.add('selecting');
-      const what = editing ? { vertex: 'points', edge: 'lines', face: 'faces' }[emode] : 'objects';
+      const what = editing ? { vertex: 'points', edge: 'lines', face: 'faces' }[ui.edit.mode] : 'objects';
       (editing ? noteEdit : noteObj)(selecting.kind === 'box' ? `B: drag a box round ${what} (Shift adds) · B again: lasso · Esc` : `B B: draw round ${what} with the lasso (Shift adds) · Esc`);
       drawSelect();
     };
@@ -6465,8 +6472,8 @@
         const sp = m.positions.map((q) => project(gcam, q));
         const isIn = (i) => sp[i].depth > 0 && insidePoly(poly, sp[i]);
         let items = [];
-        if (emode === 'vertex') items = m.positions.map((_, i) => i).filter(isIn);
-        else if (emode === 'edge') {
+        if (ui.edit.mode === 'vertex') items = m.positions.map((_, i) => i).filter(isIn);
+        else if (ui.edit.mode === 'edge') {
           const seen = new Set();
           const pairs = [...m.faces.flatMap((f) => f.v.map((a, i) => [a, f.v[(i + 1) % f.v.length]])), ...(editing.wire ?? [])];
           for (const [a, b] of pairs) {
@@ -6484,9 +6491,9 @@
               return pr.depth > 0 && insidePoly(poly, pr);
             })
             .map((f) => faceKey(f));
-        const keep = sh.add && sel.kind === emode ? sel.items : [];
+        const keep = sh.add && sel.kind === ui.edit.mode ? sel.items : [];
         const have = new Set(keep.map(itemKey));
-        sel = { kind: emode, items: [...keep, ...items.filter((it) => !have.has(itemKey(it)))] };
+        sel = { kind: ui.edit.mode, items: [...keep, ...items.filter((it) => !have.has(itemKey(it)))] };
         noteEdit(sel.items.length ? `${sel.items.length} selected` : '');
         return redraw();
       }
@@ -6560,7 +6567,7 @@
         x.changed = true;
         x.obj.mesh = r.mesh;
         sel = { kind: 'edge', items: r.cuts };
-        emode = 'edge';
+        ui.edit.mode = 'edge';
         rebuild();
         barNote = `loop cut · ${n} cut${n > 1 ? 's' : ''}${typed === null ? '' : '_'} · slide ${Math.round(slide * 100)}% · type a number, move along the line, ⏎ ok, Esc cancels`;
         showBar();
@@ -6807,14 +6814,14 @@
       if (nOut[0] * (cOut[0] - mid[0]) + nOut[1] * (cOut[1] - mid[1]) + nOut[2] * (cOut[2] - mid[2]) < 0) order = order.reverse();
       const set = new Set(ids);
       const near = editing.mesh.faces.find((f) => f.v.filter((i) => set.has(i)).length >= 2);
-      const m = materials[current];
+      const m = materials[ui.paint.current];
       const face = { v: order, color: near?.color ?? m.color, mat: near?.mat ?? m.name };
       const orig = editing.mesh;
       const obj = editing;
       change(obj, { ...orig, faces: [...orig.faces, face] });
       history.push(() => has(obj) && change(obj, orig));
       sel = emptySel();
-      emode = 'face';
+      ui.edit.mode = 'face';
       noteEdit(`filled ${order.length} points`);
       redraw();
     };
@@ -6884,7 +6891,7 @@
       let wire = wire0.map((w) => [...w]);
       const made = [];
       const fix = [];
-      const m = materials[current];
+      const m = materials[ui.paint.current];
       for (const it of sel.items) {
         if (sel.kind === 'vertex') {
           const n = dup(it);
@@ -6932,7 +6939,7 @@
         return P.length - 1;
       };
       const mid = P.reduce((t, q) => t.map((v, k) => v + q[k] / P.length), [0, 0, 0]);
-      const m = materials[current];
+      const m = materials[ui.paint.current];
       const faces = [...orig.faces];
       const wire = origWire.map((w) => [...w]);
       const made = [];
@@ -6967,7 +6974,7 @@
         obj.lines = [];
         history.push(() => (obj.lines = was));
       });
-      if (made.length) ((emode = 'face'), (sel = { kind: 'face', items: made }));
+      if (made.length) ((ui.edit.mode = 'face'), (sel = { kind: 'face', items: made }));
       sketchFrom = null;
       noteEdit(`sketch: ${made.length} face${made.length === 1 ? '' : 's'}, ${lineCount} line${lineCount === 1 ? '' : 's'}`);
       redraw();
@@ -7413,7 +7420,7 @@
 
     // ---- walking characters: one GPU skin, the bones turned and moved to where each one walks this frame
     const charT0 = performance.now();
-    const walkersOn = () => !ui.view.frozen && mode === 'gpu' && Boolean(gpu) && !posing && !vr && !storySkin;
+    const walkersOn = () => !ui.view.frozen && ui.render.mode === 'gpu' && Boolean(gpu) && !posing && !vr && !storySkin;
     const walkerIds = () => new Set(allObjects().filter((o) => o.character?.pose === 'walk').slice(0, CHAR_SKIN_MAX).map((o) => o.id));
     const walkFrame = (now) => {
       if (!walkersOn()) return null;
@@ -8054,7 +8061,7 @@
         return void buildLathe(n);
       }
       if (!job || !text) return;
-      const m = materials[current];
+      const m = materials[ui.paint.current];
       if (job.fix) {
         const o = live(job.fix) ?? job.fix;
         const before = { mesh: o.mesh, text: o.text };
@@ -8082,7 +8089,7 @@
         // B in edit mode: a box (B B: a lasso) round points, lines or faces, whichever 1 2 3 is on
         e.preventDefault();
         if (e.repeat) return true;
-        if (!['vertex', 'edge', 'face'].includes(emode)) return (noteEdit('B selects points, lines or faces: press 1, 2 or 3 first'), true);
+        if (!['vertex', 'edge', 'face'].includes(ui.edit.mode)) return (noteEdit('B selects points, lines or faces: press 1, 2 or 3 first'), true);
         startSelect();
         return true;
       }
@@ -8104,7 +8111,7 @@
       if (editing && !xf && !e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'm' || e.key === 'M')) {
         e.preventDefault();
         if (e.repeat) return true;
-        if (!['vertex', 'edge', 'face'].includes(emode) || !sel.items.length) return (noteEdit('M mirrors what is selected: select points, lines or faces (1 2 3) first'), true);
+        if (!['vertex', 'edge', 'face'].includes(ui.edit.mode) || !sel.items.length) return (noteEdit('M mirrors what is selected: select points, lines or faces (1 2 3) first'), true);
         mirrorWait = { neg: false };
         noteEdit('mirror: X, Y or Z (- first: to the minus side) · Esc');
         return true;
@@ -8189,7 +8196,7 @@
       if (k === 'g' || k === 's' || k === 'e') {
         e.preventDefault();
         if (e.repeat) return true;
-        if (!['vertex', 'edge', 'face'].includes(emode) && !(k === 'e' && emode === 'face')) return (noteEdit('select with 1 (points), 2 (lines) or 3 (faces) first'), true);
+        if (!['vertex', 'edge', 'face'].includes(ui.edit.mode) && !(k === 'e' && ui.edit.mode === 'face')) return (noteEdit('select with 1 (points), 2 (lines) or 3 (faces) first'), true);
         if (k === 'e') extrude(false);
         else startXf(k === 'g' ? 'grab' : 'scale');
         return true;
@@ -8197,7 +8204,7 @@
       if (k === 'r') {
         e.preventDefault();
         if (e.repeat) return true;
-        if (!['vertex', 'edge', 'face'].includes(emode)) return (noteEdit('select with 1 (points), 2 (lines) or 3 (faces) first'), true);
+        if (!['vertex', 'edge', 'face'].includes(ui.edit.mode)) return (noteEdit('select with 1 (points), 2 (lines) or 3 (faces) first'), true);
         startRotate();
         return true;
       }
@@ -8257,11 +8264,11 @@
         lastCtrlPaint = t;
         return paintFace();
       }
-      if (editing && ['vertex', 'edge', 'face'].includes(emode)) {
+      if (editing && ['vertex', 'edge', 'face'].includes(ui.edit.mode)) {
         // selecting (1 points, 2 lines, 3 faces): a click picks one, Shift+click adds it or takes it away
         const add = e.shiftKey || shiftOn;
-        const item = emode === 'vertex' ? (snapV >= 0 ? snapV : null) : emode === 'edge' ? (snapE ? [...snapE].sort((a, b) => a - b) : null) : snapF >= 0 && editing.mesh.faces[snapF] ? faceKey(editing.mesh.faces[snapF]) : null;
-        if (item !== null) toggleSel(emode, item, add);
+        const item = ui.edit.mode === 'vertex' ? (snapV >= 0 ? snapV : null) : ui.edit.mode === 'edge' ? (snapE ? [...snapE].sort((a, b) => a - b) : null) : snapF >= 0 && editing.mesh.faces[snapF] ? faceKey(editing.mesh.faces[snapF]) : null;
+        if (item !== null) toggleSel(ui.edit.mode, item, add);
         else if (!add) clearOnUp = { x: e.clientX, y: e.clientY }; // an empty press may start an orbit: the selection goes only when the pointer did not travel
         redraw();
       }
@@ -8385,7 +8392,7 @@
       light: { run: () => turnLight() },
       target: { run: () => travelTo(), once: true },
       gizmo: { run: () => toggleGizmo(), once: true },
-      clean: { run: () => (stage.classList.toggle('clean'), syncLines(), redraw()) },
+      clean: { run: () => (ui.view.edges = !ui.view.edges) },
       undo: { run: () => undo() },
       delete: { run: () => remove() },
       pose: { run: () => enterPose(), once: true, plain: true },
@@ -8480,7 +8487,7 @@
         };
         for (const [k, a] of Object.entries(doc.keys ?? { c: 'helm' })) bindKey(k, a);
         gameBtn.hidden = false;
-        if (mode !== 'gpu') setMode('gpu');
+        if (ui.render.mode !== 'gpu') setMode('gpu');
         setGameMode(doc.start?.mode === 'walk' ? 'walk' : 'ship');
         sceneNote(`${doc.title ?? name}: C switches between the helm and walking on the bridge`);
       });
@@ -8906,16 +8913,16 @@
         if (!e.repeat) editing ? leaveEdit() : enterEdit();
       } else if (editing && e.key === 'Enter') {
         e.preventDefault();
-        if (emode === 'saw') applySaw();
-        else if (emode === 'draw') buildSketch();
-        else if (emode === 'lathe') latheEnter();
+        if (ui.edit.mode === 'saw') applySaw();
+        else if (ui.edit.mode === 'draw') buildSketch();
+        else if (ui.edit.mode === 'lathe') latheEnter();
       } else if (editing && e.key === '6') {
         e.preventDefault();
         if (!e.repeat) startLathe();
       } else if (editing && /^[12345]$/.test(e.key)) {
         e.preventDefault();
-        if (e.key === '5' && emode === 'draw' && editing.lines?.length) return void buildSketch(); // 5 again builds what is drawn
-        emode = ['vertex', 'edge', 'face', 'saw', 'draw'][e.key - 1];
+        if (e.key === '5' && ui.edit.mode === 'draw' && editing.lines?.length) return void buildSketch(); // 5 again builds what is drawn
+        ui.edit.mode = ['vertex', 'edge', 'face', 'saw', 'draw'][e.key - 1];
         sel = emptySel();
         sawPts = [];
         sketchFrom = null;
@@ -8924,11 +8931,11 @@
         redraw();
       } else if (editing && e.key === 'Escape') {
         if (sawPts.length) ((sawPts = []), noteEdit(''), redraw());
-        else if (emode === 'lathe') {
+        else if (ui.edit.mode === 'lathe') {
           if (lathePlan?.pts.length) ((lathePlan.pts = lathePlan.pts.slice(0, -1)), redraw());
-          else ((lathePlan = null), (emode = 'draw'), showBar(), redraw());
+          else ((lathePlan = null), (ui.edit.mode = 'draw'), showBar(), redraw());
         } else if (sketchFrom) ((sketchFrom = null), redraw());
-        else if (emode !== 'draw') ((emode = 'draw'), (sel = emptySel()), showBar(), redraw());
+        else if (ui.edit.mode !== 'draw') ((ui.edit.mode = 'draw'), (sel = emptySel()), showBar(), redraw());
         else leaveEdit();
       } else if (e.key === 'x') {
         e.preventDefault(); // x alone does nothing: delete is Shift+X
@@ -8937,11 +8944,11 @@
       } else if (e.key === 'v' || e.key === 'V') {
         e.preventDefault();
         if (!e.repeat) {
-          if (editing && emode === 'lathe') addLathePoint();
-          else if (editing && emode === 'saw') addSawPoint(); // only in the saw mode (4) does V saw
+          if (editing && ui.edit.mode === 'lathe') addLathePoint();
+          else if (editing && ui.edit.mode === 'saw') addSawPoint(); // only in the saw mode (4) does V saw
           else if (editing) {
             // any other mode: V sketches a line (nothing is selected, nothing moves)
-            if (emode !== 'draw') ((emode = 'draw'), (sel = emptySel()), showBar());
+            if (ui.edit.mode !== 'draw') ((ui.edit.mode = 'draw'), (sel = emptySel()), showBar());
             sketch();
           } else if (space() && !drive()) skyLine(); // a star map: V joins two objects' centres
           else spider();
@@ -9143,7 +9150,7 @@
     const setApp = (on) => {
       document.body.classList.toggle('pwa', on);
       document.getElementById('palHint').hidden = on; // no help text on the palette in the app
-      stage.classList.toggle('clean', on); // no E button on the pad: start without the edge and point clutter
+      if (on) ui.view.edges = false; // no E button on the pad: start without the edge and point clutter
       if (on && !appBuilt) ((appBuilt = true), buildApp());
       redraw();
     };
@@ -9151,10 +9158,7 @@
     setApp(isApp || narrow.matches);
     narrow.addEventListener('change', () => setApp(isApp || narrow.matches));
     const linesBtn = document.getElementById('lines');
-    const syncLines = () => linesBtn.classList.toggle('on', !stage.classList.contains('clean'));
-    linesBtn.addEventListener('click', () => (stage.classList.toggle('clean'), syncLines(), redraw()));
-    stage.classList.add('clean'); // the edges and points start off
-    syncLines();
+    linesBtn.addEventListener('click', () => (ui.view.edges = !ui.view.edges)); // (the edges and points start off: ui.view.edges)
     // ?: the key explainer, a keyboard drawn from data. Hover or tap a key to read it, press a real key to see it light up,
     // "run" does what the key does. Colours: teal = target / look, red = editing and making, cream = flying and viewing, slate = system.
     const KEYS = {
@@ -9842,7 +9846,7 @@
       story.t = Math.max(0, Math.min(t, doc.timeline.durationMs));
       const index = storyFormat.constructionIndexAtTime(doc, story.t);
       const key = `${index}|${story.cutaway}|${story.focus}`;
-      const cpuAnimation = doc.tracks.animation && (mode !== 'gpu' || !gpu);
+      const cpuAnimation = doc.tracks.animation && (ui.render.mode !== 'gpu' || !gpu);
       if (force || key !== story.loadedKey || cpuAnimation) {
         let objects = storyFormat.constructionAt(doc, story.t);
         if (story.cutaway) objects = objects.filter((o) => !stMatch(o.name, doc.presentation?.cutaway?.excludePrefixes));
@@ -10073,14 +10077,7 @@
       true,
     );
     const mergeSw = document.getElementById('mergeSw');
-    mergeSw.classList.toggle('on', mergeOn);
-    mergeSw.addEventListener('click', () => {
-      mergeOn = !mergeOn;
-      mergeSw.classList.toggle('on', mergeOn);
-      try {
-        localStorage.setItem('3draft.merge', mergeOn ? '1' : '0');
-      } catch {}
-    });
+    mergeSw.addEventListener('click', () => (ui.view.merge = !ui.view.merge)); // (kept in localStorage by uiRender)
     nameEl.addEventListener('keydown', (e) => e.stopPropagation()); // typing a name is not a command
     showSaved();
     // ?ply=name: a scene saved here under that name opens in zen at once, standing alone (nothing found: the page starts as usual)
@@ -10124,7 +10121,7 @@
         placeBrush: (name, mesh) => placeBrush({ name, mesh }), // like gg on a model in the store
         select: (names) => ((picked = allObjects().filter((o) => names.includes(o.name)).map((o) => o.id)), redraw(), picked.length), // like B round those objects
         place: () => placing && { phase: placing.phase, steps: placing.steps.length, kind: xf?.kind, foot: placing.foot.map((v) => +v.toFixed(3)), n: placing.n.map((v) => +v.toFixed(3)), name: placing.name }, // like opening a scene file: its palette (screens, scene screens) comes too
-        screens: () => ({ mode, gpu: Boolean(gpu), kind: activeKind, iframes: screenFrames.size, spots: [...sceneSpots].map(([addr, s]) => ({ addr, ready: s.ready, error: s.error })) }),
+        screens: () => ({ mode: ui.render.mode, gpu: Boolean(gpu), kind: ui.render.kind, iframes: screenFrames.size, spots: [...sceneSpots].map(([addr, s]) => ({ addr, ready: s.ready, error: s.error })) }),
         // the character panel (modular characters): place(selection | example id, at, yaw, name) -> its group name, the placed
         // ones, apply(group, selection), open; ready() loads the library
         ui: () => plain(ui), // the UI state (src/state.js)
@@ -10149,7 +10146,7 @@
           for (const q of o.mesh.positions) q.forEach((c, i) => ((lo[i] = Math.min(lo[i], c)), (hi[i] = Math.max(hi[i], c))));
           return { name: o.name, faces: o.mesh.faces.map((f) => [f.color, f.mat]), lo, hi, nf: o.mesh.faces.length };
         }),
-        edit: () => ({ mode: emode, sel: { kind: sel.kind, n: sel.items.length }, xf: xf ? { kind: xf.kind, lock: xf.lock, typed: xf.typed, place: Boolean(xf.place) } : null, editing: editing?.name ?? null, bench: Boolean(bench), wire: editing?.wire?.length ?? 0, lines: editing?.lines?.length ?? 0 }),
+        edit: () => ({ mode: ui.edit.mode, sel: { kind: sel.kind, n: sel.items.length }, xf: xf ? { kind: xf.kind, lock: xf.lock, typed: xf.typed, place: Boolean(xf.place) } : null, editing: editing?.name ?? null, bench: Boolean(bench), wire: editing?.wire?.length ?? 0, lines: editing?.lines?.length ?? 0 }),
         // screen position (stage pixels) of a point on the edited object: its face centre / vertex / edge middle
         screen: (kind, i) => {
           const m = editing.mesh;
@@ -10282,7 +10279,7 @@
         if (events.readyState !== EventSource.OPEN) return;
         const deg = (a) => +((a * 180) / Math.PI).toFixed(2);
         const t = lockedObject();
-        const state = { vehicle: vehicle ?? 'none', eye: eyeNow().map((v) => +v.toFixed(4)), yaw: deg(yaw), pitch: deg(pitch), roll: deg(roll), target: t ? t.name ?? t.id : null, speed: space() ? +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * unitNow() * throttle).toFixed(3) : null, orbit: orbit?.phase ?? null, objects: allObjects().length, scene: startScene ?? null, view: mode };
+        const state = { vehicle: vehicle ?? 'none', eye: eyeNow().map((v) => +v.toFixed(4)), yaw: deg(yaw), pitch: deg(pitch), roll: deg(roll), target: t ? t.name ?? t.id : null, speed: space() ? +(Math.hypot(pace(level.f), pace(level.r), pace(level.u)) * unitNow() * throttle).toFixed(3) : null, orbit: orbit?.phase ?? null, objects: allObjects().length, scene: startScene ?? null, view: ui.render.mode };
         fetch('/viewer-state', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(state) }).catch(() => {});
       };
       setInterval(reportView, 2000);
@@ -10313,7 +10310,7 @@
             const docs = snap.docs.map((d) => ({ name: d.id, ...d.data() })).filter((m) => typeof m.color === 'string');
             if (!docs.length) return; // nothing stored yet: the built-in materials stay
             materials = docs.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map(({ order, ...m }) => ({ metal: 0, rough: 0.7, alpha: 1, emit: 0, soft: 0, ...m }));
-            current = Math.min(current, materials.length - 1);
+            ui.paint.current = Math.min(ui.paint.current, materials.length - 1);
             if (!paletteEl.hidden) showPalette();
             syncPalette();
           },
@@ -10375,7 +10372,7 @@
         history.length = 0;
         if (start?.materials) {
           materials = start.materials.map((m) => ({ ...m }));
-          current = Math.min(start.current ?? 0, materials.length - 1);
+          ui.paint.current = Math.min(start.current ?? 0, materials.length - 1);
           syncPalette();
           if (!paletteEl.hidden) showPalette();
         }
@@ -10456,7 +10453,7 @@
         if (ask && sceneHasObjects() && !confirm('Recording starts from an empty scene: the current scene is removed (it cannot be undone). Continue?')) return;
         recBtn.disabled = true;
         const seed = (Math.random() * 2 ** 32) >>> 0;
-        const start = { materials: materials.map((m) => ({ ...m })), current, toggles: toggles() };
+        const start = { materials: materials.map((m) => ({ ...m })), current: ui.paint.current, toggles: toggles() };
         await prepare(start);
         Math.random = seeded(seed);
         rec = { seed, start, events: [], t0: performance.now(), lastMove: -99, lastButtons: 0 };
@@ -11765,7 +11762,7 @@
         ws.build.slot = slot;
         ws.build.ray = [g.rayFrom, R2S.back(fromGrid(grid, slot.hit))];
         if (clicked && slot.ok && slot.centre) {
-          const mt = materials[current] ?? materials[0];
+          const mt = materials[ui.paint.current] ?? materials[0];
           const o = WS.create(`panel-${slot.axis === 'v' ? (slot.centre[1] > 0 ? 'ceiling' : 'floor') : 'wall'}-${shortId()}`, panelMesh(grid, slot, mt));
           if (!ws.grid) ws.grid = grid; // (the first panel fixes the grid)
           ws.piece = o.id;
@@ -11848,7 +11845,7 @@
     // left pinch starts a new outline. While an outline is open, a right fist takes its last point back.
     const GRAF_LIFT = 0.002, GRAF_CLOSE = 0.025;
     const grafPrism = (ring, n, h) => {
-      const mt = materials[current] ?? materials[0];
+      const mt = materials[ui.paint.current] ?? materials[0];
       const face = (v) => ({ v, color: mt.color, mat: mt.name });
       const k = ring.length;
       if (Math.abs(h) < 0.001) return { positions: ring.map((q) => [...q]), faces: [face(ring.map((_, i) => i))] };
@@ -11966,7 +11963,7 @@
         } else if (bd > 0.04) T.latch[side] = null;
       }
       if (!pressed.length) return;
-      const mt = materials[current] ?? materials[0];
+      const mt = materials[ui.paint.current] ?? materials[0];
       for (const key of pressed) {
         if (key === 'exit') {
           T.obj = null;
@@ -12001,7 +11998,7 @@
       const dt = ws.blockAt ? Math.min(0.1, (now - ws.blockAt) / 1000) : 0;
       ws.blockAt = now;
       const pl = L?.palm, pr = R?.palm;
-      const mt = materials[current] ?? materials[0];
+      const mt = materials[ui.paint.current] ?? materials[0];
       const mk = ws.make;
       const blockMesh = (frame) => {
         const loc = [pl, pr].map((p) => [v3.dot(p, frame.x), v3.dot(p, frame.y), v3.dot(p, frame.z)]);
@@ -12071,7 +12068,7 @@
         if (o && o.mesh !== c.mesh0) (history.push(() => WS.has(o) && WS.change(o, c.mesh0)), done());
       };
       if (R.fn?.kind !== 'saw' || !g?.fist) return void endCarve();
-      const mt = materials[current] ?? materials[0];
+      const mt = materials[ui.paint.current] ?? materials[0];
       const at = R2S.p(g.palm);
       const plane = { point: at, n: v3.unit(R2S.d(g.back)) };
       const segs = (o, pl) => {
@@ -12303,7 +12300,7 @@
           scene: sceneFile(nameEl.value || 'vr'),
           rig: { origin: [...r.origin], forward: [...r.forward], right: [...r.right] },
           tsh: tsh ? { left: tsh.fn('left')?.id ?? null, right: tsh.fn('right')?.id ?? null } : null,
-          current,
+          current: ui.paint.current,
         };
       };
       const send = (o) => {
@@ -12429,7 +12426,7 @@
         tsh = createTsh(tshFunctions());
         if (head.tsh?.left) tsh.choose('left', head.tsh.left);
         if (head.tsh?.right) tsh.choose('right', head.tsh.right);
-        if (Number.isInteger(head.current)) current = head.current;
+        if (Number.isInteger(head.current)) ui.paint.current = head.current;
         const ghost = create('vr-ghost', { positions: [], faces: [] });
         history.pop(); // (the ghost is no step to undo)
         Object.assign(P, { on: true, queue: file ? [...file] : [], file, base: 0, clock: performance.now(), ghost });
@@ -12588,7 +12585,7 @@
       ws.st = st;
       const done = () => ((ws.used = true), (ws.dirtyAt = performance.now()));
       for (const e of st.events) if (e.type === 'choose') wsNote(ws, `${e.side} hand: ${e.fn.label ?? e.fn.id}`);
-      const matOf = (fn) => materials[fn?.kind === 'material' ? fn.data : current] ?? materials[0];
+      const matOf = (fn) => materials[fn?.kind === 'material' ? fn.data : ui.paint.current] ?? materials[0];
 
       // grab (either hand with that function): a fist or a pinch on an object (or within 4 cm of it) takes it; it moves and
       // turns with that wrist until let go
@@ -12619,7 +12616,7 @@
       const L = st.left, lh = hands.left;
       // a material: the left index fingertip poked into a block paints all of it (once, until the finger comes out)
       if (L.fn?.kind === 'material' && lh) {
-        current = L.fn.data;
+        ui.paint.current = L.fn.data;
         const tip = R2S.p(lh.joints['index-finger-tip']);
         const o = WS.workable().find((x) => touches(x, tip, 0.006));
         if (o && ws.painted !== o.id) {
@@ -12641,7 +12638,7 @@
           const roomAt = v3.sub(L.g.palm, v3.mul(L.g.back, 0.045));
           const fw = head ? v3.unit([-head[8], 0, -head[10]]) : [0, 0, -1];
           const right = v3.unit(R2S.d(v3.cross(fw, [0, 1, 0]))), up = v3.unit(R2S.d([0, 1, 0]));
-          const mt = materials[current] ?? materials[0];
+          const mt = materials[ui.paint.current] ?? materials[0];
           const solid = box({ size: [TSH_CUBE, TSH_CUBE, TSH_CUBE], at: R2S.p(roomAt), axes: [right, up, v3.cross(right, up)], color: mt.color });
           const o = WS.create(`cube-${shortId()}`, { ...solid, faces: solid.faces.map((f) => ({ ...f, mat: mt.name })) });
           ws.piece = o.id;
@@ -13969,16 +13966,16 @@
         return xrSay(`could not start VR: ${err?.message ?? err}`);
       }
       xrLog(`session created (${Math.round(performance.now() - t0)} ms after the click) · blend ${session.environmentBlendMode} · visibility ${session.visibilityState}`);
-      if (mode !== 'gpu' || activeKind !== 'webgl2') {
-        xrState.prevMode = mode !== 'gpu' ? 'svg' : 'gpu';
+      if (ui.render.mode !== 'gpu' || ui.render.kind !== 'webgl2') {
+        xrState.prevMode = ui.render.mode !== 'gpu' ? 'svg' : 'gpu';
         const t1 = performance.now();
         if (xrWebGlWarmup) await xrWebGlWarmup;
         await setMode('gl');
         xrLog(`the view switched to WebGL2 in ${Math.round(performance.now() - t1)} ms`);
       }
       const gl = gpu?.context;
-      if (activeKind !== 'webgl2' || !gl) {
-        xrLog(`no WebGL2 context (view ${activeKind})`, true);
+      if (ui.render.kind !== 'webgl2' || !gl) {
+        xrLog(`no WebGL2 context (view ${ui.render.kind})`, true);
         session.end();
         return xrSay('WebGL2 is not available');
       }
