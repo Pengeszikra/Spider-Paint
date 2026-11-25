@@ -205,7 +205,7 @@ The `scene` panel has one list for adding a scene: the examples, and under `save
 
 **svg** (scene group; in a story, the **svg** button of the story bar) opens the SVG export: the view drawn as vectors, flat-coloured faces in the palette's colours (glass see-through), far to near, as the SVG view draws them.
 
-- **picture**: the size in pixels, the background (dark, light, or none: transparent) and the edges (lines or none). **save svg** saves the view as it is now: one `.svg` file.
+- **picture**: the size in pixels, the background (none: transparent, the default; dark; light) and the edges (no lines by default, or lines). **save svg** saves the view as it is now: one `.svg` file. Typing in the panel's fields is only typing (no key commands); Esc leaves a field.
 - **animated**: **save animated svg** saves the frames as one SVG that plays by itself (SMIL: in any browser, without script). Frames that came out the same are stored once, so a pause costs nothing.
   - **turntable**: round the view's middle; **from / to** are degrees (0 to 360 is a whole turn, -45 to 45 a swing).
   - **the story's timeline** (a story is loaded): **from / to** are seconds of the story, so any part of it can be saved; **from ← now** and **to ← now** take the Stories slider's time, **whole** the whole story in its own time. The story's own camera is used while the Stories panel's camera is on (otherwise the view as it is).

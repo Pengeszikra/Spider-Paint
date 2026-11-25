@@ -21,8 +21,8 @@ export const exportSvgTool = {
       view: { description: '"persp" (default), "front", "side", "top", or { yaw, pitch } in degrees. A story uses its own camera unless a view is given.' },
       at_ms: { type: 'number', description: 'a picture of a story: its moment in ms (default: the end)' },
       size: { type: 'number', description: 'pixels, 128 to 1600 (default 600)' },
-      background: { type: 'string', description: '"dark" (default), "light", "none" (transparent) or a #rrggbb colour' },
-      edges: { type: 'boolean', description: 'outline the faces (default true)' },
+      background: { type: 'string', description: '"none" (transparent, the default), "dark", "light" or a #rrggbb colour' },
+      edges: { type: 'boolean', description: 'outline the faces (default false: flat faces only)' },
       animate: {
         type: 'object',
         description: 'an animated SVG instead of one picture',
@@ -72,7 +72,7 @@ export async function exportSvg(a, { loadStory, loadScene, readSession }) {
   const sources = ['from', 'story', 'session_id'].filter((k) => a[k] !== undefined);
   if (sources.length !== 1) fail('give one source: from (a build_model open_url), story, or session_id');
   const size = Math.round(num(a.size, 'size', 128, 1600, 600));
-  const look = { size, occlude: true, points: false, background: svgBackground(a.background ?? 'dark'), ...(a.edges === false ? { stroke: 'none' } : {}) };
+  const look = { size, occlude: true, points: false, background: svgBackground(a.background ?? 'none'), ...(a.edges === true ? {} : { stroke: 'none' }) };
   const view = viewOf(a.view);
   const an = a.animate;
   if (an !== undefined && (typeof an !== 'object' || an === null || Array.isArray(an))) fail('animate must be an object');

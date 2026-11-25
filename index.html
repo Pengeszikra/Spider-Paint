@@ -755,8 +755,8 @@
     <p class="note">The view as you see it, drawn as vectors: flat-coloured faces in the palette's colours, far to near.</p>
     <div class="cgroup"><b>picture</b>
       <span class="lab">size (px)</span><input id="svgSize" type="number" min="128" max="2400" step="16" value="800">
-      <span class="lab">background</span><select id="svgBg"><option value="dark">dark</option><option value="light">light</option><option value="none">none (transparent)</option></select>
-      <span class="lab">edges</span><select id="svgEdges"><option value="on">lines</option><option value="off">no lines</option></select>
+      <span class="lab">background</span><select id="svgBg"><option value="none" selected>none (transparent)</option><option value="dark">dark</option><option value="light">light</option></select>
+      <span class="lab">edges</span><select id="svgEdges"><option value="off" selected>no lines</option><option value="on">lines</option></select>
     </div>
     <div class="crow"><button id="svgSave" type="button" class="red" title="Save the view as one SVG picture">save svg</button></div>
     <div class="cgroup"><b>animated</b>
@@ -8778,6 +8778,11 @@
     document.addEventListener('keydown', (e) => {
       if (e.target instanceof HTMLTextAreaElement) return; // the error text can be selected and copied
       if (e.target instanceof HTMLButtonElement) return; // Space and Enter belong to a focused button
+      // typing in a field (a panel's number, a name, a list) is not a command; Esc leaves the field, the next Esc is a command again
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.target?.isContentEditable) {
+        if (e.key === 'Escape') e.target.blur();
+        return;
+      }
       if (vr && e.key === 'Escape') {
         e.preventDefault();
         return void toggleVr(false);

@@ -9,8 +9,17 @@
 const num = (v) => +Number(v).toFixed(4);
 const esc = (s) => String(s).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c]);
 
-/** The inside of a standalone <svg> (what renderView returns). */
-export const svgInner = (svg) => svg.replace(/^[\s\S]*?<svg[^>]*>\n?/, '').replace(/\n?<\/svg>\s*$/, '');
+/**
+ * renderView draws a view as a panel of a sheet: a grey frame and a label. An exported picture has neither: the
+ * background rect loses its border (and goes when the background is none: transparent), the empty label goes.
+ */
+export const unframed = (svg) =>
+  svg
+    .replace(/<rect width="([\d.]+)" height="\1" fill="([^"]*)" stroke="#cfcfd4"\/>\n?/g, (_, w, fill) => (fill === 'none' ? '' : `<rect width="${w}" height="${w}" fill="${fill}"/>\n`))
+    .replace(/<text [^>]*><\/text>\n?/g, '');
+
+/** The inside of a standalone <svg> (what renderView returns), without the sheet frame. */
+export const svgInner = (svg) => unframed(svg.replace(/^[\s\S]*?<svg[^>]*>\n?/, '').replace(/\n?<\/svg>\s*$/, ''));
 
 /** `n` values from `a` to `b`; with `loop` the end is left out, as it is the start again (a full turn). */
 export const spread = (a, b, n, loop = false) => Array.from({ length: n }, (_, i) => a + ((b - a) * (n === 1 ? 0 : i)) / (loop ? n : n - 1));
@@ -63,4 +72,4 @@ export const animatedSvg = (frames, { size, seconds = 4, loop = true, title = 's
 };
 
 /** One picture: renderView's SVG with a title. */
-export const titledSvg = (svg, title = 'spider-paint') => svg.replace(/(<svg[^>]*>\n?)/, `$1<title>${esc(title)}</title>\n`);
+export const titledSvg = (svg, title = 'spider-paint') => unframed(svg).replace(/(<svg[^>]*>\n?)/, `$1<title>${esc(title)}</title>\n`);

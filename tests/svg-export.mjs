@@ -33,6 +33,8 @@ assert.equal(pic.structuredContent.kind, 'picture');
 assert.match(pic.content[1].text, /^<svg [^>]*viewBox="0 0 300 300"/);
 assert.match(pic.content[1].text, /fill="#8a5a36"/, 'the palette colours (wood)');
 assert.match(pic.content[1].text, /fill-opacity="0\.3"/, 'glass is see-through');
+assert.ok(!/stroke="#/.test(pic.content[1].text), 'no edges and no sheet frame by default');
+assert.ok(!/<rect/.test(pic.content[1].text), 'transparent by default');
 const turn = await call('export_svg', { from, animate: { frames: 12, seconds: 3 } });
 assert.equal(turn.structuredContent.frames, 12);
 assert.equal(turn.structuredContent.loop, true);
