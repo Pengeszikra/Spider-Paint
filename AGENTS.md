@@ -58,7 +58,12 @@ Use the exact same date-based npm-compatible scheme as 3Draft (see `Pengeszikra/
 - **npm release is independent.** Automatic Cloud Run deployment must not call `npm run release`, bump the package version, or publish to npm. Do not alter Cloud Run access policy or runtime service identity as a routine deploy step.
 - Exception handling: if automated deployment fails, inspect the GitHub Actions logs and underlying Cloud Run build; do not silently deploy manually or claim success. Any manual emergency deploy should be explicitly identified as such and verified against `/api/version`.
 
-## Development workflow
+## UI state (being decoupled)
+The editor's UI state is moving into one object, `ui` in `index.html`, made with `zignal` from `src/state.js` (from flogon-galaxy, no DOM, shared with node). Rules for what moves there:
+- A switch, mode or selection is a value in `ui`; code that changes it only writes the value. The page follows in `uiRender`, once per task (`batch`), never in the handler.
+- Only small values: meshes, the scene, GPU objects and the render loop stay outside (the loop may read `ui`, it must not write it each frame).
+- Move one group at a time and keep the app working; `ui.view` (freeze, smooth, studio, glow, light) is the first.
+
 1. Inspect the relevant source, tests, `APP.md`, `MCP.md`, and `README.md` before changes; legacy project documents can be stale.
 2. Prefer small, independently testable changes; run `npm test` when dependencies/environment permit.
 3. Verify user-to-agent and agent-to-user scene synchronization before promising inline interactive use in any host.

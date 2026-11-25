@@ -991,6 +991,13 @@
     import { createTsh, readHands, TSH_BONES, TSH_JOINTS, boolean, health, validate, mergeFlat, saw, planeThroughLine, planeThroughTriangle, sectionSegments, moveVertexSet, reshape, outlineOf, extrudeFace, faceNormal, project, initKernel, createGpu, createGl, buildInstances, bounds, orbit as orbitView, makeCamera, ray, pick, crosshair, standOn, instantiate, lodLevel, box, merge, textMesh, faceFrame, lathe, bevel, renderView, version, displayVersion, humanoidRig, posed, posedJoints, walkPose, HUMANOID_POSES, boneMatrices, poseLift, galaxyPoints, mul4, skyScene, buildCharacter, normalizeCharacter, variateCharacter, CHARACTER_VERSION, CHARACTER_PRESETS, CHARACTER_RANGES, FACE_SHAPES, HAIR_STYLES, BEARD_STYLES, OUTFITS, PROPS as CHAR_PROPS, CHARACTER_SKINS, CHARACTER_HAIRS, CHARACTER_CLOTHS, characterPalette, jointNow, hingeTo, pivotTurn, railNear, springStep, springMesh, carried as carriedBy, holderOf, moveMesh } from './engine/45789c908f86/index.js';
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     import { animatedSvg, spread, storyView, svgBackground, titledSvg } from './src/svg-anim.js'; // the svg export (also the MCP's export_svg)
+    import { zignal, batch, plain } from './src/state.js'; // the UI state: zignal (from flogon-galaxy), seen in batches
+
+    // ---- the UI state: one object for what the switches say. Every write to it is seen (zignal), and the page follows it once
+    // per task (batch -> uiRender). Only small values live here; meshes, the scene and the render loop stay outside it.
+    const ui = zignal(batch((root, changes) => uiRender(root, changes)))({
+      view: { frozen: false, smooth: true, studio: true, glow: false, light: true },
+    });
     window.__booted = true; // (the engine and the module loaded: the check at the end of the page waits for the scene, not for this)
     // (the camera orbit helper; `orbit` is the space orbit state). The starship's roll ([ / ő, ] / ú) rides along on every camera.
     const orbit_ = (o = {}) => orbitView({ roll, ...o });
@@ -1722,7 +1729,7 @@
     };
     // 0 / ö
     const toggleOrbit = () => {
-      if (!space() || frozen) return;
+      if (!space() || ui.view.frozen) return;
       const o = lockedObject();
       if (orbit) {
         // leaving: a swing round the target is kept as cruise, and gravity mode takes it on
@@ -1868,7 +1875,7 @@
     let lastFrame = performance.now();
     // Freeze (touch pad): everything that moves stands still, so the cursor can work. The speed vector is kept as it was
     // and carries on when the freeze is lifted.
-    let frozen = false;
+    // ui.view.frozen (;): everything that moves stands still
     // VR (a phone in a headset holder): the view is split into two eyes side by side, the head (the phone's sensors) turns the
     // view, a tap speeds up, a double tap stops, a long press leaves. Both eyes are the same camera shifted by half the
     // eye distance along its right vector (parallel axes). WebGL2 draws it (its canvas can be copied right after the draw).
@@ -1888,7 +1895,7 @@
       const fz = -Math.cos(b) * Math.cos(g);
       const heading = Math.atan2(fx, fy); // clockwise from north: the viewer's yaw grows the same way
       if (vrBase === null) vrBase = yaw - heading;
-      if (frozen) return;
+      if (ui.view.frozen) return;
       yaw = heading + vrBase;
       pitch = -Math.asin(Math.max(-1, Math.min(1, fz))); // the viewer's pitch is positive looking down
       redraw();
@@ -1947,14 +1954,9 @@
       }
       redraw();
     };
-    const toggleFreeze = () => {
-      frozen = !frozen;
-      for (const id of ['padFreeze', 'freeze']) document.getElementById(id)?.classList.toggle('on', frozen);
-      stage.classList.toggle('frozen', frozen);
-      redraw();
-    };
+    const toggleFreeze = () => (ui.view.frozen = !ui.view.frozen); // (the buttons, the stage and the picture follow: uiRender)
     const stop = () => {
-      if (!frozen) ((level.f = level.r = level.u = 0), (throttle = 1), (cruise = { f: 0, r: 0, u: 0 }), (gravity = null), (orbit = null));
+      if (!ui.view.frozen) ((level.f = level.r = level.u = 0), (throttle = 1), (cruise = { f: 0, r: 0, u: 0 }), (gravity = null), (orbit = null));
     };
     let backoff = 1; // how far the eye is backed off for a wide stage right now (eases to its goal, so nothing jumps)
     let fovNow = (35 * Math.PI) / 180; // the lens: wide while flying inside the scene, eased both ways
@@ -1977,7 +1979,7 @@
       focused = true;
     };
     const speed = (axis, d) => {
-      if (frozen || drive()) return; // (the car: the two-finger wheel and throttle)
+      if (ui.view.frozen || drive()) return; // (the car: the two-finger wheel and throttle)
       throttle = 1; // a new speed: the braking program (still on while there is a target) brakes again from here
       if (!locked || (space() && !orbitOn())) enterFly();
       level[axis] += d;
@@ -1986,7 +1988,7 @@
     const stepFly = (now) => {
       const dt = Math.min(0.05, (now - lastFrame) / 1000);
       lastFrame = now;
-      if (frozen) return;
+      if (ui.view.frozen) return;
       if (!findBox.hidden) return; // searching (Enter): everything holds still until a target is taken or the box closes
       if (drive()) return stepCar(dt, now);
       if (!space()) roll = 0;
@@ -2733,7 +2735,7 @@
         if (!drawn.has(spot)) {
           // the picture is square; a wide face shows its middle band, so the scene is framed for that band
           drawn.add(spot);
-          if (!frozen) spot.yaw += dt * SHOW_SPIN;
+          if (!ui.view.frozen) spot.yaw += dt * SHOW_SPIN;
           spot.gl.render(spot.mesh, orbit_({ yaw: spot.yaw, pitch: 0.25 }), {
             size: SCREEN_PX, dpr: 1, palette: spot.palette, smooth: 40, studio: true, background: [0.02, 0.02, 0.03],
             fit: { center: spot.fit.center, radius: spot.fit.radius * Math.max(1, aspect) },
@@ -2908,7 +2910,7 @@
       const dtDraw = Math.min(0.1, (performance.now() - lastDraw) / 1000);
       const ease1 = 1 - Math.exp(-dtDraw * 9);
       lastDraw = performance.now();
-      if (SHOW && !frozen && !travel && !fly) ((yaw += dtDraw * SHOW_SPIN), redraw()); // the turntable: round the model's middle, like A / D on a target
+      if (SHOW && !ui.view.frozen && !travel && !fly) ((yaw += dtDraw * SHOW_SPIN), redraw()); // the turntable: round the model's middle, like A / D on a target
       const storyFov = story?.cameraFov;
       const fovGoal = storyFov ?? (space() ? SPACE_FOV : fly && eyeInScene() ? INSIDE_FOV : FOV0); // a story's recorded lens is independent of flight controls
       if (storyFov !== undefined) fovNow = storyFov;
@@ -3202,11 +3204,11 @@
             planets: shaderPlanets,
             background: Array.isArray(storyBackdrop) ? storyBackdrop : rgb,
             transparent: Boolean(storySkin && story?.doc.scene.environment) || storyBackdrop === 'transparent',
-            glow: filmic,
-            smooth: smooth ? 40 : 0,
-            studio,
+            glow: ui.view.glow,
+            smooth: ui.view.smooth ? 40 : 0,
+            studio: ui.view.studio,
             edges: !stage.classList.contains('clean'),
-            unlit: !lightOn,
+            unlit: !ui.view.light,
             marks: gpuMarks,
             skin: skinNow(),
             material: sceneMaterial,
@@ -3224,7 +3226,7 @@
             gpu.render(scene, view, {
               palette: paletteMap, parts: sceneParts, instances: { mesh: PROTO, data: instances(now, flights.length > 0) },
               size: square, dpr: 1, fit: { ...fit, center: fit.center.map((c, i) => c + cam0.r[i] * shift) },
-              unlit: !lightOn, background: [0.02, 0.02, 0.03], glow: filmic, smooth: smooth ? 40 : 0, studio, skin: skinNow(), screens,
+              unlit: !ui.view.light, background: [0.02, 0.02, 0.03], glow: ui.view.glow, smooth: ui.view.smooth ? 40 : 0, studio: ui.view.studio, skin: skinNow(), screens,
               light: { direction: [Math.sin(a) * 0.6, 0.8, Math.cos(a) * 0.6] },
             });
             if (cv.width !== half || cv.height !== H) ((cv.width = half), (cv.height = H));
@@ -3322,8 +3324,8 @@
     let mode = 'svg';
     let gpu = null;
     let lightAngle = 0.8;
-    let smooth = true; // N: smooth shading on the WebGPU view (faces within 40 degrees share normals)
-    let studio = true; // K: studio light (key, fill, rim) that follows the camera
+    // ui.view.smooth (N): smooth shading on the WebGPU view (faces within 40 degrees share normals)
+    // ui.view.studio (K): studio light (key, fill, rim) that follows the camera
     let sceneMaterial = {}; // saved scene lighting strengths, independent of surface materials
     // the installed app (or ?pwa) has no keyboard and is meant for small screens: no filmic look there
     const EMBED = /[?&]store\b/.test(location.search); // ?store: this page is the store pane of another one (its own engine, its own scene)
@@ -3339,7 +3341,7 @@
     })();
     if (SHOW) document.body.classList.add('zen', 'show');
     const isApp = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true || /[?&]pwa\b/.test(location.search);
-    let filmic = false; // C: filmic look on the WebGPU view (linear light, tone mapping, glowing emission)
+    // ui.view.glow (C): filmic look on the WebGPU view (linear light, tone mapping, glowing emission)
     let renderGpu = null;
     const gpuErrors = [];
     // Two GPU backends, each with its own canvas (a canvas keeps the first kind of context it was given):
@@ -3433,25 +3435,18 @@
       if (mode !== 'gpu') return setMode('gpu');
       setMode(activeKind === 'webgpu' ? 'gl' : 'svg');
     };
-    const toggleFilmic = () => {
-      filmic = !filmic;
-      document.getElementById('filmic').classList.toggle('on', filmic);
-      redraw();
-    };
-    const toggleSmooth = () => {
-      smooth = !smooth;
-      document.getElementById('smooth').classList.toggle('on', smooth);
-      redraw();
-    };
-    const toggleStudio = () => {
-      studio = !studio;
-      document.getElementById('studio').classList.toggle('on', studio);
-      redraw();
-    };
-    let lightOn = true;
-    const turnLight = () => {
-      lightOn = !lightOn;
-      document.getElementById('light').classList.toggle('on', lightOn);
+    // the view switches only write the state; uiRender shows it
+    const toggleFilmic = () => (ui.view.glow = !ui.view.glow);
+    const toggleSmooth = () => (ui.view.smooth = !ui.view.smooth);
+    const toggleStudio = () => (ui.view.studio = !ui.view.studio);
+    const turnLight = () => (ui.view.light = !ui.view.light);
+    // what the UI state says, on the page: the switches lit, the frozen stage, a new picture. Called once per task, after the
+    // writes of that task (batch), so three switches turned at once draw once.
+    const uiRender = (root) => {
+      const v = root.view;
+      for (const id of ['padFreeze', 'freeze']) document.getElementById(id)?.classList.toggle('on', v.frozen);
+      stage.classList.toggle('frozen', v.frozen);
+      for (const [id, on] of [['filmic', v.glow], ['smooth', v.smooth], ['studio', v.studio], ['light', v.light]]) document.getElementById(id)?.classList.toggle('on', on);
       redraw();
     };
     // Glow without a mesh: stars whose instance has a `glow` radius (world units) get a soft additive sprite on a 2D canvas over the
@@ -4390,7 +4385,7 @@
       }
     };
     const turn = (dYaw, dPitch) => {
-      if (frozen) return;
+      if (ui.view.frozen) return;
       travel = null; // the hand takes over from the glide
       if (steer && space()) steer = null; // and from the steering (T again steers)
       if (drive() && car) {
@@ -4944,10 +4939,10 @@
     const viewOf = () => ({
       render: mode === 'gpu' ? activeKind : 'svg', // 'webgpu' | 'webgl2' | 'svg'
       edges: !stage.classList.contains('clean'),
-      light: lightOn,
-      glow: filmic,
-      smooth,
-      studio,
+      light: ui.view.light,
+      glow: ui.view.glow,
+      smooth: ui.view.smooth,
+      studio: ui.view.studio,
       material: { ...sceneMaterial },
       cam: { center: [...fit.center], radius: fit.radius, ...(fit.dist !== undefined ? { dist: fit.dist } : {}), yaw, pitch },
     });
@@ -4959,10 +4954,10 @@
       const now = mode === 'gpu' ? (activeKind === 'webgl2' ? 'gl' : 'gpu') : 'svg';
       if (want && want !== now && !(want === 'svg' && document.body.classList.contains('pwa')) && !SHOW) setMode(want);
       if (typeof v.edges === 'boolean' && v.edges === stage.classList.contains('clean')) (stage.classList.toggle('clean'), syncLines());
-      if (typeof v.light === 'boolean' && v.light !== lightOn) turnLight();
-      if (typeof v.glow === 'boolean' && v.glow !== filmic) toggleFilmic();
-      if (typeof v.smooth === 'boolean' && v.smooth !== smooth) toggleSmooth();
-      if (typeof v.studio === 'boolean' && v.studio !== studio) toggleStudio();
+      if (typeof v.light === 'boolean' && v.light !== ui.view.light) turnLight();
+      if (typeof v.glow === 'boolean' && v.glow !== ui.view.glow) toggleFilmic();
+      if (typeof v.smooth === 'boolean' && v.smooth !== ui.view.smooth) toggleSmooth();
+      if (typeof v.studio === 'boolean' && v.studio !== ui.view.studio) toggleStudio();
       if (Array.isArray(v.cam?.center) && Number.isFinite(v.cam.radius)) jumpTo(v.cam);
       redraw();
     };
@@ -7154,7 +7149,7 @@
     // the sideways wheel: the whole view turns round the vertical line through the point under the cursor (like A / D round a
     // target, but no target is needed); that point stays under the cursor. Over empty space it turns round the middle of the view.
     const orbitPointer = (a) => {
-      if (frozen || !a) return;
+      if (ui.view.frozen || !a) return;
       travel = null;
       const pivot = hit?.point ?? fit.center;
       const cs = Math.cos(a);
@@ -7237,7 +7232,7 @@
     const poseTick = (now) => {
       const p = posing;
       if (!p?.anim) return;
-      if (!frozen) {
+      if (!ui.view.frozen) {
         const run = p.anim === 'run';
         p.phase = (p.phase + (now - p.last) / (run ? 700 : 1100)) % 1;
         showPose(walkPose(p.phase, run ? { run: true, stride: 0.9 } : {}));
@@ -7418,7 +7413,7 @@
 
     // ---- walking characters: one GPU skin, the bones turned and moved to where each one walks this frame
     const charT0 = performance.now();
-    const walkersOn = () => !frozen && mode === 'gpu' && Boolean(gpu) && !posing && !vr && !storySkin;
+    const walkersOn = () => !ui.view.frozen && mode === 'gpu' && Boolean(gpu) && !posing && !vr && !storySkin;
     const walkerIds = () => new Set(allObjects().filter((o) => o.character?.pose === 'walk').slice(0, CHAR_SKIN_MAX).map((o) => o.id));
     const walkFrame = (now) => {
       if (!walkersOn()) return null;
@@ -8316,7 +8311,7 @@
     const carryEnd = (e, drop) => {
       if (!carry) return false;
       carry = null;
-      if (!carryFrozen && frozen) toggleFreeze();
+      if (!carryFrozen && ui.view.frozen) toggleFreeze();
       stage.classList.remove('drag');
       parent.postMessage({ type: drop ? 'drag-end' : 'drag-cancel', x: e.clientX, y: e.clientY }, location.origin);
       return true;
@@ -8742,7 +8737,7 @@
       const dt = Math.min(0.05, jointLast ? (now - jointLast) / 1000 : 0);
       jointLast = now;
       if (jdrag) jointDragUpdate();
-      if (frozen || !dt) return;
+      if (ui.view.frozen || !dt) return;
       const busy = new Set([...(xf?.group?.map((g) => g.obj.id) ?? []), ...(xf?.obj?.id ? [xf.obj.id] : []), ...(jdrag ? jdrag.moved.map((m) => m.obj.id) : [])]);
       let any = false;
       for (const j of liveJoints()) {
@@ -9317,7 +9312,7 @@
     document.getElementById('skyOrbit').addEventListener('click', (e) => (setSky('orbit', !skyShow.orbit), e.currentTarget.blur()));
     document.getElementById('skyIau').addEventListener('click', (e) => (setSky('iau', !skyShow.iau), e.currentTarget.blur()));
     document.getElementById('freeze').addEventListener('click', toggleFreeze);
-    document.getElementById('filmic').classList.toggle('on', filmic);
+    document.getElementById('filmic').classList.toggle('on', ui.view.glow);
     document.getElementById('smooth').addEventListener('click', toggleSmooth);
     document.getElementById('smooth').classList.add('on');
     document.getElementById('studio').addEventListener('click', toggleStudio);
@@ -10102,7 +10097,7 @@
         pickFault: () => (picker.worker?.postMessage({ type: 'pick', ver: picker.ver, cam: null, x: 0, y: 0, cull: true, key: 'fault' }), Boolean(picker.worker)), // (a test: a broken question)
         story: () => (story ? { title: story.doc.metadata.title, t: story.t, durationMs: story.doc.timeline.durationMs, index: story.index, total: story.doc.tracks.construction.steps.length, objects: story.count, playing: story.playing, cutaway: story.cutaway, focus: story.focus, animationChannels: story.doc.tracks.animation?.channels.length ?? 0, bones: storySkin ? Array.from(storySkin.bones) : null } : null),
         openStory: (data) => openStory(data),
-        xrFly: (pads, dt = 0.1, now = performance.now()) => (xrFly(pads, dt, now), { yaw, pitch: +pitch.toFixed(4), roll: +roll.toFixed(4), level: { ...level }, locked: lockedObject()?.name ?? null, frozen, pointed: xrState.hands?.pointed?.obj?.name ?? null, stick: xrState.hands?.stick ?? null, orbit: orbit?.phase ?? null }), // (the Quest mapping, with made-up pads)
+        xrFly: (pads, dt = 0.1, now = performance.now()) => (xrFly(pads, dt, now), { yaw, pitch: +pitch.toFixed(4), roll: +roll.toFixed(4), level: { ...level }, locked: lockedObject()?.name ?? null, frozen: ui.view.frozen, pointed: xrState.hands?.pointed?.obj?.name ?? null, stick: xrState.hands?.stick ?? null, orbit: orbit?.phase ?? null }), // (the Quest mapping, with made-up pads)
         type: () => xrState.ws?.type && { phase: xrState.ws.type.phase, text: xrState.ws.type.text, keys: xrState.ws.type.phase === 'keys' ? typeKeysAt(xrState.ws.type).map((k) => ({ key: k.key, at: k.at })) : null, obj: xrState.ws.type.obj?.name ?? null },
         build: () => ({ slot: xrState.ws?.build?.slot ?? null, panels: allObjects().filter((o) => /^panel-/.test(o.name ?? '')).map((o) => ({ name: o.name, c: bounds(o.mesh).center.map((x) => +x.toFixed(3)) })), walk: xrState.walk && { origin: xrState.walk.origin.map((x) => +x.toFixed(3)), forward: xrState.walk.forward.map((x) => +x.toFixed(3)) }, moving: xrState.ws?.moving ?? null, walkV: xrState.ws?.walkV ?? null, note: xrState.ws?.note }),
         backdrop: (name) => (name !== undefined && (sceneBackdrop = name), { name: sceneBackdrop, points: backdropData.pts ? backdropData.pts.length / 8 : 0 }),
@@ -10127,6 +10122,7 @@
         screens: () => ({ mode, gpu: Boolean(gpu), kind: activeKind, iframes: screenFrames.size, spots: [...sceneSpots].map(([addr, s]) => ({ addr, ready: s.ready, error: s.error })) }),
         // the character panel (modular characters): place(selection | example id, at, yaw, name) -> its group name, the placed
         // ones, apply(group, selection), open; ready() loads the library
+        ui: () => plain(ui), // the UI state (src/state.js)
         svg: { picture: (look) => svgPicture({ ...svgLook(), ...look }), cam: () => svgCam && { ...svgCam, gcam: gcam && { eye: gcam.eye, f: gcam.f, k: gcam.k, size: gcam.size } } },
         chars: {
           ready: () => mcReady().then(() => mc.lib.examples.map((x) => x.id)),
@@ -10358,7 +10354,7 @@
         };
       };
       const realRandom = Math.random;
-      const toggles = () => ({ frozen, smooth, studio, filmic });
+      const toggles = () => ({ frozen: ui.view.frozen, smooth: ui.view.smooth, studio: ui.view.studio, filmic: ui.view.glow });
       const wait = (ms) => new Promise((r) => setTimeout(r, ms));
       const sceneHasObjects = () => allObjects().length > 0;
       // the same start every time: an empty scene, the palette of the recording, the home view
@@ -10379,10 +10375,10 @@
           if (!paletteEl.hidden) showPalette();
         }
         const want = start?.toggles ?? {};
-        if (want.frozen !== undefined && want.frozen !== frozen) toggleFreeze();
-        if (want.smooth !== undefined && want.smooth !== smooth) toggleSmooth();
-        if (want.studio !== undefined && want.studio !== studio) toggleStudio();
-        if (want.filmic !== undefined && want.filmic !== filmic) toggleFilmic();
+        if (want.frozen !== undefined && want.frozen !== ui.view.frozen) toggleFreeze();
+        if (want.smooth !== undefined && want.smooth !== ui.view.smooth) toggleSmooth();
+        if (want.studio !== undefined && want.studio !== ui.view.studio) toggleStudio();
+        if (want.filmic !== undefined && want.filmic !== ui.view.glow) toggleFilmic();
         reset();
         await wait(900); // the turn of the reset view finishes before anything is recorded or played
       };
@@ -11023,7 +11019,7 @@
       };
       const ry = -ty;
       if (!ty) delete rep.ry, (hands.hold = 0);
-      else if (!frozen) {
+      else if (!ui.view.frozen) {
         const f = level.f;
         const inSmooth = Math.abs(f) < 1 - 1e-9 || (f * ty < 0 && Math.abs(f) <= 1 + 1e-9);
         if (inSmooth && now >= (hands.hold ?? 0)) {
@@ -11068,14 +11064,14 @@
 
       // the throttle (right stick up / down): smooth within level ±1, the exponential levels beyond
       if (!xrState.ws?.shipOn) xrThrottle(-dz(ry), now, dt); // (stick forward: positive; the hands' ship function has its own)
-      if (!frozen && space() && dz(rx)) roll = wrapPitch(roll + dz(rx) * ROLL_RATE * dt); // (the right stick sideways: roll)
+      if (!ui.view.frozen && space() && dz(rx)) roll = wrapPitch(roll + dz(rx) * ROLL_RATE * dt); // (the right stick sideways: roll)
 
       if (cockpit) {
         // the flight stick (left grip held)
         const gripOn = Boolean(L.buttons[1]);
         if (gripOn && !hands.grab) ((hands.grab = { m: Float32Array.from(L.grip) }), L.buzz(0.3, 30), (hands.pts = []));
         if (!gripOn && hands.grab) ((hands.grab = null), (hands.stick = null));
-        if (hands.grab && !frozen) {
+        if (hands.grab && !ui.view.frozen) {
           const g = hands.grab.m, m = L.grip;
           const rv = turnBetweenPoses(g, m); // the turn since the grip, in the reference space (x right, y up, −z ahead)
           const nod = band(-rv[0], XR_TILT); // forward: the top goes ahead
@@ -11512,7 +11508,7 @@
       {
         // with a target in space: the ship goes round it on the sphere of its distance, nose on the target; else it turns
         const tg = space() && locked && lockedObject();
-        if ((S.side || S.nod) && !frozen) tg ? swingRound(tg, S.side * XR_HAND_SWING * dt, S.nod * XR_HAND_SWING * dt) : turn(S.side * XR_HAND_YAW * dt, S.nod * XR_HAND_NOD * dt);
+        if ((S.side || S.nod) && !ui.view.frozen) tg ? swingRound(tg, S.side * XR_HAND_SWING * dt, S.nod * XR_HAND_SWING * dt) : turn(S.side * XR_HAND_YAW * dt, S.nod * XR_HAND_NOD * dt);
       }
       // the right fist, held flat: the throttle (how far it went ahead since it closed)
       if (rh && R?.fist && R.back[1] > 0.5) {
@@ -13304,8 +13300,8 @@
     };
     // a panel's texture: draw(ctx, w, h) paints it; `key` says when it has to be painted again
     const xrPanelTex = (gl, id, w, h, key, draw) => {
-      const ui = xrUi(gl);
-      let p = ui.panels[id];
+      const xg = xrUi(gl);
+      let p = xg.panels[id];
       if (!p) {
         const tex = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -13316,7 +13312,7 @@
         const canvas = document.createElement('canvas');
         canvas.width = w;
         canvas.height = h;
-        p = ui.panels[id] = { tex, canvas, key: null };
+        p = xg.panels[id] = { tex, canvas, key: null };
       }
       if (p.key !== key) {
         p.key = key;
@@ -13344,29 +13340,29 @@
     };
     // a quad of half size [hw, hh] metres, placed by M (eye from the quad's own frame)
     const xrQuad = (gl, P, M, tex, hw, hh) => {
-      const ui = xrUi(gl);
+      const xg = xrUi(gl);
       xrOverlayState(gl, true);
-      gl.useProgram(ui.quad);
-      gl.uniformMatrix4fv(ui.Q.uP, false, P);
-      gl.uniformMatrix4fv(ui.Q.uM, false, M);
-      gl.uniform2f(ui.Q.uHalf, hw, hh);
+      gl.useProgram(xg.quad);
+      gl.uniformMatrix4fv(xg.Q.uP, false, P);
+      gl.uniformMatrix4fv(xg.Q.uM, false, M);
+      gl.uniform2f(xg.Q.uHalf, hw, hh);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, tex);
-      gl.uniform1i(ui.Q.uT, 0);
-      gl.bindVertexArray(ui.qVao);
+      gl.uniform1i(xg.Q.uT, 0);
+      gl.bindVertexArray(xg.qVao);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
       xrOverlayState(gl, false);
     };
     // lines: [x, y, z, r, g, b, a] per point, two points a line, in the reference space (V: the eye's view matrix)
     const xrLines = (gl, P, V, pts) => {
       if (!pts.length) return;
-      const ui = xrUi(gl);
+      const xg = xrUi(gl);
       xrOverlayState(gl, true);
-      gl.useProgram(ui.line);
-      gl.uniformMatrix4fv(ui.Ln.uP, false, P);
-      gl.uniformMatrix4fv(ui.Ln.uV, false, V);
-      gl.bindVertexArray(ui.lVao);
-      gl.bindBuffer(gl.ARRAY_BUFFER, ui.lBuf);
+      gl.useProgram(xg.line);
+      gl.uniformMatrix4fv(xg.Ln.uP, false, P);
+      gl.uniformMatrix4fv(xg.Ln.uV, false, V);
+      gl.bindVertexArray(xg.lVao);
+      gl.bindBuffer(gl.ARRAY_BUFFER, xg.lBuf);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(pts), gl.DYNAMIC_DRAW);
       gl.drawArrays(gl.LINES, 0, pts.length / 7);
       xrOverlayState(gl, false);
@@ -13382,7 +13378,7 @@
         levels: `speed ${xrLevel(level.f)}   side ${xrLevel(level.r)}   up ${xrLevel(level.u)}`,
         target: t ? `◎ ${t.name ?? t.id}` : '',
         stick: st ? `stick ${['nod', 'side', 'lift', 'twist'].map((k) => `${k[0]}${Math.round(st[k] * 9)}`).join(' ')}` : '',
-        frozen,
+        frozen: ui.view.frozen,
       };
     };
     const xrHudDraw = (gl, P, eyeFromHead) => {
@@ -13813,7 +13809,7 @@
         report = {
           format: '3draft-debug', version: 1, at: new Date().toISOString(), engine: displayVersion(version), ua: navigator.userAgent,
           scene: nameEl.value || null, objects: allObjects().length, space: space(), drive: drive(), vehicle,
-          flight: { yaw: r4(yaw), pitch: r4(pitch), roll: r4(roll), level: { ...level }, locked, orbit: Boolean(orbit), frozen, skyZoom: skyZoom() },
+          flight: { yaw: r4(yaw), pitch: r4(pitch), roll: r4(roll), level: { ...level }, locked, orbit: Boolean(orbit), frozen: ui.view.frozen, skyZoom: skyZoom() },
           game: game ? { title: game.doc.title, mode: game.mode, helm: game.helm, ship: game.doc.ship?.scene, meshFaces: game.mesh?.faces.length } : null,
           rig: { origin: r4(rig.origin), forward: r4(rig.forward), right: r4(rig.right), up: r4(rig.up), scale: rig.scale },
           pilot: xrState.pilot, walk: xrState.walk, head: d.head ? r4(d.head) : null, headInShip: null,

@@ -39,7 +39,7 @@
   },
   "scripts": {
     "start": "node bin/spider-paint.mjs",
-    "test": "node tests/math.mjs && node tests/smoke.mjs && node tests/instance.mjs && node tests/materials.mjs && node tests/svg-export.mjs",
+    "test": "node tests/math.mjs && node tests/smoke.mjs && node tests/instance.mjs && node tests/materials.mjs && node tests/svg-export.mjs && node tests/state.mjs",
     "test:all": "node scripts/test-all.mjs",
     "bump": "node scripts/bump.mjs",
     "workshop": "node bin/workshop.mjs",
