@@ -442,6 +442,8 @@
     #findList div i { font-style: normal; color: #8a8d80; font-size: 11px; margin-left: 6px; }
     #findList div.sel { background: #2fb8c033; color: var(--cream); }
     #findList b { color: #39ff14; font-weight: 600; }
+    #findList div em.sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 8px; vertical-align: -1px; box-shadow: 0 0 0 1px #0008; }
+    #helpDoc .found { outline: 2px solid var(--teal); outline-offset: 3px; border-radius: 4px; }
     input[type=text], input[type=search], textarea { -webkit-user-select: text; user-select: text; }
 
     /* no frame round the 3D view, and the target readout floats without a box */
@@ -664,11 +666,11 @@
     .page-ask span { opacity: 0.8; font-size: 0.9em; line-height: 1.4; }
     .page-ask div { display: flex; gap: 8px; justify-content: flex-end; }
     .page-ask .danger { background: #8a2a14; color: #ffe2d6; }
-    #cloudToast { position: fixed; left: 50%; bottom: 150px; transform: translateX(-50%); z-index: 40; max-width: min(640px, 92vw); padding: 8px 14px; border-radius: 6px; font: inherit; font-size: 0.9em; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5); pointer-events: none; }
-    #cloudToast.busy { background: #24303a; color: #cfe6f0; }
-    #cloudToast.ok { background: #1d3a26; color: #c9f2d4; }
-    #cloudToast.info { background: #33332c; color: #e6e2d0; }
-    #cloudToast.err { background: #5a1c10; color: #ffd9cc; }
+    #cmdToast, #cloudToast { position: fixed; left: 50%; bottom: 150px; transform: translateX(-50%); z-index: 40; max-width: min(640px, 92vw); padding: 8px 14px; border-radius: 6px; font: inherit; font-size: 0.9em; box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5); pointer-events: none; }
+    #cmdToast.busy, #cloudToast.busy { background: #24303a; color: #cfe6f0; }
+    #cmdToast.ok, #cloudToast.ok { background: #1d3a26; color: #c9f2d4; }
+    #cmdToast.info, #cloudToast.info { background: #33332c; color: #e6e2d0; }
+    #cmdToast.err, #cloudToast.err { background: #5a1c10; color: #ffd9cc; }
 </style>
 </head>
 <body>
@@ -703,7 +705,7 @@
 
   <main id="stage" tabindex="0" role="img" aria-label="Empty space for prisms. 9 switches between the SVG and the WebGPU view, L turns the light, C switches the filmic look, N smooth shading, K the studio light. Drag, or use the arrow keys, to rotate the view. The cross follows the surface under the pointer. M puts a prism down there, or shoots one into empty space; Space stops the movement. B drags a box round objects to select them (B twice: a lasso), then G, R, S move, turn and size them together; the bool button asks for a boolean operation on two selected objects (union, A minus B, B minus A, intersect). V joins two surface points with a thin bar (P over empty space forgets a pending first point), X deletes the object under the cross, W A S D R F fly, / shows only the model under the cross (/ again: the whole scene), P shows the material palette (Ctrl+click (Cmd on a Mac) paints a face, Ctrl+double click the whole model), T flies the camera to the object under the cross, H puts the move gizmo (helper) on the object under the cross with the world axes, the next H switches to the object's own axes, the third takes it off; drag an arrow to move the object; E toggles edges and points, U or Backspace takes the last one back."><div id="frame"><canvas id="gpu" hidden></canvas><canvas id="bridge" hidden></canvas><div id="layer"></div><div id="screens"></div><svg id="selArea" aria-hidden="true"></svg></div><div id="hud" aria-hidden="true"></div><button id="gameBtn" type="button" class="teal" hidden title="Switch between flying the ship (at the helm) and walking on the bridge (C)">helm ⇄ walk · C</button><div id="loader" hidden role="status"><div class="orb" aria-hidden="true"><i></i><b></b><b></b><b></b></div><span>loading…</span><em id="loaderStep"></em><s id="loaderBar"><u></u></s></div><div id="workNote" hidden aria-live="polite"></div></main>
 
-  <div id="findBox" hidden><input id="findInput" type="text" placeholder="find a target · / commands (/l: open a scene) · Esc: close" maxlength="60" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Find a target by name"><div id="findList"></div></div>
+  <div id="findBox" hidden><input id="findInput" type="text" placeholder="find a target · / for commands (/l /s /svg /add /help …) · Esc: close" maxlength="60" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Find a target by name"><div id="findList"></div></div>
   <input id="textBox" type="text" placeholder="text (Enter: make it, Esc: cancel)" maxlength="80" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="The words to put on the face" hidden>
   <div id="editbar" hidden><b id="editText"></b><button id="editHelp" type="button" title="Show / hide the edit help" aria-pressed="false" hidden>?</button><span id="editHelpText" hidden>V: sketch lines (nothing happens yet) · 6: the lathe (select a face first; V draws a contour on it above its bottom line, the axis; Enter, then the number of segments, Enter again = 7) · 1 / 2 / 3: select points / lines / faces (click; Shift+click adds or takes away; A selects all, A A clears) · G: grab the selection (X / Y / Z lock the axis, type metres, click or Enter confirms, Esc cancels) · S: scale (same keys) · E: extrude the selected faces · 4: the saw: V puts 2 points on one face = a cut square to the face, or 3 points = a cut through the triangle; Enter cuts · Shift+W A S D R F fly · Ctrl/Cmd+click paints · Shift+X deletes the object under the cross · U undo · Esc back, then leave · Q leave</span></div>
 
@@ -991,7 +993,8 @@
     import * as storyFormat from './models/spider-build-v2.mjs'; // Spider Build v2 story files (.build.json)
     import { animatedSvg, spread, storyView, svgBackground, titledSvg } from './src/svg-anim.js';
     import { cropSvg, litSvg } from './src/svg-lit.js';
-    import { encodeGif, visibleBox } from './src/gif.js'; // the svg export (also the MCP's export_svg)
+    import { encodeGif, visibleBox } from './src/gif.js';
+    import { SHAPES } from './src/shapes.js'; // the svg export (also the MCP's export_svg)
     import { zignal, batch, plain } from './src/state.js'; // the UI state: zignal (from flogon-galaxy), seen in batches
 
     // ---- the UI state: one object for what the switches say. Every write to it is seen (zignal), and the page follows it once
@@ -2234,12 +2237,50 @@
         },
       }));
     };
+    // A command is { names, hint, rows(q) } (its own list) or { names, hint, run(arg), choices?, free?, bare? }: `choices()` lists
+    // what the argument can be ({ label, value, cat, right, sw }), `free` takes any typed text too, `bare` is what Enter does with
+    // no argument (a toggle flips). run's answer (or error) shows as a toast. The table grows further down (FIND_CMDS.push).
     const FIND_CMDS = [{ names: ['load', 'l'], hint: 'open a scene (the + scene list)', rows: sceneRows }];
+    let cmdToastEl = null, cmdToastTimer = 0;
+    const cmdToast = (state, text) => {
+      cmdToastEl ??= Object.assign(document.createElement('div'), { id: 'cmdToast', role: 'status' });
+      if (!cmdToastEl.isConnected) document.body.append(cmdToastEl);
+      clearTimeout(cmdToastTimer);
+      cmdToastEl.className = state; // busy | ok | info | err
+      cmdToastEl.textContent = text;
+      if (state !== 'busy') cmdToastTimer = setTimeout(() => cmdToastEl.remove(), state === 'err' ? 8000 : 4000);
+    };
+    const runCmd = async (c, arg) => {
+      try {
+        const said = await c.run(arg);
+        if (said) cmdToast('ok', said);
+      } catch (e) {
+        cmdToast('err', `/${c.names[0]}: ${e.message}`);
+      }
+    };
+    const cmdRows = (c, argText) => {
+      const arg = argText.trim(), q = fold(arg);
+      const list = c.choices ? c.choices() : [];
+      const rank = (t) => {
+        const r = findRank(fold(t), q);
+        return r < 0 || r > 3 ? 99 : r;
+      };
+      const rows = list
+        .map((x, k) => [q ? Math.min(rank(x.label), rank(String(x.value))) : 0, k, x])
+        .filter((h) => h[0] < 99)
+        .sort((a, b) => a[0] - b[0] || a[1] - b[1])
+        .map(([, , x]) => ({ label: x.label, cat: x.cat ?? '', right: x.right ?? '', sw: x.sw, take: () => runCmd(c, x.value) }));
+      const own = `/${c.names[0]}${arg ? ` ${arg}` : ''}`;
+      const free = typeof c.free === 'function' ? c.free(arg, rows.length) : c.free; // (a function: whether the typed text comes first)
+      if (!c.choices || (free && arg && !list.some((x) => fold(String(x.value)) === q))) rows.unshift({ label: own, cat: c.hint, right: '↵', take: () => runCmd(c, arg) });
+      else if (!arg && c.bare) rows.unshift({ label: own, cat: c.bare, right: '↵', take: () => runCmd(c, '') });
+      return rows;
+    };
     const commandRows = (text) => {
       const m = /^\/(\S*)(\s+(.*))?$/.exec(text);
       const word = fold(m[1]);
       const cmd = FIND_CMDS.find((c) => c.names.includes(word));
-      if (cmd) return cmd.rows(fold((m[3] ?? '').trim()));
+      if (cmd) return cmd.rows ? cmd.rows(fold((m[3] ?? '').trim())) : cmdRows(cmd, m[3] ?? '');
       return FIND_CMDS.filter((c) => c.names.some((n) => n.startsWith(word))).map((c) => ({
         label: `/${c.names[0]}`,
         cat: `${c.hint} · /${c.names.slice(1).join(' /')}`,
@@ -2264,7 +2305,7 @@
         };
         const first = Math.max(0, Math.min(foundAt - FIND_SHOW + 2, findRows.length - FIND_SHOW - 4)); // (a longer list scrolls with the choice)
         findList.innerHTML = findRows.length
-          ? findRows.slice(first, first + FIND_SHOW + 4).map((r, j) => `<div class="${first + j === foundAt ? 'sel' : ''}" data-i="${first + j}"><span>${mark(r.label)}${r.cat ? ` <i>${hudText(r.cat)}</i>` : ''}</span><span>${hudText(r.right)}</span></div>`).join('')
+          ? findRows.slice(first, first + FIND_SHOW + 4).map((r, j) => `<div class="${first + j === foundAt ? 'sel' : ''}" data-i="${first + j}"><span>${r.sw ? `<em class="sw" style="background:${hudText(r.sw)}"></em>` : ''}${mark(r.label)}${r.cat ? ` <i>${hudText(r.cat)}</i>` : ''}</span><span>${hudText(r.right)}</span></div>`).join('')
           : '<div><span>no such command or scene</span><span></span></div>';
         return;
       }
@@ -5505,7 +5546,10 @@
     let helpLoaded = false;
     const toggleHelp = async () => {
       openSide(helpEl);
-      if (helpEl.hidden || helpLoaded) return;
+      if (!helpEl.hidden) await ensureHelp();
+    };
+    const ensureHelp = async () => {
+      if (helpLoaded) return;
       try {
         const res = await fetch('help.md');
         if (!res.ok) throw new Error(res.status);
@@ -10240,6 +10284,225 @@
       const n = new URLSearchParams(location.search).get('ply');
       return n && readSaved()[n] ? n : null;
     })();
+    // ---- The commands of the Enter box (UI-less: Enter, /, a word). Every one does what a button or a key already does.
+    {
+      const click = (id) => document.getElementById(id).click();
+      const said = () => liveEl.textContent;
+      const onOff = (key, label) => ({
+        names: [label],
+        hint: `${label} on / off`,
+        bare: 'switch it',
+        choices: () => [{ label: 'on', value: 'on', right: ui.view[key] ? 'now' : '' }, { label: 'off', value: 'off', right: ui.view[key] ? '' : 'now' }],
+        run: (a) => {
+          ui.view[key] = a === 'on' ? true : a === 'off' ? false : !ui.view[key];
+          return `${label}: ${ui.view[key] ? 'on' : 'off'}`;
+        },
+      });
+      // a button whose work ends in the svg panel's note: press it, wait for the note
+      const svgRun = async (id) => {
+        svgNote('');
+        cmdToast('busy', 'drawing…');
+        click(id);
+        const t0 = performance.now();
+        for (;;) {
+          await new Promise((r) => setTimeout(r, 120));
+          const n = svgEl('svgNote').textContent;
+          if (n && !n.startsWith('drawing') && !svgBusy) return n;
+          if (n.startsWith('drawing')) cmdToast('busy', n);
+          if (performance.now() - t0 > 180000) throw new Error('took too long');
+        }
+      };
+      const nums = (a) => (a.match(/-?\d+(\.\d+)?/g) ?? []).map(Number);
+      const mat = () => materials[ui.paint.current];
+      const VIEWS = { front: [0, 0], back: [Math.PI, 0], right: [Math.PI / 2, 0], left: [-Math.PI / 2, 0], side: [Math.PI / 2, 0], top: [0, Math.PI / 2 - 1e-3], bottom: [0, -Math.PI / 2 + 1e-3], iso: [-Math.PI / 4, Math.atan(1 / Math.SQRT2)] };
+      const helpBlocks = () => {
+        let head = '';
+        const out = [];
+        for (const el of helpDoc.querySelectorAll('h1, h2, h3, p, li, tr')) {
+          const text = el.textContent.replace(/\s+/g, ' ').trim();
+          if (!text || el.closest('thead')) continue;
+          if (/^H\d$/.test(el.tagName)) head = text;
+          out.push({ el, text, head, heading: /^H\d$/.test(el.tagName) });
+        }
+        return out;
+      };
+      let helpList = [];
+      FIND_CMDS.push(
+        { names: ['save', 's'], hint: 'save the scene here under a name', free: true, bare: 'save it (the name in the box, or a dated one)', choices: () => Object.keys(readSaved()).map((n) => ({ label: n, value: n, cat: 'saved here', right: 'overwrite' })), run: (a) => {
+          if (a) nameEl.value = a;
+          click('sceneSave');
+          return said();
+        } },
+        { names: ['cloud'], hint: 'save the scene online (the store) under a name', free: true, bare: 'save it online', run: (a) => {
+          if (a) nameEl.value = a;
+          click('sceneCloud');
+        } },
+        { names: ['download', 'dl'], hint: 'download the scene as a .3draft file', run: () => (click('sceneDown'), said()) },
+        { names: ['open'], hint: 'add a scene from a file (.json, .3draft)', run: () => click('sceneOpen') },
+        { names: ['new'], hint: 'empty the scene (U brings it back)', run: () => (click('clear'), 'the scene is empty (U brings it back)') },
+        { names: ['forget'], hint: 'forget a scene saved here', choices: () => Object.keys(readSaved()).map((n) => ({ label: n, value: n, cat: 'saved here', right: 'forget' })), run: (a) => {
+          nameEl.value = a;
+          click('sceneForget');
+          return said();
+        } },
+        onOff('merge', 'merge'),
+        { names: ['svg'], hint: 'save the view as an SVG picture (the svg panel\'s settings; a number: the width)', run: async (a) => {
+          const [w] = nums(a);
+          if (w) svgEl('svgSize').value = String(Math.round(w));
+          return svgRun('svgSave');
+        } },
+        { names: ['gif'], hint: 'save the motion as an animated GIF (frames, seconds)', run: async (a) => {
+          const [frames, seconds] = nums(a);
+          if (frames) svgEl('svgFrames').value = String(Math.round(frames));
+          if (seconds) svgEl('svgSeconds').value = String(seconds);
+          return svgRun('svgGif');
+        } },
+        { names: ['anim'], hint: 'save the motion as an animated SVG (frames, seconds)', run: async (a) => {
+          const [frames, seconds] = nums(a);
+          if (frames) svgEl('svgFrames').value = String(Math.round(frames));
+          if (seconds) svgEl('svgSeconds').value = String(seconds);
+          return svgRun('svgAnim');
+        } },
+        { names: ['png'], hint: 'save the view as a PNG: GPU light, see-through background, cut to the model (a number: its longer side, 1200)', run: async (a) => {
+          const g = await svgGpuReady();
+          if (!g) throw new Error('no GPU here (WebGL2)');
+          if (!svgCam || !scene.positions.length) throw new Error('nothing to draw: the view is empty');
+          const [w] = nums(a);
+          const want = Math.max(64, Math.min(4096, Math.round(w || 1200))); // the picture's longer side
+          const al = lightAngle;
+          const shot = (size) => g.pixels(scene, orbit_({ yaw: svgCam.yaw, pitch: svgCam.pitch }), {
+            size, dpr: 1, fit: svgCam.fit, palette: paletteMap, transparent: true, background: [0, 0, 0],
+            smooth: ui.view.smooth ? 40 : 0, studio: ui.view.studio, unlit: !ui.view.light, glow: false, edges: ui.view.edges,
+            material: sceneMaterial, light: { direction: [Math.sin(al) * 0.6, 0.8, Math.cos(al) * 0.6] },
+          });
+          let img = await shot(512);
+          let b0 = visibleBox([img]);
+          if (!b0) throw new Error('nothing visible');
+          img = await shot(Math.min(4096, Math.round((512 * want) / (Math.max(b0.w, b0.h) * 1.12)))); // (the model, with its room, about `want` wide)
+          b0 = visibleBox([img]);
+          if (!b0) throw new Error('nothing visible');
+          const b = visibleBox([img], Math.max(6, Math.round(Math.max(b0.w, b0.h) * 0.06)));
+          const cv = Object.assign(document.createElement('canvas'), { width: b.w, height: b.h });
+          const out = new ImageData(b.w, b.h);
+          for (let y = 0; y < b.h; y++)
+            for (let x = 0; x < b.w; x++) {
+              const i = ((y + b.y) * img.width + x + b.x) * 4, o = (y * b.w + x) * 4, al2 = img.data[i + 3];
+              const k = al2 ? 255 / al2 : 0; // (the GPU's colours are premultiplied)
+              out.data.set([Math.min(255, img.data[i] * k), Math.min(255, img.data[i + 1] * k), Math.min(255, img.data[i + 2] * k), al2], o);
+            }
+          cv.getContext('2d').putImageData(out, 0, 0);
+          const blob = await new Promise((r) => cv.toBlob(r, 'image/png'));
+          const file = `${svgName()}.png`;
+          const url = URL.createObjectURL(blob);
+          const el = Object.assign(document.createElement('a'), { href: url, download: file });
+          document.body.append(el);
+          el.click();
+          el.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          return `saved ${file}: ${b.w}×${b.h}, ${svgKB(blob.size)}`;
+        } },
+        onOff('edges', 'edges'),
+        onOff('light', 'light'),
+        onOff('studio', 'studio'),
+        onOff('smooth', 'smooth'),
+        onOff('glow', 'glow'),
+        onOff('frozen', 'freeze'),
+        { names: ['gpu', 'renderer'], hint: 'the renderer: webgpu, webgl or svg', choices: () => [['webgpu', 'gpu'], ['webgl', 'gl'], ['svg', 'svg']].map(([label, value]) => ({ label, value, right: (value === 'svg' ? ui.render.mode === 'svg' : ui.render.mode === 'gpu' && ui.render.kind === (value === 'gl' ? 'webgl2' : 'webgpu')) ? 'now' : '' })), run: async (a) => {
+          await setMode(a);
+          return `renderer: ${modeEl.textContent}`;
+        } },
+        { names: ['view'], hint: 'look from the front, back, left, right, top, bottom or iso', choices: () => Object.keys(VIEWS).map((v) => ({ label: v, value: v })), run: (a) => {
+          const v = VIEWS[a];
+          if (!v) throw new Error('front, back, left, right, top, bottom or iso');
+          focused = false;
+          roll = 0;
+          goTo({ ...overview(), yaw: v[0], pitch: v[1] });
+          return `view: ${a}`;
+        } },
+        { names: ['zen'], hint: 'only the model (Z)', run: () => toggleZen() },
+        { names: ['fit', 'reset'], hint: 'frame the scene again (the reset button)', run: () => reset() },
+        { names: ['mat', 'material'], hint: 'choose the material (M, the new shapes and painting use it)', choices: () => materials.map((m, i) => ({ label: m.name, value: i, sw: m.color, right: i === ui.paint.current ? 'now' : '' })), run: (a) => {
+          ui.paint.current = Number(a);
+          return `material: ${mat().name}`;
+        } },
+        { names: ['add'], hint: 'a shape at the cross, of the chosen material: it floats, a click sticks it, Enter keeps it', choices: () => ['prism', 'box', 'cylinder', 'cone', 'pyramid', 'sphere'].map((v) => ({ label: v, value: v, cat: v === 'prism' ? 'the M prism' : 'about a metre' })), run: (a) => {
+          if (a === 'prism') return void place();
+          const make = SHAPES[a];
+          if (!make) throw new Error('prism, box, cylinder, cone, pyramid or sphere');
+          placeBrush({ name: a, mesh: make({ color: mat()?.color ?? '#c8c8c8', mat: mat()?.name }) });
+          return `${a}: a click sticks it to a surface, Enter keeps it, Esc takes it back (M puts down more)`;
+        } },
+        { names: ['char', 'character'], hint: 'put a character down: random, or the one the panel shows', choices: () => [{ label: 'random', value: 'random', cat: 'a new one' }, { label: 'panel', value: 'panel', cat: 'the one set in the panel' }], bare: 'a random one', run: async (a) => {
+          if (!charControls.children.length) {
+            openCharacters();
+            for (let i = 0; i < 100 && !charControls.children.length; i++) await new Promise((r) => setTimeout(r, 100));
+            if (!charControls.children.length) throw new Error('the character library did not load');
+          }
+          if (a !== 'panel') click('charRandom');
+          closeSide();
+          click('charPlace');
+          return 'character: a click stands it on a surface, Enter keeps it, Esc takes it away';
+        } },
+        { names: ['bool'], hint: 'the boolean of the two selected objects (B selects)', choices: () => [['union', 'union'], ['subtract', 'A − B'], ['subtract-swap', 'B − A'], ['intersect', 'what both share']].map(([value, cat]) => ({ label: value, value, cat })), run: (a) => {
+          const two = pickedObjs();
+          if (two.length !== 2) throw new Error('select exactly two objects first (B, drag a box; Shift adds): the first is A');
+          boolPair = { a: two[0], b: two[1] };
+          runBool(a.replace('-swap', ''), a.endsWith('-swap'));
+        } },
+        { names: ['go'], hint: 'target an object by name, or fly to x y z', free: (a, hits) => /^-?\d/.test(a) || !hits, choices: () => allObjects().filter((o) => o.mesh.positions.length).slice(0, 2000).map((o) => ({ label: String(o.name ?? o.id), value: `#${o.id}`, cat: categoryOf(o) })), run: (a) => {
+          if (a.startsWith('#')) {
+            const o = allObjects().find((x) => `#${x.id}` === a);
+            if (!o) throw new Error('no such object');
+            return void takeFound(o);
+          }
+          const p = nums(a);
+          if (p.length !== 3) throw new Error('a name from the list, or three numbers: x y z');
+          lookFrom(p, (yaw * 180) / Math.PI, (pitch * 180) / Math.PI);
+          return `at ${p.join(' ')}`;
+        } },
+        { names: ['vehicle'], hint: 'how the camera moves: starship, car or none', choices: () => [['starship', 'starship'], ['car', 'car'], ['none', '']].map(([label, value]) => ({ label, value: value || 'none', right: vehicleEl.value === value ? 'now' : '' })), run: (a) => {
+          vehicleEl.value = a === 'none' ? '' : a;
+          vehicleEl.dispatchEvent(new Event('change'));
+          return `vehicle: ${a}`;
+        } },
+        { names: ['play'], hint: 'the story: play / pause', run: () => {
+          if (!story) throw new Error('no story is loaded (/l story)');
+          stPlay();
+        } },
+        { names: ['seek'], hint: 'the story: go to a moment (seconds)', run: (a) => {
+          if (!story) throw new Error('no story is loaded (/l story)');
+          const [t] = nums(a);
+          if (t === undefined) throw new Error('the moment in seconds, e.g. /seek 12');
+          stSeek(t * 1000);
+          return `story at ${t} s`;
+        } },
+        { names: ['rec'], hint: 'record (or stop recording) every move into a JSON file (the rec button)', run: () => click('rec') },
+        { names: ['help', 'h'], hint: 'search the help', choices: () => {
+          if (!helpLoaded) {
+            ensureHelp().then(() => !findBox.hidden && findShow());
+            return [];
+          }
+          helpList = helpBlocks();
+          const q = fold(findInput.value.replace(/^\s*\/\S+\s*/, '').trim());
+          return helpList.flatMap((b, i) => {
+            if (!q && !b.heading) return []; // (no word yet: the sections)
+            const at = q ? Math.max(0, fold(b.text).indexOf(q)) : 0;
+            const from = Math.max(0, at - 24);
+            const label = (from ? '…' : '') + b.text.slice(from, from + 64) + (b.text.length > from + 64 ? '…' : '');
+            return [{ label, value: i, cat: b.heading ? 'section' : b.head }];
+          });
+        }, run: (a) => {
+          const b = helpList[Number(a)];
+          if (!b) return;
+          openSide(helpEl, true);
+          b.el.scrollIntoView({ block: 'center' });
+          b.el.classList.add('found');
+          setTimeout(() => b.el.classList.remove('found'), 2500);
+        } },
+        { names: ['keys'], hint: 'the keyboard map', run: () => toggleKeys(true) },
+        { names: ['ver', 'version'], hint: 'the running version', run: () => buildEl.textContent.trim() || 'the version is not known here' },
+      );
+    }
     document.getElementById('undo').addEventListener('click', undo);
     document.getElementById('reset').addEventListener('click', reset);
     new ResizeObserver(redraw).observe(stage);

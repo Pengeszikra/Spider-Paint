@@ -71,7 +71,7 @@ Keys: ← → a step, Home / End the beginning / the end (Space stays the speed 
 | Space | Speed zero |
 | Arrow keys | Rotate the view in steps; drag does the same |
 | T | Target the object under the cross; the camera keeps looking at it |
-| Enter | Find a target: a box opens in the middle of the screen (meanwhile the ship holds still: nothing moves until you take a target or close the box); type part of a name (case and accents do not matter) or what it is: **planet**, **moon**, **star**, **white dwarf**, **black hole**, **galaxy**, **spiral galaxy**, **exoplanet**, **hot gas giant**, **rocky**, **constellation** (with the figures on) and so on; the nearest come first, each with its kind beside the name; ↑↓ choose, Enter targets it, Esc closes. **Commands in the same box**: a text starting with **/** is a command (**/** alone lists them). **/l** or **/load** lists the scenes of the + scene list (examples, stories, saved here, online); type to search (`/l bridge`), Enter opens the chosen one as the list does (merge on: added, off: alone) |
+| Enter | Find a target: a box opens in the middle of the screen (meanwhile the ship holds still: nothing moves until you take a target or close the box); type part of a name (case and accents do not matter) or what it is: **planet**, **moon**, **star**, **white dwarf**, **black hole**, **galaxy**, **spiral galaxy**, **exoplanet**, **hot gas giant**, **rocky**, **constellation** (with the figures on) and so on; the nearest come first, each with its kind beside the name; ↑↓ choose, Enter targets it, Esc closes. **Commands in the same box**: a text starting with **/** is a command (**/** alone lists them). See **Commands** below. |
 | Tab / Shift+Tab | Next / previous target: first the objects in view, starting with the one nearest the middle of the screen, then the rest (nearest first) |
 | Esc | Let go of the target |
 | V (star map) | **Star line**: V on a star (or the target), then V on another one: a yellow line joins their centres. V on empty space or Esc forgets the first. The sky group's **lines** switch shows or hides all of them, U / Backspace takes the last one back |
@@ -84,6 +84,35 @@ Keys: ← → a step, Home / End the beginning / the end (Space stays the speed 
 | 8 | VR: two eyes side by side |
 
 With a **target**, W A S D R F move the camera round and towards the target instead.
+
+
+### Commands (Enter, then /)
+
+Enter opens the find box; a text starting with **/** is a command, the words after it are its argument. **/** alone lists the commands; a command with choices lists them as you type (↑↓ choose, Enter runs, Esc closes); the answer shows for a moment at the bottom.
+
+| Command | What it does |
+|---|---|
+| `/l name`, `/load` | open a scene of the + scene list (examples, stories, saved here, online): added, or alone with merge off |
+| `/s name`, `/save` | save the scene here (no name: the name box, or a dated one) |
+| `/cloud name` | save the scene online (the store) |
+| `/dl`, `/open`, `/new` | download the scene (.3draft), add one from a file, empty the scene (U brings it back) |
+| `/forget name` | forget a scene saved here |
+| `/merge on · off` | loading adds to the scene, or opens it alone |
+| `/svg [width]` | save the view as an SVG (the svg panel's settings: lit colours, background, edges) |
+| `/png [size]` | save the view as a PNG: GPU light, see-through background, cut to the model with a little room (size: its longer side, 1200) |
+| `/gif [frames] [seconds]`, `/anim …` | save the motion (the svg panel's turntable or story part) as an animated GIF / SVG |
+| `/edges`, `/light`, `/studio`, `/smooth`, `/glow`, `/freeze` | switch it; with `on` or `off` set it |
+| `/gpu webgpu · webgl · svg` | the renderer |
+| `/view front · back · left · right · top · bottom · iso` | look at the scene from there |
+| `/zen`, `/fit` | only the model; frame the scene again |
+| `/mat name` | choose the material (a list with the colours) |
+| `/add prism · box · cylinder · cone · pyramid · sphere` | a shape of the chosen material floats at the cross: a click sticks it, Enter keeps it (M then puts down more) |
+| `/char [random · panel]` | put a character down (a random one, or the one the Characters panel shows) |
+| `/bool union · subtract · subtract-swap · intersect` | the boolean of the two selected objects (B) |
+| `/go name` or `/go x y z` | target an object, or fly to a point |
+| `/vehicle starship · car · none` | how the camera moves |
+| `/play`, `/seek seconds`, `/rec` | the story: play / pause, go to a moment; record the moves |
+| `/help word`, `/keys`, `/ver` | search this help (the found paragraph is marked), the keyboard map, the running version |
 
 ## Building
 
