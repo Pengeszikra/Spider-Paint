@@ -105,9 +105,9 @@ try {
 }
 const per = (ms) => (ms / frames).toFixed(1);
 const total = T.gpu + T.cells + T.write;
-console.log(`deno ${Deno.version.deno} · WebGPU: ${info.vendor ?? '?'} ${info.architecture ?? ''} ${info.description ?? ''}`.trim());
+console.log(`deno ${Deno.version.deno} · WebGPU: ${[info.vendor, info.architecture, info.description].filter((x) => x && x !== '0').join(' ') || '?'}`);
 console.log(`scene ${named}: ${mesh.faces.length} faces · picture ${W}×${H} (rendered ${S}×${S}) · ${frames} frames`);
 console.log(`start (adapter, device, shaders): ${startMs.toFixed(0)} ms`);
 console.log(`per frame: render + read back ${per(T.gpu)} ms · to cells ${per(T.cells)} ms · to the terminal ${per(T.write)} ms (${(T.bytes / frames / 1024).toFixed(1)} KiB)`);
 console.log(`=> ${(1000 / (total / frames)).toFixed(1)} frames a second at most · memory ${(Deno.memoryUsage().rss / 1048576).toFixed(0)} MB (rss)`);
-gpu.destroy();
+Deno.exit(0); // (not gpu.destroy(): the engine reports a destroyed device as lost)
