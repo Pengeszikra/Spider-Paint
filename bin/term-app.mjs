@@ -64,7 +64,7 @@ export const decodePng = (buf) => {
 
 // ---- a static server for the checkout (the app's own files, the same version as this terminal)
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.md': 'text/plain; charset=utf-8', '.css': 'text/css; charset=utf-8', '.wasm': 'application/wasm', '.webmanifest': 'application/manifest+json' };
-const serve = (root) =>
+export const serve = (root) =>
   new Promise((ok) => {
     const server = createServer(async (req, res) => {
       try {
@@ -124,7 +124,7 @@ const PAGE_STATE = `(() => {
 })()`;
 
 // the page shows only the 3D view (the terminal draws the rest); the Enter box stays usable but unseen
-const PAGE_CSS = `header.bar, footer.bar, footer.console, #hud, #editbar, #flight, #surface, #zenOff, .build, #cmdToast, #cloudToast { display: none !important; }
+export const PAGE_CSS = `header.bar, footer.bar, footer.console, #hud, #editbar, #flight, #surface, #zenOff, .build, #cmdToast, #cloudToast { display: none !important; }
 #stage { position: fixed !important; inset: 0 !important; border: 0 !important; border-radius: 0 !important; z-index: 1; }
 body { padding: 0 !important; gap: 0 !important; }
 #findBox, #textBox, #palette { opacity: 0 !important; pointer-events: none !important; }`;
