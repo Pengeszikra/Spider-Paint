@@ -59,4 +59,17 @@ assert.ok(lines.every((l) => visible(l) <= 30), 'no line is wider than the width
 assert.ok(lines.some((l) => l.includes('\x1b[38;2;')), '24-bit colours');
 assert.equal(marks.title, 0, 'a heading’s line');
 assert.ok(toAnsi('| a | b |\n|---|---|\n| ' + 'x'.repeat(60) + ' | y |', { width: 30 }).every((l) => visible(l) <= 30), 'a wide table folds');
+// spider-md / spider-paint -md: markdown (or a code file) in colour on stdout
+{
+  const { spawnSync } = await import('node:child_process');
+  const { mdToTerminal } = await import('../bin/spider-md.mjs');
+  assert.match(mdToTerminal('const x = 1;', { file: 'a.js', width: 40 }), /38;2;172;214;65mconst/, 'a .js file is one coloured code block');
+  const cwd = new URL('..', import.meta.url);
+  const a = spawnSync(process.execPath, ['bin/spider-md.mjs', 'help/writing.md', '--width', '60'], { cwd, encoding: 'utf8' });
+  assert.equal(a.status, 0, a.stderr);
+  assert.ok(a.stdout.includes('\x1b[38;2;') && a.stdout.split('\n').every((l) => visible(l) <= 60), 'coloured, wrapped to the width');
+  const b = spawnSync(process.execPath, ['bin/spider-paint.mjs', '-md', '-', '--plain'], { cwd, input: '# Hi *there*', encoding: 'utf8' });
+  assert.equal(b.status, 0, b.stderr);
+  assert.match(b.stdout, /^Hi there\n━+/, 'spider-paint -md reads stdin, --plain drops the colours');
+}
 console.log('markdown and code colours: OK');

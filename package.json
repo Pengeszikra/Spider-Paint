@@ -36,7 +36,8 @@
   "bin": {
     "spider-paint": "./bin/spider-paint.mjs",
     "spider-paint-workshop-mcp": "./bin/workshop-mcp.mjs",
-    "spider-paint-term": "./bin/spider-term.mjs"
+    "spider-paint-term": "./bin/spider-term.mjs",
+    "spider-md": "./bin/spider-md.mjs"
   },
   "scripts": {
     "start": "node bin/spider-paint.mjs",

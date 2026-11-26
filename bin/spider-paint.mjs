@@ -5,6 +5,9 @@ import { resolve, join, sep, extname, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildInfo } from '../mcp/build-info.js';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
+// spider-paint -md file.md: markdown in colour in the terminal (bin/spider-md.mjs), no server
+const mdAt=process.argv.findIndex((a)=>a==='-md'||a==='--md');
+if(mdAt>=0){const {run}=await import('./spider-md.mjs');process.exit(run(process.argv.slice(2).filter((a,i)=>i!==mdAt-2)));}
 const port=Number(process.env.PORT || process.argv[2] || 5173);
 const versionInfo=JSON.stringify(buildInfo);
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.webmanifest':'application/manifest+json','.md':'text/plain; charset=utf-8','.css':'text/css; charset=utf-8','.wasm':'application/wasm'};

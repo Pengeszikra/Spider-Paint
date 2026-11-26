@@ -93,6 +93,10 @@ languages nest — an ```html block's `<script>` is JavaScript, its `/** jsDoc *
 types}` coloured, a `<style>` is CSS. The page's help panel and the terminal's help view (`?` in the app view, `/help
 [word]` in the native one) show the same files with the same colours.
 
+Markdown in colour on the console, with the same reader: `spider-paint -md file.md` (or `spider-md file.md`,
+`npx spider-md README.md`; `-` reads stdin, `--width N`, `--page` through `less -R`, `--plain` without colours). A code
+file (`.js`, `.html`, `.json`, `.rs`, `.sh`…) is shown as one coloured block.
+
 ### In Vim / Neovim
 
 The checkout is a Vim plugin too (`vim/plugin/spider-paint.vim`):
