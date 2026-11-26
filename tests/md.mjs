@@ -70,7 +70,8 @@ assert.ok(toAnsi('| a | b |\n|---|---|\n| ' + 'x'.repeat(60) + ' | y |', { width
   assert.ok(a.stdout.includes('\x1b[38;2;') && a.stdout.split('\n').every((l) => visible(l) <= 60), 'coloured, wrapped to the width');
   const b = spawnSync(process.execPath, ['bin/spider-paint.mjs', '-md', '-', '--plain'], { cwd, input: '# Hi *there*', encoding: 'utf8' });
   assert.equal(b.status, 0, b.stderr);
-  assert.match(b.stdout, /^Hi there\n━+/, 'spider-paint -md reads stdin, --plain drops the colours');
+  assert.match(b.stdout, /^ Hi there\n ━+/, 'spider-paint -md reads stdin, --plain drops the colours, one character of room on the left');
+  assert.ok(a.stdout.split('\n').every((l) => !l || (l.startsWith(' ') && visible(l) <= 59)), 'one character of room on each side');
 }
 // pictures in the terminal: PNG and GIF read here, drawn in half blocks; the markdown places them on their own lines
 {

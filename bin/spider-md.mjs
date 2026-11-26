@@ -19,7 +19,8 @@ export const mdToTerminal = (text, { file = '', width = 100, images = null, rows
   const fence = '`'.repeat(Math.max(3, ...[...text.matchAll(/`{3,}/g)].map((m) => m[0].length + 1)));
   const md = lang ? `${fence}${lang}\n${text.replace(/\n$/, '')}\n${fence}` : text;
   const image = images ? (src, alt, cols) => (images.get(src) ? imageLines(images.get(src), { cols, rows }) : null) : null;
-  return toAnsi(md, { width, image }).join('\n');
+  // one character of room on each side: the text is laid out two narrower and every line starts with a space
+  return toAnsi(md, { width: Math.max(10, width - 2), image }).map((l) => (l ? ` ${l}` : l)).join('\n');
 };
 
 // the pictures a markdown text shows: read (a path next to the file, or https://…) and decoded, before the text is laid out
