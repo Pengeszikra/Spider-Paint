@@ -2345,8 +2345,9 @@
       };
       findList.innerHTML = found.map((f, i) => `<div class="${i === foundAt ? 'sel' : ''}" data-i="${i}"><span>${mark(String(f.o.name ?? f.o.id))}${f.o.figure ? '' : (() => { const c = categoryOf(f.o); return c ? ` <i>${mark(c)}</i>` : ''; })()}</span><span>${fmt(f.d)}</span></div>`).join('');
     };
-    const openFind = () => {
-      if (editing || posing || xf || vr) return;
+    // inEdit: Shift+Enter, the Enter box in the edit mode too (there Enter itself builds / cuts / turns)
+    const openFind = (inEdit = false) => {
+      if ((editing && !inEdit) || posing || xf || vr) return;
       findBox.hidden = false;
       findInput.value = '';
       foundAt = 0;
@@ -8890,6 +8891,7 @@
         if (e.key === 'Escape') e.target.blur();
         return;
       }
+      if (e.key === 'Enter' && e.shiftKey && !e.ctrlKey && !e.metaKey && findBox.hidden && !xf && !posing && !vr) return void (e.preventDefault(), openFind(true)); // Shift+Enter: the Enter box, in Q too
       if (vr && e.key === 'Escape') {
         e.preventDefault();
         return void toggleVr(false);
@@ -9293,7 +9295,7 @@
       ';': { cap: ';', sub: 'freeze', title: '; (é on a Hungarian keyboard)', cat: 'teal', text: 'Freeze: everything that moves stands still (flying, orbiting, dragging the view), so the cursor can work. The speed is kept; the key again carries on with it.' },
       k: { cap: 'K', sub: 'studio', cat: 'teal', text: 'Studio light: key, fill and rim light that follow the camera.' },
       l: { cap: 'L', sub: 'light', cat: 'teal', text: 'Light on / off. Off: no light in the scene at all, only emitting surfaces and the edge lines show.', edit: 'Loop: a selected line (2) takes the lines of its loop, a selected face (3) the faces of its loop (L again: the other way round). The light switch stays on its button.' },
-      enter: { cap: 'Enter', sub: 'find', cat: 'teal', w: 2.2, title: 'Enter', text: 'Find: a box in the middle of the screen, type a name, Enter targets it. / starts a command: /l (load) searches the scene list.', edit: 'Saw: cuts along the marked plane.' },
+      enter: { cap: 'Enter', sub: 'find', cat: 'teal', w: 2.2, title: 'Enter', text: 'Find: a box in the middle of the screen, type a name, Enter targets it. / starts a command: /l (load) searches the scene list.', edit: 'Saw: cuts along the marked plane. Shift+Enter: the find / command box in the edit mode too.' },
       shift: { cap: 'Shift', sub: 'paint', cat: 'slate', w: 2.4, title: 'Shift', text: 'Shift+Tab: previous target. Painting is Ctrl+click (Cmd on a Mac).', edit: 'Shift+click adds to the selection or takes from it. Shift+W A S D R F fly (plain, they are edit keys).', run: false },
       z: { cap: 'Z', sub: 'zen', cat: 'slate', text: 'Zen: hide everything but the model. Z or Esc brings the panels back.' },
       x: { cap: 'X', sub: 'del', cat: 'red', text: 'Shift+X deletes the object under the cross, in every mode (U brings it back). Alone, during G / S / R, X locks the axis to x.', edit: 'Shift+X deletes the selected points, lines or faces (a point takes its faces, a line the faces on it); with nothing selected, the object under the cross. During G / S: locks the axis to x.' },

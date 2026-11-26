@@ -62,3 +62,12 @@ console.log('terminal view: OK');
   assert.deepEqual([...img.rgb.slice(6, 12)], [255, 255, 0, 0, 1, 1], 'Up filter');
   console.log('terminal app keys and png: OK');
 }
+{
+  const { keysOf } = await import('../bin/term-app.mjs');
+  assert.deepEqual(keysOf('\x1b[13;2u')[0], { key: 'Enter', shift: true, alt: false, ctrl: false }, 'Shift+Enter (kitty)');
+  assert.deepEqual(keysOf('\x1b[27;2;13~')[0], { key: 'Enter', shift: true, alt: false, ctrl: false }, 'Shift+Enter (modifyOtherKeys)');
+  assert.deepEqual(keysOf('\x1b[100;5u')[0], { key: 'd', shift: false, alt: false, ctrl: true }, 'Ctrl+D (kitty)');
+  assert.equal(keysOf('\x1b[27u')[0].key, 'Escape', 'Esc (kitty)');
+  assert.deepEqual(keysOf('\x1b\r')[0], { key: 'Enter', alt: true }, 'Alt+Enter');
+  console.log('terminal app modified keys: OK');
+}

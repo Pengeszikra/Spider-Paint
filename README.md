@@ -68,7 +68,9 @@ J, E, L, N, K, C, 9, Z… The picture is the app's own view in half blocks (roug
 with the HUD's important bits (EDIT, speed, the target, the object under the cross, fps; a command's answer for a moment)
 and **the Enter line**, lighter while the Enter box is open (focused): what you type goes into the app's box, its list (the
 targets, `/l` scenes, `/mat`, `/help`…) covers the bottom of the view, ↑↓ / Tab / Enter / Esc and a click on a row work
-as in the app. The mouse is the app's (the cross follows it, drag turns, the wheel zooms; Shift / Option + drag selects
+as in the app; in the edit mode (Q), where Enter builds, cuts or turns, **Shift+Enter** opens the box (the terminal is asked
+for the kitty keyboard protocol so that it can tell Shift+Enter apart; **Alt+Enter** does the same in every terminal).
+**`/q`** (`/quit`) in the box leaves. The mouse is the app's (the cross follows it, drag turns, the wheel zooms; Shift / Option + drag selects
 terminal text). Ctrl+C quits. On WSL: install a Chrome or Chromium inside Ubuntu, or the native viewer starts.
 
 A scene **file** (`.json`, `.3draft`, a sky catalogue, a story) is packed into the page's address, as an MCP link is, and

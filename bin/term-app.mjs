@@ -132,6 +132,20 @@ export const keysOf = (s) => {
   for (let i = 0; i < s.length; ) {
     const ch = s[i];
     if (ch === '\x1b') {
+      // a key the terminal reports with its modifiers (the kitty keyboard protocol: ESC [ code ; mods u, or xterm's
+      // modifyOtherKeys: ESC [ 27 ; mods ; code ~): Shift+Enter, Ctrl+…, Alt+…, a plain Esc
+      const u = /^\x1b\[(\d+)(?::\d*)*(?:;(\d+)(?::\d+)?)?u/.exec(s.slice(i)) ?? /^\x1b\[27;(\d+);(\d+)~/.exec(s.slice(i));
+      if (u) {
+        const other = u[0].endsWith('~');
+        const code = Number(other ? u[2] : u[1]), mods = Math.max(0, Number((other ? u[1] : u[2]) ?? 1) - 1);
+        const name = { 13: 'Enter', 27: 'Escape', 9: 'Tab', 127: 'Backspace', 8: 'Backspace', 32: ' ' }[code];
+        const shift = Boolean(mods & 1);
+        let key = name ?? String.fromCodePoint(code);
+        if (!name && shift) key = key.toUpperCase();
+        out.push({ key, shift, alt: Boolean(mods & 2), ctrl: Boolean(mods & 4) });
+        i += u[0].length;
+        continue;
+      }
       const m = /^\x1b(\[[0-9;]*[A-Za-z~]|O[A-D])/.exec(s.slice(i));
       if (m) {
         const raw = m[1].replace(/^\[1;(\d)/, '[');
@@ -237,8 +251,9 @@ export const runApp = async ({ root, scene, chrome, url }) => {
   await page('Runtime.enable');
 
   const MOUSE_ON = '\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h', MOUSE_OFF = '\x1b[?1006l\x1b[?1003l\x1b[?1002l\x1b[?1000l';
-  const RESTORE = `\x1b[0m${MOUSE_OFF}\x1b[?25h\x1b[?1049l`;
-  out.write(`\x1b[?1049h\x1b[?25l${MOUSE_ON}\x1b[2J`);
+  // \x1b[>1u: the kitty keyboard protocol (disambiguate), so Shift+Enter is not plain Enter where the terminal knows it
+  const RESTORE = `\x1b[<u\x1b[0m${MOUSE_OFF}\x1b[?25h\x1b[?1049l`;
+  out.write(`\x1b[?1049h\x1b[>1u\x1b[?25l${MOUSE_ON}\x1b[2J`);
   let done = false;
   const quit = async (code = 0) => {
     if (done) return;
@@ -292,7 +307,7 @@ export const runApp = async ({ root, scene, chrome, url }) => {
     const info = s.toast || [s.edit, s.flight, ...(s.hud ?? []).slice(0, 4), /\d/.test(s.fps ?? '') ? s.fps : ''].filter(Boolean).join(' · ');
     lines.push(`\x1b[0;48;2;18;18;20;38;2;150;154;160m${fit(` ${info}`, L.cols).padEnd(L.cols)}\x1b[0m`);
     // the Enter line: lighter while the box is open (focused)
-    const enter = s.find ? `\x1b[0;48;2;62;66;74;38;2;240;240;240m${fit(` › ${s.find.value}`, L.cols).padEnd(L.cols)}\x1b[0m` : `\x1b[0;48;2;30;31;34;38;2;90;94;100m${fit(' Enter: find / commands (/l /s /svg /help …) · Ctrl+C: quit', L.cols).padEnd(L.cols)}\x1b[0m`;
+    const enter = s.find ? `\x1b[0;48;2;62;66;74;38;2;240;240;240m${fit(` › ${s.find.value}`, L.cols).padEnd(L.cols)}\x1b[0m` : `\x1b[0;48;2;30;31;34;38;2;90;94;100m${fit(' Enter: find / commands (/l /s /svg /help …) · in Q: Shift+Enter (or Alt+Enter) · /q: quit', L.cols).padEnd(L.cols)}\x1b[0m`;
     lines.push(enter);
     let buf = '\x1b[?2026h';
     lines.forEach((l, i) => {
@@ -334,10 +349,20 @@ export const runApp = async ({ root, scene, chrome, url }) => {
   process.stdin.resume();
   process.stdin.on('data', async (b) => {
     let s = b.toString();
-    if (s.includes('\x03')) return quit();
+    if (s.includes('\x03') || /\x1b\[99(?::\d*)*;5(?::\d+)?u/.test(s)) return quit(); // Ctrl+C (also as the kitty protocol says it)
     const events = [];
     s = s.replace(/\x1b\[<(\d+);(\d+);(\d+)([Mm])/g, (_, b2, x, y, m) => (events.push(() => mouse(Number(b2), Number(x), Number(y), m === 'm')), ''));
-    for (const k of keysOf(s)) for (const e of keyEvents(k)) events.push(() => page('Input.dispatchKeyEvent', e));
+    for (let k of keysOf(s)) {
+      // Alt+Enter = Shift+Enter (every terminal tells Alt+Enter apart: ESC Enter): the Enter box in the edit mode (Q) too
+      if (k.key === 'Enter' && k.alt) k = { key: 'Enter', shift: true };
+      // /q, /quit (or /exit) in the Enter box: leave the terminal
+      if (k.key === 'Enter' && !k.shift)
+        events.push(async () => {
+          const r = await page('Runtime.evaluate', { expression: `document.getElementById('findBox')?.hidden === false ? document.getElementById('findInput').value : ''`, returnByValue: true }).catch(() => null);
+          if (/^\s*\/(q|quit|exit)\s*$/i.test(r?.result?.value ?? '')) await quit();
+        });
+      for (const e of keyEvents(k)) events.push(() => page('Input.dispatchKeyEvent', e));
+    }
     for (const e of events) await e().catch(() => {});
   });
   out.on('resize', async () => {

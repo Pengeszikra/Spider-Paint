@@ -88,7 +88,7 @@ With a **target**, W A S D R F move the camera round and towards the target inst
 
 ### Commands (Enter, then /)
 
-Enter opens the find box; a text starting with **/** is a command, the words after it are its argument. **/** alone lists the commands; a command with choices lists them as you type (↑↓ choose, Enter runs, Esc closes); the answer shows for a moment at the bottom.
+Enter opens the find box (in the edit mode, where Enter builds, cuts or turns: **Shift+Enter**); a text starting with **/** is a command, the words after it are its argument. **/** alone lists the commands; a command with choices lists them as you type (↑↓ choose, Enter runs, Esc closes); the answer shows for a moment at the bottom.
 
 | Command | What it does |
 |---|---|
