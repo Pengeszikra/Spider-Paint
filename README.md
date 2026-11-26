@@ -106,6 +106,12 @@ file (`.js`, `.html`, `.json`, `.rs`, `.sh`…) is shown as one coloured block. 
 beside the file or `https://…`) are drawn the way the 3D view is: half blocks, two pixels a cell (`--image-rows N`,
 `--no-images`). PNG and GIF are read in node; JPEG, SVG and WebP go through a headless Chrome when there is one.
 
+**Without a browser (Deno, an experiment):** `deno run -A --unstable-webgpu bin/spider-term.mjs globe` runs the same app view
+with no Chrome: the page's module on a small stand-in DOM (`bin/headless-dom.mjs`, `bin/headless-page.mjs`), the picture
+straight from the engine's WebGPU frames (no screenshots). `SPIDER_TERM_SS=1…4`: rendered pixels a cell edge (default 2).
+`--chrome` forces the headless Chrome there, `--headless` tries the stand-in in node (no WebGPU: a dark picture, the panels
+and keys still work). `scripts/bench-term-deno.mjs` / `bench-term-chrome.mjs` compare the two ways.
+
 **The native viewer (`--native`, or when there is no Chrome):** The scene is drawn with 24-bit colour half blocks (two pixels a character cell), a depth buffer and one shaded colour a
 face (`src/term-render.js`, pure: no node, no DOM), with dark outlines at the silhouettes, folds and depth jumps in place of
 the GPU's light play (`/outline` or `--flat` turns them off). The model fills the window. It is zen: only the picture. The mouse belongs to the program (the

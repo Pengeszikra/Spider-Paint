@@ -29,6 +29,15 @@ const named = argv.find((a, i) => !a.startsWith('--') && !VALUED.includes(argv[i
 
 // The app way (the default when a Chrome is found): the real spider-paint in a headless Chrome, every key works
 // (bin/term-app.mjs). --native: this file's own renderer (a viewer: the mouse turns and picks, Enter a few commands).
+// In Deno (navigator.gpu), or with --headless: the same app with no browser at all (bin/headless-page.mjs: the page's module
+// on a small stand-in DOM, the picture from the engine's WebGPU frames): deno run -A --unstable-webgpu bin/spider-term.mjs
+if (!flag('native') && !flag('once') && !flag('chrome') && (flag('headless') || (globalThis.Deno && globalThis.navigator?.gpu)) && process.stdout.isTTY && process.stdin.isTTY) {
+  const { runApp } = await import('./term-app.mjs');
+  const { headlessDriver } = await import('./headless-page.mjs');
+  const ss = Math.max(1, Math.min(4, Number(process.env.SPIDER_TERM_SS) || 2));
+  await runApp({ root, scene: argv.find((a, i) => !a.startsWith('--') && !VALUED.includes(argv[i - 1])) ?? '', driver: await headlessDriver({ root, ss }) });
+  await new Promise(() => {}); // (runApp runs until Ctrl+C)
+}
 if (!flag('native') && !flag('once') && process.stdout.isTTY && process.stdin.isTTY) {
   const { findChrome, runApp } = await import('./term-app.mjs');
   const chrome = findChrome();

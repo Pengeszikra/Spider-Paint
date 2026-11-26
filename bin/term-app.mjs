@@ -5,6 +5,7 @@
 //   rows: the picture · the list (when the Enter box is open, over the picture) · the info line · the Enter line
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
+import { Buffer } from 'node:buffer'; // (not a global in Deno)
 import { readFile, mkdtemp, rm } from 'node:fs/promises';
 import { existsSync, readFileSync, watch } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -196,8 +197,11 @@ export const keyEvents = ({ key, shift, ctrl, alt }) => {
   ];
 };
 
-/** Run the app in the terminal. Resolves when the user quits (Ctrl+C). */
-export const runApp = async ({ root, scene, chrome, url }) => {
+/**
+ * The page in a headless Chrome, as a driver for runApp: page(method, params) speaks the DevTools protocol, grab() is the
+ * picture (a screenshot, scaled to one pixel a cell edge), cell is a cell's size in page pixels.
+ */
+export const chromeDriver = async ({ root, chrome, url }) => {
   if (typeof WebSocket !== 'function') throw new Error('node 22 or newer is needed (WebSocket)');
   const server = url ? null : await serve(root);
   const base = url ?? `http://127.0.0.1:${server.address().port}`;
@@ -219,23 +223,53 @@ export const runApp = async ({ root, scene, chrome, url }) => {
   const page = (m, p) => dt.send(m, p, sessionId);
   await page('Page.enable');
   await page('Page.addScriptToEvaluateOnNewDocument', { source: `addEventListener('DOMContentLoaded', () => document.head.append(Object.assign(document.createElement('style'), { textContent: ${JSON.stringify(PAGE_CSS)} })));` });
-
-  const out = process.stdout;
   // a cell's pixels in the headless page (a half block: CW × CW). At least 8, and more in a narrow terminal, so the page is
   // never narrower than the app's phone layout (max-width 640px: the touch pad, a smaller drawing): the terminal always
   // gets the desktop app
-  let CW = 8, CH = 16;
+  const cell = { w: 8, h: 16 };
   const DESKTOP = 648;
+  let size = { cols: 80, rows: 22 };
+  return {
+    page,
+    cell,
+    base,
+    setSize: async (cols, rows) => {
+      size = { cols, rows };
+      cell.w = Math.max(8, Math.ceil(DESKTOP / cols));
+      cell.h = cell.w * 2;
+      await page('Emulation.setDeviceMetricsOverride', { width: cols * cell.w, height: rows * cell.h, deviceScaleFactor: 1, mobile: false });
+    },
+    grab: async () => {
+      const shot = await page('Page.captureScreenshot', { format: 'png', clip: { x: 0, y: 0, width: size.cols * cell.w, height: size.rows * cell.h, scale: 1 / cell.w }, captureBeyondViewport: false });
+      return decodePng(Buffer.from(shot.data, 'base64'));
+    },
+    navigate: (to) => page('Page.navigate', { url: to }),
+    close: async () => {
+      try {
+        dt.close();
+      } catch {}
+      proc.kill();
+      server?.close();
+      await rm(profile, { recursive: true, force: true }).catch(() => {});
+    },
+    kill: () => proc.kill(),
+  };
+};
+
+/** Run the app in the terminal (in a headless Chrome, or the driver given). Resolves when the user quits (Ctrl+C). */
+export const runApp = async ({ root, scene, chrome, url, driver }) => {
+  const D = driver ?? (await chromeDriver({ root, chrome, url }));
+  const page = D.page;
+  const base = D.base ?? 'http://spider.local';
+  const out = process.stdout;
   const layout = () => {
     const cols = out.columns || 80, rows = Math.max(6, (out.rows || 24) - 2); // (two lines under the picture: info, Enter)
-    CW = Math.max(8, Math.ceil(DESKTOP / cols));
-    CH = CW * 2;
     return { cols, rows };
   };
   let L = layout();
   const resize = async () => {
     L = layout();
-    await page('Emulation.setDeviceMetricsOverride', { width: L.cols * CW, height: L.rows * CH, deviceScaleFactor: 1, mobile: false });
+    await D.setSize(L.cols, L.rows);
   };
   await resize();
   // a scene file (from vim: the buffer's file) travels in the #fragment, packed, as an MCP link does (#scene= / #sky=);
@@ -248,14 +282,14 @@ export const runApp = async ({ root, scene, chrome, url }) => {
     const packed = deflateRawSync(Buffer.from(JSON.stringify(JSON.parse(text)))).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     return `${base}/?empty#${kind}=${packed}`;
   };
-  await page('Page.navigate', { url: urlOf() });
+  await D.navigate(urlOf());
   if (isFile) {
     let again = 0;
     watch(scene, () => {
       clearTimeout(again);
       again = setTimeout(() => {
         try {
-          page('Page.navigate', { url: urlOf() }).catch(() => {});
+          Promise.resolve(D.navigate(urlOf())).catch(() => {});
         } catch {} // (a half-written file: the next save brings it)
       }, 300);
     });
@@ -271,19 +305,14 @@ export const runApp = async ({ root, scene, chrome, url }) => {
     if (done) return;
     done = true;
     out.write(RESTORE);
-    try {
-      dt.close();
-    } catch {}
-    proc.kill();
-    server?.close();
-    await rm(profile, { recursive: true, force: true }).catch(() => {});
+    await D.close();
     process.exit(code);
   };
   for (const sig of ['SIGTERM', 'SIGHUP']) process.on(sig, () => quit(0));
   process.on('uncaughtException', (e) => {
     out.write(RESTORE);
     console.error(e);
-    proc.kill();
+    D.kill?.();
     process.exit(1);
   });
 
@@ -324,9 +353,8 @@ export const runApp = async ({ root, scene, chrome, url }) => {
     let lines;
     if (state?.help) lines = helpView.rows(L.cols, L.rows);
     else {
-      const shot = await page('Page.captureScreenshot', { format: 'png', clip: { x: 0, y: 0, width: L.cols * CW, height: L.rows * CH, scale: 1 / CW }, captureBeyondViewport: false });
-      const img = decodePng(Buffer.from(shot.data, 'base64'));
-      if (img.width !== L.cols || img.height < L.rows * 2) return; // (a resize is on its way)
+      const img = await D.grab(L.cols, L.rows);
+      if (!img || img.width !== L.cols || img.height < L.rows * 2) return; // (a resize is on its way)
       img.height = L.rows * 2;
       lines = cellRows(img, QUANT);
       // the palette (P): a text panel on the right, over the picture
@@ -392,7 +420,7 @@ export const runApp = async ({ root, scene, chrome, url }) => {
 
   // ---- input: keys to the page as DOM key events, the mouse as pointer events at the cell's middle
   let held = 0; // the mouse buttons down (CDP bit mask)
-  const px = (x, y) => ({ x: (x - 1) * CW + CW / 2, y: (y - 1) * CH + CH / 2 });
+  const px = (x, y) => ({ x: (x - 1) * D.cell.w + D.cell.w / 2, y: (y - 1) * D.cell.h + D.cell.h / 2 });
   const mouse = async (b, x, y, release) => {
     const wheel = b & 64, motion = b & 32, btn = b & 3;
     const mods = (b & 4 ? 8 : 0) | (b & 8 ? 1 : 0) | (b & 16 ? 2 : 0);
@@ -465,6 +493,6 @@ export const runApp = async ({ root, scene, chrome, url }) => {
     await new Promise((r2) => setTimeout(r2, 200));
   }
   // the pointer starts in the middle (the cross follows it)
-  await page('Input.dispatchMouseEvent', { type: 'mouseMoved', x: (L.cols * CW) / 2, y: (L.rows * CH) / 2, button: 'none', buttons: 0 }).catch(() => {});
+  await page('Input.dispatchMouseEvent', { type: 'mouseMoved', x: (L.cols * D.cell.w) / 2, y: (L.rows * D.cell.h) / 2, button: 'none', buttons: 0 }).catch(() => {});
   loop();
 };
