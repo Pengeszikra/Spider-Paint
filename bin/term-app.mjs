@@ -127,7 +127,8 @@ const PAGE_STATE = `(() => {
 export const PAGE_CSS = `header.bar, footer.bar, footer.console, #hud, #editbar, #flight, #surface, #zenOff, .build, #cmdToast, #cloudToast { display: none !important; }
 #stage { position: fixed !important; inset: 0 !important; border: 0 !important; border-radius: 0 !important; z-index: 1; }
 body { padding: 0 !important; gap: 0 !important; }
-#findBox, #textBox, #palette { opacity: 0 !important; pointer-events: none !important; }`;
+#findBox, #textBox, #palette { opacity: 0 !important; pointer-events: none !important; }
+#pad, #exaBtn, #vrBtn, #gameBtn { display: none !important; }`;
 
 // ---- terminal keys -> DOM key events
 const VK = { Enter: 13, Escape: 27, Tab: 9, Backspace: 8, Delete: 46, ' ': 32, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, Home: 36, End: 35, PageUp: 33, PageDown: 34 };
@@ -220,9 +221,15 @@ export const runApp = async ({ root, scene, chrome, url }) => {
   await page('Page.addScriptToEvaluateOnNewDocument', { source: `addEventListener('DOMContentLoaded', () => document.head.append(Object.assign(document.createElement('style'), { textContent: ${JSON.stringify(PAGE_CSS)} })));` });
 
   const out = process.stdout;
-  const CW = 8, CH = 16; // a cell's pixels in the headless page (a half block: 8 × 8)
+  // a cell's pixels in the headless page (a half block: CW × CW). At least 8, and more in a narrow terminal, so the page is
+  // never narrower than the app's phone layout (max-width 640px: the touch pad, a smaller drawing): the terminal always
+  // gets the desktop app
+  let CW = 8, CH = 16;
+  const DESKTOP = 648;
   const layout = () => {
     const cols = out.columns || 80, rows = Math.max(6, (out.rows || 24) - 2); // (two lines under the picture: info, Enter)
+    CW = Math.max(8, Math.ceil(DESKTOP / cols));
+    CH = CW * 2;
     return { cols, rows };
   };
   let L = layout();
