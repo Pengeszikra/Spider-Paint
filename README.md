@@ -95,7 +95,9 @@ types}` coloured, a `<style>` is CSS. The page's help panel and the terminal's h
 
 Markdown in colour on the console, with the same reader: `spider-paint -md file.md` (or `spider-md file.md`,
 `npx spider-md README.md`; `-` reads stdin, `--width N`, `--page` through `less -R`, `--plain` without colours). A code
-file (`.js`, `.html`, `.json`, `.rs`, `.sh`…) is shown as one coloured block.
+file (`.js`, `.html`, `.json`, `.rs`, `.sh`…) is shown as one coloured block. Pictures in the markdown (`![alt](file.png)`, a path
+beside the file or `https://…`) are drawn the way the 3D view is: half blocks, two pixels a cell (`--image-rows N`,
+`--no-images`). PNG and GIF are read in node; JPEG, SVG and WebP go through a headless Chrome when there is one.
 
 ### In Vim / Neovim
 

@@ -81,7 +81,7 @@ const serve = (root) =>
   });
 
 // ---- the DevTools protocol: one WebSocket to the browser, a flat session for the page
-const devtools = async (wsUrl) => {
+export const devtools = async (wsUrl) => {
   const ws = new WebSocket(wsUrl);
   await new Promise((ok, no) => ((ws.onopen = ok), (ws.onerror = () => no(new Error('no DevTools connection')))));
   let id = 0;

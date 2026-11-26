@@ -261,18 +261,43 @@ const styleOf = (s, base = TEXT) => {
   if (s.i) st += '\x1b[3m';
   return st;
 };
-const wordsOf = (src, base) =>
-  inline(src).flatMap((s) => {
+const wordsOf = (src, base) => segWords(inline(src), base);
+const segWords = (segs, base) =>
+  segs.flatMap((s) => {
     if (s.img) return [{ text: `[image: ${s.text || s.img}]`, style: fg(DIM) }];
     const st = styleOf(s, base);
     return s.text.split(/( +)/).filter(Boolean).map((w) => (/^ +$/.test(w) ? { space: true } : { text: w, style: st }));
   });
 
-/** markdown -> terminal lines (each at most `width` visible characters); `marks` gets { id: line } of the headings. */
-export const toAnsi = (md, { width = 80, marks = {} } = {}) => {
+/**
+ * markdown -> terminal lines (each at most `width` visible characters); `marks` gets { id: line } of the headings.
+ * image(src, alt, cols): a picture's own lines (null: its alt text stays), for the caller that has read the pictures.
+ */
+export const toAnsi = (md, { width = 80, marks = {}, image = null } = {}) => {
   const blocks = Array.isArray(md) ? md : parse(md);
   const out = [];
-  const para = (text, first, next, base) => out.push(...wrapWords(wordsOf(text, base), width, first, next));
+  const para = (text, first, next, base) => {
+    const segs = inline(text);
+    if (!image || !segs.some((x) => x.img)) return void out.push(...wrapWords(segWords(segs, base), width, first, next));
+    // a paragraph with pictures: the text around them wrapped, each picture on lines of its own
+    let run = [];
+    const flush = () => (run.length && out.push(...wrapWords(segWords(run, base), width, first, next)), (run = []));
+    for (const x of segs) {
+      if (!x.img || !/\S/.test(x.img)) {
+        run.push(x);
+        continue;
+      }
+      const lines = image(x.img, x.text, width - visible(next));
+      if (!lines) {
+        run.push(x);
+        continue;
+      }
+      flush();
+      out.push(...lines.map((l) => next + l));
+      if (x.text) out.push(next + fg(DIM) + x.text + RESET); // (its alt text as the caption)
+    }
+    flush();
+  };
   const walk = (bs, indent = '') => {
     for (const b of bs) {
       if (out.length && out[out.length - 1] !== indent.replace(/\s+$/, '') && b.type !== 'list') out.push(indent.replace(/\s+$/, ''));

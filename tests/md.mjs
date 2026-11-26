@@ -72,4 +72,33 @@ assert.ok(toAnsi('| a | b |\n|---|---|\n| ' + 'x'.repeat(60) + ' | y |', { width
   assert.equal(b.status, 0, b.stderr);
   assert.match(b.stdout, /^Hi there\n━+/, 'spider-paint -md reads stdin, --plain drops the colours');
 }
+// pictures in the terminal: PNG and GIF read here, drawn in half blocks; the markdown places them on their own lines
+{
+  const { readPng, readGif, imageLines } = await import('../bin/term-image.mjs');
+  const { encodeGif } = await import('../src/gif.js');
+  const { deflateSync } = await import('node:zlib');
+  const W = 8, H = 8, data = new Uint8ClampedArray(W * H * 4);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) data.set(x < 4 ? [255, 0, 0, 255] : [0, 0, 255, y < 4 ? 255 : 0], (y * W + x) * 4);
+  const gif = readGif(Buffer.from(encodeGif([{ width: W, height: H, data }])));
+  assert.deepEqual([gif.width, gif.height], [8, 8]);
+  assert.deepEqual([...gif.rgba.slice(0, 4)], [255, 0, 0, 255], 'a GIF pixel');
+  assert.equal(gif.rgba[(7 * W + 7) * 4 + 3], 0, 'a see-through GIF pixel');
+  const raw = Buffer.alloc(H * (W * 4 + 1));
+  for (let y = 0; y < H; y++) Buffer.from(data.buffer, y * W * 4, W * 4).copy(raw, y * (W * 4 + 1) + 1);
+  const chunk = (name, d) => {
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(d.length);
+    return Buffer.concat([len, Buffer.from(name, 'latin1'), d, Buffer.alloc(4)]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(W, 0), ihdr.writeUInt32BE(H, 4), (ihdr[8] = 8), (ihdr[9] = 6);
+  const png = readPng(Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]));
+  assert.deepEqual([...png.rgba.slice((2 * W + 5) * 4, (2 * W + 5) * 4 + 4)], [0, 0, 255, 255], 'a PNG pixel');
+  const lines = imageLines(png, { cols: 4, rows: 2 });
+  assert.equal(lines.length, 2, 'two pixels a cell: 4 rows of pixels, 2 lines');
+  assert.ok(lines.every((l) => visible(l) === 4), 'as wide as asked');
+  assert.match(lines[0], /38;2;255;0;0/, 'the red half');
+  const md = toAnsi('Look: ![pic](a.png) there', { width: 40, image: (src, alt, cols) => (src === 'a.png' ? ['[PIC]'] : null) });
+  assert.deepEqual(md.map((l) => l.replace(/\x1b\[[0-9;]*m/g, '')), ['Look: ', '[PIC]', 'pic', 'there'].map((t) => t.trimEnd()), 'the picture on its own lines, its alt as the caption');
+}
 console.log('markdown and code colours: OK');
