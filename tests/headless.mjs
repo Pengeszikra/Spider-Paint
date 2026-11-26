@@ -47,6 +47,15 @@ await sleep(100);
 await key('Enter');
 await sleep(400);
 assert.equal(await objects(), 10, '/text HI made a text model');
+// a story from the + scene list (/l picks the list's option: its value, not its label)
+await key('Enter');
+await sleep(100);
+await type('/l last light');
+await sleep(200);
+await key('Enter');
+for (let i = 0; i < 100 && (await ev("document.body.classList.contains('story')")) !== true; i++) await sleep(100);
+assert.equal(await ev("document.body.classList.contains('story')"), true, 'the LARK-4C story opened');
+assert.deepEqual(globalThis.__domErrors, [], 'no page errors on the way');
 // the picture: no WebGPU in node, a dark one of the asked size
 const img = await D.grab(80, 22);
 assert.deepEqual([img.width, img.height], [80, 44]);

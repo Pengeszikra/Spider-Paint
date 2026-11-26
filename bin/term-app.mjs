@@ -7,8 +7,8 @@ import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { Buffer } from 'node:buffer'; // (not a global in Deno)
 import { readFile, mkdtemp, rm } from 'node:fs/promises';
-import { existsSync, readFileSync, watch } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, readFileSync, writeFileSync, watch } from 'node:fs';
+import { tmpdir, homedir } from 'node:os';
 import { join, resolve, sep, extname } from 'node:path';
 import { inflateSync, deflateRawSync } from 'node:zlib';
 import { cellRows, diffRow } from '../src/term-render.js';
@@ -349,6 +349,7 @@ export const runApp = async ({ root, scene, chrome, url, driver }) => {
   const frame = async () => {
     const st = await page('Runtime.evaluate', { expression: PAGE_STATE, returnByValue: true }).catch(() => null);
     state = st?.result?.value ?? state;
+    if (!state?.find) histAt = -1; // (the box closed: the next ↑ starts from the newest line)
     followHelp(state?.help);
     let lines;
     if (state?.help) lines = helpView.rows(L.cols, L.rows);
@@ -418,6 +419,22 @@ export const runApp = async ({ root, scene, chrome, url, driver }) => {
     }
   };
 
+  // ---- the Enter box's history, kept between runs (~/.spider-term-history, newest first in memory, 200 lines)
+  const HIST_FILE = join(homedir(), '.spider-term-history');
+  let hist = [];
+  try {
+    hist = readFileSync(HIST_FILE, 'utf8').split('\n').filter(Boolean).reverse().slice(0, 200);
+  } catch {}
+  let histAt = -1;
+  const remember = (line) => {
+    histAt = -1;
+    if (hist[0] === line) return;
+    hist = [line, ...hist.filter((h) => h !== line)].slice(0, 200);
+    try {
+      writeFileSync(HIST_FILE, `${[...hist].reverse().join('\n')}\n`);
+    } catch {}
+  };
+
   // ---- input: keys to the page as DOM key events, the mouse as pointer events at the cell's middle
   let held = 0; // the mouse buttons down (CDP bit mask)
   const px = (x, y) => ({ x: (x - 1) * D.cell.w + D.cell.w / 2, y: (y - 1) * D.cell.h + D.cell.h / 2 });
@@ -470,11 +487,24 @@ export const runApp = async ({ root, scene, chrome, url, driver }) => {
           continue;
         }
       }
-      // /q, /quit (or /exit) in the Enter box: leave the terminal
+      // the Enter box's history: ↑ / ↓ on an empty box (or on a line brought back) bring the earlier lines back
+      if ((k.key === 'ArrowUp' || k.key === 'ArrowDown') && state?.find && !k.shift && !k.ctrl && !k.alt) {
+        const v = state.find.value;
+        if (v === '' || (histAt >= 0 && v === hist[histAt])) {
+          histAt = k.key === 'ArrowUp' ? Math.min(hist.length - 1, histAt + 1) : histAt - 1;
+          const line = histAt >= 0 ? hist[histAt] : '';
+          if (state.find) state.find.value = line;
+          events.push(() => page('Runtime.evaluate', { expression: `(() => { const i = document.getElementById('findInput'); i.value = ${JSON.stringify(line)}; i.dispatchEvent(new Event('input', { bubbles: true })); })()` }));
+          continue;
+        }
+      }
+      // Enter in the box: the line goes into the history; /q, /quit (or /exit) leave the terminal
       if (k.key === 'Enter' && !k.shift)
         events.push(async () => {
           const r = await page('Runtime.evaluate', { expression: `document.getElementById('findBox')?.hidden === false ? document.getElementById('findInput').value : ''`, returnByValue: true }).catch(() => null);
-          if (/^\s*\/(q|quit|exit)\s*$/i.test(r?.result?.value ?? '')) await quit();
+          const line = String(r?.result?.value ?? '').trim();
+          if (line) remember(line);
+          if (/^\s*\/(q|quit|exit)\s*$/i.test(line)) await quit();
         });
       for (const e of keyEvents(k)) events.push(() => page('Input.dispatchKeyEvent', e));
     }

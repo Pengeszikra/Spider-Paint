@@ -420,7 +420,7 @@ export class Element extends Node {
       const sel = opts.find((o) => o._sel) ?? opts.find((o) => o.hasAttribute('selected')) ?? opts[0];
       return sel ? sel.value : '';
     }
-    if (this.localName === 'option') return this.getAttribute('value') ?? this.textContent;
+    if (this.localName === 'option') return this._value ?? this.getAttribute('value') ?? this.textContent;
     if (this.localName === 'textarea') return this._value ?? this.textContent;
     if (this._value !== undefined) return this._value;
     const v = this.getAttribute('value');
@@ -653,10 +653,11 @@ for (const k of BOOL) {
   });
 }
 
+const CTX_PROPS = new Set(['fillStyle', 'strokeStyle', 'font', 'lineWidth', 'lineCap', 'lineJoin', 'miterLimit', 'lineDashOffset', 'globalAlpha', 'globalCompositeOperation', 'shadowBlur', 'shadowColor', 'shadowOffsetX', 'shadowOffsetY', 'textAlign', 'textBaseline', 'direction', 'letterSpacing', 'filter', 'imageSmoothingEnabled', 'imageSmoothingQuality', 'then', 'toJSON']);
 const ctx2d = (canvas) =>
   new Proxy(
     { canvas, measureText: (t) => ({ width: String(t).length * 7, actualBoundingBoxAscent: 8, actualBoundingBoxDescent: 2 }), getImageData: (x, y, w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4) }), createImageData: (w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4) }), createLinearGradient: () => ({ addColorStop() {} }), createRadialGradient: () => ({ addColorStop() {} }), createPattern: () => ({}), getTransform: () => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 }), isPointInPath: () => false },
-    { get: (t, k) => (k in t ? t[k] : typeof k === 'string' && /^[a-z]/.test(k) && !/^(fill|stroke|font|line|global|shadow|text|image|direction|letter|filter)/.test(k) ? () => {} : t[k]), set: (t, k, v) => ((t[k] = v), true) },
+    { get: (t, k) => (k in t ? t[k] : typeof k === 'string' && !CTX_PROPS.has(k) ? () => {} : undefined), set: (t, k, v) => ((t[k] = v), true) },
   );
 
 // ---- selectors: compound parts (tag, #id, .class, [attr], [attr=v], :not(...) ignored) joined by ' ' or '>'
@@ -972,6 +973,23 @@ export const installDom = ({ html, url, readFile, width = 1280, height = 720, la
   }
   set('sessionStorage', memStorage());
   set('matchMedia', (q) => ({ matches: /prefers-reduced-motion: no-preference|pointer: fine|hover: hover/.test(q), media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
+  // an error in the page's timer or frame is reported (globalThis.__domErrors), as a browser does, not the end of the program
+  const guard = (fn) => (typeof fn === 'function' ? (...a) => {
+    try {
+      return fn(...a);
+    } catch (err) {
+      reportError(err);
+    }
+  } : fn);
+  const st = g.setTimeout.bind(g), si = g.setInterval.bind(g);
+  set('setTimeout', (fn, ms, ...a) => st(guard(fn), ms, ...a));
+  set('setInterval', (fn, ms, ...a) => si(guard(fn), ms, ...a));
+  try {
+    const native = EventTarget.prototype.addEventListener;
+    native.call(g, 'unhandledrejection', (e) => (e.preventDefault?.(), reportError(e.reason)));
+    native.call(g, 'error', (e) => (e.preventDefault?.(), reportError(e.error ?? e.message)));
+  } catch {}
+  g.process?.on?.('unhandledRejection', (e) => reportError(e));
   let rafId = 0;
   const rafs = new Map();
   set('requestAnimationFrame', (fn) => {
@@ -1088,7 +1106,8 @@ export const installDom = ({ html, url, readFile, width = 1280, height = 720, la
       try {
         const data = await readFile(decodeURIComponent(u.pathname.replace(/^\/+/, '')) || 'index.html');
         return new Response(data, { status: 200, headers: { 'Content-Type': TYPES[u.pathname.split('.').pop()] ?? 'application/octet-stream' } });
-      } catch {
+      } catch (e) {
+        g.__fetchMisses = [...(g.__fetchMisses ?? []), `${u.pathname}: ${e?.message ?? e}`].slice(-20);
         return new Response('not found', { status: 404 });
       }
     }
