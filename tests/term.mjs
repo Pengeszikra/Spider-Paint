@@ -82,7 +82,7 @@ console.log('terminal view: OK');
   assert.match(rows[0].replace(/\x1b\[[0-9;]*m/g, ''), /Help/);
   v.open('edit.md', { text: 'Ctrl+B: bevel' });
   rows = v.rows(70, 20);
-  assert.ok(rows.slice(1).some((r) => r.includes('Ctrl+B: bevel')), 'opened at the place');
+  assert.ok(rows.slice(1).some((r) => r.replace(/\x1b\[[0-9;]*m/g, '').includes('Ctrl+B: bevel')), 'opened at the place');
   assert.equal(v.key({ key: 'Escape' }, 20), 'close');
   console.log('terminal help view: OK');
 }
