@@ -112,7 +112,7 @@ const PAGE_STATE = `(() => {
   return {
     hud: [...(t('hud')?.querySelectorAll('.row') ?? [])].map(words).filter(Boolean),
     flight: words(t('flight')),
-    edit: t('editSw')?.classList.contains('on') ? 'EDIT' + (t('editText')?.textContent.trim() ? ' ' + t('editText').textContent.trim() : '') : '',
+    edit: globalThis.__editing?.() ?? null,
     fps: t('fps')?.textContent ?? '',
     toast: toast?.isConnected ? toast.textContent : '',
     help: t('helpPanel') && !t('helpPanel').hidden ? { file: globalThis.__helpAt ?? 'index.md', found: globalThis.__helpFound ?? null } : null,
@@ -315,14 +315,19 @@ export const runApp = async ({ root, scene, chrome, url }) => {
         const right = r.right ? ` ${r.right} ` : ' ';
         const left = fit(` ${r.left}`, L.cols - right.length);
         const pad = ' '.repeat(Math.max(0, L.cols - left.length - right.length));
-        lines[at] = `${r.sel ? '\x1b[0;48;2;57;255;20;38;2;0;0;0' : '\x1b[0;48;2;28;30;34;38;2;220;222;226'}m${left}${pad}\x1b[38;2;${r.sel ? '0;60;0' : '130;134;140'}m${right}\x1b[0m`;
+        // (the chosen row in the blue of the target's corner ticks)
+        lines[at] = `${r.sel ? '\x1b[0;48;2;77;171;247;38;2;4;20;36' : '\x1b[0;48;2;28;30;34;38;2;220;222;226'}m${left}${pad}\x1b[38;2;${r.sel ? '10;45;80' : '130;134;140'}m${right}\x1b[0m`;
         if (r.i !== null) listRows.push({ row: at, i: r.i });
       });
     }
     // the info line: the HUD's important bits
     const s = state ?? {};
-    const info = s.toast || [s.edit, s.flight, ...(s.hud ?? []).slice(0, 4), /\d/.test(s.fps ?? '') ? s.fps : ''].filter(Boolean).join(' · ');
-    lines.push(`\x1b[0;48;2;18;18;20;38;2;150;154;160m${fit(` ${info}`, L.cols).padEnd(L.cols)}\x1b[0m`);
+    const info = s.toast || [s.flight, ...(s.hud ?? []).slice(0, 4), /\d/.test(s.fps ?? '') ? s.fps : ''].filter(Boolean).join(' · ');
+    // in the edit mode (Q) the line starts with a coloured mark, the mode and the model's name
+    const mode = s.edit ? { draw: 'draw', vertex: 'points', edge: 'lines', face: 'faces', saw: 'saw', lathe: 'lathe' }[s.edit.mode] ?? s.edit.mode : '';
+    const badge = s.edit ? `\x1b[0;1;48;2;241;72;28;38;2;255;255;255m EDIT \x1b[0;48;2;60;24;14;38;2;255;214;190m ${mode} \x1b[0;1;48;2;18;18;20;38;2;240;240;232m ${s.edit.name} ` : '';
+    const badgeLen = s.edit ? 6 + mode.length + 2 + s.edit.name.length + 2 : 0;
+    lines.push(`${badge}\x1b[0;48;2;18;18;20;38;2;150;154;160m${fit(` ${info}`, Math.max(0, L.cols - badgeLen)).padEnd(Math.max(0, L.cols - badgeLen))}\x1b[0m`);
     // the Enter line: lighter while the box is open (focused)
     const enter = s.find ? `\x1b[0;48;2;62;66;74;38;2;240;240;240m${fit(` › ${s.find.value}`, L.cols).padEnd(L.cols)}\x1b[0m` : `\x1b[0;48;2;30;31;34;38;2;90;94;100m${fit(' Enter: find / commands (/l /s /svg /help …) · in Q: Shift+Enter (or Alt+Enter) · /q: quit', L.cols).padEnd(L.cols)}\x1b[0m`;
     lines.push(enter);

@@ -5967,6 +5967,7 @@
     // detail where you draw. Points in the air extend the model: Enter closes a loop of lines into a face.
     // A vertex can be dragged (or moved with the gizmo arrows) and everything that uses it follows.
     let editing = null; // the object being edited
+    globalThis.__editing = () => (editing ? { name: String(editing.name ?? editing.id ?? ''), mode: ui.edit.mode } : null); // (the terminal's info line)
         let sawPts = []; // saw mode: up to 3 points { p, n } (n: the face normal where it was put, when known)
     // What the mouse does in edit mode, as in Blender: V draws lines (nothing can be moved while drawing); 1 moves points,
     // 2 moves lines (edges), 3 moves faces.
