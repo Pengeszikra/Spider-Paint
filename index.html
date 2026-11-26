@@ -2217,7 +2217,7 @@
     // list. "/" alone lists the commands. /l or /load: the scenes of the + scene list (examples, stories, saved here, online),
     // Enter opens the chosen one as the list does (merge on: added to the scene, off: alone).
     let findRows = null; // the rows of a command (null: the objects of the scene)
-    const sceneRows = (q) => {
+    const sceneRows = (q, how) => {
       const rows = [...exampleEl.querySelectorAll('option')].filter((o) => o.value).map((o, k) => {
         const group = o.parentElement?.tagName === 'OPTGROUP' ? o.parentElement.label.replace(/\s*\(.*\)$/, '') : '';
         return { k, label: o.textContent.trim(), cat: group, value: o.value };
@@ -2230,17 +2230,20 @@
       });
       return ranked.filter(([x]) => x >= 0).sort((p, q2) => p[0] - q2[0] || p[1].k - q2[1].k).map(([, r]) => ({
         ...r,
-        right: ui.view.merge ? 'add' : 'open alone',
+        right: how === 'merge' ? 'add' : 'open alone',
         take: () => {
-          exampleEl.value = r.value;
-          exampleEl.dispatchEvent(new Event('change'));
+          if (r.value.startsWith('saved:') || r.value.startsWith('cloud:')) nameEl.value = r.value.slice(6);
+          addExample(r.value, how).catch((e) => sceneNote(`scene: ${e.message}`));
         },
       }));
     };
     // A command is { names, hint, rows(q) } (its own list) or { names, hint, run(arg), choices?, free?, bare? }: `choices()` lists
     // what the argument can be ({ label, value, cat, right, sw }), `free` takes any typed text too, `bare` is what Enter does with
     // no argument (a toggle flips). run's answer (or error) shows as a toast. The table grows further down (FIND_CMDS.push).
-    const FIND_CMDS = [{ names: ['load', 'l'], hint: 'open a scene (the + scene list)', rows: sceneRows }];
+    const FIND_CMDS = [
+      { names: ['load', 'l'], hint: 'open a scene alone (the scene before goes; U brings it back)', rows: (q) => sceneRows(q, 'replace') },
+      { names: ['merge'], hint: 'add a scene to this one', rows: (q) => sceneRows(q, 'merge') },
+    ];
     let cmdToastEl = null, cmdToastTimer = 0;
     const cmdToast = (state, text) => {
       cmdToastEl ??= Object.assign(document.createElement('div'), { id: 'cmdToast', role: 'status' });
@@ -5119,12 +5122,13 @@
         if (--loading <= 0) ((loading = 0), (loaderEl.hidden = true));
       }
     };
-    const loadScene = async (data, replace = false) =>
+    // merge: added to the scene (the MERGE switch by default; /merge says true, /load replace)
+    const loadScene = async (data, replace = false, merge = ui.view.merge) =>
       withLoader(data?.name ?? 'scene', async () => {
         const had = allObjects().length > 0;
-        if ((replace || !ui.view.merge) && had) clearScene();
+        if ((replace || !merge) && had) clearScene();
         await addScene(data);
-        if (data.view && (replace || !ui.view.merge || !had)) applyView(data.view);
+        if (data.view && (replace || !merge || !had)) applyView(data.view);
         workshopNotice('native_scene_loaded', { objects: allObjects().length });
         if (WORKSHOP_EMBED && workshopSessionId) {
           workshopSceneReady = true;
@@ -5137,7 +5141,8 @@
       if (warnings.length) sceneNote(`sky: ${warnings.length} note${warnings.length > 1 ? 's' : ''}: ${warnings.slice(0, 3).join('; ')}${warnings.length > 3 ? ' …' : ''}`);
       return scene;
     };
-    const addExample = async (name) =>
+    // how: undefined (the MERGE switch decides), 'replace' (/load: the scene before goes), 'merge' (/merge: added)
+    const addExample = async (name, how) =>
       name.startsWith('game:')
         ? loadGame(name.slice(5))
         : name.startsWith('story:')
@@ -5145,7 +5150,7 @@
             const url = new URL(`./models/${name.slice(6)}.build.json`, location.href).href; // (a story's audio is relative to it)
             return openStory(await readJson(await fetch(url)), url);
           })
-        : ((startScene = startScene === name ? name : null), withLoader(name.replace(/^saved:/, ''), async () => loadScene(await sceneOf(name))));
+        : ((startScene = startScene === name ? name : null), withLoader(name.replace(/^saved:/, ''), async () => loadScene(await sceneOf(name), how === 'replace', how === 'merge' ? true : how === 'replace' ? false : ui.view.merge)));
     const centroid = (ps) => ps.reduce((s, p) => s.map((c, i) => c + p[i] / ps.length), [0, 0, 0]);
     const addScene = async ({ objects: raw, palette: extra, prototypes, start, cloud: points, cloudProtos, vehicle: ride, figures, skyLines, paths, joints: rawJoints, backdrop }) => {
       if (backdrop !== undefined) sceneBackdrop = backdrop; // (a sky far behind a ground scene, in the headset)
@@ -10347,7 +10352,6 @@
           click('sceneForget');
           return said();
         } },
-        onOff('merge', 'merge'),
         { names: ['svg'], hint: 'save the view as an SVG picture (the svg panel\'s settings; a number: the width)', run: async (a) => {
           const [w] = nums(a);
           if (w) svgEl('svgSize').value = String(Math.round(w));

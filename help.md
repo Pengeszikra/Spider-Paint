@@ -92,12 +92,12 @@ Enter opens the find box (in the edit mode, where Enter builds, cuts or turns: *
 
 | Command | What it does |
 |---|---|
-| `/l name`, `/load` | open a scene of the + scene list (examples, stories, saved here, online): added, or alone with merge off |
+| `/l name`, `/load` | open a scene of the + scene list (examples, stories, saved here, online) **alone**: the scene before goes (U brings it back) |
+| `/merge name` | add a scene of the list to this one |
 | `/s name`, `/save` | save the scene here (no name: the name box, or a dated one) |
 | `/cloud name` | save the scene online (the store) |
 | `/dl`, `/open`, `/new` | download the scene (.3draft), add one from a file, empty the scene (U brings it back) |
 | `/forget name` | forget a scene saved here |
-| `/merge on · off` | loading adds to the scene, or opens it alone |
 | `/svg [width]` | save the view as an SVG (the svg panel's settings: lit colours, background, edges) |
 | `/png [size]` | save the view as a PNG: GPU light, see-through background, cut to the model with a little room (size: its longer side, 1200) |
 | `/gif [frames] [seconds]`, `/anim …` | save the motion (the svg panel's turntable or story part) as an animated GIF / SVG |
