@@ -45,7 +45,7 @@ sudo apt install -y ./google-chrome-stable_current_amd64.deb
 Vim's own package system is enough; no plugin manager is needed:
 
 ```sh
-git clone https://github.com/Pengeszikra/Spider-Paint.git ~/Spider-Paint
+git clone https://github.com/Pengeszikra/spider-paint.git ~/Spider-Paint
 mkdir -p ~/.vim/pack/spider/start
 ln -s ~/Spider-Paint/vim ~/.vim/pack/spider/start/spider-paint
 printf 'set termguicolors\nset mouse=a\n' >> ~/.vimrc
@@ -115,3 +115,18 @@ cd ~/Spider-Paint && git pull
 | `let $SPIDER_TERM_QUANT = 4` | colours rounded: this many low bits of each channel dropped (default 3 inside Vim / Neovim, 0 elsewhere) |
 
 The plugin works in Neovim too (Vim 8.1+ or Neovim). In Neovim, Ctrl+\ then Ctrl+N gets back to the editor.
+
+## Quick reference (for those who know Vim)
+
+The checkout is a Vim plugin too (`vim/plugin/spider-paint.vim`):
+
+```vim
+" vim-plug (lazy.nvim: { 'Pengeszikra/spider-paint', config = function(p) vim.opt.rtp:append(p.dir .. '/vim') end })
+Plug 'Pengeszikra/spider-paint', { 'rtp': 'vim', 'do': 'npm install --omit=dev' }
+set termguicolors mouse=a
+```
+
+`:SpiderPaint` opens spider-paint in a vertical terminal split: the buffer's scene file if it is one (saving it reloads the
+view), else the start scene; `:SpiderPaint bridge` a scene of the + scene list; `:SpiderPaint path.json` a file.
+`g:spider_paint_split` = `'vertical'` | `'horizontal'` | `'tab'`. In the split every key belongs to spider-paint; Ctrl+W
+(Vim) or Ctrl+\ Ctrl+N (Neovim) gets back to the editor, Ctrl+C quits spider-paint. Vim 8.1+ or Neovim, node 22+.

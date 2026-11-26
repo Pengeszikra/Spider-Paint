@@ -1,6 +1,6 @@
 {
   "name": "spider-paint",
-  "displayName": "Spider Paint",
+  "displayName": "spider-paint",
   "description": "The spider-paint 3D workshop (3Draft) inside VS Code: fly, model, paint, every key of the app; a scene file you edit is shown live and reloaded on save.",
   "version": "0.1.0",
   "publisher": "pengeszikra",
@@ -8,9 +8,9 @@
   "icon": "icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Pengeszikra/Spider-Paint"
+    "url": "https://github.com/Pengeszikra/spider-paint"
   },
-  "homepage": "https://github.com/Pengeszikra/Spider-Paint#in-vs-code",
+  "homepage": "https://github.com/Pengeszikra/spider-paint#in-vs-code",
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -28,38 +28,38 @@
   ],
   "main": "./extension.js",
   "activationEvents": [
-    "onWebviewPanel:spiderPaint"
+    "onWebviewPanel:spider-paint"
   ],
   "contributes": {
     "commands": [
       {
-        "command": "spiderPaint.open",
+        "command": "spider-paint.open",
         "title": "Open",
-        "category": "Spider Paint"
+        "category": "spider-paint"
       },
       {
-        "command": "spiderPaint.openScene",
+        "command": "spider-paint.openScene",
         "title": "Open a scene from the list…",
-        "category": "Spider Paint"
+        "category": "spider-paint"
       },
       {
-        "command": "spiderPaint.showFile",
+        "command": "spider-paint.showFile",
         "title": "Show this scene file in 3D",
-        "category": "Spider Paint",
+        "category": "spider-paint",
         "icon": "$(symbol-structure)"
       }
     ],
     "menus": {
       "editor/title": [
         {
-          "command": "spiderPaint.showFile",
+          "command": "spider-paint.showFile",
           "when": "resourceExtname == .json || resourceExtname == .3draft",
           "group": "navigation"
         }
       ],
       "explorer/context": [
         {
-          "command": "spiderPaint.showFile",
+          "command": "spider-paint.showFile",
           "when": "resourceExtname == .json || resourceExtname == .3draft",
           "group": "navigation"
         }

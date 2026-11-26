@@ -32,7 +32,7 @@ node scripts/sync.mjs ../3draft        # sibling checkout; must print "Spider Pa
 git add -A && git commit -m "Sync 3Draft: <what changed> (cache v110)" && git push origin master
 ```
 
-Do 3Draft's own release first (bump, build, test, commit, push). The sync copies the engine into `engine/<commit>/` and the page imports it from there (no more jsDelivr: a fresh commit answered 404 there for minutes, and every page loaded in that window stayed dead). Vercel deploys `master` on push.
+Do 3Draft's own release first (bump, build, test, commit, push). The sync copies the engine into `engine/<commit>/` and the page imports it from there (no more jsDelivr: a fresh commit answered 404 there for minutes, and every page loaded in that window stayed dead). Vercel no longer deploys on push (`vercel.json`: `"git": { "deploymentEnabled": false }`, since 26 Nov 2026: every deployment kept ~50 MB of Deployment Storage); Cloud Run is the live one. Remove that line to deploy there again.
 
 If you forget to raise `CACHE`, installed phones keep the old shell. Always raise it when any shipped file changed.
 

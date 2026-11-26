@@ -21,7 +21,9 @@
       "scripts/spider-build.test.mjs",
       "scripts/spider-build.browser-test.py",
       "scripts/build-modular-characters.mjs",
-      "scripts/modular-characters.test.mjs"
+      "scripts/modular-characters.test.mjs",
+      "vim/",
+      "VIM-PLUGIN.md"
     ],
     "share": [
       "models/spider-build-v2.mjs",

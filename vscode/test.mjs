@@ -26,7 +26,7 @@ Module._load = function (req, ...rest) {
 };
 require('./extension.js').activate({ subscriptions: [], extensionPath: new URL('.', import.meta.url).pathname });
 Module._load = load;
-assert.deepEqual(registered.sort(), ['spiderPaint.open', 'spiderPaint.openScene', 'spiderPaint.showFile']);
+assert.deepEqual(registered.sort(), ['spider-paint.open', 'spider-paint.openScene', 'spider-paint.showFile']);
 const pkg = require('./package.json');
 assert.deepEqual(pkg.contributes.commands.map((c) => c.command).sort(), registered);
 console.log('vscode extension: OK');

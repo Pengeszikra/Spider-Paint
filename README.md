@@ -81,7 +81,7 @@ A scene **file** (`.json`, `.3draft`, a sky catalogue, a story) is packed into t
 
 ### In VS Code
 
-`vscode/` is a VS Code extension: the app itself in a webview tab (sharp, every key). Commands: **Spider Paint: Open**,
+`vscode/` is a VS Code extension: the app itself in a webview tab (sharp, every key). Commands: **spider-paint: Open**,
 **Open a scene from the list…**, **Show this scene file in 3D** (the editor's `.json` / `.3draft` beside it, reloaded on
 every save; also a button in the editor's title bar). Try it from the checkout: open the `vscode` folder in VS Code and
 press F5 (it uses the checkout's app), or build a `.vsix` (`cd vscode && npm run package`, then
@@ -106,23 +106,6 @@ file (`.js`, `.html`, `.json`, `.rs`, `.sh`…) is shown as one coloured block. 
 beside the file or `https://…`) are drawn the way the 3D view is: half blocks, two pixels a cell (`--image-rows N`,
 `--no-images`). PNG and GIF are read in node; JPEG, SVG and WebP go through a headless Chrome when there is one.
 
-### In Vim / Neovim
-
-New to Vim or to spider-paint? [VIM-PLUGIN.md](VIM-PLUGIN.md) walks through it step by step on Ubuntu.
-
-The checkout is a Vim plugin too (`vim/plugin/spider-paint.vim`):
-
-```vim
-" vim-plug (lazy.nvim: { 'Pengeszikra/Spider-Paint', config = function(p) vim.opt.rtp:append(p.dir .. '/vim') end })
-Plug 'Pengeszikra/Spider-Paint', { 'rtp': 'vim', 'do': 'npm install --omit=dev' }
-set termguicolors mouse=a
-```
-
-`:SpiderPaint` opens spider-paint in a vertical terminal split: the buffer's scene file if it is one (saving it reloads the
-view), else the start scene; `:SpiderPaint bridge` a scene of the + scene list; `:SpiderPaint path.json` a file.
-`g:spider_paint_split` = `'vertical'` | `'horizontal'` | `'tab'`. In the split every key belongs to spider-paint; Ctrl+W
-(Vim) or Ctrl+\ Ctrl+N (Neovim) gets back to the editor, Ctrl+C quits spider-paint. Vim 8.1+ or Neovim, node 22+.
-
 **The native viewer (`--native`, or when there is no Chrome):** The scene is drawn with 24-bit colour half blocks (two pixels a character cell), a depth buffer and one shaded colour a
 face (`src/term-render.js`, pure: no node, no DOM), with dark outlines at the silhouettes, folds and depth jumps in place of
 the GPU's light play (`/outline` or `--flat` turns them off). The model fills the window. It is zen: only the picture. The mouse belongs to the program (the
@@ -140,7 +123,7 @@ mouse reporting (iTerm2, WezTerm, kitty, Ghostty, Windows Terminal, VS Code; not
 
 ## Project boundaries and deployments
 
-- **spider-paint** (`Pengeszikra/spider-paint`) is deployed to Cloud Run (`.github/workflows/cloud-run-deploy.yml`) and has the `spider-paint` npm package. The Vercel project (`spider-paint.vercel.app`) gets no new versions for now: `vercel.json` has `"git": { "deploymentEnabled": false }`, so pushes no longer deploy there (every deployment kept ~50 MB in Vercel's Deployment Storage); the last deployment stays online until it is removed. Delete that line to deploy there again.
+- **spider-paint** (`Pengeszikra/spider-paint`) is deployed to Cloud Run (`.github/workflows/cloud-run-deploy.yml`) and has the `spider-paint` npm package.
 - **3Draft** (`Pengeszikra/3Draft`) is the separate 3D engine repository and npm module.
 
 The product name is always lowercase **spider-paint**. The app header can retain **3Draft** as a quiet engine attribution.

@@ -1,4 +1,4 @@
-// Spider Paint in VS Code: the real app (index.html and its modules) in a webview panel. VS Code is Chromium, so this is
+// spider-paint in VS Code: the real app (index.html and its modules) in a webview panel. VS Code is Chromium, so this is
 // the browser app itself, sharp and with every key. The app's files: ./app (copied in by scripts/vscode-app.mjs when the
 // extension is packaged) or, while it runs from the checkout (F5), the checkout itself.
 // A scene file (the editor's .json / .3draft) travels into the page as the MCP links do (#scene= / #sky= / #story=,
@@ -28,19 +28,19 @@ const render = (ctx) => {
     try {
       link = linkOf(fs.readFileSync(shown.value, 'utf8'), zlib.deflateRawSync);
     } catch (e) {
-      vscode.window.showWarningMessage(`Spider Paint: ${path.basename(shown.value)} is not a scene yet (${e.message})`);
+      vscode.window.showWarningMessage(`spider-paint: ${path.basename(shown.value)} is not a scene yet (${e.message})`);
       return;
     }
   }
   const index = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   panel.webview.html = pageHtml(index, { base, link, cspSource: panel.webview.cspSource });
-  panel.title = shown?.kind === 'file' ? `3D · ${path.basename(shown.value)}` : shown?.kind === 'name' ? `Spider Paint · ${shown.value}` : 'Spider Paint';
+  panel.title = shown?.kind === 'file' ? `3D · ${path.basename(shown.value)}` : shown?.kind === 'name' ? `spider-paint · ${shown.value}` : 'spider-paint';
 };
 
 const open = (ctx, what) => {
   shown = what;
   if (!panel) {
-    panel = vscode.window.createWebviewPanel('spiderPaint', 'Spider Paint', { viewColumn: what?.kind === 'file' ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active, preserveFocus: what?.kind === 'file' }, {
+    panel = vscode.window.createWebviewPanel('spider-paint', 'spider-paint', { viewColumn: what?.kind === 'file' ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active, preserveFocus: what?.kind === 'file' }, {
       enableScripts: true,
       retainContextWhenHidden: true, // (the scene and the camera stay while the tab is in the back)
       localResourceRoots: [vscode.Uri.file(appRoot(ctx))],
@@ -67,8 +67,8 @@ const open = (ctx, what) => {
 
 exports.activate = (ctx) => {
   ctx.subscriptions.push(
-    vscode.commands.registerCommand('spiderPaint.open', () => open(ctx, { kind: 'start' })),
-    vscode.commands.registerCommand('spiderPaint.openScene', async () => {
+    vscode.commands.registerCommand('spider-paint.open', () => open(ctx, { kind: 'start' })),
+    vscode.commands.registerCommand('spider-paint.openScene', async () => {
       let names = [];
       try {
         const index = JSON.parse(fs.readFileSync(path.join(appRoot(ctx), 'models', 'index.json'), 'utf8'));
@@ -78,9 +78,9 @@ exports.activate = (ctx) => {
       const pick = await vscode.window.showQuickPick(names, { placeHolder: 'a scene of the + scene list (or type a name: deepsky, story:…, sky:…)', matchOnDescription: true });
       if (pick) open(ctx, { kind: 'name', value: pick.label });
     }),
-    vscode.commands.registerCommand('spiderPaint.showFile', (uri) => {
+    vscode.commands.registerCommand('spider-paint.showFile', (uri) => {
       const file = uri?.fsPath ?? vscode.window.activeTextEditor?.document.uri.fsPath;
-      if (!file) return vscode.window.showInformationMessage('Spider Paint: open a scene file (.json / .3draft) first');
+      if (!file) return vscode.window.showInformationMessage('spider-paint: open a scene file (.json / .3draft) first');
       open(ctx, { kind: 'file', value: file });
     }),
   );

@@ -91,7 +91,7 @@ main{padding:20px 5%;max-width:980px}pre{background:#0c2225;color:#e8efda;paddin
 const run = async () => {
   const parts = await docsParts();
   const tpl = opt('--template') ? await readFile(opt('--template'), 'utf8') : standalone;
-  const stamp = `Generated from <a href="https://github.com/Pengeszikra/Spider-Paint/tree/master/help">spider-paint/help</a> · v${esc(parts.version)}${parts.commit ? ` · <a href="https://github.com/Pengeszikra/Spider-Paint/commit/${parts.commit}">${parts.commit}</a>` : ''}`;
+  const stamp = `Generated from <a href="https://github.com/Pengeszikra/spider-paint/tree/master/help">spider-paint/help</a> · v${esc(parts.version)}${parts.commit ? ` · <a href="https://github.com/Pengeszikra/spider-paint/commit/${parts.commit}">${parts.commit}</a>` : ''}`;
   const html = tpl
     .replace('<!--spider-docs:css-->', () => parts.css)
     .replace('<!--spider-docs:nav-->', () => parts.nav)
