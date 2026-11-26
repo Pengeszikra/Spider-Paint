@@ -32,9 +32,9 @@ const types = {
 const publicFiles = new Set([
   'index.html', 'player.html', 'emulator.html', 'sky.html',
   'xr-test.html', 'xr-compare.html', 'workshop.html',
-  'favicon.svg', 'manifest.webmanifest', 'sw.js', 'help.md', 'sky.md',
+  'favicon.svg', 'manifest.webmanifest', 'sw.js', 'sky.md',
 ]);
-const publicDirs = new Set(['src', 'engine', 'models', 'media', 'icons', 'app']);
+const publicDirs = new Set(['src', 'engine', 'models', 'media', 'icons', 'app', 'help']);
 async function serveStatic(req, res, url) {
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     res.writeHead(405, { Allow: 'GET, HEAD' }).end();

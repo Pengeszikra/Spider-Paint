@@ -41,7 +41,7 @@
   "scripts": {
     "start": "node bin/spider-paint.mjs",
     "term": "node bin/spider-term.mjs",
-    "test": "node tests/math.mjs && node tests/smoke.mjs && node tests/instance.mjs && node tests/materials.mjs && node tests/svg-export.mjs && node tests/state.mjs && node tests/term.mjs && node vscode/test.mjs",
+    "test": "node tests/math.mjs && node tests/smoke.mjs && node tests/instance.mjs && node tests/materials.mjs && node tests/svg-export.mjs && node tests/state.mjs && node tests/term.mjs && node vscode/test.mjs && node tests/md.mjs",
     "test:all": "node scripts/test-all.mjs",
     "bump": "node scripts/bump.mjs",
     "workshop": "node bin/workshop.mjs",
@@ -69,7 +69,7 @@
     "xr-test.html",
     "xr-compare.html",
     "sky.md",
-    "help.md",
+    "help",
     "PLAYER.md",
     "APP.md",
     "MCP.md",

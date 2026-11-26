@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const out = join(root, 'vscode', 'app');
-const APP = ['index.html', 'help.md', 'sky.md', 'favicon.svg', 'manifest.webmanifest', 'src', 'engine', 'icons', 'media', 'models'];
+const APP = ['index.html', 'help', 'sky.md', 'favicon.svg', 'manifest.webmanifest', 'src', 'engine', 'icons', 'media', 'models'];
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 for (const f of APP) if (existsSync(join(root, f))) cpSync(join(root, f), join(out, f), { recursive: true });

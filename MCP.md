@@ -166,7 +166,7 @@ A command reaches only viewers that are open: the result's `sent_to` says how ma
 
 ### What the person can do in the viewer
 
-Enter: find a target by name. Tab: next target. W/S, A/D, R/F: speed forward, sideways, up. [ / ő and ] / ú: roll. 0 / ö: orbit. Space: stop. Esc: let go. `?` opens the full help (help.md).
+Enter: find a target by name. Tab: next target. W/S, A/D, R/F: speed forward, sideways, up. [ / ő and ] / ú: roll. 0 / ö: orbit. Space: stop. Esc: let go. `?` opens the full help (the `help/` folder: one markdown file a section).
 
 ## Tools
 

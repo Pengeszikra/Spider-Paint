@@ -11,8 +11,8 @@ import { extname, join, normalize, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const FILES = new Set(['index.html', 'help.md', 'APP.md', 'MCP.md', 'manifest.webmanifest', 'favicon.svg']);
-const DIRS = new Set(['models', 'icons', 'media']);
+const FILES = new Set(['index.html', 'APP.md', 'MCP.md', 'manifest.webmanifest', 'favicon.svg']);
+const DIRS = new Set(['models', 'icons', 'media', 'help']);
 
 const findThreeDraft = () => {
   const tries = [process.env['3DRAFT_DIR'], join(root, '..', '3Draft'), join(root, '..', '3draft')].filter(Boolean);

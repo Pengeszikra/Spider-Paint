@@ -14,6 +14,8 @@ import { merge, bounds } from '../engine/45789c908f86/mesh.js';
 import { instantiate } from '../engine/45789c908f86/instances.js';
 import { BUILTIN_MATERIALS } from '../mcp/materials.js';
 import { rasterize, rasterSky, lookAtAngles, ansiLines, fitZoom } from '../src/term-render.js';
+import { createHelpView } from './term-help.mjs';
+import { helpBlocks, helpSections } from '../src/md/help.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -165,8 +167,9 @@ const draw = () => {
     paint();
   }, Math.max(0, 33 - (performance.now() - lastPaint)));
 };
+let helpView = null, helpOn = false; // the help (/help): text from help/*.md in place of the picture
 const paint = () => {
-  const lines = picture();
+  const lines = helpOn ? (helpView ??= createHelpView(root)).rows(size().cols, size().rows) : picture();
   const { rows, cols } = size();
   let buf = '\x1b[?2026h'; // synchronised output: the terminal shows the frame whole (where it is understood)
   lines.forEach((l, i) => {
@@ -253,8 +256,27 @@ const run = (text) => {
     case 'quit':
       return quit();
     case 'help':
-    case 'h':
-      return note('/l scene · /view front|top|iso… · /spin · /outline · /fit · /zoom n · /ls · /q · a name: turn round that object');
+    case 'h': {
+      // the help as text; with a word: where it is first said
+      helpView ??= createHelpView(root);
+      let place = null, file = 'index.md';
+      if (arg) {
+        const dir = join(root, 'help');
+        const read = (f) => (existsSync(join(dir, f)) ? readFileSync(join(dir, f), 'utf8') : '');
+        const q = arg.toLowerCase();
+        for (const s of [{ file: 'index.md' }, ...helpSections(read('index.md'))]) {
+          const b = helpBlocks(read(s.file)).find((x) => x.text.toLowerCase().includes(q));
+          if (b) ((file = s.file), (place = { text: b.text.slice(Math.max(0, b.text.toLowerCase().indexOf(q) - 10)) }));
+          if (b) break;
+        }
+        if (!place) note(`"${arg}" is not in the help`);
+      }
+      helpView.open(file, place);
+      helpOn = true;
+      return draw();
+    }
+    case 'keys':
+      return note('/l scene · /view front|top|iso… · /spin · /outline · /fit · /zoom n · /ls · /help [word] · /q · a name: turn round that object');
     default:
       return note(`no command ${cmd} (/help)`);
   }
@@ -281,6 +303,11 @@ const cellFace = (x, y) => {
   return top >= 0 ? top : py + 1 < img.height ? img.ids[(py + 1) * img.width + px] : -1;
 };
 const mouse = (b, x, y, release) => {
+  if (helpOn) {
+    if (b & 64) return helpView.scroll((b & 3) === 0 ? -3 : 3, size().rows), draw();
+    if (!(b & 32) && !release && (b & 3) === 0 && y === 1) return helpView.click(x - 1), draw();
+    return;
+  }
   const motion = b & 32, button = b & 3, wheel = b & 64;
   if (wheel) {
     if (scene.sky) view.fov = Math.max(0.5 * D, Math.min(150 * D, view.fov * (button === 0 ? 1 / 1.12 : 1.12)));
@@ -326,6 +353,15 @@ process.stdin.on('data', (b) => {
   s = s.replace(/\x1b\[<(\d+);(\d+);(\d+)([Mm])/g, (_, b2, x, y, m) => (mouse(Number(b2), Number(x), Number(y), m === 'm'), ''));
   if (!s) return;
   if (s.includes('\x03')) return quit();
+  if (helpOn && line.mode !== 'prompt') {
+    // the help's keys (Enter still opens the command line)
+    if (!/[\r\n]/.test(s)) {
+      const k = s === '\x1b' ? 'Escape' : { '\x1b[A': 'ArrowUp', '\x1b[B': 'ArrowDown', '\x1b[C': 'ArrowRight', '\x1b[D': 'ArrowLeft', '\x1b[5~': 'PageUp', '\x1b[6~': 'PageDown', '\x1b[H': 'Home', '\x1b[F': 'End', '\t': 'Tab', '\x1b[Z': 'Tab' }[s] ?? s;
+      const r = helpView.key({ key: k, shift: s === '\x1b[Z' }, size().rows);
+      if (r === 'close') helpOn = false;
+      return draw();
+    }
+  }
   if (line.mode !== 'prompt') {
     const at = s.search(/[\r\n]/);
     if (at < 0) return; // (zen: no key but Enter)

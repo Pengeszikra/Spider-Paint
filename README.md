@@ -84,6 +84,15 @@ every save; also a button in the editor's title bar). Try it from the checkout: 
 press F5 (it uses the checkout's app), or build a `.vsix` (`cd vscode && npm run package`, then
 `code --install-extension spider-paint-*.vsix`); the *VS Code extension (.vsix)* workflow builds one on every push.
 
+### The help and the markdown reader
+
+The in-app help is the `help/` folder: `index.md` lists the sections, one markdown file each. `src/md/` reads them
+(no dependencies, its own tests in `tests/md.mjs`, ready to live in a repository of its own): `markdown.js` turns the
+blocks into the smallest HTML or into terminal lines, `highlight.js` colours code blocks and does not stop where the
+languages nest — an ```html block's `<script>` is JavaScript, its `/** jsDoc */` gets its tags, names and `{TypeScript
+types}` coloured, a `<style>` is CSS. The page's help panel and the terminal's help view (`?` in the app view, `/help
+[word]` in the native one) show the same files with the same colours.
+
 ### In Vim / Neovim
 
 The checkout is a Vim plugin too (`vim/plugin/spider-paint.vim`):

@@ -2,7 +2,7 @@
 // The page, models and icons come from the cache first and are refreshed in the background;
 // the engine (pinned to one commit on jsDelivr, so it never changes) and the fonts are kept after the first visit.
 const CACHE = 'spider-paint-v6';
-const SHELL = ['./', 'index.html', 'src/tutorial-keycast.js', 'manifest.webmanifest', 'favicon.svg', 'media/spider-paint-logo.svg', 'help.md', 'sky.html', 'sky.md', 'models/index.json', 'models/spider-build-v2.mjs'];
+const SHELL = ['./', 'index.html', 'src/tutorial-keycast.js', 'manifest.webmanifest', 'favicon.svg', 'media/spider-paint-logo.svg', 'help/index.md', 'sky.html', 'sky.md', 'models/index.json', 'models/spider-build-v2.mjs'];
 // the models kept offline are the project's own: the "offline" list of models/index.json
 const offlineModels = () => fetch('models/index.json').then((r) => r.json()).then((idx) => (idx.offline ?? []).map((f) => `models/${f}`)).catch(() => []);
 

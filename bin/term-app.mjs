@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve, sep, extname } from 'node:path';
 import { inflateSync, deflateRawSync } from 'node:zlib';
 import { ansiLines } from '../src/term-render.js';
+import { createHelpView } from './term-help.mjs';
 
 // ---- Chrome: CHROME_PATH, or the usual places
 export const findChrome = () => {
@@ -114,6 +115,7 @@ const PAGE_STATE = `(() => {
     edit: t('editSw')?.classList.contains('on') ? 'EDIT' + (t('editText')?.textContent.trim() ? ' ' + t('editText').textContent.trim() : '') : '',
     fps: t('fps')?.textContent ?? '',
     toast: toast?.isConnected ? toast.textContent : '',
+    help: t('helpPanel') && !t('helpPanel').hidden ? { file: globalThis.__helpAt ?? 'index.md', found: globalThis.__helpFound ?? null } : null,
     find: box && !box.hidden ? { value: t('findInput').value, rows: [...t('findList').children].map((d) => ({ i: d.dataset.i ?? null, sel: d.classList.contains('sel'), left: (d.children[0]?.innerText ?? d.innerText).replace(/\\s+/g, ' ').trim(), right: (d.children[1]?.innerText ?? '').trim() })) } : null,
   };
 })()`;
@@ -278,16 +280,31 @@ export const runApp = async ({ root, scene, chrome, url }) => {
   // ---- the frame: the picture (the list over it), the info line, the Enter line
   let shown = [], state = null, listRows = []; // listRows: [{ row (screen line), i }]
   const fit = (s, n) => (s.length > n ? `${s.slice(0, Math.max(0, n - 1))}…` : s);
+  // the help: drawn here as text from help/*.md while the page's help panel is open (the page's section, its /help finds)
+  const helpView = createHelpView(root);
+  let helpSeen = null;
+  const followHelp = (h) => {
+    const key = h ? `${h.file}|${h.found?.file ?? ''}|${h.found?.text ?? ''}` : null;
+    if (key === helpSeen) return;
+    const before = helpSeen;
+    helpSeen = key;
+    if (!h) return;
+    if (h.found && h.found.file === h.file && (!before || !before.endsWith(`|${h.found.text}`))) helpView.open(h.file, { text: h.found.text });
+    else helpView.open(h.file);
+  };
   const frame = async () => {
-    const [shot, st] = await Promise.all([
-      page('Page.captureScreenshot', { format: 'png', clip: { x: 0, y: 0, width: L.cols * CW, height: L.rows * CH, scale: 1 / CW }, captureBeyondViewport: false }),
-      page('Runtime.evaluate', { expression: PAGE_STATE, returnByValue: true }).catch(() => null),
-    ]);
+    const st = await page('Runtime.evaluate', { expression: PAGE_STATE, returnByValue: true }).catch(() => null);
     state = st?.result?.value ?? state;
-    const img = decodePng(Buffer.from(shot.data, 'base64'));
-    if (img.width !== L.cols || img.height < L.rows * 2) return; // (a resize is on its way)
-    img.height = L.rows * 2;
-    const lines = ansiLines(img);
+    followHelp(state?.help);
+    let lines;
+    if (state?.help) lines = helpView.rows(L.cols, L.rows);
+    else {
+      const shot = await page('Page.captureScreenshot', { format: 'png', clip: { x: 0, y: 0, width: L.cols * CW, height: L.rows * CH, scale: 1 / CW }, captureBeyondViewport: false });
+      const img = decodePng(Buffer.from(shot.data, 'base64'));
+      if (img.width !== L.cols || img.height < L.rows * 2) return; // (a resize is on its way)
+      img.height = L.rows * 2;
+      lines = ansiLines(img);
+    }
     // the Enter box's list, over the bottom of the picture
     listRows = [];
     const rows = state?.find?.rows ?? [];
@@ -334,6 +351,12 @@ export const runApp = async ({ root, scene, chrome, url }) => {
     const wheel = b & 64, motion = b & 32, btn = b & 3;
     const mods = (b & 4 ? 8 : 0) | (b & 8 ? 1 : 0) | (b & 16 ? 2 : 0);
     if (y > L.rows) return; // (the info and Enter lines)
+    if (state?.help && !state?.find) {
+      // the help view: the wheel scrolls it, a click on the section row changes the section
+      if (wheel) return void helpView.scroll(btn === 0 ? -3 : 3, L.rows);
+      if (!motion && !release && btn === 0 && y === 1) helpView.click(x - 1);
+      return;
+    }
     const at = px(x, y);
     if (wheel) return page('Input.dispatchMouseEvent', { type: 'mouseWheel', ...at, deltaX: 0, deltaY: btn === 0 ? -120 : 120, modifiers: mods });
     const name = ['left', 'middle', 'right'][btn] ?? 'none', bit = [1, 4, 2][btn] ?? 0;
@@ -355,6 +378,12 @@ export const runApp = async ({ root, scene, chrome, url }) => {
     for (let k of keysOf(s)) {
       // Alt+Enter = Shift+Enter (every terminal tells Alt+Enter apart: ESC Enter): the Enter box in the edit mode (Q) too
       if (k.key === 'Enter' && k.alt) k = { key: 'Enter', shift: true };
+      // the help view takes its keys (Enter still opens the box over it)
+      if (state?.help && !state?.find && k.key !== 'Enter') {
+        const r = helpView.key(k, L.rows);
+        if (r === 'close') events.push(() => page('Runtime.evaluate', { expression: "document.getElementById('helpClose')?.click()" }));
+        continue;
+      }
       // /q, /quit (or /exit) in the Enter box: leave the terminal
       if (k.key === 'Enter' && !k.shift)
         events.push(async () => {

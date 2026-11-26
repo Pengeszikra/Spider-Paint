@@ -225,6 +225,15 @@
     @media (min-width: 641px) { .side { z-index: 6; } }
     /* the help page: Markdown rendered into plain HTML */
     #helpDoc { color: #c9cdc2; line-height: 1.5; font-size: 12px; }
+    #helpNav { display: flex; flex-wrap: wrap; gap: 4px; position: sticky; top: -12px; z-index: 1; margin: -12px -14px 4px; padding: 10px 14px 8px; background: #0b0b0a; border-bottom: 1px solid var(--line); }
+    #helpNav button { padding: 3px 7px; border-radius: 6px; border: 1px solid #2a2d27; background: #141512; color: var(--muted); font: 500 11px var(--font-mono); cursor: pointer; }
+    #helpNav button.on { background: var(--teal); border-color: var(--teal); color: #04181a; }
+    #helpDoc .brand { display: block; width: 100%; max-width: 360px; aspect-ratio: 1; height: auto; object-fit: contain; margin: 0 auto 24px; border-radius: 16px; }
+    #helpDoc pre { margin: 8px 0; padding: 10px 12px; border-radius: 8px; background: #121311; color: #c9cdc2; overflow-x: auto; font: 11.5px/1.45 var(--font-mono); tab-size: 2; }
+    #helpDoc pre code { padding: 0; background: none; color: inherit; font: inherit; }
+    #helpDoc blockquote { margin: 8px 0; padding: 2px 0 2px 10px; border-left: 2px solid #3b4a3b; color: var(--muted); }
+    #helpDoc img { max-width: 100%; }
+    #helpDoc hr { border: 0; border-top: 1px solid var(--line); margin: 14px 0; }
     #helpDoc h1 { margin: 0 0 6px; font: 600 18px/1.2 var(--font-display); color: var(--cream); }
     #helpDoc h2 { margin: 18px 0 6px; padding-top: 8px; border-top: 1px solid var(--line); font: 600 13px/1.2 var(--font-display); letter-spacing: 0.08em; text-transform: uppercase; color: var(--teal); }
     #helpDoc p, #helpDoc ul, #helpDoc ol { margin: 6px 0; }
@@ -994,7 +1003,10 @@
     import { animatedSvg, spread, storyView, svgBackground, titledSvg } from './src/svg-anim.js';
     import { cropSvg, litSvg } from './src/svg-lit.js';
     import { encodeGif, visibleBox } from './src/gif.js';
-    import { SHAPES } from './src/shapes.js'; // the svg export (also the MCP's export_svg)
+    import { SHAPES } from './src/shapes.js';
+    import { toHtml, codeCss } from './src/md/markdown.js';
+    document.head.append(Object.assign(document.createElement('style'), { textContent: codeCss('#helpDoc pre') })); // (the code colours: one palette with the terminal)
+    import { helpSections, helpBlocks } from './src/md/help.js';
     import { zignal, batch, plain } from './src/state.js'; // the UI state: zignal (from flogon-galaxy), seen in batches
 
     // ---- the UI state: one object for what the switches say. Every write to it is seen (zignal), and the page follows it once
@@ -5508,75 +5520,59 @@
     };
     document.getElementById('palClose').addEventListener('click', closeSide);
     document.getElementById('helpClose').addEventListener('click', closeSide);
-    // Markdown -> HTML: just what help.md uses (headings, lists, tables, code, bold, italic, links). The text is escaped first.
-    const md = (src) => {
-      const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      const inline = (t) =>
-        esc(t)
-          .replace(/`([^`]+)`/g, '<code>$1</code>')
-          .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-          .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-          .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, l, h) => `<a href="${h}"${/^https?:|\.html\b/.test(h) ? ' target="_blank" rel="noopener"' : ''}>${l}</a>`); // (another page: a new tab, the scene stays)
-      const out = [];
-      const lines = src.replace(/\r/g, '').split('\n');
-      for (let i = 0; i < lines.length; i++) {
-        const l = lines[i];
-        let m;
-        if (!l.trim()) continue;
-        if ((m = l.match(/^(#{1,3}) (.*)/))) out.push(`<h${m[1].length}>${inline(m[2])}</h${m[1].length}>`);
-        else if (l.startsWith('|')) {
-          const rows = [];
-          while (i < lines.length && lines[i].startsWith('|')) rows.push(lines[i++]);
-          i--;
-          const cells = (r) => r.replace(/^\||\|$/g, '').split('|').map((c) => inline(c.trim()));
-          const [head, , ...body] = rows;
-          out.push(`<table><thead><tr>${cells(head).map((c) => `<th>${c}</th>`).join('')}</tr></thead><tbody>${body.map((r) => `<tr>${cells(r).map((c) => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`);
-        } else if (/^[-*] /.test(l)) {
-          const items = [];
-          while (i < lines.length && /^[-*] /.test(lines[i])) items.push(lines[i++].slice(2));
-          i--;
-          out.push(`<ul>${items.map((t) => `<li>${inline(t)}</li>`).join('')}</ul>`);
-        } else if (/^\d+\. /.test(l)) {
-          const items = [];
-          while (i < lines.length && /^\d+\. /.test(lines[i])) items.push(lines[i++].replace(/^\d+\. /, ''));
-          i--;
-          out.push(`<ol>${items.map((t) => `<li>${inline(t)}</li>`).join('')}</ol>`);
-        } else {
-          const para = [l];
-          while (i + 1 < lines.length && lines[i + 1].trim() && !/^(#|\||[-*] |\d+\. )/.test(lines[i + 1])) para.push(lines[++i]);
-          out.push(`<p>${inline(para.join(' '))}</p>`);
-        }
-      }
-      return out.join('\n');
-    };
     let helpLoaded = false;
     const toggleHelp = async () => {
       openSide(helpEl);
       if (!helpEl.hidden) await ensureHelp();
     };
+    // The help: help/index.md lists the sections (one markdown file each); the panel shows a row of them and one section.
+    // All are read once (the /help command searches them all).
+    let helpIndex = [], helpMd = {}, helpAt = 'index.md';
+    const helpLink = (h) => (/^(https?:|#|mailto:)/.test(h) || h.endsWith('.html') || /\.md(#|$)/.test(h) ? h : `help/${h}`); // (a picture beside the files)
+    const helpNav = document.createElement('nav');
+    helpNav.id = 'helpNav';
+    helpDoc.before(helpNav);
+    const showHelp = (file = helpAt, anchor = '') => {
+      if (!helpMd[file]) file = 'index.md';
+      helpAt = globalThis.__helpAt = file; // (the terminal's help view follows the page's section)
+      helpDoc.innerHTML = toHtml(helpMd[file], { link: helpLink });
+      if (file === 'index.md') {
+        const brand = Object.assign(document.createElement('img'), { src: 'media/spider-paint-logo.svg', alt: 'spider-paint logo — animated spider', decoding: 'async' });
+        brand.className = 'brand';
+        brand.onerror = () => (brand.src = 'favicon.svg');
+        helpDoc.prepend(brand);
+      }
+      helpNav.replaceChildren(
+        ...[{ file: 'index.md', title: 'Help' }, ...helpIndex].map((x) => Object.assign(document.createElement('button'), { type: 'button', textContent: x.title.replace(/\s*\(.*\)$/, ''), className: x.file === file ? 'on' : '', onclick: () => showHelp(x.file) })),
+      );
+      const target = anchor && helpDoc.querySelector(`#${CSS.escape(anchor)}`);
+      if (target) target.scrollIntoView({ block: 'start' });
+      else helpEl.scrollTop = 0;
+    };
     const ensureHelp = async () => {
       if (helpLoaded) return;
       try {
-        const res = await fetch('help.md');
-        if (!res.ok) throw new Error(res.status);
-        helpDoc.innerHTML = md(await res.text());
-        const helpBrand = document.createElement('img');
-        helpBrand.src = 'media/spider-paint-logo.svg';
-        helpBrand.alt = 'spider-paint logo — animated spider';
-        helpBrand.decoding = 'async';
-        helpBrand.style.cssText = 'display:block;width:100%;max-width:360px;aspect-ratio:1;height:auto;object-fit:contain;margin:0 auto 24px;border-radius:16px';
-        helpBrand.onerror = () => { helpBrand.src = 'favicon.svg'; };
-        helpDoc.prepend(helpBrand);
+        const get = async (f) => {
+          const res = await fetch(`help/${f}`);
+          if (!res.ok) throw new Error(`${f}: ${res.status}`);
+          return res.text();
+        };
+        helpMd['index.md'] = await get('index.md');
+        helpIndex = helpSections(helpMd['index.md']);
+        await Promise.all(helpIndex.map(async (x) => (helpMd[x.file] = await get(x.file).catch((e) => `# ${x.title}\n\nThis section could not be loaded (${e.message}).`))));
         helpLoaded = true;
+        showHelp('index.md');
       } catch (err) {
-        helpDoc.textContent = `The help page could not be loaded (${err.message}).`;
+        helpDoc.textContent = `The help could not be loaded (${err.message}).`;
       }
     };
     helpDoc.addEventListener('click', (e) => {
-      const a = e.target.closest('a[href="#keys"]');
+      const a = e.target.closest('a[href]');
       if (!a) return;
-      e.preventDefault();
-      toggleKeys(true); // the keyboard map is a modal over the page
+      const href = a.getAttribute('href');
+      if (href === '#keys') return void (e.preventDefault(), toggleKeys(true)); // the keyboard map is a modal over the page
+      const md = /^([\w./-]+\.md)?(?:#(.+))?$/.exec(href);
+      if (md && (md[1] || md[2])) (e.preventDefault(), showHelp(md[1] ?? helpAt, md[2] ?? '')); // another section, or a heading in this one
     });
     const paletteBtn = document.getElementById('paletteBtn');
     const syncPaletteSwitch = () => {
@@ -10322,17 +10318,6 @@
       const nums = (a) => (a.match(/-?\d+(\.\d+)?/g) ?? []).map(Number);
       const mat = () => materials[ui.paint.current];
       const VIEWS = { front: [0, 0], back: [Math.PI, 0], right: [Math.PI / 2, 0], left: [-Math.PI / 2, 0], side: [Math.PI / 2, 0], top: [0, Math.PI / 2 - 1e-3], bottom: [0, -Math.PI / 2 + 1e-3], iso: [-Math.PI / 4, Math.atan(1 / Math.SQRT2)] };
-      const helpBlocks = () => {
-        let head = '';
-        const out = [];
-        for (const el of helpDoc.querySelectorAll('h1, h2, h3, p, li, tr')) {
-          const text = el.textContent.replace(/\s+/g, ' ').trim();
-          if (!text || el.closest('thead')) continue;
-          if (/^H\d$/.test(el.tagName)) head = text;
-          out.push({ el, text, head, heading: /^H\d$/.test(el.tagName) });
-        }
-        return out;
-      };
       let helpList = [];
       FIND_CMDS.push(
         { names: ['save', 's'], hint: 'save the scene here under a name', free: true, bare: 'save it (the name in the box, or a dated one)', choices: () => Object.keys(readSaved()).map((n) => ({ label: n, value: n, cat: 'saved here', right: 'overwrite' })), run: (a) => {
@@ -10488,22 +10473,29 @@
             ensureHelp().then(() => !findBox.hidden && findShow());
             return [];
           }
-          helpList = helpBlocks();
+          // every section's blocks (help/*.md), the sections' titles first when no word is typed yet
+          helpList = [{ file: 'index.md', title: 'Help' }, ...helpIndex].flatMap(({ file, title }) => helpBlocks(helpMd[file] ?? '').map((b) => ({ ...b, file, title })));
           const q = fold(findInput.value.replace(/^\s*\/\S+\s*/, '').trim());
           return helpList.flatMap((b, i) => {
-            if (!q && !b.heading) return []; // (no word yet: the sections)
+            if (!q && helpList.findIndex((x) => x.file === b.file) !== i) return []; // (no word yet: one row a section, its title)
             const at = q ? Math.max(0, fold(b.text).indexOf(q)) : 0;
             const from = Math.max(0, at - 24);
             const label = (from ? '…' : '') + b.text.slice(from, from + 64) + (b.text.length > from + 64 ? '…' : '');
-            return [{ label, value: i, cat: b.heading ? 'section' : b.head }];
+            return [{ label, value: i, cat: b.title }];
           });
         }, run: (a) => {
           const b = helpList[Number(a)];
           if (!b) return;
           openSide(helpEl, true);
-          b.el.scrollIntoView({ block: 'center' });
-          b.el.classList.add('found');
-          setTimeout(() => b.el.classList.remove('found'), 2500);
+          showHelp(b.file, b.id);
+          // the block itself: the first element under the heading that holds its words
+          const key = b.text.slice(0, 40);
+          const el = [...helpDoc.querySelectorAll('h1, h2, h3, h4, p, li, tr, pre')].find((e) => e.textContent.replace(/\s+/g, ' ').includes(key.replace(/\s+/g, ' ')));
+          if (!el) return;
+          el.scrollIntoView({ block: 'center' });
+          el.classList.add('found');
+          setTimeout(() => el.classList.remove('found'), 2500);
+          globalThis.__helpFound = { file: b.file, text: key }; // (the terminal's help view goes to the same place)
         } },
         { names: ['keys'], hint: 'the keyboard map', run: () => toggleKeys(true) },
         { names: ['ver', 'version'], hint: 'the running version', run: () => buildEl.textContent.trim() || 'the version is not known here' },

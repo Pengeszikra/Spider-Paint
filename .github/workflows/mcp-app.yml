@@ -45,6 +45,7 @@ jobs:
           node tests/state.mjs
           node tests/term.mjs
           node vscode/test.mjs
+          node tests/md.mjs
       - name: Test ChatGPT widget MCP contract
         run: |
           npm run test:mcp-app

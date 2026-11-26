@@ -71,3 +71,18 @@ console.log('terminal view: OK');
   assert.deepEqual(keysOf('\x1b\r')[0], { key: 'Enter', alt: true }, 'Alt+Enter');
   console.log('terminal app modified keys: OK');
 }
+{
+  // the terminal's help view: the help/ files as text, a section row, places found by words
+  const { createHelpView } = await import('../bin/term-help.mjs');
+  const { visible } = await import('../src/md/markdown.js');
+  const v = createHelpView(new URL('..', import.meta.url).pathname);
+  let rows = v.rows(70, 20);
+  assert.equal(rows.length, 20);
+  assert.ok(rows.every((r) => visible(r) <= 70), 'no row wider than the terminal');
+  assert.match(rows[0].replace(/\x1b\[[0-9;]*m/g, ''), /Help/);
+  v.open('edit.md', { text: 'Ctrl+B: bevel' });
+  rows = v.rows(70, 20);
+  assert.ok(rows.slice(1).some((r) => r.includes('Ctrl+B: bevel')), 'opened at the place');
+  assert.equal(v.key({ key: 'Escape' }, 20), 'close');
+  console.log('terminal help view: OK');
+}

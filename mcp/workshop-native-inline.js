@@ -66,7 +66,7 @@ export function nativeInlineHTML() {
   must(html, STORY_IMPORT, 'story import');
   must(html, ENGINE_URL, 'worker ENGINE_URL');
   // the editor's own modules (import { … } from './src/….js'): bundled with the engine, as named constants
-  const SRC_IMPORT = /^[ \t]*import \{([^}]*)\} from '\.\/(src\/[\w-]+\.js)';[^\n]*$/gm;
+  const SRC_IMPORT = /^[ \t]*import \{([^}]*)\} from '\.\/(src\/[\w/-]+\.js)';[^\n]*$/gm;
   const srcImports = [...html.matchAll(SRC_IMPORT)].map((m) => ({ line: m[0], names: parseNames(m[1]), file: m[2] }));
   const { source, names: [engineNs, storyNs, ...srcNs] } = bundleModules([engineDir + '/index.js', 'models/spider-build-v2.mjs', ...srcImports.map((x) => x.file)]);
   const engineNames = parseNames(html.match(ENGINE_IMPORT)[1]);
