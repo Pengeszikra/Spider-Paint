@@ -131,6 +131,64 @@ export const ansiLines = (img) => {
 };
 export const toAnsi = (img) => ansiLines(img).join('\n');
 
+/**
+ * The pixel grid as cells for a frame-to-frame diff: rows of [fg, bg, ch] ("r;g;b" or '' for the terminal's own,
+ * "▀" / "▄" / " "). quant: the low bits of each colour channel dropped (0: exact; 3: 32 levels a channel), so noise
+ * and slow gradients change fewer cells and neighbours share their colour codes more often.
+ */
+export const cellRows = (img, quant = 0) => {
+  const { width: W, height: H, rgb: c, set } = img;
+  const q = quant > 0 ? (v) => Math.min(255, ((v >> quant) << quant) + (1 << (quant - 1))) : (v) => v;
+  const col = (k) => `${q(c[k * 3])};${q(c[k * 3 + 1])};${q(c[k * 3 + 2])}`;
+  const rows = [];
+  for (let y = 0; y < H; y += 2) {
+    const row = new Array(W);
+    for (let x = 0; x < W; x++) {
+      const a = y * W + x, b = (y + 1) * W + x;
+      const top = set[a], bot = y + 1 < H && set[b];
+      row[x] = top && bot ? (col(a) === col(b) ? ['', col(a), ' '] : [col(a), col(b), '▀']) : top ? [col(a), '', '▀'] : bot ? [col(b), '', '▄'] : ['', '', ' '];
+    }
+    rows.push(row);
+  }
+  return rows;
+};
+
+/**
+ * Only what changed: the escape codes that turn the cells of `prev` into `next` on screen line `line` (1-based); a
+ * missing prev redraws the whole row. Runs of changed cells with gaps of up to `gap` unchanged cells are joined (a
+ * cursor jump costs about as much); within a run only the colour that changes is sent (38;2 or 48;2, not both).
+ */
+export const diffRow = (prev, next, line, gap = 4) => {
+  let out = '';
+  const same = (x) => prev && prev[x] && prev[x][0] === next[x][0] && prev[x][1] === next[x][1] && prev[x][2] === next[x][2];
+  for (let x = 0; x < next.length; ) {
+    if (same(x)) {
+      x++;
+      continue;
+    }
+    // a run: up to the last changed cell that is followed by more than `gap` unchanged ones
+    let end = x + 1, quiet = 0;
+    for (let k = x + 1; k < next.length && quiet <= gap; k++) {
+      if (same(k)) quiet++;
+      else (quiet = 0), (end = k + 1);
+    }
+    out += `\x1b[${line};${x + 1}H`;
+    let fg = null, bg = null;
+    for (let k = x; k < end; k++) {
+      const [f, b, ch] = next[k];
+      const codes = [];
+      // (a space shows no foreground: it keeps whatever is set)
+      if (f !== fg && ch !== ' ') (codes.push(f ? `38;2;${f}` : '39'), (fg = f));
+      if (b !== bg) (codes.push(b ? `48;2;${b}` : '49'), (bg = b));
+      if (codes.length) out += `\x1b[${codes.join(';')}m`;
+      out += ch;
+    }
+    out += '\x1b[0m';
+    x = end;
+  }
+  return out;
+};
+
 export const renderTerm = (mesh, { cols = 80, rows = 24, ...view } = {}) => toAnsi(rasterize(mesh, { width: cols, height: rows * 2, ...view }));
 
 /** The zoom that makes `mesh` (or `fit`) fill about `fill` of a width × height grid as seen from yaw / pitch now. */

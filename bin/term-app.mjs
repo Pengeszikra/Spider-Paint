@@ -10,7 +10,7 @@ import { existsSync, readFileSync, watch } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep, extname } from 'node:path';
 import { inflateSync, deflateRawSync } from 'node:zlib';
-import { ansiLines } from '../src/term-render.js';
+import { cellRows, diffRow } from '../src/term-render.js';
 import { createHelpView } from './term-help.mjs';
 
 // ---- Chrome: CHROME_PATH, or the usual places
@@ -279,6 +279,12 @@ export const runApp = async ({ root, scene, chrome, url }) => {
 
   // ---- the frame: the picture (the list over it), the info line, the Enter line
   let shown = [], state = null, listRows = []; // listRows: [{ row (screen line), i }]
+  // shown[i]: what screen line i holds: a string (a text line) or the picture's cells (rows of [code, ch]), so a
+  // frame sends only the cells that changed. Inside Vim / Neovim (their :terminal parses every byte, slowly) the
+  // colours are rounded a little and the frames are fewer: SPIDER_TERM_QUANT (0–5 bits) and SPIDER_TERM_FPS set them.
+  const inEditor = !!(process.env.VIM_TERMINAL || process.env.NVIM);
+  const QUANT = Math.max(0, Math.min(5, Number(process.env.SPIDER_TERM_QUANT ?? (inEditor ? 3 : 0)) || 0));
+  const FPS = Math.max(1, Math.min(30, Number(process.env.SPIDER_TERM_FPS) || (inEditor ? 10 : 14)));
   const fit = (s, n) => (s.length > n ? `${s.slice(0, Math.max(0, n - 1))}…` : s);
   // the help: drawn here as text from help/*.md while the page's help panel is open (the page's section, its /help finds)
   const helpView = createHelpView(root);
@@ -303,7 +309,7 @@ export const runApp = async ({ root, scene, chrome, url }) => {
       const img = decodePng(Buffer.from(shot.data, 'base64'));
       if (img.width !== L.cols || img.height < L.rows * 2) return; // (a resize is on its way)
       img.height = L.rows * 2;
-      lines = ansiLines(img);
+      lines = cellRows(img, QUANT);
     }
     // the Enter box's list, over the bottom of the picture
     listRows = [];
@@ -333,11 +339,14 @@ export const runApp = async ({ root, scene, chrome, url }) => {
     lines.push(enter);
     let buf = '\x1b[?2026h';
     lines.forEach((l, i) => {
-      if (shown[i] !== l) buf += `\x1b[${i + 1};1H${l}`;
+      if (typeof l === 'string') {
+        if (shown[i] !== l) buf += `\x1b[${i + 1};1H${l}`;
+      } else buf += diffRow(Array.isArray(shown[i]) ? shown[i] : null, l, i + 1);
     });
     shown = lines;
     buf += s.find ? `\x1b[${L.rows + 2};${Math.min(L.cols, 4 + s.find.value.length)}H\x1b[?25h` : '\x1b[?25l';
-    out.write(`${buf}\x1b[?2026l`);
+    // the terminal decides the pace: while it has not taken the last frame, no new one is made (no lag piles up)
+    if (!out.write(`${buf}\x1b[?2026l`)) await new Promise((r) => out.once('drain', r));
   };
   const loop = async () => {
     while (!done) {
@@ -345,7 +354,7 @@ export const runApp = async ({ root, scene, chrome, url }) => {
       try {
         await frame();
       } catch {}
-      await new Promise((r) => setTimeout(r, Math.max(10, 70 - (performance.now() - t)))); // (~14 frames a second at most)
+      await new Promise((r) => setTimeout(r, Math.max(10, 1000 / FPS - (performance.now() - t)))); // (FPS frames a second at most)
     }
   };
 

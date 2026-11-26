@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { box } from '../engine/45789c908f86/mesh.js';
-import { rasterize, toAnsi, renderTerm } from '../src/term-render.js';
+import { rasterize, toAnsi, renderTerm, cellRows, diffRow } from '../src/term-render.js';
 
 const cube = box({ size: [1, 1, 1], color: '#cc4422' });
 const img = rasterize(cube, { width: 40, height: 40 });
@@ -85,4 +85,20 @@ console.log('terminal view: OK');
   assert.ok(rows.slice(1).some((r) => r.replace(/\x1b\[[0-9;]*m/g, '').includes('Ctrl+B: bevel')), 'opened at the place');
   assert.equal(v.key({ key: 'Escape' }, 20), 'close');
   console.log('terminal help view: OK');
+}
+
+{
+  // frame diffs: only the changed cells are sent; rounded colours change fewer cells
+  const W = 20, H = 4, img = (shift) => ({ width: W, height: H, rgb: Uint8Array.from({ length: W * H * 3 }, (_, k) => (Math.floor(k / 3) % W === 7 ? 200 : 10 + shift)), set: new Uint8Array(W * H).fill(1) });
+  const a = cellRows(img(0)), b = cellRows(img(0));
+  assert.equal(diffRow(a[0], b[0], 1), '', 'nothing changed: nothing sent');
+  const c = cellRows(img(0));
+  c[0][12] = ['1;2;3', '4;5;6', '▀'];
+  const d = diffRow(a[0], c[0], 3);
+  assert.ok(d.startsWith('\x1b[3;13H') && d.includes('1;2;3') && d.replace(/\x1b\[[0-9;]*[mH]/g, '').length === 1, 'one cell: a jump and that cell');
+  assert.equal(diffRow(null, a[0], 1).replace(/\x1b\[[0-9;]*[mH]/g, '').length, W, 'no previous row: all of it');
+  assert.equal(diffRow(cellRows(img(0), 3)[0], cellRows(img(2), 3)[0], 1), '', 'a small colour drift disappears when rounded');
+  const run = diffRow(null, [['1;1;1', '2;2;2', '▀'], ['3;3;3', '2;2;2', '▀'], ['', '', ' ']], 1);
+  assert.equal(run, '\x1b[1;1H\x1b[38;2;1;1;1;48;2;2;2;2m▀\x1b[38;2;3;3;3m▀\x1b[49m \x1b[0m', 'only the colour that changes is sent');
+  console.log('terminal frame diff: OK');
 }

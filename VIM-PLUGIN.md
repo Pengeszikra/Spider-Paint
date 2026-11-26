@@ -94,11 +94,24 @@ cd ~/Spider-Paint && git pull
 - **No colours:** check that `~/.vimrc` has `set termguicolors`. Ubuntu's own Terminal shows the colours and passes the
   mouse on.
 
+- **Slow, the picture lags:** Vim's built-in terminal reads every colour code itself, so it is much slower than
+  the terminal around it; the bigger the split, the more there is to read. spider-paint already sends only the
+  cells that changed, rounds the colours a little and makes at most 10 frames a second inside Vim. What helps more:
+  - a smaller split (`let g:spider_paint_split = 'horizontal'` and a few lines less, or `:resize 30`);
+  - Neovim: its terminal is faster (`nvim`, then `:SpiderPaint`);
+  - fewer frames or rounder colours, in `~/.vimrc`: `let $SPIDER_TERM_FPS = 6` (1–30) and
+    `let $SPIDER_TERM_QUANT = 4` (0–5: how many low bits of each colour are dropped);
+  - on a Mac, a terminal that is fast with true colour (iTerm2, kitty, WezTerm, Ghostty) around Vim, rather than
+    Apple's Terminal.
+  The fastest is spider-paint in a terminal of its own: `npm run term` (or `spider-term`) in another tab.
+
 ## Options
 
 | Setting (in `~/.vimrc`) | What it does |
 |---|---|
 | `let g:spider_paint_split = 'horizontal'` | open spider-paint below instead of beside (`'vertical'` is the default, `'tab'` a tab of its own) |
 | `let g:spider_paint_cmd = ['node', '/path/to/Spider-Paint/bin/spider-term.mjs']` | run another checkout |
+| `let $SPIDER_TERM_FPS = 6` | at most this many frames a second (default 10 inside Vim / Neovim, 14 elsewhere) |
+| `let $SPIDER_TERM_QUANT = 4` | colours rounded: this many low bits of each channel dropped (default 3 inside Vim / Neovim, 0 elsewhere) |
 
 The plugin works in Neovim too (Vim 8.1+ or Neovim). In Neovim, Ctrl+\ then Ctrl+N gets back to the editor.
