@@ -70,7 +70,10 @@ and **the Enter line**, lighter while the Enter box is open (focused): what you 
 targets, `/l` scenes, `/mat`, `/help`…) covers the bottom of the view, ↑↓ / Tab / Enter / Esc and a click on a row work
 as in the app; in the edit mode (Q), where Enter builds, cuts or turns, **Shift+Enter** opens the box (the terminal is asked
 for the kitty keyboard protocol so that it can tell Shift+Enter apart; **Alt+Enter** does the same in every terminal).
-**`/q`** (`/quit`) in the box leaves. The mouse is the app's (the cross follows it, drag turns, the wheel zooms; Shift / Option + drag selects
+The text box (Y, or T in Q) is typed on the same bottom line (`text › …`). **The palette (P)** is a text panel on the
+right over the picture: ↑↓ (or the wheel) chooses the material, Tab chooses metal / rough / alpha / emit / soft and ← →
+change it (Shift: five steps), a click takes a material or a place on a value's bar, ✕ / P / Esc close it; Ctrl+click on
+the picture still paints. **`/q`** (`/quit`) in the box leaves. The mouse is the app's (the cross follows it, drag turns, the wheel zooms; Shift / Option + drag selects
 terminal text). Ctrl+C quits. On WSL: install a Chrome or Chromium inside Ubuntu, or the native viewer starts.
 
 A scene **file** (`.json`, `.3draft`, a sky catalogue, a story) is packed into the page's address, as an MCP link is, and

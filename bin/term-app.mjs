@@ -12,6 +12,7 @@ import { join, resolve, sep, extname } from 'node:path';
 import { inflateSync, deflateRawSync } from 'node:zlib';
 import { cellRows, diffRow } from '../src/term-render.js';
 import { createHelpView } from './term-help.mjs';
+import { createPaletteView } from './term-palette.mjs';
 
 // ---- Chrome: CHROME_PATH, or the usual places
 export const findChrome = () => {
@@ -115,6 +116,8 @@ const PAGE_STATE = `(() => {
     edit: globalThis.__editing?.() ?? null,
     fps: t('fps')?.textContent ?? '',
     toast: toast?.isConnected ? toast.textContent : '',
+    palette: t('palette') && !t('palette').hidden ? globalThis.__palette?.() ?? null : null,
+    text: t('textBox') && !t('textBox').hidden ? { value: t('textBox').value, hint: t('textBox').placeholder } : null,
     help: t('helpPanel') && !t('helpPanel').hidden ? { file: globalThis.__helpAt ?? 'index.md', found: globalThis.__helpFound ?? null } : null,
     find: box && !box.hidden ? { value: t('findInput').value, rows: [...t('findList').children].map((d) => ({ i: d.dataset.i ?? null, sel: d.classList.contains('sel'), left: (d.children[0]?.innerText ?? d.innerText).replace(/\\s+/g, ' ').trim(), right: (d.children[1]?.innerText ?? '').trim() })) } : null,
   };
@@ -124,7 +127,7 @@ const PAGE_STATE = `(() => {
 const PAGE_CSS = `header.bar, footer.bar, footer.console, #hud, #editbar, #flight, #surface, #zenOff, .build, #cmdToast, #cloudToast { display: none !important; }
 #stage { position: fixed !important; inset: 0 !important; border: 0 !important; border-radius: 0 !important; z-index: 1; }
 body { padding: 0 !important; gap: 0 !important; }
-#findBox { opacity: 0 !important; pointer-events: none !important; }`;
+#findBox, #textBox, #palette { opacity: 0 !important; pointer-events: none !important; }`;
 
 // ---- terminal keys -> DOM key events
 const VK = { Enter: 13, Escape: 27, Tab: 9, Backspace: 8, Delete: 46, ' ': 32, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, Home: 36, End: 35, PageUp: 33, PageDown: 34 };
@@ -288,6 +291,15 @@ export const runApp = async ({ root, scene, chrome, url }) => {
   const fit = (s, n) => (s.length > n ? `${s.slice(0, Math.max(0, n - 1))}…` : s);
   // the help: drawn here as text from help/*.md while the page's help panel is open (the page's section, its /help finds)
   const helpView = createHelpView(root);
+  const palView = createPaletteView();
+  // a change from the palette panel: to the page, and its answer (the palette as it is now) is drawn at once
+  const palApply = async (a) => {
+    if (a === 'close') return page('Runtime.evaluate', { expression: "document.getElementById('palClose')?.click()" });
+    if (a && typeof a === 'object') {
+      const r = await page('Runtime.evaluate', { expression: `globalThis.__paletteSet(${JSON.stringify(a)})`, returnByValue: true }).catch(() => null);
+      if (state && r?.result?.value) state.palette = r.result.value;
+    }
+  };
   let helpSeen = null;
   const followHelp = (h) => {
     const key = h ? `${h.file}|${h.found?.file ?? ''}|${h.found?.text ?? ''}` : null;
@@ -310,6 +322,11 @@ export const runApp = async ({ root, scene, chrome, url }) => {
       if (img.width !== L.cols || img.height < L.rows * 2) return; // (a resize is on its way)
       img.height = L.rows * 2;
       lines = cellRows(img, QUANT);
+      // the palette (P): a text panel on the right, over the picture
+      if (state?.palette) {
+        const { x0, lines: panel } = palView.draw(state.palette, L.cols, L.rows);
+        for (const [y, c] of panel) lines[y] = lines[y].slice(0, x0).concat(c);
+      }
     }
     // the Enter box's list, over the bottom of the picture
     listRows = [];
@@ -335,7 +352,15 @@ export const runApp = async ({ root, scene, chrome, url }) => {
     const badgeLen = s.edit ? 6 + mode.length + 2 + s.edit.name.length + 2 : 0;
     lines.push(`${badge}\x1b[0;48;2;18;18;20;38;2;150;154;160m${fit(` ${info}`, Math.max(0, L.cols - badgeLen)).padEnd(Math.max(0, L.cols - badgeLen))}\x1b[0m`);
     // the Enter line: lighter while the box is open (focused)
-    const enter = s.find ? `\x1b[0;48;2;62;66;74;38;2;240;240;240m${fit(` › ${s.find.value}`, L.cols).padEnd(L.cols)}\x1b[0m` : `\x1b[0;48;2;30;31;34;38;2;90;94;100m${fit(' Enter: find / commands (/l /s /svg /help …) · in Q: Shift+Enter (or Alt+Enter) · /q: quit', L.cols).padEnd(L.cols)}\x1b[0m`;
+    // the text box (Y, T in Q): the words being typed, on the same line
+    const textLine = (t) => {
+      const head = ' text › ';
+      const body = fit(t.value || t.hint || '', Math.max(0, L.cols - head.length));
+      return `\x1b[0;48;2;62;66;74;38;2;240;240;240m${head}${t.value ? '' : '\x1b[38;2;150;154;160m'}${body}${' '.repeat(Math.max(0, L.cols - head.length - body.length))}\x1b[0m`;
+    };
+    const enter = s.text
+      ? textLine(s.text)
+      : s.find ? `\x1b[0;48;2;62;66;74;38;2;240;240;240m${fit(` › ${s.find.value}`, L.cols).padEnd(L.cols)}\x1b[0m` : `\x1b[0;48;2;30;31;34;38;2;90;94;100m${fit(' Enter: find / commands (/l /s /svg /help …) · in Q: Shift+Enter (or Alt+Enter) · /q: quit', L.cols).padEnd(L.cols)}\x1b[0m`;
     lines.push(enter);
     let buf = '\x1b[?2026h';
     lines.forEach((l, i) => {
@@ -344,7 +369,7 @@ export const runApp = async ({ root, scene, chrome, url }) => {
       } else buf += diffRow(Array.isArray(shown[i]) ? shown[i] : null, l, i + 1);
     });
     shown = lines;
-    buf += s.find ? `\x1b[${L.rows + 2};${Math.min(L.cols, 4 + s.find.value.length)}H\x1b[?25h` : '\x1b[?25l';
+    buf += s.text ? `\x1b[${L.rows + 2};${Math.min(L.cols, 9 + s.text.value.length)}H\x1b[?25h` : s.find ? `\x1b[${L.rows + 2};${Math.min(L.cols, 4 + s.find.value.length)}H\x1b[?25h` : '\x1b[?25l';
     // the terminal decides the pace: while it has not taken the last frame, no new one is made (no lag piles up)
     if (!out.write(`${buf}\x1b[?2026l`)) await new Promise((r) => out.once('drain', r));
   };
@@ -370,6 +395,10 @@ export const runApp = async ({ root, scene, chrome, url }) => {
       if (wheel) return void helpView.scroll(btn === 0 ? -3 : 3, L.rows);
       if (!motion && !release && btn === 0 && y === 1) helpView.click(x - 1);
       return;
+    }
+    if (state?.palette && !state?.find) {
+      const r = palView.mouse(x - 1, y - 1, { press: !motion && !release && btn === 0 && !wheel, wheel: wheel ? (btn === 0 ? -1 : 1) : 0 }, state.palette);
+      if (r) return palApply(r);
     }
     const at = px(x, y);
     if (wheel) return page('Input.dispatchMouseEvent', { type: 'mouseWheel', ...at, deltaX: 0, deltaY: btn === 0 ? -120 : 120, modifiers: mods });
@@ -397,6 +426,14 @@ export const runApp = async ({ root, scene, chrome, url }) => {
         const r = helpView.key(k, L.rows);
         if (r === 'close') events.push(() => page('Runtime.evaluate', { expression: "document.getElementById('helpClose')?.click()" }));
         continue;
+      }
+      // the palette panel takes ↑ ↓ ← → Tab (not while a box is open: there they are typing keys)
+      if (state?.palette && !state?.find && !state?.text) {
+        const r = palView.key(k, state.palette);
+        if (r) {
+          if (r !== 'draw') events.push(() => palApply(r));
+          continue;
+        }
       }
       // /q, /quit (or /exit) in the Enter box: leave the terminal
       if (k.key === 'Enter' && !k.shift)

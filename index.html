@@ -5401,6 +5401,25 @@
       }
       document.getElementById('p-url').value = m.url ?? m.scene ?? m.image ?? '';
     };
+    // the palette for the terminal's text panel (bin/term-palette.mjs): what it shows, and a change as the panel would make it
+    globalThis.__palette = () => ({
+      current: ui.paint.current,
+      items: materials.map((m) => ({ name: m.name, color: m.color, alpha: m.alpha ?? 1, metal: m.metal ?? 0 })),
+      props: PROPS.map((k) => {
+        const el = document.getElementById(`p-${k}`);
+        return { key: k, value: Number(materials[ui.paint.current]?.[k] ?? 0), min: Number(el.min), max: Number(el.max), step: Number(el.step) };
+      }),
+    });
+    globalThis.__paletteSet = (a) => {
+      if (Number.isInteger(a?.current) && materials[a.current]) ui.paint.current = a.current;
+      if (a?.key && PROPS.includes(a.key)) {
+        const el = document.getElementById(`p-${a.key}`);
+        el.value = a.value;
+        el.dispatchEvent(new Event('input'));
+        el.dispatchEvent(new Event('change'));
+      }
+      return globalThis.__palette();
+    };
     for (const k of PROPS) {
       document.getElementById(`p-${k}`).addEventListener('input', (e) => {
         const m = materials[ui.paint.current];

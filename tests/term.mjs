@@ -102,3 +102,24 @@ console.log('terminal view: OK');
   assert.equal(run, '\x1b[1;1H\x1b[38;2;1;1;1;48;2;2;2;2m▀\x1b[38;2;3;3;3m▀\x1b[49m \x1b[0m', 'only the colour that changes is sent');
   console.log('terminal frame diff: OK');
 }
+{
+  // the palette as a text panel in the terminal app view
+  const { createPaletteView } = await import('../bin/term-palette.mjs');
+  const v = createPaletteView();
+  const pal = { current: 1, items: ['plaster', 'oak', 'steel'].map((name, i) => ({ name, color: ['#dddddd', '#a0703c', '#99aaaa'][i], alpha: 1, metal: i === 2 ? 1 : 0 })), props: [{ key: 'metal', min: 0, max: 1, step: 0.05, value: 0 }, { key: 'rough', min: 0, max: 1, step: 0.05, value: 0.9 }] };
+  const { x0, lines } = v.draw(pal, 80, 20);
+  const text = (y) => lines.get(y).map((c) => c[2]).join('');
+  assert.equal(x0, 80 - lines.get(0).length, 'on the right');
+  assert.match(text(0), /materials.*✕/);
+  assert.match(text(2), /^▸.*oak/, 'the chosen material marked');
+  assert.equal(lines.get(2)[1][1], '160;112;60', 'its colour as a swatch');
+  assert.deepEqual(v.key({ key: 'ArrowDown' }, pal), { current: 2 });
+  assert.deepEqual(v.key({ key: 'ArrowUp' }, pal), { current: 0 });
+  assert.equal(v.key({ key: 'Tab' }, pal), 'draw');
+  assert.deepEqual(v.key({ key: 'ArrowRight' }, pal), { key: 'rough', value: 0.95 }, 'Tab chose rough, → one step');
+  assert.equal(v.key({ key: 'w' }, pal), null, 'other keys are the page’s');
+  assert.deepEqual(v.mouse(x0 + 3, 3, { press: true }, pal), { current: 2 }, 'a click on a material');
+  assert.equal(v.mouse(x0 + lines.get(0).length - 2, 0, { press: true }, pal), 'close');
+  assert.equal(v.mouse(x0 - 5, 3, { press: true }, pal), null, 'left of the panel: the picture (Ctrl+click paints)');
+  console.log('terminal palette: OK');
+}
