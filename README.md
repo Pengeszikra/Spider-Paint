@@ -140,7 +140,7 @@ mouse reporting (iTerm2, WezTerm, kitty, Ghostty, Windows Terminal, VS Code; not
 
 ## Project boundaries and deployments
 
-- **spider-paint** (`Pengeszikra/spider-paint`) is deployed to Cloud Run only, at `spider-paint.run.app`, and has the `spider-paint` npm package. There is no spider-paint Vercel deployment.
+- **spider-paint** (`Pengeszikra/spider-paint`) is deployed to Cloud Run (`.github/workflows/cloud-run-deploy.yml`) and has the `spider-paint` npm package. The Vercel project (`spider-paint.vercel.app`) gets no new versions for now: `vercel.json` has `"git": { "deploymentEnabled": false }`, so pushes no longer deploy there (every deployment kept ~50 MB in Vercel's Deployment Storage); the last deployment stays online until it is removed. Delete that line to deploy there again.
 - **3Draft** (`Pengeszikra/3Draft`) is the separate 3D engine repository and npm module.
 
 The product name is always lowercase **spider-paint**. The app header can retain **3Draft** as a quiet engine attribution.

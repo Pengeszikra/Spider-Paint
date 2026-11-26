@@ -1,5 +1,13 @@
 {
-  "rewrites": [{ "source": "/mcp", "destination": "/api/mcp" }],
+  "git": {
+    "deploymentEnabled": false
+  },
+  "rewrites": [
+    {
+      "source": "/mcp",
+      "destination": "/api/mcp"
+    }
+  ],
   "functions": {
     "api/mcp.mjs": {
       "includeFiles": "{index.html,package.json,src/**,engine/**,models/index.json,models/*.build.json}"
