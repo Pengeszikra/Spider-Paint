@@ -17,7 +17,7 @@ assert.equal(text.split('\n').length, 20, 'one line a row of cells');
 assert.match(text, /\x1b\[[0-9;]*38;2;\d+;\d+;\d+/, '24-bit colour');
 assert.match(text, /▀/);
 assert.ok(toAnsi({ width: 2, height: 2, rgb: new Uint8Array(12), set: new Uint8Array(4) }).includes('  '), 'empty cells are spaces');
-const cli = spawnSync(process.execPath, ['bin/spider-term.mjs', 'bridge', '--once', '--cols', '60', '--rows', '16'], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });
+const cli = spawnSync(process.execPath, ['bin/spider-term.mjs', 'globe', '--once', '--cols', '60', '--rows', '16'], { cwd: new URL('..', import.meta.url), encoding: 'utf8' });
 assert.equal(cli.status, 0, cli.stderr);
 assert.equal(cli.stdout.trimEnd().split('\n').length, 16);
 // a sky (deepsky: 5000 instances light years apart) is drawn as points from the start eye, quickly and without meshes

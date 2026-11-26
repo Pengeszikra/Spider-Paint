@@ -39,10 +39,10 @@ const turn = await call('export_svg', { from, animate: { frames: 12, seconds: 3 
 assert.equal(turn.structuredContent.frames, 12);
 assert.equal(turn.structuredContent.loop, true);
 assert.equal((turn.content[1].text.match(/<animate /g) || []).length, 12);
-const part = await call('export_svg', { story: 'story:spider-build-example', animate: { from: 1000, to: 5000, frames: 9 } });
+const part = await call('export_svg', { story: 'story:lark-4', animate: { from: 1000, to: 5000, frames: 9 } });
 assert.deepEqual([part.structuredContent.kind, part.structuredContent.from, part.structuredContent.to, part.structuredContent.loop, part.structuredContent.seconds], ['story', 1000, 5000, false, 4]);
 assert.match(part.content[1].text, /fill="freeze"/);
-assert.equal((await call('export_svg', { from, story: 'story:spider-build-example' })).isError, true, 'one source');
+assert.equal((await call('export_svg', { from, story: 'story:lark-4' })).isError, true, 'one source');
 assert.equal((await call('export_svg', { from, animate: { kind: 'story' } })).isError, true, 'a story motion needs a story');
 assert.equal((await call('export_svg', { from: 'https://x' })).isError, true);
 
