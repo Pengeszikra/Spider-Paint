@@ -158,7 +158,7 @@ export const headlessDriver = async ({ root, ss = 2, quiet = true } = {}) => {
           }
         }
         const o = (y * w + x) * 3;
-        if (n) ((rgb[o] = r / n), (rgb[o + 1] = g / n), (rgb[o + 2] = b / n));
+        if (n) ((rgb[o] = Math.min(255, r / n)), (rgb[o + 1] = Math.min(255, g / n)), (rgb[o + 2] = Math.min(255, b / n)));
       }
     buf.unmap();
     buf.destroy();
