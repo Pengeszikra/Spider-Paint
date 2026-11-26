@@ -479,7 +479,7 @@ const SH_RW = new Set('if then else elif fi for while until do done case esac in
 export const lexShell = (src, out = []) => {
   for (const line of src.split(/(?<=\n)/)) {
     let first = true;
-    const re = /(#.*$)|("(?:[^"\\]|\\.)*"|'[^']*')|(\$\{[^}]*\}|\$\w+|\$[?#@*0-9])|(\s--?[\w-]+)|([|&;<>]+|&&|\|\|)|(\d+\b)|([\w./~@:+-]+)|(\s+)|(.)/gy;
+    const re = /(#.*)|("(?:[^"\\]|\\.)*"|'[^']*')|(\$\{[^}]*\}|\$\w+|\$[?#@*0-9])|(\s--?[\w-]+)|([|&;<>]+|&&|\|\|)|(\d+\b)|([\w./~@:+-]+)|(\s+)|(.)/gy;
     for (const m of line.matchAll(re)) {
       const [t, cm, st, vr, flag, op, nm, word] = m;
       if (word) {

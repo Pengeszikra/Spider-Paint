@@ -32,6 +32,7 @@ assert.ok(!has(js, '/ b', 'rx'), 'a division is not a regex');
 assert.ok(has(js, '// done', 'cm') && has(js, 'key', 'at'), 'comments, object keys');
 assert.ok(has(highlight('{"a": [1, true, null]}', 'json'), '"a"', 'at'), 'json keys');
 assert.ok(has(highlight('npm run term -- globe # go', 'sh'), 'npm', 'fn'), 'a shell command');
+assert.ok(has(highlight('npm i # first\nnpm start', 'sh'), '# first', 'cm'), 'a shell comment that is not on the last line');
 assert.ok(has(highlight('fn main() { let x = 1; }', 'rust'), 'fn', 'rw'), 'rust words');
 assert.deepEqual(highlight('plain', 'nolang'), [['plain', '']], 'unknown: plain');
 assert.equal(styled(highlight('a', 'js')), 'a');
