@@ -102,4 +102,14 @@ assert.ok(toAnsi('| a | b |\n|---|---|\n| ' + 'x'.repeat(60) + ' | y |', { width
   const md = toAnsi('Look: ![pic](a.png) there', { width: 40, image: (src, alt, cols) => (src === 'a.png' ? ['[PIC]'] : null) });
   assert.deepEqual(md.map((l) => l.replace(/\x1b\[[0-9;]*m/g, '')), ['Look: ', '[PIC]', 'pic', 'there'].map((t) => t.trimEnd()), 'the picture on its own lines, its alt as the caption');
 }
+{
+  // the help as one web page (scripts/docs-page.mjs, the Tüskék és Gyökerek docs page): every anchor link lands
+  const { docsParts } = await import('../scripts/docs-page.mjs');
+  const { nav, body } = await docsParts();
+  const ids = new Set([...body.matchAll(/ id="([^"]+)"/g)].map((m) => m[1]));
+  const hrefs = [...(nav + body).matchAll(/href="#([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(hrefs.length > 20, 'the side menu and the cross links');
+  assert.deepEqual(hrefs.filter((h) => !ids.has(h)), [], 'no anchor without its heading');
+  assert.ok(!/href="[a-z]+\.md/.test(body), 'no .md links left');
+}
 console.log('markdown and code colours: OK');
