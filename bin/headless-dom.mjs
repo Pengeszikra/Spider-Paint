@@ -993,7 +993,31 @@ export const installDom = ({ html, url, readFile, width = 1280, height = 720, la
   set('ResizeObserver', Obs);
   set('IntersectionObserver', Obs);
   set('MutationObserver', Obs);
-  set('getComputedStyle', (el) => new Proxy({ getPropertyValue: (k) => el?.style?.[k] ?? '' }, { get: (t, k) => (k in t ? t[k] : el?.style?.[k] ?? '') }));
+  // the page's custom properties (--panel, --cursor …) from its :root rules outside @media, later ones winning; every element
+  // inherits them (the page reads its colours this way: the GPU's ground, the cursor's colour)
+  const rootVars = {};
+  {
+    const css = doc.querySelectorAll('style').map((st) => st.textContent).join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
+    let depth = 0, sel = '', start = 0, inMedia = 0;
+    for (let i = 0; i < css.length; i++) {
+      const c = css[i];
+      if (c === '{') {
+        const head = css.slice(start, i).trim();
+        if (head.startsWith('@')) inMedia = depth + 1;
+        else sel = head;
+        depth++;
+        start = i + 1;
+      } else if (c === '}') {
+        if (!inMedia && depth === 1 && /^(?::root)+$|^html$/.test(sel)) for (const [, k, v] of css.slice(start, i).matchAll(/(--[\w-]+)\s*:\s*([^;]+)/g)) rootVars[k] = v.trim();
+        depth--;
+        if (inMedia && depth < inMedia) inMedia = 0;
+        start = i + 1;
+        sel = '';
+      } else if (c === ';' && depth === 0) start = i + 1;
+    }
+  }
+  const prop = (el, k) => (String(k).startsWith('--') ? el?.style?.[k] ?? rootVars[k] ?? '' : el?.style?.[k] ?? '');
+  set('getComputedStyle', (el) => new Proxy({ getPropertyValue: (k) => prop(el, k) }, { get: (t, k) => (k in t ? t[k] : prop(el, k)) }));
   set('addEventListener', (type, fn, opts) => {
     if (!fn) return;
     const l = winListeners.get(type) ?? [];
