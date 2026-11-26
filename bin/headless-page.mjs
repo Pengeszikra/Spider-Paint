@@ -8,6 +8,8 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { installDom } from './headless-dom.mjs';
 
+const GROUND = [18, 18, 16]; // the stage's colour behind the canvas (what the Chrome view's screenshots show)
+
 export const headlessDriver = async ({ root, ss = 2, quiet = true } = {}) => {
   const cell = { w: ss, h: ss * 2 }; // page pixels a cell (two pixels a cell high, as the half blocks are), ss times over
   let size = { cols: 80, rows: 22 };
@@ -147,10 +149,11 @@ export const headlessDriver = async ({ root, ss = 2, quiet = true } = {}) => {
           for (let i = 0; i < s; i++) {
             const xx = ox + x * s + i;
             if (xx < 0 || xx >= tw) continue;
-            const k = yy * bpr + xx * 4;
-            r += raw[k + (bgra ? 2 : 0)];
-            g += raw[k + 1];
-            b += raw[k + (bgra ? 0 : 2)];
+            // the canvas is premultiplied and see-through where nothing is drawn: over the stage's dark ground, as the page shows it
+            const k = yy * bpr + xx * 4, t = 1 - raw[k + 3] / 255;
+            r += raw[k + (bgra ? 2 : 0)] + GROUND[0] * t;
+            g += raw[k + 1] + GROUND[1] * t;
+            b += raw[k + (bgra ? 0 : 2)] + GROUND[2] * t;
             n++;
           }
         }
