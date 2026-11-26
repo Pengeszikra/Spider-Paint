@@ -15,25 +15,28 @@ export const headlessDriver = async ({ root, ss = 2, quiet = true } = {}) => {
   let size = { cols: 80, rows: 22 };
   const W = () => size.cols * cell.w, H = () => size.rows * cell.h;
   const html = await readFile(join(root, 'index.html'), 'utf8');
-  let gpuCanvas = null, cfg = null, tex = null;
-  const BIG = { x: 0, y: 0 };
+  // every canvas the page gives a WebGPU context (the 3D view #gpu; the sky layers #hole, #cloud, #glow): its frames go into a
+  // texture of the canvas's size that grab() copies back and stacks as the page's CSS does
+  const layers = new Map(); // canvas -> { cfg, tex }
+  let gpuCanvas = null;
   try {
     if (globalThis.navigator?.gpu) navigator.gpu.getPreferredCanvasFormat ??= () => 'rgba8unorm';
   } catch {}
-  // the canvas's WebGPU context: frames go into a texture of the canvas's size that grab() copies back
   globalThis.__webgpuContext = (canvas) => {
-    gpuCanvas = canvas;
+    const L = { cfg: null, tex: null };
+    layers.set(canvas, L);
+    if (canvas.id === 'gpu' || !gpuCanvas) gpuCanvas = canvas.id === 'gpu' ? canvas : gpuCanvas;
     return {
       canvas,
-      configure: (c) => void (cfg = c),
-      unconfigure: () => void (cfg = null),
+      configure: (c) => void (L.cfg = c),
+      unconfigure: () => void (L.cfg = null),
       getCurrentTexture: () => {
         const w = Math.max(1, canvas.width), h = Math.max(1, canvas.height);
-        if (!tex || tex.width !== w || tex.height !== h) {
-          tex?.destroy?.();
-          tex = cfg.device.createTexture({ size: [w, h], format: cfg.format, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC | GPUTextureUsage.TEXTURE_BINDING });
+        if (!L.tex || L.tex.width !== w || L.tex.height !== h) {
+          L.tex?.destroy?.();
+          L.tex = L.cfg.device.createTexture({ size: [w, h], format: L.cfg.format, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC | GPUTextureUsage.TEXTURE_BINDING });
         }
-        return tex;
+        return L.tex;
       },
     };
   };
@@ -49,7 +52,7 @@ export const headlessDriver = async ({ root, ss = 2, quiet = true } = {}) => {
       readFile: (p) => readFile(join(root, p)),
       width: W(),
       height: H(),
-      layout: (el) => (['stage', 'frame', 'layer', 'screens'].includes(el.id) || el.localName === 'body' || el.localName === 'html' ? { ...BIG, width: W(), height: H() } : el === gpuCanvas || el.localName === 'canvas' ? { x: (W() - el.width) / 2, y: (H() - el.height) / 2, width: el.width, height: el.height } : { x: 0, y: 0, width: 0, height: 0 }),
+      layout: (el) => (['stage', 'frame', 'layer', 'screens'].includes(el.id) || el.localName === 'body' || el.localName === 'html' ? { x: 0, y: 0, width: W(), height: H() } : el === gpuCanvas || el.localName === 'canvas' ? { x: (W() - el.width) / 2, y: (H() - el.height) / 2, width: el.width, height: el.height } : { x: 0, y: 0, width: 0, height: 0 }),
     });
     globalThis.__elementAt = () => document.getElementById('stage');
     // the page's module, its ./ imports made absolute (to this checkout), from a temporary file; started once
@@ -122,12 +125,11 @@ export const headlessDriver = async ({ root, ss = 2, quiet = true } = {}) => {
     return {};
   };
 
-  // ---- the picture: the canvas's last frame, its visible middle (the canvas is a square as wide as the page's long side),
-  // averaged ss × ss down to one pixel a cell edge
-  const grab = async (cols, rows) => {
-    // no WebGPU (node: the page draws its SVG view, which is not shown here): a dark picture, the panels still work
-    if (!tex || !cfg) return { width: cols, height: rows * 2, rgb: new Uint8Array(cols * rows * 2 * 3).fill(18), set: new Uint8Array(cols * rows * 2).fill(1) };
-    const device = cfg.device;
+  // ---- the picture: the canvases' last frames stacked as the page does (a story's sky under the 3D view, else over it; the
+  // cloud screen-blended, the rest premultiplied over), over the stage's ground; each canvas is a square as wide as the page's
+  // long side, centred; the visible middle is averaged ss × ss down to one pixel a cell edge
+  const readLayer = async (L) => {
+    const device = L.cfg.device, tex = L.tex;
     const tw = tex.width, th = tex.height;
     const bpr = Math.ceil((tw * 4) / 256) * 256;
     const buf = device.createBuffer({ size: bpr * th, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
@@ -135,33 +137,70 @@ export const headlessDriver = async ({ root, ss = 2, quiet = true } = {}) => {
     enc.copyTextureToBuffer({ texture: tex }, { buffer: buf, bytesPerRow: bpr }, [tw, th]);
     device.queue.submit([enc.finish()]);
     await buf.mapAsync(GPUMapMode.READ);
-    const raw = new Uint8Array(buf.getMappedRange());
-    const bgra = String(cfg.format).startsWith('bgra');
+    const raw = new Uint8Array(buf.getMappedRange()).slice();
+    buf.unmap();
+    buf.destroy();
+    return { raw, tw, th, bpr, bgra: String(L.cfg.format).startsWith('bgra'), opaque: L.cfg.alphaMode === 'opaque' };
+  };
+  const grab = async (cols, rows) => {
+    const main = layers.get(gpuCanvas);
+    // no WebGPU (node: the page draws its SVG view, which is not shown here): a dark picture, the panels still work
+    if (!main?.tex || !main.cfg) return { width: cols, height: rows * 2, rgb: new Uint8Array(cols * rows * 2 * 3).fill(18), set: new Uint8Array(cols * rows * 2).fill(1) };
+    const shown = (id) => {
+      const el = document.getElementById(id);
+      const L = el && layers.get(el);
+      return el && !el.hidden && L?.tex && L.cfg ? L : null;
+    };
+    const sky = ['hole', 'cloud', 'glow'].map((id) => [id, shown(id)]).filter(([, L]) => L);
+    const storySky = document.getElementById('frame')?.classList.contains('story-sky');
+    const order = storySky ? [...sky, ['gpu', main]] : [['gpu', main], ...sky];
+    const read = await Promise.all(order.map(async ([id, L]) => ({ id, ...(await readLayer(L)) })));
     const w = cols, h = rows * 2, s = cell.w;
-    const ox = Math.floor((tw - w * s) / 2), oy = Math.floor((th - h * s) / 2);
+    const side = main.tex.width; // the square's side in the 3D view's pixels: the other layers are scaled to it
+    const ox = (side - w * s) / 2, oy = (side - h * s) / 2;
     const rgb = new Uint8Array(w * h * 3);
+    const px = [0, 0, 0];
     for (let y = 0; y < h; y++)
       for (let x = 0; x < w; x++) {
         let r = 0, g = 0, b = 0, n = 0;
-        for (let j = 0; j < s; j++) {
-          const yy = oy + y * s + j;
-          if (yy < 0 || yy >= th) continue;
+        for (let j = 0; j < s; j++)
           for (let i = 0; i < s; i++) {
-            const xx = ox + x * s + i;
-            if (xx < 0 || xx >= tw) continue;
-            // the canvas is premultiplied and see-through where nothing is drawn: over the stage's dark ground, as the page shows it
-            const k = yy * bpr + xx * 4, t = 1 - raw[k + 3] / 255;
-            r += raw[k + (bgra ? 2 : 0)] + GROUND[0] * t;
-            g += raw[k + 1] + GROUND[1] * t;
-            b += raw[k + (bgra ? 0 : 2)] + GROUND[2] * t;
+            const sx = (ox + x * s + i + 0.5) / side, sy = (oy + y * s + j + 0.5) / side; // 0..1 across the square
+            if (sx < 0 || sy < 0 || sx >= 1 || sy >= 1) {
+              r += GROUND[0];
+              g += GROUND[1];
+              b += GROUND[2];
+              n++;
+              continue;
+            }
+            px[0] = GROUND[0];
+            px[1] = GROUND[1];
+            px[2] = GROUND[2];
+            for (const Lr of read) {
+              const k = Math.floor(sy * Lr.th) * Lr.bpr + Math.floor(sx * Lr.tw) * 4;
+              const cr = Lr.raw[k + (Lr.bgra ? 2 : 0)], cg = Lr.raw[k + 1], cb = Lr.raw[k + (Lr.bgra ? 0 : 2)];
+              if (Lr.id === 'cloud') {
+                // mix-blend-mode: screen
+                px[0] = 255 - ((255 - px[0]) * (255 - cr)) / 255;
+                px[1] = 255 - ((255 - px[1]) * (255 - cg)) / 255;
+                px[2] = 255 - ((255 - px[2]) * (255 - cb)) / 255;
+              } else {
+                const t = Lr.opaque ? 0 : 1 - Lr.raw[k + 3] / 255; // premultiplied over
+                px[0] = cr + px[0] * t;
+                px[1] = cg + px[1] * t;
+                px[2] = cb + px[2] * t;
+              }
+            }
+            r += px[0];
+            g += px[1];
+            b += px[2];
             n++;
           }
-        }
         const o = (y * w + x) * 3;
-        if (n) ((rgb[o] = Math.min(255, r / n)), (rgb[o + 1] = Math.min(255, g / n)), (rgb[o + 2] = Math.min(255, b / n)));
+        rgb[o] = Math.min(255, r / n);
+        rgb[o + 1] = Math.min(255, g / n);
+        rgb[o + 2] = Math.min(255, b / n);
       }
-    buf.unmap();
-    buf.destroy();
     return { width: w, height: h, rgb, set: new Uint8Array(w * h).fill(1) };
   };
 
