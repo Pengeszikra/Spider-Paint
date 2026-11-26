@@ -20,6 +20,7 @@ Enter opens the find box (in the edit mode, where Enter builds, cuts or turns: *
 | `/mat name` | choose the material (a list with the colours) |
 | `/add prism · box · cylinder · cone · pyramid · sphere` | a shape of the chosen material floats at the cross: a click sticks it, Enter keeps it (M then puts down more) |
 | `/char [random · panel]` | put a character down (a random one, or the one the Characters panel shows) |
+| `/text [words]` | put words down: on the face under the cross, or in front of the camera (Y); without words the text box opens |
 | `/bool union · subtract · subtract-swap · intersect` | the boolean of the two selected objects (B) |
 | `/go name` or `/go x y z` | target an object, or fly to a point |
 | `/vehicle starship · car · none` | how the camera moves |

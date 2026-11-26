@@ -8177,6 +8177,46 @@
       }
       redraw();
     };
+    // Y (and /text) outside edit mode: text where you look. Over a face the first letter starts at the cross, on that face
+    // and in its direction (the side you see); over empty space the text stands in front of the camera, facing it, a
+    // standard distance along the cursor's ray. The letters are TEXT_PX screen pixels high where they are made (whatever
+    // the zoom or the scene's size). The same text model as T in edit mode (a double click fixes the words).
+    const TEXT_PX = 28;
+    const textFrameHere = () => {
+      if (!cam) return null;
+      const cr = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+      const unit = (a) => { const l = Math.hypot(...a) || 1; return a.map((c) => c / l); };
+      const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+      const at = cam.at ?? { x: innerWidth / 2, y: innerHeight / 2 };
+      const { origin, dir } = ray(cam, at.x, at.y);
+      // the angle TEXT_PX pixels make on screen there: the letter height is that angle times the distance
+      const px = Math.acos(Math.min(1, dot(dir, ray(cam, at.x, at.y - TEXT_PX).dir)));
+      if (hit && scene.faces?.[hit.face] && !aim) {
+        const ff = faceFrame(scene, hit.face);
+        const back = dot(ff.normal, dir) > 0; // (seen from behind: the text goes on the side you see)
+        const normal = back ? ff.normal.map((c) => -c) : ff.normal;
+        const dist = Math.hypot(...hit.point.map((c, i) => c - origin[i]));
+        // a floor or a ceiling: the letters stand up away from you (the view's direction laid on the face), so they read
+        const along = dir.map((c, i) => c - normal[i] * dot(dir, normal));
+        const up = Math.abs(normal[1]) > 0.9 && Math.hypot(...along) > 1e-3 ? unit(along) : ff.up;
+        return { origin: [...hit.point], right: unit(cr(up, normal)), up, normal, height: Math.max(1e-4, px * dist) };
+      }
+      const d = orbitDist(fit.radius) * 0.5;
+      const normal = dir.map((c) => -c); // facing the eye
+      let up = cam.u.map((c, i) => c - normal[i] * dot(cam.u, normal));
+      up = unit(Math.hypot(...up) < 1e-6 ? [0, 1, 0] : up);
+      return { origin: origin.map((c, i) => c + dir[i] * d), right: unit(cr(up, normal)), up, normal, height: Math.max(1e-4, px * d) };
+    };
+    const startTextHere = (words = '') => {
+      if (editing) return startText();
+      const frame = textFrameHere();
+      if (!frame) return;
+      if (words.trim()) {
+        askText({ frame, text: words });
+        return putText();
+      }
+      askText({ frame, text: '' });
+    };
     textBox.addEventListener('keydown', (e) => {
       e.stopPropagation(); // typing words is not a command
       if (e.key === 'Enter') putText();
@@ -8999,6 +9039,9 @@
       } else if (e.key === 'm' || e.key === 'M') {
         e.preventDefault();
         if (!e.repeat) place();
+      } else if ((e.key === 'y' || e.key === 'Y') && !editing && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        if (!e.repeat) startTextHere();
       } else if (boolPair && /^[1-5]$/.test(e.key)) {
         e.preventDefault();
         if (e.key === '5') closeBool(), redraw();
@@ -9299,6 +9342,7 @@
       l: { cap: 'L', sub: 'light', cat: 'teal', text: 'Light on / off. Off: no light in the scene at all, only emitting surfaces and the edge lines show.', edit: 'Loop: a selected line (2) takes the lines of its loop, a selected face (3) the faces of its loop (L again: the other way round). The light switch stays on its button.' },
       enter: { cap: 'Enter', sub: 'find', cat: 'teal', w: 2.2, title: 'Enter', text: 'Find: a box in the middle of the screen, type a name, Enter targets it. / starts a command: /l (load) searches the scene list.', edit: 'Saw: cuts along the marked plane. Shift+Enter: the find / command box in the edit mode too.' },
       shift: { cap: 'Shift', sub: 'paint', cat: 'slate', w: 2.4, title: 'Shift', text: 'Shift+Tab: previous target. Painting is Ctrl+click (Cmd on a Mac).', edit: 'Shift+click adds to the selection or takes from it. Shift+W A S D R F fly (plain, they are edit keys).', run: false },
+      y: { cap: 'Y', sub: 'text', cat: 'red', text: 'Text: type words, Enter puts them down: on the face under the cross (the first letter at the cross), or in front of the camera over empty space.', edit: 'T makes text in edit mode (on the selected face).' },
       z: { cap: 'Z', sub: 'zen', cat: 'slate', text: 'Zen: hide everything but the model. Z or Esc brings the panels back.' },
       x: { cap: 'X', sub: 'del', cat: 'red', text: 'Shift+X deletes the object under the cross, in every mode (U brings it back). Alone, during G / S / R, X locks the axis to x.', edit: 'Shift+X deletes the selected points, lines or faces (a point takes its faces, a line the faces on it); with nothing selected, the object under the cross. During G / S: locks the axis to x.' },
       c: { cap: 'C', sub: 'glow', cat: 'teal', text: 'Glow: emitting materials light their surroundings as local lights (no shadows). With the light off, only they light the scene.' },
@@ -10423,6 +10467,11 @@
           if (!make) throw new Error('prism, box, cylinder, cone, pyramid or sphere');
           placeBrush({ name: a, mesh: make({ color: mat()?.color ?? '#c8c8c8', mat: mat()?.name }) });
           return `${a}: a click sticks it to a surface, Enter keeps it, Esc takes it back (M puts down more)`;
+        } },
+        { names: ['text'], hint: 'put words down: on the face under the cross, or in front of the camera (Y)', free: true, bare: 'type them in the text box', run: (a) => {
+          const words = (a ?? '').trim();
+          startTextHere(words);
+          return words ? `text: “${words}”` : '';
         } },
         { names: ['char', 'character'], hint: 'put a character down: random, or the one the panel shows', choices: () => [{ label: 'random', value: 'random', cat: 'a new one' }, { label: 'panel', value: 'panel', cat: 'the one set in the panel' }], bare: 'a random one', run: async (a) => {
           if (!charControls.children.length) {

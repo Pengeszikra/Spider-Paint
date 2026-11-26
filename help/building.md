@@ -12,6 +12,7 @@
 | bool button | **Boolean:** select two objects (B; the first taken is A, orange, the second B, green), press **bool** in the SYS group, then choose 1 union, 2 A−B, 3 B−A, 4 intersect, 5 cancel |
 | H | Move gizmo: world axes, its own axes, off |
 | J | Pose mode on the figure under the cross or the target (see Pose mode) |
+| Y | Text: on the face under the cross, or in front of the camera (see **Text** below) |
 | P | The material palette |
 | I | Pick the material under the cross |
 | Ctrl+click (Cmd on a Mac) | Paint the face under the cross; Ctrl+double click paints the whole object |
@@ -51,6 +52,8 @@ A placed character can be **posed** like any figure: put the cross on it (or tar
 A placed character is a **group of instances**: one object per module (body, head, face, hair, top, bottom, shoes, extra), grouped under the character's name, each an instance of the library's prototype. So a crowd shares a few meshes. It moves with **G**, turns with **R** and sizes with **S** as one, and stays made of instances (a save writes the prototypes once and a short record per module); an edit of its mesh, or a tilt off upright, makes that part an ordinary object.
 
 ## Text
+**Y** (or the command **/text words**) puts text down without edit mode: over a face the first letter starts at the cross, on that face (on a floor the letters stand up away from you, so they read); over empty space the text stands in front of the camera, facing it. Type the words in the box and press Enter (with **/text words** they go down at once). The letters are about 28 screen pixels high where they are made, so zoom in for small writing.
+
 In edit mode, select a face (3) and press **T**: type the words and press Enter. The text becomes a **new model**, standing out of that face in the **active material**. The face sets where the first letter starts (its lower left corner), the reading direction and the letter height; the text runs on to the right, so a long text goes past the face. The font is a minimalist blocky stroke font (A–Z, 0–9, `. , : ! ? - _ + / '` and the Hungarian accents); lower case is drawn as upper case. The stroke, and the depth the letters stand out, is 20 % of the letter height.
 
 The model keeps its words (a `text` attribute, saved in the scene file with the frame it stands in), so to fix them: edit the text model (Q on it) and press **T** again.
