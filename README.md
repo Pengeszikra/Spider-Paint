@@ -101,6 +101,8 @@ beside the file or `https://…`) are drawn the way the 3D view is: half blocks,
 
 ### In Vim / Neovim
 
+New to Vim or to spider-paint? [VIM-PLUGIN.md](VIM-PLUGIN.md) walks through it step by step on Ubuntu.
+
 The checkout is a Vim plugin too (`vim/plugin/spider-paint.vim`):
 
 ```vim
